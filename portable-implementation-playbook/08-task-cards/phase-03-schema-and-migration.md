@@ -1,0 +1,235 @@
+> **Purpose:** Task cards S-01..S-09 (schema and migration foundation) (original Section H, phase P3).
+> **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
+> **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
+> **Used by:** The local coding agent executing phase P3.
+> **Safe to transfer:** yes
+> **Contains local code names:** no
+
+## H-Phase 3 — Schema and migration (P3)
+
+### S-01 — Schema gap plan (freeze)
+
+- **Task ID:** S-01
+- **Title:** Freeze the migration plan: ordered migration list from the D-02 gap inventory + CA-4 spec
+- **Classification:** MVP normative implementation
+- **Purpose:** one ordered, expand/contract-safe migration sequence before any DDL is written.
+- **Prerequisites:** B-01 answered; CA-4 published; D-02 done.
+- **Requirement sections / concepts to read:** §16.5 (expand/contract), CA-4, D-02 gap inventory (local).
+- **Placeholder components involved:** [DB Migration Directory].
+- **Local placeholder mappings required before starting:** [DB Migration Directory] Confirmed.
+- **Local code areas to discover:** migration numbering/naming convention.
+- **How to locate:** F.17 findings.
+- **Implementation instructions:** write the ordered migration list (numbers reserved, one concern per migration): obligation columns → request columns → inbox table → UNIQUEs/I6 → CHECKs (NOVALIDATE) → triggers → indexes → backfill → VALIDATE. Each entry: DDL summary, rollback note, dual-run compatibility note (old app version must still run — §16.5).
+- **Do not change:** any existing migration file.
+- **Tests to add:** none (plan task).
+- **Edge cases:** columns that exist with wrong type/semantics (from D-02) get their own expand/contract sub-sequence (add new column → dual-write → migrate readers → drop later, drop deferred to post-rollout).
+- **Manual validation:** plan reviewed by the human owner + DBA.
+- **Expected outcome:** frozen migration plan.
+- **Failure signs:** one mega-migration; destructive ALTERs on live columns.
+- **Common mistakes:** planning VALIDATE before backfill.
+- **Completion criteria:** plan recorded locally next to the mapping doc.
+- **Stop condition:** plan approved.
+- **Next task:** S-02.
+
+### S-02 — Obligation table migrations
+
+- **Task ID:** S-02
+- **Title:** Add/align payment_obligation columns per §2.1
+- **Classification:** MVP normative implementation
+- **Purpose:** land the §2.1 fields: amounts, overpay_blocked, next_request_seq, upstream_ordering, correlation_id, ordering-tagged markers (validation_failed_at/_ordering, provider_rejected_at/code/_ordering), provider_reject_count, validation_reject_count, validation_failed_first_at, reopened_at, read-model fields (ui_step_status, active_exception_*, ops_annotation, ui_process_instance_id, ui_step_instance_id) — all additive, nullable-with-default first.
+- **Prerequisites:** S-01; B-01 (scope key final).
+- **Requirement sections / concepts to read:** §2.1 (whole), §16.5.
+- **Placeholder components involved:** [DB Migration Directory], [Obligation Repository] (entity mapping only).
+- **Local placeholder mappings required before starting:** [DB Migration Directory], [Obligation Repository].
+- **Local code areas to discover:** obligation entity/table DDL.
+- **How to locate:** D-02/D-03 findings.
+- **Implementation instructions:** one migration (or few, per S-01 plan): add each missing §2.1 column nullable/defaulted; scope-key UNIQUE constraint per B-01 decision (NOVALIDATE if legacy rows could violate — investigate first); CHECK amounts >= 0 (NOVALIDATE→validate per plan); index on business_id (card lookup, §2.1/§12). Update the entity mapping additively; no behavior changes in this task.
+- **Do not change:** existing column semantics; required_amount writers (later tasks).
+- **Tests to add:** migration applies on clean schema and on a prod-shaped copy; entity round-trip persists new columns.
+- **Edge cases:** duplicate scopes already in data (would break the UNIQUE) → STOP, report — this is data reconciliation for the human owner, not an agent decision.
+- **Manual validation:** describe-table output matches CA-4 for §2.1.
+- **Expected outcome:** obligation table at target shape (constraints may still be NOVALIDATE).
+- **Failure signs:** ORA errors during apply on prod-shaped copy; entity mapping drift breaking existing tests (D-11 baseline).
+- **Common mistakes:** NOT NULL on new columns with existing rows; renaming existing columns (never — add + migrate).
+- **Completion criteria:** migration merged; D-11 baseline still green.
+- **Stop condition:** applied + green.
+- **Next task:** S-03.
+
+### S-03 — Request table migrations
+
+- **Task ID:** S-03
+- **Title:** Add/align payment_request columns per §2.2 (dimensions + supporting fields)
+- **Classification:** MVP normative implementation
+- **Purpose:** land stage, stage_state, submission_state, outcome, blocked_reason, amount, idempotency_key/end_to_end_id, uetr, version, claim fields, retry fields, next_query_at, created_at, state_changed_at, creating_ordering, provider_reference, last_sent_hash, divergence_expected, divergent_payload_at, maybe_since, escalated_at, submitted_at, last_post_attempt_at — additive, nullable first.
+- **Prerequisites:** S-02.
+- **Requirement sections / concepts to read:** §2.2 (whole, incl. timestamp discipline), §16.5.
+- **Placeholder components involved:** [DB Migration Directory], [Request Status Persistence Layer] (entity only).
+- **Local placeholder mappings required before starting:** both above.
+- **Local code areas to discover:** request entity/table DDL.
+- **How to locate:** D-02/D-04.
+- **Implementation instructions:** per S-01 plan; every new column nullable (backfill in S-08 populates dimensions for legacy rows); NO CHECKs yet (S-05); entity mapping additive.
+- **Do not change:** the legacy status column (it remains until P14 contract phase; §10.4 keeps it as display only).
+- **Tests to add:** migration apply tests; entity round-trip.
+- **Edge cases:** amount column exists with different scale/precision → expand/contract sub-sequence per S-01; created_at may exist under another name — map, don't duplicate blindly (record choice).
+- **Manual validation:** describe-table matches CA-4 for §2.2.
+- **Expected outcome:** request table at target column shape.
+- **Failure signs:** baseline tests broken by mapping changes.
+- **Common mistakes:** making dimension columns NOT NULL before backfill.
+- **Completion criteria:** migration merged; baseline green.
+- **Stop condition:** applied + green.
+- **Next task:** S-04.
+
+### S-04 — Inbox table + purge
+
+- **Task ID:** S-04
+- **Title:** Create processed_inbound_event per §2.3 + purge job skeleton
+- **Classification:** MVP normative implementation
+- **Purpose:** cheap dedup of identical feed redeliveries; purge with retention > max replay window.
+- **Prerequisites:** S-01.
+- **Requirement sections / concepts to read:** §2.3 (exact DDL is given in the spec), §16.2 (retention chain).
+- **Placeholder components involved:** [DB Migration Directory], [Inbox / Processed Event Repository].
+- **Local placeholder mappings required before starting:** [DB Migration Directory]; F.8 status.
+- **Local code areas to discover:** any existing dedup store (F.8).
+- **How to locate:** F.8.
+- **Implementation instructions:** if MISSING: create the table exactly per §2.3 (PK (source, event_id); processed_at TIMESTAMP(6) DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL); add a scheduled purge job skeleton (delete older than configured retention; config entry per §16.6, owner per §16.2); if PARTIAL: expand/contract to the §2.3 shape.
+- **Do not change:** existing dedup layers until IN-05 consolidates consumption order.
+- **Tests to add:** duplicate-key insert returns cleanly; purge deletes only beyond retention.
+- **Edge cases:** deliberately NO parked-event table alongside (§2.3 — SPEC_CONFLICT if anything asks for one).
+- **Manual validation:** table exists; purge dry-run deletes expected rows on seeded data.
+- **Expected outcome:** inbox ready for IN-05.
+- **Failure signs:** purge retention < Kafka topic retention (violates the §16.2 chain).
+- **Common mistakes:** making event_id globally unique instead of per (source, event_id).
+- **Completion criteria:** merged + green.
+- **Stop condition:** applied.
+- **Next task:** S-05.
+
+### S-05 — Constraints: CHECKs, UNIQUEs, I6
+
+- **Task ID:** S-05
+- **Title:** Add enum CHECKs, L-shape CHECKs (L1-shape, L2–L8), UNIQUE(idempotency_key), UNIQUE(uetr), I6 function-based unique index
+- **Classification:** MVP normative implementation
+- **Purpose:** make illegal states unrepresentable at the DB — the backstop for every invariant the code enforces (§2.2, §10.3).
+- **Prerequisites:** S-03; S-08 backfill DONE for any constraint that legacy rows could violate (apply NOVALIDATE first otherwise, per S-01 plan).
+- **Requirement sections / concepts to read:** §10.3 (matrix, incl. what a CHECK can/cannot see), §2.2 constraints block, CA-4.
+- **Placeholder components involved:** [DB Migration Directory].
+- **Local placeholder mappings required before starting:** [DB Migration Directory]; real Oracle test lane (from D-11 — if H2-only, STOP: lane gap must be fixed first, record under S-09).
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** per CA-4: per-column enum CHECKs for the four dimensions + blocked_reason; L2 (CONFIRM ⇒ SUB >= MAYBE), L3 (SUB >= MAYBE ⇒ stage >= POST), L4 (EXECUTED ⇒ SUBMITTED), L5 (CONFIRM ⇒ stage_state IN (READY, BLOCKED)), L6 (CLAIMED ⇔ claim fields set), L7 (RETRY_WAIT ⇒ next_retry_at), L8 (BLOCKED ⇔ blocked_reason), L1-shape (outcome set ⇒ stage_state READY ∧ claim/retry/blocked fields NULL); UNIQUE(idempotency_key); UNIQUE(uetr) via NULL-ignoring index; I6 unique function index CASE WHEN outcome IS NULL THEN payment_obligation_id END. NOVALIDATE→VALIDATE sequencing per S-01.
+- **Do not change:** L9 (cross-table — code + drift scanner, NOT a CHECK; do not attempt).
+- **Tests to add:** one violation test per constraint (insert/update illegal row → ORA error); I6 test (second active request for same obligation rejected); uetr NULL-multiplicity test.
+- **Edge cases:** legality encodings must match the enum ordering assumptions ("SUB >= MAYBE" needs an explicit encoding — CA-4 defines it; test both sides of each boundary).
+- **Manual validation:** user_constraints/user_indexes listing matches CA-4.
+- **Expected outcome:** DB rejects every L2–L8/L1-shape violation.
+- **Failure signs:** VALIDATE fails on legacy rows (backfill incomplete — go back to S-08).
+- **Common mistakes:** implementing dimension comparisons with string inequality instead of the CA-4 encoding.
+- **Completion criteria:** all constraints VALIDATED (or explicitly staged NOVALIDATE with a dated follow-up); violation tests green on real Oracle.
+- **Stop condition:** merged + green.
+- **Next task:** S-06.
+
+### S-06 — Trigger backstops: L1 freeze + release guard
+
+- **Task ID:** S-06
+- **Title:** Create the L1-freeze trigger and the release-guard trigger with evidence session flag
+- **Classification:** MVP normative implementation
+- **Purpose:** §10.3: the FREEZE is a transition property no CHECK can see — an UPDATE trigger rejects any dimension change on a row whose outcome was already non-NULL; the release-guard trigger rejects a terminal-negative outcome write on a MAYBE/SUBMITTED row unless the session context carries the evidence flag (set by the authoritative-negative code path or the §9.3 procedure). Raw fat-finger SQL fails loudly.
+- **Prerequisites:** S-05; CA-4 (mechanics); D-02 (trigger privileges confirmed).
+- **Requirement sections / concepts to read:** §10.3 (backstop paragraphs), §10.1 (release guard), §9.3 (legitimate flag setters).
+- **Placeholder components involved:** [Stored Procedure / Trigger Area], [DB Migration Directory].
+- **Local placeholder mappings required before starting:** both; Oracle session-context facility confirmed (D-10/D-02 — else BLOCKED).
+- **Local code areas to discover:** how the app sets DB session state per transaction (connection pooling interaction — MUST_VERIFY_LOCALLY).
+- **How to locate:** data-source/session customizer config.
+- **Implementation instructions:** freeze trigger: BEFORE UPDATE, if :old.outcome IS NOT NULL and any dimension column changes → raise. Release-guard trigger: BEFORE UPDATE, if :new.outcome IN (terminal-negative set) and :old.submission_state IN (MAYBE_SUBMITTED, SUBMITTED) and evidence flag not set in session context → raise. Evidence-flag mechanics per CA-4: set by the authoritative-negative code path within the transaction, cleared with it; the §9.3 procedure is the single legitimate MANUAL setter. Pool-safety: the flag must be transaction-scoped or explicitly cleared — verify with the real pool.
+- **Do not change:** application transaction managers; other triggers.
+- **Tests to add:** on real Oracle: dimension update on terminal row → rejected; terminal-negative on MAYBE row without flag → rejected; same WITH flag (set the way the code path will) → accepted; flag does not leak across pooled connections (two-session test).
+- **Edge cases:** the outcome-setting transaction itself normalizes stage_state/claim fields (§10.2) — the freeze trigger must permit the outcome-setting UPDATE itself (fires on rows ALREADY terminal, i.e. :old.outcome NOT NULL).
+- **Manual validation:** manual SQL attempt in a dev session fails loudly (demonstrate once, record output locally).
+- **Expected outcome:** backstops live.
+- **Failure signs:** flag leakage across pooled connections (the two-session test exists for this).
+- **Common mistakes:** guarding only some terminal-negative values; comparing :new instead of :old submission_state.
+- **Completion criteria:** trigger tests green on real Oracle.
+- **Stop condition:** merged + green.
+- **Next task:** S-07.
+
+### S-07 — Active-row-bounded index set
+
+- **Task ID:** S-07
+- **Title:** Create one index per standing scan, ACTIVE-ROW-BOUNDED via the I6 function-index trick
+- **Classification:** MVP normative implementation
+- **Purpose:** §16.6-4: every scheduled scan's plan independent of terminal-row count — expressions NULL for terminal rows.
+- **Prerequisites:** S-05.
+- **Requirement sections / concepts to read:** §16.6 artifact 4 (index list), §9.5 (sweep order: cutoff first, then oldest maybe_since), §15 (scan scopes).
+- **Placeholder components involved:** [DB Migration Directory].
+- **Local placeholder mappings required before starting:** [DB Migration Directory].
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** per CA-4's normative list, one function-based index per scan, each keyed with CASE WHEN outcome IS NULL THEN <scan expression> END: resolver sweep (submission_state + next_query_at), retry scanner (stage_state + next_retry_at), escalation scanner (submission_state + maybe_since), BLOCKED queue (stage_state + state_changed_at), stuck-state (stage/stage_state + anchor), drift (obligation id over active rows), §5.2 created_at window (created_at — plain index acceptable: terminal rows are IN scope for that future query per §5.2 step 5; follow CA-4).
+- **Do not change:** existing indexes without plan analysis.
+- **Tests to add:** plan assertions (EXPLAIN) for each scanner's query using the index on a dataset seeded with many terminal rows.
+- **Edge cases:** Oracle needs the QUERY expression to match the INDEX expression exactly — scanner queries (later tasks) must be written against these expressions; record the exact expressions in the mapping doc for RC-04/RC-05/RC-08/OB-01 to reuse.
+- **Manual validation:** EXPLAIN output reviewed.
+- **Expected outcome:** scan plans bounded by active-row count.
+- **Failure signs:** full scans on the request table in any scanner plan.
+- **Common mistakes:** functionally-equivalent-but-textually-different expressions in queries (index unused).
+- **Completion criteria:** indexes merged; plan tests green.
+- **Stop condition:** merged.
+- **Next task:** S-08.
+
+### S-08 — Backfill factored dimensions for existing rows
+
+- **Task ID:** S-08
+- **Title:** Backfill stage/stage_state/submission_state/outcome (+ anchors where derivable) from the legacy status for existing rows
+- **Classification:** MVP normative implementation
+- **Purpose:** existing rows must satisfy the constraints before VALIDATE and behave correctly under new rules.
+- **Prerequisites:** S-03; D-04 (legacy status meanings memo).
+- **Requirement sections / concepts to read:** §10.4 (label ↔ tuple mapping — read it in REVERSE as the backfill map), §10.2 (outcome normalization shape), §2.2 anchors.
+- **Placeholder components involved:** [DB Migration Directory], [Request Status Persistence Layer].
+- **Local placeholder mappings required before starting:** legacy status value list with meanings (D-04) — if any legacy value has no confident tuple mapping, that value's rows are BLOCKED: report, do not guess.
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** write the legacy→tuple mapping table locally (reviewed by the human owner BEFORE running); backfill via idempotent migration or supervised script: dimensions per mapping; submission_state conservatively (any legacy state that could have reached the wire and lacks definitive evidence → MAYBE_SUBMITTED, per §7.1's definitions — fail toward resolver, never toward NOT_SUBMITTED); anchors: maybe_since/submitted_at set to a defensible timestamp (e.g. legacy state-change time if one exists, else backfill run time — record choice); terminal rows normalized per L1 shape.
+- **Do not change:** legacy status values themselves (dual-run reads them until P14).
+- **Tests to add:** backfill idempotency (re-run = no-op); per-legacy-value spot checks; post-backfill constraint dry-validate.
+- **Edge cases:** in-flight rows DURING backfill (dual-write not yet on) — run in a quiet window per the S-01 plan; rows whose legacy status contradicts money fields → list for human review, skip, report.
+- **Manual validation:** counts per (legacy value → tuple) reviewed; anomalies list empty or owned.
+- **Expected outcome:** all rows carry valid tuples; S-05 VALIDATE can proceed.
+- **Failure signs:** any row with dimensions violating L2–L8 after backfill.
+- **Common mistakes:** optimistic NOT_SUBMITTED backfills (the pay-twice direction — §7.1's criterion is "provably cannot execute").
+- **Completion criteria:** backfill complete; anomaly list dispositioned; constraints validated.
+- **Stop condition:** validated.
+- **Next task:** S-09.
+
+### S-09 — Migration test pass
+
+- **Task ID:** S-09
+- **Title:** Full migration test pass: clean schema, prod-shaped schema, dual-run compatibility
+- **Classification:** MVP normative implementation
+- **Purpose:** prove the whole P3 sequence per §16.5 before any behavior change lands on it.
+- **Prerequisites:** S-02..S-08 merged.
+- **Requirement sections / concepts to read:** §16.5 (expand/contract, claim compatibility across one release boundary).
+- **Placeholder components involved:** [DB Migration Directory], [Integration Test Suite].
+- **Local placeholder mappings required before starting:** real-Oracle test lane available (if D-11 found H2-only, FIRST set up the Oracle lane — that setup is part of this task; split locally if large).
+- **Local code areas to discover:** CI pipeline hooks for migration tests.
+- **How to locate:** D-11 findings.
+- **Implementation instructions:** run/automate: full sequence on clean Oracle; full sequence on a prod-shaped copy (with backfill); OLD application version boots and passes its smoke tests against the NEW schema (dual-run proof — additive columns must not break it); constraint violation suite (S-05/S-06 tests) in CI.
+- **Do not change:** migrations retroactively — fix-forward with new migrations only.
+- **Tests to add:** the above as repeatable CI jobs where feasible.
+- **Edge cases:** the old version writing rows WITHOUT new dimensions after backfill → those columns must stay nullable until the old version is gone (contract step deferred to P14 — record).
+- **Manual validation:** results recorded (Section R report).
+- **Expected outcome:** P3 proven; P4+ may build on the schema.
+- **Failure signs:** old version fails against new schema (an expand/contract violation — fix the migration approach, don't patch the old version).
+- **Common mistakes:** testing only clean-schema application.
+- **Completion criteria:** all four proof points green.
+- **Stop condition:** green; report filed.
+- **Next task:** K-01.
+
+
+---
+
+## Phase handoff summary (P3 → P4)
+
+- **Phase outputs:** three-table schema at the CA-4 target: columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum + L1-shape + L2–L8 CHECKs (VALIDATED), freeze + release-guard triggers with evidence-flag mechanics, active-row-bounded index set, inbox table + purge, backfilled dimensions.
+- **Blockers to carry forward:** §18-1/2/3 unchanged; any staged-NOVALIDATE constraint has a dated follow-up.
+- **Local mapping rows expected filled:** [DB Migration Directory], [Stored Procedure / Trigger Area] CONFIRMED; index expressions recorded for later scanner queries (S-07 note).
+- **Tests expected to exist:** migration apply (clean + prod-shaped), constraint violation suite, trigger backstop suite (incl. pool non-leakage), backfill idempotency, S-09 dual-run proof (old version runs on new schema).
+- **Next phase entry condition:** S-09 all four proof points green.

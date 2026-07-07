@@ -1,0 +1,331 @@
+> **Purpose:** Task cards B-01..B-04 and CA-1..CA-9 (§18 gates + companion artifacts) (original Section H, phase P2).
+> **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
+> **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
+> **Used by:** The local coding agent executing phase P2.
+> **Safe to transfer:** yes
+> **Contains local code names:** no
+
+## H-Phase 2 — Blocking gates and contract artifacts (P2)
+
+### B-01 — Resolve §18 BLOCKING item 0 (payments-per-trade / scope key)
+
+- **Task ID:** B-01
+- **Title:** Drive and record the payments-per-trade decision; propagate to scope key + identity + card lookup
+- **Classification:** §18 BLOCKING go-live gate
+- **Purpose:** §18-0: two contradictory recorded facts; §12's business_id-only lookup and the §2.1 scope key stand on "one payment case per business payment". The scope key and §5.1 derivation are at stake.
+- **Prerequisites:** none (start immediately; human task).
+- **Requirement sections / concepts to read:** §18 BLOCKING item 0, §2.1 (scope key), §5.1, §12.
+- **Placeholder components involved:** none (decision task).
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** put the question to the upstream/UI teams EXACTLY as §18-0 frames it, stating that the obligation scope key and identity derivation are at stake; record the written answer; if "multiple payments per trade" is true, record the chosen discriminator (ui_step_instance_id or an upstream payment sequence per §18-0) and flag CA-4/CA-5/S-02/S-03/K-02/IN-02 plus the §12 lookup rewrite for re-draft.
+- **Do not change:** code.
+- **Tests to add:** none.
+- **Edge cases:** an answer of "usually one" is NOT an answer — §18-0 needs a guarantee or a discriminator.
+- **Manual validation:** answer is written, attributed, and names the deciding party.
+- **Expected outcome:** recorded decision unblocking schema/identity freeze.
+- **Failure signs:** proceeding to S-02/K-02 freeze on a verbal answer.
+- **Common mistakes:** letting the answerer respond without knowing the scope key is at stake (§18-0 explicitly warns).
+- **Completion criteria:** decision recorded; blocked-task list updated.
+- **Stop condition:** decision recorded (or explicitly still pending — then downstream stays BLOCKED).
+- **Next task:** B-02 (parallel); S-01 unblocked on answer.
+
+### B-02 — Secure sandbox access + engine written statements (§18 item 1 inputs)
+
+- **Task ID:** B-02
+- **Title:** Obtain engine sandbox access, key-retention TTL statement, ingest-lag distribution, query lookback, rate limits
+- **Classification:** §18 BLOCKING go-live gate (enabler for CT suite)
+- **Purpose:** §18-1(c) requires the TTL in writing; TL-5 needs ingest lag (p50/p99/max) + lookback; TL-13 needs the query rate limit — all load-bearing config inputs.
+- **Prerequisites:** none (human/provider task; parallel with B-01).
+- **Requirement sections / concepts to read:** §18 BLOCKING item 1, §18 TL items 4, 5, 11, 13; §9.2, §9.5.
+- **Placeholder components involved:** [Contract Test Suite] (future consumer).
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** request from the provider: sandbox credentials/endpoints suitable for CT-01..CT-05; written key-retention TTL; ingest-lag distribution; query lookback window vs maximum row lifetime including ops-queue SLA (TL-5 framing); status-query rate limit (TL-13); SDK answers (TL-11 a/b/c). Record each answer verbatim with source. Note per §18-1: written answers configure the tests; only the EXECUTED tests close the gate.
+- **Do not change:** code.
+- **Tests to add:** none (CT-xx implement them).
+- **Edge cases:** provider refuses a TTL statement → CT-04 tests at the oldest achievable edge and the gap is recorded as a go-live risk owned by the accountable human.
+- **Manual validation:** answers filed; config inventory (OB-07) values drafted from them.
+- **Expected outcome:** sandbox usable; numbers recorded.
+- **Failure signs:** treating these written answers as closing §18-1 (they don't — CT-02..05 do).
+- **Common mistakes:** not asking lookback ≥ MAX ROW LIFETIME incl. ops-queue SLA (the §18/TL-5 framing — parked rows live days).
+- **Completion criteria:** access + all five answer sets recorded.
+- **Stop condition:** recorded; CT-01 unblocked.
+- **Next task:** B-03 (parallel); CT-01.
+
+### B-03 — Resolve cutoff calendar sourcing (§18 item 2)
+
+- **Task ID:** B-03
+- **Title:** Identify cutoff-calendar source system, owner, semantics, refresh, fail direction
+- **Classification:** §18 BLOCKING go-live gate
+- **Purpose:** repost_permitted (§7.0), §7.4 deadlines, §9.2 lookback guard, and escalation sizing all consume the calendar; a wrong calendar blocks a currency early or re-POSTs after bank close (§18-2).
+- **Prerequisites:** none (human task).
+- **Requirement sections / concepts to read:** §18 BLOCKING item 2, §16.4 (tz-aware representation), §7.4, §16.6 (config entry).
+- **Placeholder components involved:** [Retry Resolver Job] (consumer), config.
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** record: source system; named owner; per-currency/market semantics incl. holidays; timezone-aware representation (local time + zone id, DST-correct — §16.4, never fixed UTC constants); refresh cadence; stale/missing-calendar fail direction (spec recommends fail-blocked per payment_type).
+- **Do not change:** code.
+- **Tests to add:** none here (RC-04 tests consume it).
+- **Edge cases:** no source system exists → the owner question escalates to the PO; RC-04 cutoff config stays BLOCKED; interface work proceeds with fail-blocked default.
+- **Manual validation:** owner has acknowledged ownership in writing.
+- **Expected outcome:** calendar contract recorded; RC-04 config unblocked.
+- **Failure signs:** hardcoded UTC cutoff constants anywhere ("wrong twice a year per market", §16.4).
+- **Common mistakes:** accepting a calendar without holiday semantics.
+- **Completion criteria:** all six attributes recorded.
+- **Stop condition:** recorded (or explicitly pending — RC-04 cutoff config remains BLOCKED).
+- **Next task:** B-04.
+
+### B-04 — Record the §18 item 3 resolution path (MAYBE terminal exit)
+
+- **Task ID:** B-04
+- **Title:** Confirm the MVP MAYBE-row terminal exit: the audited procedure (default) or the TL-10 + TL-5 alternative
+- **Classification:** §18 BLOCKING go-live gate
+- **Purpose:** §18-3: without a terminal exit, an unresolvable MAYBE row holds its reservation forever, the scope never completes (§4.1) and I6 blocks successors.
+- **Prerequisites:** B-02 (TL-5/TL-10 answers inform the alternative).
+- **Requirement sections / concepts to read:** §18 BLOCKING item 3, §9.3 (procedure), TL-10, TL-5.
+- **Placeholder components involved:** [Operator Admin Procedure Area] (default path).
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** default decision per spec: BUILD the procedure (OP-01..03, CA-9). Only if TL-10 (platform formal reject) AND TL-5 (lookback ≥ max row lifetime incl. ops-queue SLA) are BOTH answered affirmatively in writing may the procedure be de-scoped — record whichever path, and note §20's PO decision already REQUIRES the procedure at MVP, so de-scoping needs explicit PO re-confirmation.
+- **Do not change:** code.
+- **Tests to add:** none.
+- **Edge cases:** partial alternative (TL-10 yes, TL-5 no) → procedure stays required.
+- **Manual validation:** decision recorded with approver.
+- **Expected outcome:** OP-xx confirmed in scope (expected default).
+- **Failure signs:** de-scoping the procedure on optimistic unwritten answers.
+- **Common mistakes:** reading §18-3 as optional because an alternative exists.
+- **Completion criteria:** path recorded.
+- **Stop condition:** recorded.
+- **Next task:** CA-1.
+
+### CA-1 — Author the engine error-code classification table
+
+- **Task ID:** CA-1
+- **Title:** Engine error-code → classification table (§16.6 artifact 1)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** RC-01's classifier is generated FROM this table; §7 requires a closed taxonomy keyed on cause, code by code.
+- **Prerequisites:** B-02 (provider engagement channel); D-05 (locally observed branch inventory as input).
+- **Requirement sections / concepts to read:** §7.0–7.3 (taxonomy + target dimensions), §16.6 artifact 1 (incl. the replay-original-response class), §13 (categories/severities).
+- **Placeholder components involved:** [Provider Response Parser] (consumer).
+- **Local placeholder mappings required before starting:** none for authoring; D-05 memo desirable.
+- **Local code areas to discover:** none (document task).
+- **How to locate:** n/a.
+- **Implementation instructions:** produce a table: engine code → (exception_category, exception_code, retryable, severity, submission_state, target stage/stage_state/outcome) per §7.2/§7.3 semantics; explicitly classify: DUPLICATE_REQUEST; known-key-different-payload collision (distinguishable code — TL-4); the replay-original-response class (§16.6-1); every synchronous business reject; unmapped default = fail closed (MAYBE → BLOCKED(UNMAPPED_CODE)). Name an owner. Version the table.
+- **Do not change:** the §7.2 branch semantics — the table fills codes INTO them, never invents new branches.
+- **Tests to add:** none here (RC-01 tests consume the table as fixtures).
+- **Edge cases:** codes the provider cannot explain → classified fail-closed, flagged to the owner.
+- **Manual validation:** provider (or tech lead) has reviewed the table; every code from D-05's observed inventory appears.
+- **Expected outcome:** versioned table with owner.
+- **Failure signs:** any "assume retryable" default (§7.2 forbids).
+- **Common mistakes:** classifying by HTTP status line; omitting the replay-original-response class.
+- **Completion criteria:** table complete, owned, versioned.
+- **Stop condition:** table published to the team.
+- **Next task:** CA-2.
+
+### CA-2 — Author the engine status vocabulary + evidence mapping
+
+- **Task ID:** CA-2
+- **Title:** Engine status vocabulary, precedence/evidence mapping, feed event schema (§16.6 artifact 2)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** IN-07's evidence application and §4.4's ranking consume this; the feed event schema (event_id, UETR, status, amount, provider_reference — names and types) feeds §16.5 contract tests.
+- **Prerequisites:** B-02.
+- **Requirement sections / concepts to read:** §4.4, §8, §16.6 artifact 2 (incl. the dead-UETR question), §18 TL-1 (event_id stability).
+- **Placeholder components involved:** [Payment Status Feed Consumer] (consumer).
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** full status enum; per-status: terminal vs intermediate class + evidence rank; the feed event schema with field names/types; answer (or record as pending) whether the engine emits events under a REJECTED duplicate/collision submission's UETR — note the design forecloses harm by never persisting those UETRs (§5); record TL-1's event_id answer or the synthesis fallback choice.
+- **Do not change:** §4.4's application rules.
+- **Tests to add:** none here.
+- **Edge cases:** statuses with context-dependent meaning → classify fail-closed with the owner's sign-off.
+- **Manual validation:** provider review; cross-check against CA-1 (same vocabulary family).
+- **Expected outcome:** versioned artifact with owner.
+- **Failure signs:** intermediate statuses mapped as terminal (would freeze rows early).
+- **Common mistakes:** leaving amount/typing of the event schema informal (contract tests need exact types).
+- **Completion criteria:** artifact complete, owned.
+- **Stop condition:** published.
+- **Next task:** CA-3.
+
+### CA-3 — Author the status-query response mapping
+
+- **Task ID:** CA-3
+- **Title:** Status-query response → §9.1 outcome mapping (§16.6 artifact 3)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** RC-06 applies §9.1 outcomes; this maps every real query response to EXECUTED/REJECTED/NOT_FOUND/INDETERMINATE/ACCEPTED, including the decided rule that acceptance answers promote submission_state to SUBMITTED.
+- **Prerequisites:** B-02.
+- **Requirement sections / concepts to read:** §9.1, §9.2 (NOT_FOUND never taken at face value), §16.6 artifact 3.
+- **Placeholder components involved:** [Status Query Resolver] (consumer).
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** per query-response shape: mapped §9.1 outcome; unmapped/error/timeout → INDETERMINATE (reschedule); document which key the query accepts (idempotency key vs UETR) per B-02's answers; owner + version.
+- **Do not change:** §9.1/§9.2 semantics.
+- **Tests to add:** none here (RC-06 fixtures).
+- **Edge cases:** responses that embed partial/held states → INDETERMINATE unless provider confirms a class.
+- **Manual validation:** provider review; CT-06 later verifies empirically.
+- **Expected outcome:** versioned mapping with owner.
+- **Failure signs:** NOT_FOUND mapped to "not submitted" (forbidden — §9.2).
+- **Common mistakes:** omitting query-API failure/timeout handling from the mapping.
+- **Completion criteria:** artifact complete, owned.
+- **Stop condition:** published.
+- **Next task:** CA-4.
+
+### CA-4 — Author the full DDL migration set spec
+
+- **Task ID:** CA-4
+- **Title:** Flyway/Oracle DDL migration set: tables, CHECKs, I6 expression, triggers, index list (§16.6 artifact 4)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** P3's authoritative spec — exact I6 function-index expression, L1-shape + L2–L8 CHECKs, freeze + release-guard triggers, one active-row-bounded index per standing scan.
+- **Prerequisites:** B-01 ANSWERED (scope key at stake); D-02 gap inventory.
+- **Requirement sections / concepts to read:** §2.1, §2.2, §2.3, §10.3, §3 (I6), §16.5 (expand/contract, enum evolution), §16.6 artifact 4.
+- **Placeholder components involved:** [DB Migration Directory], [Stored Procedure / Trigger Area].
+- **Local placeholder mappings required before starting:** D-02 rows (real current shape).
+- **Local code areas to discover:** none beyond D-02's inventory.
+- **How to locate:** n/a.
+- **Implementation instructions:** specify (schema-shape pseudocode, not final SQL): every §2.1/§2.2 column with type/nullability; scope-key UNIQUE (per B-01!); UNIQUE(idempotency_key), UNIQUE(uetr) (NULL-ignoring); I6 as CASE WHEN outcome IS NULL THEN payment_obligation_id END unique function-based index; per-enum CHECKs; L1-shape + L2–L8 CHECK expressions; freeze trigger + release-guard trigger with evidence session flag mechanics; the normative index list — resolver sweep, retry scanner, escalation scanner, BLOCKED queue, stuck-state, drift, §5.2 created_at window — each expression NULL for terminal rows (§16.6-4); expand/contract sequencing notes per migration.
+- **Do not change:** the three-table model — any "needs another table" is SPEC_CONFLICT.
+- **Tests to add:** none here (S-09 executes them).
+- **Edge cases:** existing-column type conflicts from D-02 → each gets an explicit expand/contract path in the spec.
+- **Manual validation:** DBA-owner review (privileges for triggers/procedures confirmed — from D-02).
+- **Expected outcome:** versioned DDL spec ready for S-02..S-07.
+- **Failure signs:** CHECK constraints written VALIDATE-first against unmigrated data.
+- **Common mistakes:** forgetting Oracle NULL-in-unique-index semantics for uetr; omitting the active-row-bounded trick on scan indexes.
+- **Completion criteria:** spec complete, DBA-reviewed.
+- **Stop condition:** published; S-02..S-07 unblocked (schema freeze).
+- **Next task:** CA-5.
+
+### CA-5 — Author the identity-derivation spec + golden vectors
+
+- **Task ID:** CA-5
+- **Title:** Identity derivation spec (byte-exact, versioned) + golden vectors (§16.6 artifact 5, first half)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** §5.1 exactness: hash algorithm, field serialization order, delimiter, canonicalization (case, trimming, encoding, account-number normalization), versioning — frozen by golden vectors. Byte-identical reproducibility IS the DR property.
+- **Prerequisites:** B-01 ANSWERED (derivation input list at stake).
+- **Requirement sections / concepts to read:** §5.1 (all rules: amount NOT in key; UETR NOT in derivation), §2.1 (next_request_seq), §16.6 artifact 5.
+- **Placeholder components involved:** [Payment Request Creation Component] (consumer).
+- **Local placeholder mappings required before starting:** none for authoring.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (+ B-01 discriminator if decided); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, scope variants, and (if B-01 adds one) discriminator variants — each vector = inputs + exact expected key bytes.
+- **Do not change:** the input list beyond B-01's decision — amount and UETR stay OUT (§5.1 records why).
+- **Tests to add:** none here (K-03 turns vectors into tests).
+- **Edge cases:** fields that can legally contain the delimiter — the spec must make that unambiguous (length-prefix or escaping — choose and freeze).
+- **Manual validation:** two independent implementations (or one implementation + manual computation) reproduce all vectors.
+- **Expected outcome:** frozen versioned spec + vector file.
+- **Failure signs:** vectors computed only by the code under test (circular).
+- **Common mistakes:** locale-dependent case folding; unspecified encoding.
+- **Completion criteria:** spec + vectors published.
+- **Stop condition:** published; K-02/K-03 unblocked.
+- **Next task:** CA-6.
+
+### CA-6 — Author the canonical instruction serialization / last_sent_hash definition
+
+- **Task ID:** CA-6
+- **Title:** Canonical instruction serialization + hash definition for last_sent_hash (§16.6 artifact 5, second half)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** §7.0/§2.2: the claim transaction persists the hash of the canonically-serialized instruction; hash comparisons across attempts and DR replays are meaningful only under the same byte-exactness discipline as CA-5.
+- **Prerequisites:** CA-5 (shared discipline); D-05 (what the instruction payload contains locally — field-level, no proprietary values in the artifact).
+- **Requirement sections / concepts to read:** §7.0, §2.2 (last_sent_hash / divergence_expected), §5.1 (instruction hash paragraph), §16.6 artifact 5.
+- **Placeholder components involved:** [Provider POST Client], [Request Status Persistence Layer].
+- **Local placeholder mappings required before starting:** D-05 memo (instruction field inventory — kept local; the artifact defines RULES, not values).
+- **Local code areas to discover:** none beyond D-05.
+- **How to locate:** n/a.
+- **Implementation instructions:** define: which instruction fields enter the hash (the business content actually sent — MUST_VERIFY_LOCALLY against the real payload shape, recorded locally); canonical field order; canonicalization rules per CA-5's discipline; hash algorithm + versioning; the rule that the CONTENT is never persisted, only the hash (§16.3/§7.0).
+- **Do not change:** the no-payload-freeze decision (§7.0 — details re-resolved fresh per attempt).
+- **Tests to add:** none here (K-05 tests).
+- **Edge cases:** envelope/transport fields (timestamps, message ids) must be EXCLUDED — else every attempt looks divergent and divergence_expected is always true.
+- **Manual validation:** same instruction serialized twice → identical hash; one business-field change → different hash.
+- **Expected outcome:** versioned definition.
+- **Failure signs:** hash including per-attempt envelope noise.
+- **Common mistakes:** hashing the raw SDK request object (unstable field order).
+- **Completion criteria:** definition published.
+- **Stop condition:** published; K-05 unblocked.
+- **Next task:** CA-7.
+
+### CA-7 — Author the test catalog
+
+- **Task ID:** CA-7
+- **Title:** Test catalog aligned to requirment-v4.md (§16.6 artifact 6)
+- **Classification:** §16.6 companion artifact
+- **Purpose:** the named, owned catalog every phase's tests trace to; Section J of this playbook is its seed.
+- **Prerequisites:** none hard; grows with CA-1..3.
+- **Requirement sections / concepts to read:** §16.6 artifact 6 (incl. the named entries: §9.2 downgrade re-POST answered DUPLICATE_REQUEST leaves prior uetr intact; §11 ambiguous claim-commit; §8 concurrent in-flight duplicates), Section J of this playbook.
+- **Placeholder components involved:** [Integration Test Suite], [Contract Test Suite].
+- **Local placeholder mappings required before starting:** none.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** adopt Section J's matrix (T-01..T-32) as the seed; add the spec-named entries above; assign each entry an owner-type and the phase whose task implements it; keep IDs stable; version the catalog.
+- **Do not change:** Section J's BLOCKING flags without the accountable owner.
+- **Tests to add:** none here (the catalog IS the index of tests).
+- **Edge cases:** local discovery may reveal existing equivalent tests — map, don't duplicate.
+- **Manual validation:** every §18-1 matrix case (a–d) appears; every Section Q test item appears.
+- **Expected outcome:** versioned catalog.
+- **Failure signs:** catalog entries without requirement-section traceability.
+- **Common mistakes:** catalog drifting from Section J numbering.
+- **Completion criteria:** published, owned.
+- **Stop condition:** published.
+- **Next task:** CA-8.
+
+### CA-8 — Author runbook stubs
+
+- **Task ID:** CA-8
+- **Title:** Runbook stubs: one per §15 alert + the aged-MAYBE runbook (§16.6 artifact 7)
+- **Classification:** §16.6 companion artifact + operational runbook
+- **Purpose:** §15 requires every alert definition to carry a runbook link; §16.6-7 also names the unqueryable-aged-MAYBE runbook (platform-side lookup → TL-10 rejection or the apply-platform-verified-outcome procedure). The §5.2 restore runbook is POST-MVP and only stubbed as "major incident — manual engine-side reconciliation" per §5.2's MVP scope.
+- **Prerequisites:** Section N (this playbook) drafted; OB-xx alert names as they land.
+- **Requirement sections / concepts to read:** §15 (list + rollup + practices), §16.6 artifact 7, §9.3 (ops actions), §5.2 (MVP scope statement).
+- **Placeholder components involved:** [Metrics / Alerting Layer].
+- **Local placeholder mappings required before starting:** none for stubs.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** per §15 alert: a stub with Trigger / Severity / Why it matters / Immediate operator action / Data to collect / Escalation target / Safe stop condition (Section N provides the content for the major ones); the aged-MAYBE runbook per §16.6-7; known-outage suppression semantics (§15 rollup) documented here.
+- **Do not change:** alert semantics.
+- **Tests to add:** none.
+- **Edge cases:** alerts whose operator action is "nothing local — investigate in the payment platform" must SAY so explicitly.
+- **Manual validation:** ops-owner review.
+- **Expected outcome:** stub per alert, linked from alert definitions (OB-06 wires links).
+- **Failure signs:** stubs that instruct disabling guards/triggers (forbidden — §9.3 passes guards legitimately).
+- **Common mistakes:** writing the full §5.2 DR runbook (post-MVP — do not).
+- **Completion criteria:** stubs published.
+- **Stop condition:** published.
+- **Next task:** CA-9.
+
+### CA-9 — Author the apply-platform-verified-outcome procedure spec
+
+- **Task ID:** CA-9
+- **Title:** apply-platform-verified-outcome stored procedure spec + ops drill script (§16.6 artifact 8)
+- **Classification:** §16.6 companion artifact + §18 BLOCKING item 3 input
+- **Purpose:** OP-01 implements exactly this spec: signature, dual-control enforcement, evidence-flag mechanics, refusal conditions, audit fields, drill script.
+- **Prerequisites:** B-04 (path confirmed); CA-4 (trigger/evidence-flag mechanics defined there must match).
+- **Requirement sections / concepts to read:** §9.3 (full procedure design), §10.1, §10.3 (evidence flag + backstops), §20-8 (audit/ticket rule), §16.6 artifact 8, §18-3.
+- **Placeholder components involved:** [Operator Admin Procedure Area].
+- **Local placeholder mappings required before starting:** none for authoring.
+- **Local code areas to discover:** none.
+- **How to locate:** n/a.
+- **Implementation instructions:** specify: inputs (request_id, verified outcome EXECUTED|REJECTED, mandatory ticket/evidence reference, two distinct authenticated approver identities); dual control enforced IN the procedure; sets the evidence session flag; applies via the SAME evidence-guarded CAS as feed evidence; EXECUTED → outcome=EXECUTED, SUB=SUBMITTED, amount equality enforced, +confirmed; REJECTED → outcome=REJECTED, provider_rejected marker (L9), −committed; refuses CLAIMED and terminal rows and amount mismatch; every use → §15 alert; log line carries trigger_source=OPS_PLATFORM_VERIFIED + ticket ref; restricted role; drill script = end-to-end rehearsal steps on a seeded row in a non-prod environment.
+- **Do not change:** §9.4's single-sanctioned-exception framing — the procedure is the ONLY manual path.
+- **Tests to add:** none here (OP-02).
+- **Edge cases:** platform amount differs from request amount → NOT applicable here; that is the §8 AMOUNT_MISMATCH defect path (spec is explicit).
+- **Manual validation:** DBA + ops-owner review; approver-identity mechanism confirmed workable in the real role model (from D-10 — else UNCLEAR flagged).
+- **Expected outcome:** implementable spec + drill script.
+- **Failure signs:** dual control specified as runbook convention instead of procedure-enforced.
+- **Common mistakes:** allowing outcome values beyond EXECUTED/REJECTED.
+- **Completion criteria:** spec published.
+- **Stop condition:** published; OP-01 unblocked.
+- **Next task:** S-01 (Phase P3).
+
+
+---
+
+## Phase handoff summary (P2 → P3)
+
+- **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-9 authored, owned, versioned.
+- **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0 blocks S-02/S-03/S-05, K-02/K-03, CA-4/CA-5 freeze, IN-02; §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 blocks RC-04 cutoff config; §18-3 default path = OP-01..03.
+- **Local mapping rows expected filled:** none new (document phase).
+- **Tests expected to exist:** none new; CA-5 golden vectors DRAFTED (executed as tests in P4); CA-7 catalog seeded from the test matrix.
+- **Next phase entry condition:** B-01 answered in writing AND CA-4 published (DBA-reviewed) → schema freeze may proceed (S-01).

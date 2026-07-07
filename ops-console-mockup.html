@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment Operations — Ops Console Mockup</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px; color: #1c2430; background: #fff; line-height: 1.45;
+  }
+  .wrap { max-width: 1440px; min-width: 880px; margin: 0 auto; padding: 0 20px 40px; }
+
+  /* mock banner */
+  #mockBanner {
+    background: #fff7e0; border-bottom: 1px solid #e0cf9a; color: #5c4a10;
+    font-size: 12px; padding: 4px 20px; display: flex; align-items: center; gap: 8px;
+  }
+  #mockBanner code { background: transparent; }
+  #mockBanner button {
+    margin-left: auto; border: none; background: none; cursor: pointer;
+    font-size: 14px; color: #5c4a10; padding: 0 4px;
+  }
+
+  .crumb { color: #6b7686; font-size: 12px; margin: 14px 0 2px; }
+  .titlebar { display: flex; align-items: baseline; gap: 16px; border-bottom: 2px solid #d6dbe2; padding-bottom: 8px; margin-bottom: 14px; }
+  .titlebar h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  .titlebar .sub { color: #6b7686; font-size: 12px; }
+  .rolebox { margin-left: auto; font-size: 13px; color: #3b4657; display: flex; align-items: center; gap: 6px; }
+  .rolebox select { font: inherit; padding: 2px 4px; border: 1px solid #b9c1cc; border-radius: 3px; background: #fff; }
+
+  h2 { font-size: 16px; font-weight: 600; margin: 18px 0 8px; }
+  h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+
+  a { color: #14538f; }
+  a:hover { color: #0d3a66; }
+
+  /* layout: queues + approvals side panel */
+  .s1cols { display: flex; gap: 20px; align-items: flex-start; }
+  .s1main { flex: 1 1 auto; min-width: 0; }
+  .s1side { flex: 0 0 300px; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #b9c1cc; margin-bottom: 0; }
+  .tab {
+    font: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer;
+    border: 1px solid #b9c1cc; border-bottom: none; border-radius: 3px 3px 0 0;
+    background: #eef1f5; color: #3b4657;
+  }
+  .tab:hover { background: #e2e7ee; }
+  .tab[aria-selected="true"] { background: #fff; color: #14538f; font-weight: 600; position: relative; top: 1px; }
+  .badge {
+    display: inline-block; min-width: 18px; text-align: center; margin-left: 5px;
+    background: #cdd5df; color: #2a3342; border-radius: 9px; font-size: 11px; padding: 0 5px; font-weight: 600;
+  }
+  .tab[aria-selected="true"] .badge { background: #14538f; color: #fff; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid #d6dbe2; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1f3f6; font-weight: 600; color: #3b4657; white-space: nowrap; }
+  tbody tr:hover { background: #f6f8fa; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+  .muted { color: #6b7686; }
+  .small { font-size: 12px; }
+  .panel { border: 1px solid #d6dbe2; border-top: none; padding: 12px; }
+
+  /* chips */
+  .chip {
+    display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px;
+    border-radius: 3px; border: 1px solid; white-space: nowrap;
+  }
+  .chip.status  { background: #e7f0fa; border-color: #a9c7e4; color: #14538f; }
+  .chip.crit    { background: #fbe9e7; border-color: #e2a49b; color: #a02818; }
+  .chip.warn    { background: #fff3d6; border-color: #e0c27a; color: #7a5c00; }
+  .chip.pend    { background: #f3e8fb; border-color: #c8a5e6; color: #5e2d8a; }
+  .chip.ok      { background: #e3f2e5; border-color: #9fcaa5; color: #1e6b2a; }
+  .chip.neutral { background: #eef1f5; border-color: #c3cad4; color: #3b4657; }
+
+  /* buttons */
+  button.act, button.appr, .btn {
+    font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer;
+    border: 1px solid #9aa5b3; border-radius: 3px; background: #fff; color: #1c2430;
+  }
+  button.act:hover:not(:disabled), button.appr:hover:not(:disabled), .btn:hover:not(:disabled) { background: #eef1f5; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn.primary { background: #14538f; border-color: #14538f; color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: #0d3a66; }
+  .guard { font-size: 10px; color: #6b7686; border: 1px solid #c3cad4; border-radius: 3px; padding: 0 4px; margin-left: 2px; vertical-align: 1px; white-space: nowrap; }
+  .actcell { white-space: nowrap; }
+  .actcell button { margin-right: 2px; }
+
+  /* approvals side panel */
+  .approvals { border: 1px solid #d6dbe2; background: #fafbfc; padding: 10px 12px; }
+  .approvals h2 { margin: 0 0 8px; font-size: 13px; }
+  .approvals .entry { border-top: 1px solid #e2e6eb; padding: 8px 0; font-size: 12px; }
+  .approvals .entry .mono { word-break: break-all; }
+  .toast {
+    margin-top: 8px; border: 1px solid #9fcaa5; background: #e3f2e5; color: #1e6b2a;
+    font-size: 12px; padding: 6px 8px; border-radius: 3px;
+  }
+  .toast.err { border-color: #e2a49b; background: #fbe9e7; color: #a02818; }
+
+  /* detail */
+  .hdrgrid { border: 1px solid #d6dbe2; background: #fafbfc; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 24px; }
+  .hdrgrid dl { margin: 0; }
+  .hdrgrid dt { font-size: 11px; color: #6b7686; text-transform: uppercase; letter-spacing: .03em; }
+  .hdrgrid dd { margin: 1px 0 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .timeline { list-style: none; margin: 4px 0 0; padding: 0; border-left: 3px solid #d6dbe2; }
+  .timeline li { padding: 3px 0 3px 12px; font-size: 12.5px; }
+  .timeline .ts { color: #6b7686; font-family: Consolas, "Courier New", monospace; font-size: 11.5px; margin-right: 8px; }
+
+  /* modal */
+  #overlay[hidden] { display: none; }
+  #overlay { position: fixed; inset: 0; background: rgba(20,30,45,.45); display: flex; align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 10; }
+  #modal { background: #fff; border: 1px solid #9aa5b3; border-radius: 4px; width: 520px; max-width: 92vw; padding: 16px 18px; box-shadow: 0 4px 18px rgba(0,0,0,.2); }
+  #modal h3 { margin: 0 0 2px; }
+  #modal .ctx { font-size: 12px; color: #6b7686; margin-bottom: 10px; }
+  #modal label { display: block; font-size: 12px; font-weight: 600; color: #3b4657; margin: 10px 0 3px; }
+  #modal textarea, #modal input[type=text] {
+    width: 100%; font: inherit; font-size: 13px; padding: 5px 7px;
+    border: 1px solid #b9c1cc; border-radius: 3px; background: #fff;
+  }
+  #modal textarea { height: 64px; resize: vertical; }
+  .effect { border: 1px solid #c9a86a; background: #fdf6e8; padding: 8px 10px; font-size: 12.5px; margin-top: 12px; }
+  .effect b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #7a5c00; margin-bottom: 3px; }
+  .mbtns { margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end; }
+  .req { color: #a02818; }
+  .ferr { color: #a02818; font-size: 12px; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+
+<div id="mockBanner">
+  <span><strong>MOCKUP</strong> — sample data only, no backend. Companion: <code>ops-console-proposal.md</code>. Aligned to <code>requirment-v4.md</code>: parked-event queue removed (no parked-event store, §2.3); statuses shown are §10.4 display labels over the four dimension columns; release actions obey the §10.1 release guard.</span>
+  <button type="button" aria-label="Dismiss banner" onclick="document.getElementById('mockBanner').remove()">✕</button>
+</div>
+
+<div class="wrap">
+  <nav class="crumb" aria-label="Breadcrumb">Workflow UI &rsaquo; Payments &rsaquo; Operations</nav>
+  <div class="titlebar">
+    <h1>Payment Operations</h1>
+    <span class="sub">manual operations console (proposal P0–P2 surface)</span>
+    <div class="rolebox">
+      <label for="roleSel">Role</label>
+      <select id="roleSel">
+        <option value="viewer">viewer</option>
+        <option value="operator" selected>operator</option>
+        <option value="approver">approver</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ============== S1 : QUEUES DASHBOARD ============== -->
+  <section id="s1" aria-label="Queues dashboard">
+    <div class="s1cols">
+      <div class="s1main">
+        <div class="tabs" role="tablist" aria-label="Dead-end state queues">
+          <button class="tab" role="tab" aria-selected="true"  data-panel="p-nr">NEEDS_REVIEW <span class="badge">3</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-panel="p-stuck">Stuck reservations <span class="badge">2</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-panel="p-unk">Aged MAYBE (UNKNOWN) <span class="badge">1</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-panel="p-over">Overpay <span class="badge">1</span></button>
+        </div>
+
+        <div id="p-nr" class="panel" role="tabpanel">
+          <p class="small muted" style="margin:2px 0 8px">Requests with <span class="mono">stage_state = BLOCKED</span> (§10.4 label <span class="mono">NEEDS_REVIEW</span>), grouped by <span class="mono">blocked_reason</span> (display/routing only — no action keys on it, §10.1). ESCALATED ranks first (money-critical class, §2.2). Release actions appear ONLY for <span class="mono">NOT_SUBMITTED</span> rows (§10.1 release guard); MAYBE/SUBMITTED rows get the §9.3 action set. Oldest first.</p>
+          <table>
+            <thead><tr><th>Scope key</th><th>Business ID</th><th>Amount</th><th>Age</th><th>Last error</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="mono">TRD-88412 · SETTLEMENT · ****4321 · EUR</td><td>TRD-88412</td><td class="num">125,000.00 EUR</td><td>3d 4h</td><td class="mono small">UNMAPPED_CODE:AC99</td><td><a href="#" data-view="tr88412">View</a> <span class="slot" data-slot="REQ-102331"></span></td></tr>
+              <tr><td class="mono">TRD-88395 · FEE · ****7810 · USD</td><td>TRD-88395</td><td class="num">1,250.50 USD</td><td>1d 22h</td><td class="mono small">AMOUNT_MISMATCH</td><td><a href="#" data-view="tr88395">View</a> <span class="slot" data-slot="REQ-102318"></span></td></tr>
+              <tr><td class="mono">TRD-88430 · SETTLEMENT · ****4321 · JPY</td><td>TRD-88430</td><td class="num">9,800,000 JPY</td><td>9h</td><td class="mono small">INSUFFICIENT_ACCOUNT_BALANCE (retries exhausted)</td><td><a href="#" data-view="tr88430">View</a> <span class="slot" data-slot="REQ-102344"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="p-stuck" class="panel" role="tabpanel" hidden>
+          <p class="small muted" style="margin:2px 0 8px">Reservations held by requests stalled in a non-terminal state past the age threshold. Oldest first.</p>
+          <table>
+            <thead><tr><th>Scope key</th><th>Business ID</th><th>Amount</th><th>Age</th><th>Status / reason</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="mono">TRD-88377 · SETTLEMENT · ****2209 · EUR</td><td>TRD-88377</td><td class="num">20.00 EUR</td><td>6d 1h</td><td class="small"><span class="chip status">POSTING</span> no provider response; claim not expired</td><td><a href="#" data-view="tr88377">View</a> <span class="slot" data-slot="REQ-102290"></span></td></tr>
+              <tr><td class="mono">TRD-88401 · FEE · ****4321 · EUR</td><td>TRD-88401</td><td class="num">340.00 EUR</td><td>2d 5h</td><td class="small"><span class="chip status">COMMITTED_WAITING_CONFIRMATION</span> engine accepted; no outcome event past confirmation age (§9.5 sweep)</td><td><a href="#" data-view="tr88401">View</a> <span class="slot" data-slot="REQ-102307"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="p-unk" class="panel" role="tabpanel" hidden>
+          <p class="small muted" style="margin:2px 0 8px"><span class="mono">MAYBE_SUBMITTED</span> past its age threshold on the <span class="mono">maybe_since</span> clock (§9.3) — <span class="mono">PAYMENT_OUTCOME_UNKNOWN</span> (rank 1). Escalates once per episode to <span class="mono">BLOCKED(ESCALATED)</span>. Resolution is the §9.3 action set — never a plain release. Oldest first.</p>
+          <table>
+            <thead><tr><th>Scope key</th><th>Business ID</th><th>Amount</th><th>Age</th><th>Last error</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="mono">TRD-88350 · SETTLEMENT · ****9077 · USD</td><td>TRD-88350</td><td class="num">50,000.00 USD</td><td>26h</td><td class="mono small">PAYMENT_OUTCOME_UNKNOWN (claim expired)</td><td><a href="#" data-view="tr88350">View</a> <span class="slot" data-slot="REQ-102255"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="p-over" class="panel" role="tabpanel" hidden>
+          <p class="small muted" style="margin:2px 0 8px">Overpay latch set: <span class="mono">confirmed_amount &gt; required_amount</span>. One-way door (§13): annotation only via <span class="mono">ops_annotation</span> (§2.1) — no state change, latch never cleared.</p>
+          <table>
+            <thead><tr><th>Scope key</th><th>Business ID</th><th>Amount (confirmed / required)</th><th>Age</th><th>Reason</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="mono">TRD-88322 · SETTLEMENT · ****4321 · EUR</td><td>TRD-88322</td><td class="num">10,020.00 / 10,000.00 EUR</td><td>12d</td><td class="mono small">OVERPAY_DETECTED (+20.00 EUR)</td><td><a href="#" data-view="tr88322">View</a> <span class="slot" data-slot="OBL-88322"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <aside class="s1side">
+        <div class="approvals" aria-label="Pending approvals">
+          <h2>Pending approvals (<span id="apprCount">0</span>)</h2>
+          <div id="apprList"><p class="small muted" style="margin:0">No actions awaiting approval.</p></div>
+          <div id="toastBox"></div>
+          <p class="small muted" style="margin:8px 0 0">Approvals expire after 24h. Execution re-runs the CAS check; row&nbsp;count&nbsp;0 = state moved, action rejected.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============== S2 : PAYMENT DETAIL ============== -->
+  <section id="s2" aria-label="Payment detail" hidden>
+    <p style="margin:4px 0 10px"><a href="#" id="backLink">&larr; Back to queues</a></p>
+    <div id="detailBody"></div>
+  </section>
+</div>
+
+<!-- ============== S3 : ACTION FLOW MODAL ============== -->
+<div id="overlay" hidden>
+  <div id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h3 id="mTitle">Action</h3>
+    <div class="ctx" id="mCtx"></div>
+    <form id="mForm" novalidate>
+      <label for="mReason">Reason <span class="req">*</span></label>
+      <textarea id="mReason" required></textarea>
+      <label for="mTicket">Ticket reference <span class="req">*</span></label>
+      <input type="text" id="mTicket" placeholder="OPS-12345" required>
+      <div class="effect"><b>Effect preview (computed read-only under the obligation lock)</b><span id="mEffect"></span></div>
+      <p class="ferr" id="mErr">Reason and ticket reference are both mandatory.</p>
+      <div class="mbtns">
+        <button type="button" class="btn" id="mCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="mSubmit">Submit for approval</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- sample data ---------- */
+var DETAILS = {
+  tr88412: {
+    scope: "TRD-88412 · SETTLEMENT · ****4321 · EUR", biz: "TRD-88412",
+    required: "125,000.00 EUR", committed: "125,000.00 EUR", confirmed: "0.00 EUR",
+    step: "IN_PROGRESS",
+    exc: { text: "NEEDS_REVIEW · UNMAPPED_CODE:AC99 · RANK 1 (MAYBE — PAYMENT_OUTCOME_UNKNOWN)", cls: "crit" },
+    requests: [
+      { id: "REQ-102331", amount: "125,000.00 EUR", status: "NEEDS_REVIEW", sub: "MAYBE_SUBMITTED", attempts: 1, next: "—", uetr: "— (not persisted: no acceptance-class response, §5)" }
+    ],
+    log: [
+      ["2026-07-02 06:58:11Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
+      ["2026-07-02 06:58:12Z", "ENRICHING → READY_TO_POST (trigger: ORCHESTRATOR)"],
+      ["2026-07-02 06:58:14Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
+      ["2026-07-02 06:58:20Z", "POSTING → NEEDS_REVIEW (trigger: PROVIDER_RESPONSE, error: UNMAPPED_CODE:AC99)"]
+    ],
+    parked: []
+  },
+  tr88395: {
+    scope: "TRD-88395 · FEE · ****7810 · USD", biz: "TRD-88395",
+    required: "1,250.50 USD", committed: "1,250.50 USD", confirmed: "0.00 USD",
+    step: "IN_PROGRESS",
+    exc: { text: "NEEDS_REVIEW · AMOUNT_MISMATCH · CRITICAL (all-or-nothing violated — defect evidence, §8)", cls: "crit" },
+    requests: [
+      { id: "REQ-102318", amount: "1,250.50 USD", status: "NEEDS_REVIEW", sub: "SUBMITTED", attempts: 1, next: "—", uetr: "9d21f6b0-3c5e-47aa-8b1f-e04a7c6d2513" }
+    ],
+    log: [
+      ["2026-07-03 08:31:40Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
+      ["2026-07-03 08:31:44Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
+      ["2026-07-03 08:31:52Z", "POSTING → COMMITTED_WAITING_CONFIRMATION (trigger: PROVIDER_RESPONSE, accepted)"],
+      ["2026-07-03 10:02:15Z", "COMMITTED_WAITING_CONFIRMATION → NEEDS_REVIEW (trigger: FEED_SETTLEMENT, amount 1,250.00 ≠ 1,250.50 → BLOCKED(AMOUNT_MISMATCH), SUB=SUBMITTED; confirmed_amount NOT moved — §8)"]
+    ],
+    parked: []
+  },
+  tr88430: {
+    scope: "TRD-88430 · SETTLEMENT · ****4321 · JPY", biz: "TRD-88430",
+    required: "9,800,000 JPY", committed: "9,800,000 JPY", confirmed: "0 JPY",
+    step: "IN_PROGRESS",
+    exc: { text: "NEEDS_REVIEW · INSUFFICIENT_ACCOUNT_BALANCE (retries exhausted) · RANK 2", cls: "warn" },
+    requests: [
+      { id: "REQ-102344", amount: "9,800,000 JPY", status: "NEEDS_REVIEW", sub: "NOT_SUBMITTED", attempts: 5, next: "—", uetr: "72c5e01d-4b6f-49a2-8d37-905fe1b2ac68" }
+    ],
+    log: [
+      ["2026-07-04 21:12:02Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
+      ["2026-07-04 21:12:09Z", "POSTING → POST_FAILED_RETRYABLE (trigger: PROVIDER_RESPONSE, error: INSUFFICIENT_ACCOUNT_BALANCE)"],
+      ["2026-07-05 05:40:31Z", "POST_FAILED_RETRYABLE → POSTING (trigger: RETRY_SCHEDULER, attempt 5)"],
+      ["2026-07-05 05:40:38Z", "POSTING → NEEDS_REVIEW (trigger: RETRY_EXHAUSTION)"]
+    ],
+    parked: []
+  },
+  tr88377: {
+    scope: "TRD-88377 · SETTLEMENT · ****2209 · EUR", biz: "TRD-88377",
+    required: "20.00 EUR", committed: "20.00 EUR", confirmed: "0.00 EUR",
+    step: "IN_PROGRESS",
+    exc: { text: "none active (POST·CLAIMED — live claim owns the row; lease expiry → MAYBE, §11)", cls: "neutral" },
+    requests: [
+      { id: "REQ-102290", amount: "20.00 EUR", status: "POSTING", sub: "NOT_SUBMITTED", attempts: 1, next: "—", uetr: "e6a94d27-0c81-4f3b-b5da-38c216f97a05" }
+    ],
+    log: [
+      ["2026-06-29 07:03:55Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
+      ["2026-06-29 07:04:01Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
+      ["2026-06-29 07:04:01Z", "reservation committed 20.00 EUR (obligation lock)"]
+    ],
+    parked: []
+  },
+  tr88401: {
+    scope: "TRD-88401 · FEE · ****4321 · EUR", biz: "TRD-88401",
+    required: "340.00 EUR", committed: "340.00 EUR", confirmed: "0.00 EUR",
+    step: "IN_PROGRESS",
+    exc: { text: "none active (CONFIRM·READY·SUBMITTED past confirmation age — §9.5 sweep querying)", cls: "neutral" },
+    requests: [
+      { id: "REQ-102307", amount: "340.00 EUR", status: "COMMITTED_WAITING_CONFIRMATION", sub: "SUBMITTED", attempts: 2, next: "—", uetr: "18f3b7c6-52ad-4e09-a741-cd90e5261b83" }
+    ],
+    log: [
+      ["2026-07-03 04:44:10Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
+      ["2026-07-03 04:44:18Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
+      ["2026-07-03 04:44:19Z", "provider ACK received; awaiting outcome event"]
+    ],
+    parked: []
+  },
+  tr88350: {
+    scope: "TRD-88350 · SETTLEMENT · ****9077 · USD", biz: "TRD-88350",
+    required: "50,000.00 USD", committed: "50,000.00 USD", confirmed: "0.00 USD",
+    step: "IN_PROGRESS",
+    exc: { text: "PAYMENT_OUTCOME_UNKNOWN · RANK 1 · CRITICAL", cls: "crit" },
+    requests: [
+      { id: "REQ-102255", amount: "50,000.00 USD", status: "UNKNOWN", sub: "MAYBE_SUBMITTED", attempts: 2, next: "resolver cycle 11:00Z", uetr: "a1c58e93-6d02-47bf-8b3a-f4e7d20c9615" }
+    ],
+    log: [
+      ["2026-07-04 08:15:02Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
+      ["2026-07-04 08:15:09Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
+      ["2026-07-04 09:15:10Z", "POSTING → UNKNOWN (trigger: CLAIM_EXPIRY)"],
+      ["2026-07-04 21:15:10Z", "status query cycle 1: provider returned NOT_FOUND (before trust-age = INDETERMINATE, §9.2) (trigger: UNKNOWN_RESOLVER)"],
+      ["2026-07-05 09:15:11Z", "status query cycle 2: provider timeout (trigger: UNKNOWN_RESOLVER)"]
+    ],
+    parked: []
+  },
+  tr88322: {
+    scope: "TRD-88322 · SETTLEMENT · ****4321 · EUR", biz: "TRD-88322",
+    required: "10,000.00 EUR", committed: "0.00 EUR", confirmed: "10,020.00 EUR",
+    step: "IN_PROGRESS",
+    exc: { text: "OVERPAY_DETECTED · RANK 1 · STICKY", cls: "crit" },
+    requests: [
+      { id: "OBL-88322", amount: "10,020.00 EUR confirmed", status: "OVERPAY_LATCH", sub: "—", attempts: 0, next: "—", uetr: "5b09dfa2-73c4-41e8-96b1-2a8ce4f61d37" }
+    ],
+    log: [
+      ["2026-06-23 10:02:44Z", "POSTING → POSTED (trigger: PROVIDER_OUTCOME, confirmed 10,000.00 EUR)"],
+      ["2026-06-23 14:31:08Z", "feed event confirmed +20.00 EUR; overpay_blocked latch SET (confirmed > required)"]
+    ],
+    parked: []
+  }
+};
+/* Note (v4): there is NO parked-event store (§2.3). Unmatched feed
+   events are logged, counted, and acked; real missed outcomes are
+   recovered by the §9 status-query sweep, keyed by persisted identity. */
+
+/* action catalog — gated on DIMENSION columns (§10.1: labels and
+   blocked_reason are display-only; release actions only where
+   submission_state = NOT_SUBMITTED; MAYBE/SUBMITTED rows get the
+   §9.3 action set). guard: operator | 4eyes | dual */
+var ACTION_GUARDS = { RETRY: "4eyes", REJECT: "4eyes", SUPERSEDE: "4eyes", RESOLVE_NOW: "operator", DOWNGRADE_REPOST: "4eyes", APPLY_VERIFIED: "dual", ACK_OVERPAY: "operator" };
+function actionsFor(r) {
+  if (r.status === "OVERPAY_LATCH") return [["Annotate", "ACK_OVERPAY", "operator"]];
+  if (r.status === "POSTING") return []; /* POST·CLAIMED — a live claim owns its row (§6.4/§11); lease expiry → MAYBE is the only exit */
+  if (r.status === "COMMITTED_WAITING_CONFIRMATION") return [["Resolve now", "RESOLVE_NOW", "operator"]];
+  if (r.status === "UNKNOWN" || (r.status === "NEEDS_REVIEW" && r.sub !== "NOT_SUBMITTED"))
+    /* §9.3 action set — release actions FORBIDDEN on MAYBE/SUBMITTED (§10.1) */
+    return [["Resolve now", "RESOLVE_NOW", "operator"], ["Downgrade re-POST", "DOWNGRADE_REPOST", "4eyes"], ["Apply platform-verified outcome", "APPLY_VERIFIED", "dual"]];
+  if (r.status === "NEEDS_REVIEW") /* NOT_SUBMITTED: release guard passes */
+    return [["Retry", "RETRY", "4eyes"], ["Reject", "REJECT", "4eyes"], ["Supersede", "SUPERSEDE", "4eyes"]];
+  return [];
+}
+
+function effectText(action, item, d) {
+  var amt = (item.amount || "").replace(" confirmed", "");
+  switch (action) {
+    case "RETRY":       return "RETRY sets " + item.id + " → SAME-stage RETRY_WAIT, next_retry_at per policy (L7). POST-stage exits pass repost_permitted (§7.0 — cutoff always wins); the §6.4 retry-guard re-validates " + amt + " against current shortfall under the obligation lock before any POST. Reservation unchanged; step remains IN_PROGRESS.";
+    case "REJECT":      return "REJECT sets " + item.id + " → outcome REJECTED (release guard: NOT_SUBMITTED only, §10.1; the §10.3 trigger backstop refuses otherwise). Exactly one marker set (L9). Releases " + amt + " reservation; shortfall becomes " + amt + "; step re-derived.";
+    case "SUPERSEDE":   return "SUPERSEDE sets " + item.id + " → SUPERSEDED (release guard: NOT_SUBMITTED only, §10.1). Releases " + amt + " reservation; §6.8 may create a right-sized successor; step remains IN_PROGRESS.";
+    case "RESOLVE_NOW": return "Triggers one status-query cycle for " + item.id + " via the §9.5 ops-triggered mode; outcome applied through the normal evidence path (§9.1/§9.4). No direct state mutation by the console.";
+    case "DOWNGRADE_REPOST": return "Ops-triggered §9.2 downgrade: " + item.id + " → POST·RETRY_WAIT (submission_state stays MAYBE_SUBMITTED); same idempotency key, instruction assembled fresh (§7.0). Fires ONLY where repost_permitted passes — divergent payload, passed cutoff, or a stale amount block it (stale amount has the separate dual-control override, §7.0).";
+    case "APPLY_VERIFIED": return "Invokes the §9.3 apply-platform-verified-outcome AUDITED STORED PROCEDURE (exists at MVP, §18-3) for " + item.id + ": verified EXECUTED (+confirmed under amount equality, SUB=SUBMITTED) or REJECTED (provider_rejected marker, reservation released). Dual control + ticket ENFORCED BY THE PROCEDURE; evidence session flag set legitimately; refuses CLAIMED/terminal/mismatch; every use raises a §15 alert.";
+    case "ACK_OVERPAY": return "Writes ops_annotation (§2.1) — display only, NO state change (§13 one-way latch; never cleared). Overpay latch on " + d.scope + " remains set; acknowledgement recorded with ticket reference.";
+    default:            return "";
+  }
+}
+
+/* ---------- state ---------- */
+var role = "operator";
+var pendings = [];           // {apprId, action, itemId, detailKey, ticket, guardLabel}
+var pendingByItem = {};      // itemId -> pending
+var executedByItem = {};     // itemId -> action
+var apprSeq = 4711;
+var currentDetail = null;
+var modalCtx = null;
+var lastFocus = null;
+
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+
+/* ---------- role gating ---------- */
+function gateTitle(guard) {
+  if (role === "viewer") return "requires operator role";
+  if (role === "approver") return (guard === "4eyes" || guard === "dual") ? "approver cannot initiate approval-gated actions" : "requires operator role";
+  return "";
+}
+function guardLabel(g) { return g === "4eyes" ? "4-eyes" : g === "dual" ? "dual-control (procedure-enforced)" : "operator"; }
+function applyRole() {
+  document.querySelectorAll("button.act").forEach(function (b) {
+    var t = gateTitle(b.dataset.guard);
+    b.disabled = !!t; b.title = t || "";
+  });
+  document.querySelectorAll("button.appr").forEach(function (b) {
+    b.disabled = role !== "approver";
+    b.title = role !== "approver" ? "requires approver role" : "";
+  });
+}
+document.getElementById("roleSel").addEventListener("change", function () {
+  role = this.value; applyRole();
+});
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(function (t) {
+  t.addEventListener("click", function () {
+    document.querySelectorAll(".tab").forEach(function (x) { x.setAttribute("aria-selected", "false"); });
+    document.querySelectorAll("[role=tabpanel]").forEach(function (p) { p.hidden = true; });
+    t.setAttribute("aria-selected", "true");
+    document.getElementById(t.dataset.panel).hidden = false;
+  });
+});
+
+/* ---------- S1 <-> S2 ---------- */
+document.querySelectorAll("a[data-view]").forEach(function (a) {
+  a.addEventListener("click", function (e) { e.preventDefault(); showDetail(a.dataset.view); });
+});
+document.getElementById("backLink").addEventListener("click", function (e) {
+  e.preventDefault(); currentDetail = null;
+  document.getElementById("s2").hidden = true;
+  document.getElementById("s1").hidden = false;
+});
+
+function actionCellHtml(itemId, detailKey, actions) {
+  if (executedByItem[itemId]) return '<span class="chip ok">Executed · ' + esc(executedByItem[itemId]) + "</span>";
+  if (pendingByItem[itemId]) return '<span class="chip pend">Pending approval · ' + esc(pendingByItem[itemId].action) + "</span>";
+  return actions.map(function (a) {
+    return '<button type="button" class="act" data-guard="' + a[2] + '" data-action="' + a[1] +
+      '" data-item="' + itemId + '" data-detail="' + detailKey + '">' + a[0] + "</button>" +
+      '<span class="guard">' + guardLabel(a[2]) + "</span> ";
+  }).join("");
+}
+
+function showDetail(key) {
+  currentDetail = key;
+  var d = DETAILS[key];
+  var h = "";
+  h += "<h2>Payment detail — <span class='mono'>" + esc(d.scope) + "</span></h2>";
+  h += "<div class='hdrgrid'>";
+  h += "<dl><dt>Scope key</dt><dd class='mono'>" + esc(d.scope) + "</dd></dl>";
+  h += "<dl><dt>Required</dt><dd>" + esc(d.required) + "</dd></dl>";
+  h += "<dl><dt>Committed (reserved)</dt><dd>" + esc(d.committed) + "</dd></dl>";
+  h += "<dl><dt>Confirmed</dt><dd>" + esc(d.confirmed) + "</dd></dl>";
+  h += "<dl><dt>Derived step status</dt><dd>" + (d.step ? "<span class='chip status'>" + esc(d.step) + "</span>" : "<span class='muted'>n/a</span>") + "</dd></dl>";
+  h += "<dl><dt>Active exception</dt><dd><span class='chip " + d.exc.cls + "'>" + esc(d.exc.text) + "</span></dd></dl>";
+  h += "</div>";
+
+  h += "<h3>Requests</h3>";
+  if (d.requests.length) {
+    h += "<table><thead><tr><th>Request ID</th><th>Amount</th><th>Label (§10.4)</th><th>Submission</th><th>Attempts</th><th>Next retry</th><th>UETR</th><th>Actions</th></tr></thead><tbody>";
+    d.requests.forEach(function (r) {
+      var acts = actionsFor(r);
+      var subCls = r.sub === "MAYBE_SUBMITTED" ? "crit" : r.sub === "SUBMITTED" ? "status" : "neutral";
+      h += "<tr><td class='mono'>" + esc(r.id) + "</td><td class='num'>" + esc(r.amount) + "</td><td><span class='chip " +
+        (r.status === "NEEDS_REVIEW" ? "warn" : r.status === "UNKNOWN" || r.status === "OVERPAY_LATCH" ? "crit" : "status") + "'>" + esc(r.status) +
+        "</span></td><td><span class='chip " + subCls + "'>" + esc(r.sub) +
+        "</span></td><td class='num'>" + r.attempts + "</td><td>" + esc(r.next) + "</td><td class='mono small'>" + esc(r.uetr) +
+        "</td><td class='actcell'>" + (acts.length ? actionCellHtml(r.id, key, acts) : "<span class='muted small'>none for this state" + (r.status === "POSTING" ? " — live claim owns the row (§11); lease expiry → MAYBE is the only exit" : "") + "</span>") + "</td></tr>";
+    });
+    h += "</tbody></table>";
+    h += "<p class='small muted'>Labels are §10.4 display projections of the dimension tuple; actions are gated on the DIMENSIONS (never on labels or blocked_reason, §10.1). Release actions (Reject/Supersede) appear only for NOT_SUBMITTED rows; MAYBE/SUBMITTED rows get the §9.3 action set. Mutations run the same CAS UPDATE + obligation-lock flow as the orchestrator; row count 0 = state moved, re-fetch. The §10.3 trigger backstop refuses any guard-violating write regardless of this UI.</p>";
+  } else {
+    h += "<p class='small muted'>No payment requests for this scope.</p>";
+  }
+
+  h += "<h3>Transition history <span class='muted small' style='font-weight:400'>(read from the log store, keyed by request_id — the console keeps no journal)</span></h3>";
+  h += "<ul class='timeline'>";
+  d.log.forEach(function (l) { h += "<li><span class='ts'>" + esc(l[0]) + "</span>" + esc(l[1]) + "</li>"; });
+  h += "</ul>";
+
+  document.getElementById("detailBody").innerHTML = h;
+  document.getElementById("s1").hidden = true;
+  document.getElementById("s2").hidden = false;
+  applyRole();
+}
+
+/* delegate clicks on action buttons (detail body is re-rendered) */
+document.addEventListener("click", function (e) {
+  var b = e.target.closest ? e.target.closest("button.act") : null;
+  if (b && !b.disabled) openModal(b.dataset.action, b.dataset.item, b.dataset.detail);
+});
+
+/* ---------- S3 modal ---------- */
+var overlay = document.getElementById("overlay");
+function findItem(d, itemId) {
+  var i;
+  for (i = 0; i < d.requests.length; i++) if (d.requests[i].id === itemId) return d.requests[i];
+  return { id: itemId, amount: "" };
+}
+function openModal(action, itemId, detailKey) {
+  var d = DETAILS[detailKey], item = findItem(d, itemId);
+  var guard = ACTION_GUARDS[action] || "operator";
+  modalCtx = { action: action, itemId: itemId, detailKey: detailKey, guard: guard };
+  lastFocus = document.activeElement;
+  document.getElementById("mTitle").textContent = action.replace(/_/g, " ") + " (" + guardLabel(guard) + ")";
+  document.getElementById("mCtx").textContent = itemId + " · " + d.scope;
+  document.getElementById("mEffect").textContent = effectText(action, item, d);
+  document.getElementById("mReason").value = "";
+  document.getElementById("mTicket").value = "";
+  document.getElementById("mErr").style.display = "none";
+  document.getElementById("mSubmit").textContent = guard === "dual" ? "Submit for dual-control approval" : guard === "4eyes" ? "Submit for approval" : "Execute (operator)";
+  overlay.hidden = false;
+  document.getElementById("mReason").focus();
+}
+function closeModal() {
+  overlay.hidden = true; modalCtx = null;
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+document.getElementById("mCancel").addEventListener("click", closeModal);
+overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) closeModal(); });
+document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.hidden) closeModal(); });
+
+document.getElementById("mForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var reason = document.getElementById("mReason").value.trim();
+  var ticket = document.getElementById("mTicket").value.trim();
+  if (!reason || !ticket) { document.getElementById("mErr").style.display = "block"; return; }
+  var c = modalCtx;
+  if (c.guard === "4eyes" || c.guard === "dual") {
+    var p = { apprId: "APR-" + (apprSeq++), action: c.action, itemId: c.itemId, detailKey: c.detailKey, ticket: ticket };
+    pendings.push(p); pendingByItem[c.itemId] = p;
+    setSlot(c.itemId, '<span class="chip pend">Pending approval</span>');
+    renderApprovals();
+    toast("Submitted for approval — " + p.apprId + " (" + c.action + " on " + c.itemId + ", " + ticket + ").", false);
+  } else {
+    executedByItem[c.itemId] = c.action;
+    setSlot(c.itemId, '<span class="chip ok">Executed</span>');
+    toast("Action executed — CAS row count 1 (" + c.action + " on " + c.itemId + ", " + ticket + ").", false);
+  }
+  closeModal();
+  if (currentDetail) showDetail(currentDetail);
+});
+
+/* ---------- approvals panel ---------- */
+function setSlot(itemId, html) {
+  document.querySelectorAll('.slot[data-slot="' + itemId + '"]').forEach(function (s) { s.innerHTML = html; });
+}
+function renderApprovals() {
+  document.getElementById("apprCount").textContent = pendings.length;
+  var box = document.getElementById("apprList");
+  if (!pendings.length) { box.innerHTML = '<p class="small muted" style="margin:0">No actions awaiting approval.</p>'; return; }
+  box.innerHTML = pendings.map(function (p) {
+    return '<div class="entry"><div><strong>' + esc(p.action) + "</strong> · <span class='mono'>" + esc(p.itemId) +
+      "</span></div><div class='mono muted'>" + esc(DETAILS[p.detailKey].scope) + "</div><div class='muted'>ticket " + esc(p.ticket) +
+      ' · expires in 24h</div><div style="margin-top:4px"><button type="button" class="appr" data-ok="1" data-id="' + p.apprId +
+      '">Approve</button> <button type="button" class="appr" data-ok="0" data-id="' + p.apprId + '">Reject</button></div></div>';
+  }).join("");
+  applyRole();
+}
+document.getElementById("apprList").addEventListener("click", function (e) {
+  var b = e.target.closest ? e.target.closest("button.appr") : null;
+  if (!b || b.disabled) return;
+  var idx = pendings.findIndex(function (p) { return p.apprId === b.dataset.id; });
+  if (idx < 0) return;
+  var p = pendings.splice(idx, 1)[0];
+  delete pendingByItem[p.itemId];
+  if (b.dataset.ok === "1") {
+    executedByItem[p.itemId] = p.action;
+    setSlot(p.itemId, '<span class="chip ok">Executed</span>');
+    toast("Action executed — CAS row count 1 (" + p.action + " on " + p.itemId + ").", false);
+  } else {
+    setSlot(p.itemId, "");
+    toast("Approval rejected — " + p.action + " on " + p.itemId + " discarded; no state change.", true);
+  }
+  renderApprovals();
+  if (currentDetail) showDetail(currentDetail);
+});
+function toast(msg, isErr) {
+  var box = document.getElementById("toastBox");
+  box.innerHTML = '<div class="toast' + (isErr ? " err" : "") + '" role="status">' + esc(msg) + "</div>";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { box.innerHTML = ""; }, 6000);
+}
+
+applyRole();
+</script>
+</body>
+</html>

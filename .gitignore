@@ -1,0 +1,14 @@
+# Superseded requirements drafts
+/requirment.md
+/requirment-v2.md
+/requirment-v3.md
+/requirment-v4-annotated.md
+
+# Generated review renderings (v2 is retained because it has no Markdown source)
+design-review*
+
+# Planning screenshots
+/*.png
+
+/*.xml
+/*.iml

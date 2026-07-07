@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ops Console — Proposal</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --text:#1a2332; --muted:#5b6672; --border:#dee3ea;
+  --accent:#2563eb; --accent-soft:#eef4ff; --accent-border:#c7dbff;
+  --red:#c92a2a; --red-soft:#fdf1f1; --red-border:#f3c3c3;
+  --amber:#b45309; --amber-soft:#fff9ec; --amber-border:#f2dfae;
+  --green:#15803d; --green-soft:#f0faf2; --green-border:#bfe6c8;
+  --purple:#6d28d9; --purple-soft:#f6f3ff; --purple-border:#ddd2f7;
+  --code-bg:#111a2b; --code-text:#dbe4f0; --code-border:#25324a;
+  --shadow:0 1px 3px rgba(16,24,40,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1320; --panel:#141c2e; --text:#e2e8f2; --muted:#93a0b4; --border:#263349;
+    --accent:#6ea8ff; --accent-soft:#17223a; --accent-border:#2c4370;
+    --red:#ff8787; --red-soft:#2a1720; --red-border:#5c2733;
+    --amber:#ffc078; --amber-soft:#2a2113; --amber-border:#5c4a20;
+    --green:#69db7c; --green-soft:#122619; --green-border:#254d31;
+    --purple:#b197fc; --purple-soft:#1d1930; --purple-border:#3c3060;
+    --code-bg:#0a0f1a; --code-text:#c9d4e4; --code-border:#1e293e;
+    --shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+}
+body{background:var(--bg);color:var(--text);font:16px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;padding:2.5rem 1rem 5rem}
+.wrap{max-width:960px;margin:0 auto}
+header{margin-bottom:2rem}
+h1{font-size:1.7rem;line-height:1.25;margin-bottom:.6rem}
+.meta{display:flex;flex-wrap:wrap;gap:.5rem;font-size:.82rem;color:var(--muted)}
+.meta span{background:var(--panel);border:1px solid var(--border);border-radius:99px;padding:.15rem .7rem}
+.meta .status{background:var(--purple-soft);color:var(--purple);border-color:var(--purple-border);font-weight:650}
+h2{font-size:1.25rem;margin:2.6rem 0 .9rem;padding-bottom:.4rem;border-bottom:2px solid var(--border)}
+h3{font-size:1.02rem;margin:1.4rem 0 .5rem}
+p{margin:.6rem 0}
+ul,ol{margin:.6rem 0 .6rem 1.4rem}
+li{margin:.3rem 0}
+strong{font-weight:650}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:1.15rem 1.3rem;margin:1rem 0}
+pre{background:var(--code-bg);color:var(--code-text);border:1px solid var(--code-border);border-radius:8px;padding:.9rem 1.05rem;font:.8rem/1.55 ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;overflow-x:auto;margin:.7rem 0}
+code{font:.85em ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:4px;padding:.05em .32em}
+pre code{background:none;border:none;padding:0}
+.tbl{overflow-x:auto;margin:.8rem 0;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th{text-align:left;background:var(--accent-soft);color:var(--text);font-weight:650;padding:.5rem .75rem;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.callout{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;padding:.8rem 1rem;margin:1rem 0}
+.pill{font-size:.7rem;font-weight:700;border-radius:99px;padding:.1rem .55rem;white-space:nowrap;display:inline-block}
+.p-4eyes{background:var(--red-soft);color:var(--red);border:1px solid var(--red-border)}
+.p-op{background:var(--green-soft);color:var(--green);border:1px solid var(--green-border)}
+.p-fut{background:var(--purple-soft);color:var(--purple);border:1px solid var(--purple-border)}
+.p-note{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-border)}
+footer{margin-top:3rem;font-size:.8rem;color:var(--muted);text-align:center}
+@media (max-width:640px){body{padding:1.2rem .6rem 3rem}h1{font-size:1.35rem}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Ops Console — Proposal</h1>
+  <div class="meta">
+    <span class="status">PROPOSAL · future implementation · pending PO discussion</span>
+    <span class="status">UPDATE 2026-07-05: O4/O5 + "Parked events" queue OBSOLETE — parked store removed; recovery is query-based (req. §9)</span>
+    <span>requirment-v2.md §18</span>
+    <span>2026-07-05</span>
+    <span>Spring Boot · Oracle · SSO</span>
+  </div>
+</header>
+
+<h2>1 · Why this exists</h2>
+<p>The orchestrator is deliberately <strong>fail-blocked</strong>: when it cannot prove an outcome, it parks state and holds money reserved rather than guessing. That is the right design — but every parked state <strong>requires a database mutation to leave</strong>, and today no tool can execute one:</p>
+<div class="tbl"><table>
+<tr><th>Dead-end state</th><th>Produced by</th><th>What must eventually happen</th></tr>
+<tr><td><code>NEEDS_REVIEW</code> request</td><td>retry exhaustion, unmapped provider codes, amount mismatch, aged UNKNOWN</td><td>retry / reject / supersede — CAS transitions, two of which release the reservation</td></tr>
+<tr><td>Stuck reservation</td><td>request stalled in any non-terminal state</td><td>supersede/close (v2 §4 makes this a <em>required</em> feature)</td></tr>
+<tr><td>Parked feed event</td><td>unmatched UETR (v2 §5/§8)</td><td>replay after investigation, or discard</td></tr>
+<tr><td>Aged <code>UNKNOWN</code></td><td>POST outcome unresolvable within max age</td><td>on-demand resolver trigger, then resolution</td></tr>
+<tr><td>Overpay latch</td><td>confirmed &gt; required</td><td>today: ignored forever (v2 §13); ops may need to acknowledge/annotate</td></tr>
+</table></div>
+<div class="callout">The interim model — ops reads the card, then acts in <em>other</em> systems — covers investigation but not one of these mutations. Without a console, every occurrence becomes a DBA ticket running hand-written SQL against a payment database: slow, unaudited, and the single most likely source of invariant-breaking writes.</div>
+
+<h2>2 · Design principles</h2>
+<ol>
+<li><strong>No new mutation semantics.</strong> Every console action executes the <em>same</em> conditional CAS UPDATE + obligation-lock flow the orchestrator itself uses (v2 §3, §4, §10). The console adds authorization and audit around existing transitions — never a new way to change state. Row count 0 = "state moved under you" = action rejected, re-fetch.</li>
+<li><strong>Fail-safe bias preserved.</strong> Nothing in the console can create or submit a payment. Actions release, park, or resolve; the only path back to money moving is <code>retry</code>, which re-enters the normal §6.4 retry-guard.</li>
+<li><strong>Every action survives DR.</strong> No local journal exists (v2 §12), so each action writes the structured log line AND requires an external ticket reference — the record that survives a database restore.</li>
+<li><strong>Read wide, write narrow.</strong> The read surface shows everything; the write surface is a closed catalog of six operations.</li>
+</ol>
+
+<h2>3 · Operation catalog</h2>
+<div class="tbl"><table>
+<tr><th>#</th><th>Operation</th><th>Precondition (CAS WHERE)</th><th>Effect</th><th>Guardrail</th></tr>
+<tr><td>O1</td><td>Resolve NEEDS_REVIEW → retry</td><td>status = NEEDS_REVIEW</td><td>→ POST_FAILED_RETRYABLE, retry now; §6.4 retry-guard re-validates before any POST</td><td><span class="pill p-4eyes">4-EYES</span></td></tr>
+<tr><td>O2</td><td>Resolve NEEDS_REVIEW → reject</td><td>status = NEEDS_REVIEW</td><td>→ REJECTED_FINAL; reservation released; step re-derived</td><td><span class="pill p-4eyes">4-EYES</span></td></tr>
+<tr><td>O3</td><td>Supersede/close stalled request</td><td>non-terminal, age &gt; threshold</td><td>→ SUPERSEDED; reservation released; step re-derived</td><td><span class="pill p-4eyes">4-EYES</span></td></tr>
+<tr><td>O4</td><td>Replay parked feed event</td><td>parked, investigated</td><td>re-enters normal consumption (inbox + precedence CAS make replay safe)</td><td><span class="pill p-op">OPERATOR</span></td></tr>
+<tr><td>O5</td><td>Discard parked feed event</td><td>parked</td><td>marked discarded with reason</td><td><span class="pill p-4eyes">4-EYES</span></td></tr>
+<tr><td>O6</td><td>Trigger UNKNOWN resolver now</td><td>status = UNKNOWN</td><td>one status-query cycle (§9), outcome via normal path</td><td><span class="pill p-op">OPERATOR</span></td></tr>
+<tr><td>—</td><td>Overpay acknowledge/annotate</td><td>latch set</td><td>annotation only; <strong>no state change</strong> (v2 §13 rule)</td><td><span class="pill p-op">OPERATOR</span></td></tr>
+<tr><td>—</td><td>Returned-funds adjustment</td><td>—</td><td>blocked on v2 §17.2</td><td><span class="pill p-fut">FUTURE</span></td></tr>
+</table></div>
+<p>O1–O3 and O5 change money-relevant state → 4-eyes. O4/O6 push events through existing idempotent paths → single operator.</p>
+
+<h2>4 · Architecture</h2>
+<pre>┌─────────────┐   OAuth2/SSO   ┌──────────────────┐   same schema   ┌────────┐
+│  Ops UI     │ ─────────────► │  ops-console-api  │ ──────────────► │ Oracle │
+│  (SPA)      │                │  (Spring Boot)    │  CAS + oblig.   │        │
+└─────────────┘                │                   │  lock, read-only│        │
+                               │  - queue queries  │  views for lists│        │
+                               │  - action executor│                 └────────┘
+                               │  - approval store │
+                               └──────────────────┘</pre>
+<ul>
+<li><strong>Separate deployable</strong>, same database, same transaction primitives — ideally via a shared library module extracted from the orchestrator (<code>payment-core-transitions</code>) so console and orchestrator can never disagree about a transition's WHERE clause.</li>
+<li><strong>AuthN:</strong> corporate SSO (OAuth2/OIDC). <strong>Roles:</strong> <code>viewer</code> (read-only) · <code>operator</code> (O4, O6, annotations) · <code>approver</code> (second pair of eyes for O1–O3, O5; cannot initiate what they approve).</li>
+<li><strong>Approval flow:</strong> initiator submits action + reason + ticket ref → pending row → approver confirms → execution. Pending approvals expire (24h); the CAS re-check at execution time is the final arbiter, and a row-count-0 rejection is surfaced to both parties.</li>
+<li><strong>Audit:</strong> every submit/approve/execute/reject emits the v2 §12 structured log line with <code>trigger_source = MANUAL_OPS:&lt;operator-id&gt;</code> plus the ticket reference. The console DB keeps only approval-workflow rows (console state, not payment state).</li>
+</ul>
+
+<h2>5 · UI surface (three screens)</h2>
+<div class="card"><h3>S1 — Queues dashboard</h3>
+<p>One table per dead-end state (NEEDS_REVIEW, stuck reservations by age, parked events, aged UNKNOWN, overpay latches). Each row: scope key, business_id, amount, age, last error, deep-link to S2. Oldest-first; badge counts in the nav. This is the screen the v2 §14 alerts link to.</p></div>
+<div class="card"><h3>S2 — Payment detail</h3>
+<p>The full story of one obligation: header (scope key, required/committed/confirmed, derived step status, active exception), request list with status + retry state + UETR, the transition history <em>from the log store</em> (the console reads logs; it does not maintain a journal), and parked events for this scope. Action buttons appear only for catalog states and only for the caller's role.</p></div>
+<div class="card"><h3>S3 — Action flow</h3>
+<p>Modal per action: reason (mandatory), ticket reference (mandatory, validated), and a <strong>preview of effect</strong> ("SUPERSEDE releases 20.00 EUR reservation; shortfall becomes 20.00; step remains IN_PROGRESS") computed read-only under the same lock → submit → pending-approval state visible on S1.</p></div>
+
+<h2>6 · API sketch</h2>
+<pre>GET  /queues/needs-review | /stuck | /parked-events | /unknown-aged | /overpay
+GET  /obligations/{scopeKey}                 → S2 payload
+GET  /obligations/{scopeKey}/log-timeline    → from log store
+POST /requests/{id}/actions                  {type: RETRY|REJECT|SUPERSEDE, reason, ticketRef}
+POST /parked-events/{id}/actions             {type: REPLAY|DISCARD, reason, ticketRef}
+POST /requests/{id}/resolve-unknown-now      {reason, ticketRef}
+POST /approvals/{id}/approve | /reject</pre>
+<p>All mutating endpoints: idempotency via the approval-row id; optimistic <code>If-Match</code> on the request <code>version</code> so the UI can't act on a stale view.</p>
+
+<h2>7 · Phasing</h2>
+<div class="tbl"><table>
+<tr><th>Phase</th><th>Scope</th><th>Value</th></tr>
+<tr><td><strong>P0</strong></td><td>S1 + S2 read-only (queues, detail, log timeline)</td><td>kills "where do I even look"; no approval machinery; ships first</td></tr>
+<tr><td><strong>P1</strong></td><td>O4 replay, O6 resolver-trigger, overpay annotation</td><td>non-monetary, single-operator; unblocks feed-event and UNKNOWN workflows</td></tr>
+<tr><td><strong>P2</strong></td><td>O1–O3, O5 with 4-eyes approval flow</td><td>the money-touching operations; requires the PO decisions below</td></tr>
+<tr><td><strong>P3</strong></td><td>Returned-funds adjustment</td><td>blocked on v2 §17.2 (reconciliation conversation)</td></tr>
+</table></div>
+
+<h2>8 · Open questions for the PO discussion</h2>
+<ol>
+<li>Who are the ops users (team, count, existing roles), and what SLA do the queues carry (e.g., NEEDS_REVIEW resolved within one business day — v2 §14 currently only tickets it)?</li>
+<li>Is 4-eyes required by policy for O1–O3/O5, or is single-operator with mandatory ticket acceptable?</li>
+<li>Which ticket system anchors the audit trail — and is the reference enforceable (validated against its API) or free-text?</li>
+<li>Retention for console approval/action records.</li>
+<li>May <code>retry</code> (O1) bypass the payment cutoff, or does the cutoff check (v2 §7) always win?</li>
+<li>Does the overpay acknowledgement need to be visible on the card (read-model field), or console-only?</li>
+</ol>
+
+<footer>Ops Console Proposal · 2026-07-05 · companion file: ops-console-proposal.md · status: pending PO discussion (requirment-v2.md §18)</footer>
+</div>
+</body>
+</html>

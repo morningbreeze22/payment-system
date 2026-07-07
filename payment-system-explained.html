@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Orchestration — Interactive Guide</title>
+<style>
+:root{--bg:#f7f7f4;--fg:#20201e;--muted:#71716a;--line:#d8d7cf;--card:#fff;
+--blue:#2563ab;--green:#1e7d5a;--amber:#b26a00;--red:#b3261e;--purple:#6b4fa0;--code:#efeee8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:.8rem 1.2rem}
+header h1{font-size:1.15rem;margin:0}
+header .sub{color:var(--muted);font-size:.8rem}
+.tabs{position:sticky;top:0;z-index:20;display:flex;gap:.35rem;flex-wrap:wrap;background:var(--card);border-bottom:2px solid var(--line);padding:.5rem 1.2rem}
+.tabs button{font:600 .85rem/1 inherit;padding:.5rem .9rem;border:1px solid var(--line);border-bottom:none;background:var(--code);border-radius:.5rem .5rem 0 0;cursor:pointer;color:var(--muted)}
+.tabs button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+main{max-width:1560px;margin:0 auto;padding:1.2rem 1.6rem 5rem}
+section.tab>svg,section.tab>.grid,section.tab>table,section.tab>p{max-width:1160px}
+section.tab{display:none}section.tab.on{display:block}
+h2{font-size:1.1rem;margin:1.4rem 0 .5rem}
+p{max-width:82ch;margin:.35rem 0}
+.sub{color:var(--muted);font-size:.83rem}
+.grid{display:grid;gap:1rem}.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:.55rem;padding:.85rem 1rem}
+.card h3{margin:.1rem 0 .5rem;font-size:.95rem}
+svg{max-width:100%;height:auto;display:block;background:var(--card);border:1px solid var(--line);border-radius:.55rem}
+svg text{font:13px ui-sans-serif,system-ui,sans-serif;fill:var(--fg)}
+svg .s11{font-size:11px}svg .s12{font-size:12px}svg .b{font-weight:700;font-size:14px}svg .m{fill:var(--muted)}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.85em;background:var(--code);padding:.05rem .3rem;border-radius:.25rem}
+table{border-collapse:collapse;font-size:.84rem;width:100%}
+th,td{border:1px solid var(--line);padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code)}
+.pill{display:inline-block;border-radius:.8rem;padding:.1rem .6rem;font-size:.78rem;font-weight:700;color:#fff}
+.pR{background:var(--green)}.pC{background:var(--blue)}.pW{background:var(--amber)}.pB{background:var(--red)}.pN{background:#8a8a82}.pO{background:var(--purple)}
+button.act{font:inherit;font-size:.83rem;padding:.4rem .7rem;margin:.15rem;border:1px solid var(--line);background:var(--card);border-radius:.45rem;cursor:pointer}
+button.act:hover{background:var(--code)}
+button.act:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.out{margin:.5rem 0;padding:.55rem .8rem;border-radius:.4rem;font-size:.88rem;border-left:4px solid var(--line);background:var(--code);min-height:2.6em}
+.out.ok{border-left-color:var(--green);background:#ecf7f0}
+.out.bad{border-left-color:var(--red);background:#fbeeec}
+.out.info{border-left-color:var(--blue);background:#edf3fa}
+.tuple{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+.dim{border:1px solid var(--line);border-radius:.45rem;padding:.3rem .7rem;background:var(--card);min-width:130px}
+.dim b{display:block;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.dim span{font-family:ui-monospace,Consolas,monospace;font-size:.92rem;font-weight:600}
+.bars{margin:.5rem 0}
+.bar{display:flex;align-items:center;gap:.6rem;margin:.25rem 0;font-size:.8rem}
+.bar label{width:150px;text-align:right;color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.bar .tr{flex:1;height:18px;background:var(--code);border-radius:4px;position:relative;overflow:hidden}
+.bar .fl{height:100%;border-radius:4px;transition:width .3s}
+.bar .v{width:44px;font-family:ui-monospace,Consolas,monospace;font-weight:700}
+.evgrp{margin:.5rem 0}
+.evgrp b{font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+.hint{font-size:.8rem;color:var(--muted)}
+.smrule{cursor:pointer}
+.smrule:hover line,.smrule:hover path{stroke-width:3.5}
+.flash{animation:fl .5s}
+@keyframes fl{0%{background:#fff3c9}100%{background:var(--card)}}
+.pipe{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin:.4rem 0 .8rem}
+.pstep{border:1px solid var(--line);border-radius:.4rem;padding:.3rem .6rem;font-size:.76rem;color:var(--muted);background:var(--code)}
+.pstep.done{background:#ecf7f0;color:var(--green);border-color:var(--green)}
+.pstep.on{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700}
+.parrow{color:var(--muted);font-size:.85rem}
+.chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.45rem 0}
+.chip{border:1px solid var(--line);border-radius:.8rem;padding:.18rem .65rem;font-size:.77rem;background:var(--card)}
+.chip.red{border-color:var(--red);color:var(--red);font-weight:700}
+.chip.amb{border-color:var(--amber);color:var(--amber);font-weight:700}
+.chip.grn{border-color:var(--green);color:var(--green);font-weight:700}
+.mwgrid{display:grid;grid-template-columns:minmax(330px,1fr) minmax(360px,1.15fr);gap:1.2rem;align-items:start}
+.mwleft{position:sticky;top:64px}
+.mwright .evgrp{margin:.15rem 0 .55rem}
+@media(max-width:900px){.mwgrid{grid-template-columns:1fr}.mwleft{position:static}}
+</style>
+</head>
+<body>
+<header>
+ <h1>Payment Orchestration System — Interactive Guide</h1>
+ <div class="sub">Explains <code>requirment-v4.md</code> (the normative doc). Click things — most of this page is playable.</div>
+</header>
+<div class="tabs" id="tabs">
+ <button data-t="t1" class="on">1 · Architecture</button>
+ <button data-t="t2">2 · Data &amp; Money</button>
+ <button data-t="t3">3 · State machine</button>
+ <button data-t="t4">4 · Simulator</button>
+ <button data-t="t5">5 · Hard concepts</button>
+ <button data-t="t6">6 · Infra &amp; DR</button>
+</div>
+<main>
+
+<!-- ============================ TAB 1 ARCHITECTURE ============================ -->
+<section class="tab on" id="t1">
+<h2>Services, flows, and who talks to whom</h2>
+<svg viewBox="0 0 1020 585" aria-label="architecture">
+ <defs>
+  <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#555"/></marker>
+  <marker id="ag" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#1e7d5a"/></marker>
+ </defs>
+ <!-- left: kafka -->
+ <rect x="20" y="80" width="150" height="60" rx="8" fill="#edf3fa" stroke="#2563ab"/>
+ <text x="95" y="105" text-anchor="middle" class="b">Upstream</text>
+ <text x="95" y="124" text-anchor="middle" class="s11 m">trade messages · Kafka</text>
+ <rect x="20" y="300" width="150" height="60" rx="8" fill="#edf3fa" stroke="#2563ab"/>
+ <text x="95" y="325" text-anchor="middle" class="b">Status feed</text>
+ <text x="95" y="344" text-anchor="middle" class="s11 m">by UETR · Kafka</text>
+ <!-- container -->
+ <rect x="215" y="40" width="440" height="430" rx="10" fill="none" stroke="#aaa" stroke-dasharray="6 4"/>
+ <text x="228" y="62" class="s12 m">our services — Java / Spring Boot</text>
+ <!-- services -->
+ <rect x="240" y="80" width="190" height="74" rx="8" fill="#fff" stroke="#555"/>
+ <text x="335" y="103" text-anchor="middle" class="b">Orchestration</text>
+ <text x="335" y="121" text-anchor="middle" class="s11 m">trades in · money math</text>
+ <text x="335" y="136" text-anchor="middle" class="s11 m">scanners · resolver · escalation</text>
+ <rect x="450" y="80" width="190" height="74" rx="8" fill="#fff" stroke="#555"/>
+ <text x="545" y="103" text-anchor="middle" class="b">Enrichment</text>
+ <text x="545" y="121" text-anchor="middle" class="s11 m">party / account lookups</text>
+ <text x="545" y="136" text-anchor="middle" class="s11 m">fresh on EVERY attempt</text>
+ <rect x="240" y="190" width="190" height="74" rx="8" fill="#fff" stroke="#555"/>
+ <text x="335" y="213" text-anchor="middle" class="b">NotificationConsumer</text>
+ <text x="335" y="231" text-anchor="middle" class="s11 m">feed → inbox →</text>
+ <text x="335" y="246" text-anchor="middle" class="s11 m">evidence-guarded CAS</text>
+ <rect x="450" y="190" width="190" height="74" rx="8" fill="#fff" stroke="#555"/>
+ <text x="545" y="213" text-anchor="middle" class="b">Execution</text>
+ <text x="545" y="231" text-anchor="middle" class="s11 m">posting claim → SDK call</text>
+ <text x="545" y="246" text-anchor="middle" class="s11 m">→ classify response</text>
+ <!-- db -->
+ <rect x="240" y="310" width="400" height="70" rx="8" fill="#f5f2fb" stroke="#6b4fa0"/>
+ <text x="440" y="335" text-anchor="middle" class="b">Oracle — the queue AND the truth</text>
+ <text x="440" y="356" text-anchor="middle" class="s11 m">payment_obligation · payment_request · processed_inbound_event</text>
+ <text x="440" y="372" text-anchor="middle" class="s11 m">every change = conditional UPDATE; row-count is the verdict</text>
+ <!-- service->db arrows -->
+ <line x1="335" y1="264" x2="335" y2="310" stroke="#555" marker-end="url(#ar)"/>
+ <line x1="545" y1="264" x2="545" y2="310" stroke="#555" marker-end="url(#ar)"/>
+ <line x1="335" y1="154" x2="335" y2="182" stroke="#555" stroke-dasharray="3 3"/>
+ <line x1="545" y1="154" x2="545" y2="182" stroke="#555" stroke-dasharray="3 3"/>
+ <!-- right column -->
+ <rect x="720" y="70" width="270" height="120" rx="8" fill="#ecf7f0" stroke="#1e7d5a"/>
+ <text x="855" y="96" text-anchor="middle" class="b">Payment platform ("engine")</text>
+ <text x="855" y="118" text-anchor="middle" class="s11 m">SDK: validate · mint UETR · POST</text>
+ <text x="855" y="136" text-anchor="middle" class="s11 m">status-query API — by OUR key</text>
+ <text x="855" y="154" text-anchor="middle" class="s11 m">settles all-or-nothing</text>
+ <text x="855" y="172" text-anchor="middle" class="s11 m">owns the audit trail</text>
+ <rect x="720" y="300" width="270" height="64" rx="8" fill="#fff" stroke="#555"/>
+ <text x="855" y="325" text-anchor="middle" class="b">UI card — read only</text>
+ <text x="855" y="344" text-anchor="middle" class="s11 m">lookup by business_id · we push nothing</text>
+ <rect x="720" y="420" width="270" height="64" rx="8" fill="#fdf6e9" stroke="#b26a00"/>
+ <text x="855" y="445" text-anchor="middle" class="b">Hazelcast — posting freeze</text>
+ <text x="855" y="464" text-anchor="middle" class="s11 m">absent / unreachable ⇒ FROZEN (fail-safe)</text>
+ <!-- arrows -->
+ <line x1="170" y1="110" x2="240" y2="110" stroke="#555" marker-end="url(#ar)"/>
+ <path d="M170,330 L195,330 L195,227 L240,227" fill="none" stroke="#555" marker-end="url(#ar)"/>
+ <path d="M640,210 L672,210 L672,130 L720,130" fill="none" stroke="#1e7d5a" stroke-width="2.2" marker-end="url(#ag)"/>
+ <text x="656" y="242" text-anchor="middle" class="s12" fill="#1e7d5a">POST · query</text>
+ <text x="656" y="258" text-anchor="middle" class="s11 m">deterministic key</text>
+ <path d="M990,190 L1005,190 L1005,545 L95,545 L95,360" fill="none" stroke="#555" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+ <text x="550" y="537" text-anchor="middle" class="s11 m">engine emits status events (async) → the feed we consume</text>
+ <line x1="720" y1="332" x2="640" y2="332" stroke="#555" marker-end="url(#ar)"/>
+ <text x="680" y="322" text-anchor="middle" class="s11 m">reads</text>
+ <line x1="720" y1="452" x2="655" y2="452" stroke="#b26a00" stroke-dasharray="5 3" marker-end="url(#ar)"/>
+ <text x="600" y="444" text-anchor="middle" class="s11" fill="#b26a00">checked before</text>
+ <text x="600" y="459" text-anchor="middle" class="s11" fill="#b26a00">every claim &amp; POST</text>
+</svg>
+<div class="grid g2" style="margin-top:1rem">
+ <div class="card"><h3>The one sentence</h3><p>Kafka messages and engine responses are only <b>evidence</b>. Every state or money change is a conditional UPDATE on Oracle whose <b>row-count decides</b> — nothing trusts a message twice, nothing trusts memory. (§4, §11)</p></div>
+ <div class="card"><h3>Go-live gates (§18 BLOCKING)</h3>
+ <table>
+  <tr><td><b>0</b></td><td>payments-per-trade cardinality (may change the scope key)</td></tr>
+  <tr><td><b>1</b></td><td>engine idempotency sandbox TEST (dedupe / collision-reject / key-retention TTL)</td></tr>
+  <tr><td><b>2</b></td><td>cutoff calendar: source, owner, timezone/holidays, fail direction</td></tr>
+  <tr><td><b>3</b></td><td>ops "apply-platform-verified-outcome" procedure exists &amp; drilled</td></tr>
+ </table></div>
+</div>
+</section>
+
+<!-- ============================ TAB 2 DATA & MONEY ============================ -->
+<section class="tab" id="t2">
+<h2>Three tables</h2>
+<svg viewBox="0 0 1020 300">
+ <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#555"/></marker></defs>
+ <rect x="20" y="20" width="300" height="256" rx="8" fill="#fff" stroke="#2563ab"/>
+ <text x="170" y="44" text-anchor="middle" class="b">payment_obligation</text>
+ <text x="170" y="61" text-anchor="middle" class="s11 m">one row per payment SCOPE</text>
+ <text x="36" y="88" class="s12">scope key = business_id + type +</text>
+ <text x="36" y="104" class="s12">debit_account + currency (UNIQUE)</text>
+ <text x="36" y="130" class="s12">required / committed / confirmed</text>
+ <text x="36" y="148" class="s12">overpay_blocked (one-way latch)</text>
+ <text x="36" y="174" class="s12">next_request_seq → identity input</text>
+ <text x="36" y="200" class="s12">validation_failed · provider_rejected</text>
+ <text x="36" y="216" class="s11 m">(ordering-tagged markers)</text>
+ <text x="36" y="242" class="s12">upstream_ordering (staleness guard)</text>
+ <rect x="380" y="20" width="300" height="256" rx="8" fill="#fff" stroke="#1e7d5a"/>
+ <text x="530" y="44" text-anchor="middle" class="b">payment_request</text>
+ <text x="530" y="61" text-anchor="middle" class="s11 m">one attempt series · I6: max ONE active</text>
+ <text x="396" y="88" class="s12">stage · stage_state · submission_state</text>
+ <text x="396" y="104" class="s12">· outcome (+ blocked_reason)</text>
+ <text x="396" y="130" class="s12">amount — IMMUTABLE</text>
+ <text x="396" y="156" class="s12">idempotency_key (ours, deterministic)</text>
+ <text x="396" y="172" class="s12">uetr (SDK-assigned, from response)</text>
+ <text x="396" y="198" class="s12">last_sent_hash · divergence_expected</text>
+ <text x="396" y="224" class="s12">set-once clocks: maybe_since ·</text>
+ <text x="396" y="240" class="s12">escalated_at · submitted_at · last_post…</text>
+ <text x="396" y="262" class="s12">claim lease: claimed_by · expires_at</text>
+ <rect x="740" y="20" width="260" height="160" rx="8" fill="#fff" stroke="#b26a00"/>
+ <text x="870" y="44" text-anchor="middle" class="b">processed_inbound_event</text>
+ <text x="870" y="61" text-anchor="middle" class="s11 m">the inbox</text>
+ <text x="756" y="90" class="s12">event_id (PK) — drops identical</text>
+ <text x="756" y="106" class="s12">redeliveries cheaply</text>
+ <text x="756" y="134" class="s12" fill="#b3261e">performance layer ONLY —</text>
+ <text x="756" y="150" class="s12" fill="#b3261e">money is protected by the</text>
+ <text x="756" y="166" class="s12" fill="#b3261e">evidence CAS, not here</text>
+ <line x1="320" y1="140" x2="380" y2="140" stroke="#555" marker-end="url(#a2)"/>
+ <text x="350" y="130" text-anchor="middle" class="s11 m">1→N</text>
+</svg>
+<p class="sub" style="margin-top:.4rem">Trap: the request holds <b>no party/account data</b> — every attempt re-runs enrichment; newest upstream data always wins. The request freezes only amount + identity.</p>
+
+<h2>Money — play with it, in pipeline order</h2>
+<div class="card" id="moneyw">
+ <p class="sub">The system's order is always: <b>Kafka message → obligation → request creation → enrichment → payment call → Kafka notification</b>. The strip shows where you are. <code>committed</code> = money spoken for (the active request's reservation) · <code>confirmed</code> = money settled · shortfall = required − committed. Buttons refuse when a rule forbids the move — the refusal message IS the lesson.</p>
+ <div class="mwgrid">
+ <div class="mwleft">
+ <div class="pipe" id="pipe"></div>
+ <div class="bars">
+  <div class="bar"><label>required</label><div class="tr"><div class="fl" id="wb0" style="background:#8a8a82;width:0%"></div></div><div class="v" id="wv0">0</div></div>
+  <div class="bar"><label>committed</label><div class="tr"><div class="fl" id="wb1" style="background:var(--amber);width:0%"></div></div><div class="v" id="wv1">0</div></div>
+  <div class="bar"><label>confirmed</label><div class="tr"><div class="fl" id="wb2" style="background:var(--green);width:0%"></div></div><div class="v" id="wv2">0</div></div>
+  <div class="bar"><label>shortfall (derived)</label><div class="tr"><div class="fl" id="wb3" style="background:var(--blue);width:0%"></div></div><div class="v" id="wv3">0</div></div>
+ </div>
+ <div class="chips" id="wchips"></div>
+ <div class="out info" id="wout">Nothing exists yet. Start at ① — a Kafka message arrives.</div>
+ </div>
+ <div class="mwright">
+ <div class="evgrp"><b>① Kafka — upstream trade message</b><br>
+  <button class="act" onclick="mw('msg')">message: pay 100</button>
+  <button class="act" onclick="mw('dupmsg')">same message redelivered</button>
+  <button class="act" onclick="mw('stale')">STALE message (older ordering)</button>
+  <button class="act" onclick="mw('amdown')">amendment: required → 80</button>
+  <button class="act" onclick="mw('amup')">amendment: required → 150</button>
+  <button class="act" onclick="mw('corrected')">corrected data message (newer)</button>
+ </div>
+ <div class="evgrp"><b>② Obligation → request creation (§6.8 — the ONLY place requests are born)</b><br>
+  <button class="act" onclick="mw('reeval')">run standing re-evaluation</button>
+  <span class="hint">← press it any time, twice, after anything — it can never double-create. That is the point.</span>
+ </div>
+ <div class="evgrp"><b>③ Enrichment (fresh every attempt)</b><br>
+  <button class="act" onclick="mw('enrichok')">enrichment ok</button>
+  <button class="act" onclick="mw('enrichbad')">enrichment fails: invalid data</button>
+ </div>
+ <div class="evgrp"><b>④ Payment call (engine SDK)</b><br>
+  <button class="act" onclick="mw('accept')">engine accepts</button>
+  <button class="act" onclick="mw('balance')">sync reject: insufficient balance (retryable)</button>
+  <button class="act" onclick="mw('retry')">retry due → re-enrich &amp; re-post</button>
+  <button class="act" onclick="mw('defreject')">sync DEFINITIVE reject</button>
+  <button class="act" onclick="mw('timeout')">TIMEOUT — outcome unknown</button>
+ </div>
+ <div class="evgrp"><b>④b Resolver — when the outcome is unknown (§9)</b><br>
+  <button class="act" onclick="mw('qexec')">status query: EXECUTED</button>
+  <button class="act" onclick="mw('qnf')">status query: NOT_FOUND past trust age</button>
+ </div>
+ <div class="evgrp"><b>⑤ Kafka — status notification (feed)</b><br>
+  <button class="act" onclick="mw('settle')">settlement: 100</button>
+  <button class="act" onclick="mw('settle120')">settlement: 120 (!)</button>
+  <button class="act" onclick="mw('rejectn')">reject notification</button>
+  <button class="act" onclick="mw('dupn')">same notification redelivered</button>
+  <button class="act" onclick="mw('unknown')">notification for an unknown UETR</button>
+ </div>
+ <div class="evgrp"><button class="act" onclick="mw('reset')">↺ reset</button></div>
+ </div>
+ </div>
+</div>
+
+<h2>Only three counter moves — nothing else touches money</h2>
+<table style="max-width:760px">
+ <tr><th>When</th><th>Move</th></tr>
+ <tr><td>request row INSERTed (§6.8 — the only creation point)</td><td><code>committed += amount</code></td></tr>
+ <tr><td>terminal-negative outcome (REJECTED / CANCELLED / SUPERSEDED), CAS row-count = 1</td><td><code>committed −= amount</code></td></tr>
+ <tr><td>settlement evidence, amount EXACTLY equal (all-or-nothing contract)</td><td><code>confirmed += amount</code></td></tr>
+</table>
+<p class="sub">POST, retries, responses, timeouts: no movement. A crash mid-POST cannot desync money — the reservation just stays held. Fail-blocked, never pay-twice.</p>
+</section>
+
+<!-- ============================ TAB 3 STATE MACHINE ============================ -->
+<section class="tab" id="t3">
+<h2>Four independent columns — click any arrow for its rule</h2>
+<p class="sub">A request's state is the tuple <code>(stage, stage_state, submission_state, outcome)</code>. The old 13-value enum survives only as display labels no rule may key on — same for <code>blocked_reason</code>.</p>
+
+<h3 style="margin-top:1rem">stage — where in the pipeline</h3>
+<svg viewBox="0 0 940 140">
+ <defs><marker id="a3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#555"/></marker>
+ <marker id="a3r" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b3261e"/></marker></defs>
+ <rect x="60" y="25" width="170" height="50" rx="10" fill="#edf3fa" stroke="#2563ab"/><text x="145" y="55" text-anchor="middle" class="b">ENRICH</text>
+ <rect x="385" y="25" width="170" height="50" rx="10" fill="#edf3fa" stroke="#2563ab"/><text x="470" y="55" text-anchor="middle" class="b">POST</text>
+ <rect x="710" y="25" width="170" height="50" rx="10" fill="#edf3fa" stroke="#2563ab"/><text x="795" y="55" text-anchor="middle" class="b">CONFIRM</text>
+ <g class="smrule" data-r="Enrichment succeeded: instruction data resolved fresh from the trade store (§7.0). No money moves on stage changes.">
+  <line x1="230" y1="50" x2="385" y2="50" stroke="#555" stroke-width="2" marker-end="url(#a3)"/><text x="307" y="42" text-anchor="middle" class="s11 m">enrich ok</text></g>
+ <g class="smrule" data-r="POST attempt made (or its outcome is ambiguous). CONFIRM = waiting for settlement evidence. L2: stage CONFIRM ⇒ submission ≥ MAYBE.">
+  <line x1="555" y1="50" x2="710" y2="50" stroke="#555" stroke-width="2" marker-end="url(#a3)"/><text x="632" y="42" text-anchor="middle" class="s11 m">POST sent</text></g>
+ <g class="smrule" data-r="THE one sanctioned backward move (§9.2): resolver said NOT_FOUND after the trust age AND repost_permitted passes → re-POST with the SAME key, freshly assembled. If any repost_permitted term fails, the row simply stays put (wait-then-decide).">
+  <path d="M760,75 C660,125 560,125 480,80" fill="none" stroke="#b3261e" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a3r)"/>
+  <text x="622" y="128" text-anchor="middle" class="s11" fill="#b3261e">§9.2 downgrade — same key, gated (click me)</text></g>
+</svg>
+
+<h3>stage_state — the work cycle inside any stage</h3>
+<svg viewBox="0 0 940 250">
+ <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#555"/></marker></defs>
+ <rect x="50" y="40" width="150" height="50" rx="10" fill="#ecf7f0" stroke="#1e7d5a"/><text x="125" y="70" text-anchor="middle" class="b">READY</text>
+ <rect x="370" y="40" width="150" height="50" rx="10" fill="#edf3fa" stroke="#2563ab"/><text x="445" y="70" text-anchor="middle" class="b">CLAIMED</text>
+ <rect x="370" y="170" width="150" height="50" rx="10" fill="#fdf6e9" stroke="#b26a00"/><text x="445" y="200" text-anchor="middle" class="b">RETRY_WAIT</text>
+ <rect x="700" y="170" width="180" height="50" rx="10" fill="#fbeeec" stroke="#b3261e"/><text x="790" y="200" text-anchor="middle" class="b">BLOCKED</text>
+ <g class="smrule" data-r="Claim = a LEASE (L6): claimed_by + claim_expires_at. A second scanner cannot re-claim mid-work. The POSTING claim also re-checks repost_permitted and persists instruction hash + last_post_attempt_at BEFORE the HTTP call (§11).">
+  <line x1="200" y1="65" x2="370" y2="65" stroke="#555" stroke-width="2" marker-end="url(#a4)"/><text x="285" y="56" text-anchor="middle" class="s11 m">claim (lease)</text></g>
+ <g class="smrule" data-r="Success → the NEXT stage at READY. An expired POST claim never returns to POST — it goes to CONFIRM·MAYBE: the worker may have died mid-call and re-POSTing blindly is the double-payment path (§11).">
+  <line x1="520" y1="55" x2="700" y2="55" stroke="#1e7d5a" stroke-width="2" marker-end="url(#a4)"/><text x="610" y="46" text-anchor="middle" class="s11" fill="#1e7d5a">success → next stage · READY</text></g>
+ <g class="smrule" data-r="Transient failure → RETRY_WAIT with next_retry_at (L7). Retry deadlines are SUSPENDED while posting is frozen or the engine breaker is open — an outage must not burn the retry budget (§16.1).">
+  <line x1="445" y1="90" x2="445" y2="170" stroke="#b26a00" stroke-width="2" marker-end="url(#a4)"/><text x="455" y="135" class="s11" fill="#b26a00">transient failure</text></g>
+ <g class="smrule" data-r="Scanner claims a due row directly (FOR UPDATE SKIP LOCKED, DB time only).">
+  <path d="M370,195 C250,195 165,130 135,92" fill="none" stroke="#555" stroke-width="2" marker-end="url(#a4)"/><text x="235" y="165" class="s11 m">due → re-claim</text></g>
+ <g class="smrule" data-r="Retry exhaustion or the payment cutoff passed → BLOCKED(RETRY_EXHAUSTED / CUTOFF_EXPIRED). Parks (amendment, escalation, unmapped code…) also land here — always with blocked_reason set (L8) and an alert. Fail-blocked, never silent.">
+  <line x1="520" y1="195" x2="700" y2="195" stroke="#b3261e" stroke-width="2" marker-end="url(#a4)"/><text x="610" y="186" text-anchor="middle" class="s11" fill="#b3261e">exhaust / cutoff / park</text></g>
+ <g class="smrule" data-r="Exits from BLOCKED are all GUARDED: ops actions (§10.2), the §9.2 downgrade, or late authoritative evidence. POST-bound exits pass repost_permitted; terminal exits pass the release guard (§10.1). blocked_reason is descriptive only — no rule keys on it.">
+  <path d="M700,180 C600,120 300,105 200,80" fill="none" stroke="#555" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a4)"/><text x="480" y="118" text-anchor="middle" class="s11 m">guarded exits (click me)</text></g>
+</svg>
+
+<h3>submission_state — may the engine hold money? (release rights)</h3>
+<svg viewBox="0 0 940 190">
+ <defs><marker id="a5" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#555"/></marker></defs>
+ <rect x="40" y="40" width="200" height="56" rx="10" fill="#f0f0ec" stroke="#8a8a82"/><text x="140" y="63" text-anchor="middle" class="b">NOT_SUBMITTED</text><text x="140" y="82" text-anchor="middle" class="s11 m">provably nothing can execute</text>
+ <rect x="380" y="40" width="200" height="56" rx="10" fill="#fdf6e9" stroke="#b26a00"/><text x="480" y="63" text-anchor="middle" class="b">MAYBE_SUBMITTED</text><text x="480" y="82" text-anchor="middle" class="s11 m">engine MAY hold a payment</text>
+ <rect x="720" y="40" width="180" height="56" rx="10" fill="#ecf7f0" stroke="#1e7d5a"/><text x="810" y="63" text-anchor="middle" class="b">SUBMITTED</text><text x="810" y="82" text-anchor="middle" class="s11 m">engine acknowledged</text>
+ <g class="smrule" data-r="Read timeout, crash mid-call, lease expiry, DUPLICATE_REQUEST: the truth is unknown → MAYBE. maybe_since is set ONCE (the escalation clock). The reservation stays held.">
+  <line x1="240" y1="68" x2="380" y2="68" stroke="#b26a00" stroke-width="2" marker-end="url(#a5)"/><text x="310" y="59" text-anchor="middle" class="s11" fill="#b26a00">ambiguous POST</text></g>
+ <g class="smrule" data-r="Acceptance response, a query answer proving acceptance, or feed evidence. Tightening (rightward) is ALWAYS safe (§9.4).">
+  <line x1="580" y1="68" x2="720" y2="68" stroke="#1e7d5a" stroke-width="2" marker-end="url(#a5)"/><text x="650" y="59" text-anchor="middle" class="s11" fill="#1e7d5a">proof of acceptance</text></g>
+ <g class="smrule" data-r="The ONLY leftward move: a synchronous definitive reject of OUR OWN re-POST — first-party evidence. A status-query answer can NEVER loosen (query stores lag and lie; our own POST response cannot). Single exception: the §9.3 dual-control ops procedure with platform-records evidence.">
+  <path d="M390,96 C320,140 210,140 155,100" fill="none" stroke="#b3261e" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a5)"/>
+  <text x="272" y="152" text-anchor="middle" class="s11" fill="#b3261e">only own-POST sync reject (click me)</text></g>
+ <text x="40" y="180" class="s12" fill="#b3261e">Why it matters: releasing a reservation whose money may have moved = the double-payment path. §10.1 forbids terminal-negative on MAYBE/SUBMITTED without authoritative negative evidence — a DB trigger backstops it.</text>
+</svg>
+
+<h3>outcome — write-once, then the row freezes</h3>
+<svg viewBox="0 0 940 170">
+ <defs><marker id="a6" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#6b4fa0"/></marker></defs>
+ <rect x="40" y="55" width="130" height="56" rx="28" fill="#fff" stroke="#6b4fa0" stroke-width="2"/><text x="105" y="88" text-anchor="middle" class="b">∅ active</text>
+ <g class="smrule" data-r="Settlement evidence (feed / resolver / §9.3 procedure), amount EXACTLY equal → +confirmed. L4: EXECUTED ⇒ SUBMITTED.">
+  <line x1="170" y1="65" x2="330" y2="35" stroke="#6b4fa0" stroke-width="2" marker-end="url(#a6)"/></g>
+ <g class="smrule" data-r="Sync definitive reject / feed reject / resolver REJECTED / §9.3 procedure. L9: exactly one obligation marker set in the same transaction. Reservation released → §6.8 may create a successor with a NEW key.">
+  <line x1="170" y1="83" x2="330" y2="83" stroke="#6b4fa0" stroke-width="2" marker-end="url(#a6)"/></g>
+ <g class="smrule" data-r="CANCELLED: §6.4 auto-cancel — legal ONLY while NOT_SUBMITTED. SUPERSEDED: ops supersede/close. Both pass the §10.1 release guard.">
+  <line x1="170" y1="101" x2="330" y2="131" stroke="#6b4fa0" stroke-width="2" marker-end="url(#a6)"/></g>
+ <rect x="335" y="15" width="200" height="38" rx="8" fill="#f5f2fb" stroke="#6b4fa0"/><text x="435" y="39" text-anchor="middle" class="s12">EXECUTED → +confirmed</text>
+ <rect x="335" y="64" width="200" height="38" rx="8" fill="#f5f2fb" stroke="#6b4fa0"/><text x="435" y="88" text-anchor="middle" class="s12">REJECTED → marker + release</text>
+ <rect x="335" y="113" width="200" height="38" rx="8" fill="#f5f2fb" stroke="#6b4fa0"/><text x="435" y="137" text-anchor="middle" class="s12">CANCELLED / SUPERSEDED</text>
+ <text x="570" y="40" class="s12">Setting outcome NORMALIZES the row (stage_state:=READY,</text>
+ <text x="570" y="58" class="s12">claim/retry/blocked_reason/maybe_since cleared) and</text>
+ <text x="570" y="76" class="s12">FREEZES it forever (L1) — enforced by every CAS carrying</text>
+ <text x="570" y="94" class="s12"><tspan style="font-family:monospace">outcome IS NULL</tspan> + a DB trigger backstop.</text>
+ <text x="570" y="122" class="s12 m">Terminal rows: never scanned, never queried, never</text>
+ <text x="570" y="140" class="s12 m">surface exceptions.</text>
+</svg>
+<div class="out info" id="smdetail">☝ Click any arrow above to see the exact rule behind it.</div>
+</section>
+
+<!-- ============================ TAB 4 SIMULATOR ============================ -->
+<section class="tab" id="t4">
+<h2>Simulator — fire events against the real rules</h2>
+<p class="sub">Every button goes through the same guards the spec defines. Illegal moves don't error — they <b>teach</b>: the panel shows which rule refused and why. Try to create a double payment; you can't.</p>
+<div class="card">
+ <div class="mwgrid">
+ <div class="mwleft">
+ <div class="tuple">
+  <div class="dim"><b>stage</b><span id="s_stage">—</span></div>
+  <div class="dim"><b>stage_state</b><span id="s_ss">—</span></div>
+  <div class="dim" style="min-width:170px"><b>submission_state</b><span id="s_sub">—</span></div>
+  <div class="dim"><b>outcome</b><span id="s_out">—</span></div>
+  <div class="dim" style="min-width:190px"><b>display label (§10.4)</b><span id="s_lbl">—</span></div>
+ </div>
+ <div class="bars">
+  <div class="bar"><label>required</label><div class="tr"><div class="fl" id="sb0" style="background:#8a8a82"></div></div><div class="v" id="sv0"></div></div>
+  <div class="bar"><label>committed</label><div class="tr"><div class="fl" id="sb1" style="background:var(--amber)"></div></div><div class="v" id="sv1"></div></div>
+  <div class="bar"><label>confirmed</label><div class="tr"><div class="fl" id="sb2" style="background:var(--green)"></div></div><div class="v" id="sv2"></div></div>
+ </div>
+ <div class="out info" id="simout">Fresh obligation: required = 100, nothing reserved. Start with "create request".</div>
+ </div>
+ <div class="mwright">
+ <div class="evgrp"><b>guided scenarios</b><br>
+  <button class="act primary" onclick="scen(0)">▶ happy path</button>
+  <button class="act primary" onclick="scen(1)">▶ timeout → query resolves</button>
+  <button class="act primary" onclick="scen(2)">▶ timeout + amendment → ops</button>
+  <button class="act" id="stepbtn" onclick="scenStep()" disabled>next step ⏭</button>
+  <button class="act" onclick="simReset()">↺ reset</button>
+ </div>
+ <div class="evgrp"><b>lifecycle</b><br>
+  <button class="act" data-ev="create">create request (§6.8)</button>
+  <button class="act" data-ev="claim">claim (lease)</button>
+  <button class="act" data-ev="enrichok">enrichment ok</button>
+  <button class="act" data-ev="enrichbad">enrichment: invalid data</button>
+  <button class="act" data-ev="accept">engine accepts POST</button>
+ </div>
+ <div class="evgrp"><b>failures</b><br>
+  <button class="act" data-ev="timeout">read timeout / crash mid-POST</button>
+  <button class="act" data-ev="syncrej">sync definitive reject</button>
+  <button class="act" data-ev="transient">transient failure (connect refused)</button>
+  <button class="act" data-ev="retrydue">retry due</button>
+ </div>
+ <div class="evgrp"><b>evidence &amp; time</b><br>
+  <button class="act" data-ev="feedsettle">feed settlement (100)</button>
+  <button class="act" data-ev="qnf1">query: NOT_FOUND (inside trust age)</button>
+  <button class="act" data-ev="qnf2">query: NOT_FOUND (past trust age)</button>
+  <button class="act" data-ev="qexec">query: EXECUTED</button>
+  <button class="act" data-ev="amend">amendment: required → 80</button>
+  <button class="act" data-ev="esc">escalation clock fires</button>
+ </div>
+ <div class="evgrp"><b>ops</b><br>
+  <button class="act" data-ev="opscancel">raw manual cancel</button>
+  <button class="act" data-ev="opsverify">apply-platform-verified: REJECTED (§9.3, dual-control)</button>
+ </div>
+ </div>
+ </div>
+</div>
+</section>
+
+<!-- ============================ TAB 5 HARD CONCEPTS ============================ -->
+<section class="tab" id="t5">
+<h2>The five ideas people fight — each one playable</h2>
+<div class="grid g2">
+
+<div class="card">
+ <h3>① Timeout ≠ failure — ask, never re-send</h3>
+ <p class="sub">Real case: POST for 100 EUR times out after 30s. The engine <i>did</i> execute it — you just never saw the response. What do you do?</p>
+ <button class="act" onclick="hc1('resend')">re-send with a NEW key</button>
+ <button class="act" onclick="hc1('samekey')">re-send with the SAME key</button>
+ <button class="act" onclick="hc1('ask')">status-query by our key</button>
+ <div class="out" id="hc1o">…</div>
+</div>
+
+<div class="card">
+ <h3>② Wait-then-decide — the parked MAYBE row</h3>
+ <p class="sub">Real case: payment for 100 is MAYBE (timeout). An amendment lowers the trade to 80. The 100-request is now "wrong" — but it may already have paid!</p>
+ <button class="act" onclick="hc2('cancel')">cancel it &amp; pay 80 fresh</button>
+ <button class="act" onclick="hc2('repost')">auto re-POST anyway</button>
+ <button class="act" onclick="hc2('wait')">park it &amp; keep asking</button>
+ <div class="out" id="hc2o">…</div>
+</div>
+
+<div class="card">
+ <h3>③ Collision as evidence</h3>
+ <p class="sub">A re-POST is re-enriched (agent bank was corrected meanwhile) → same key, different payload. The engine rejects: "known key, different content". Good news or bad news?</p>
+ <button class="act" onclick="hc3(true)">we DID change details since last attempt</button>
+ <button class="act" onclick="hc3(false)">we changed NOTHING</button>
+ <div class="out" id="hc3o">…</div>
+</div>
+
+<div class="card">
+ <h3>④ Two identities — which one saves you?</h3>
+ <p class="sub">Pick where the process dies; see which identifier still exists and how the payment is found again.</p>
+ <button class="act" onclick="hc4(0)">crash BEFORE posting claim</button>
+ <button class="act" onclick="hc4(1)">crash DURING the SDK call</button>
+ <button class="act" onclick="hc4(2)">crash AFTER acceptance</button>
+ <div class="out" id="hc4o">…</div>
+</div>
+
+<div class="card">
+ <h3>⑤ The overpay latch — a one-way door</h3>
+ <p class="sub">Real case: required dropped to 80 <i>after</i> 100 settled → confirmed(100) &gt; required(80). Why can't the system just fix itself when a refund happens?</p>
+ <button class="act" onclick="hc5('auto')">auto-unlatch when amounts match again</button>
+ <button class="act" onclick="hc5('latch')">latch forever, human owns it</button>
+ <div class="out" id="hc5o">…</div>
+</div>
+
+<div class="card">
+ <h3>⑥ Row-count is the verdict — try to double-apply</h3>
+ <p class="sub">Same settlement event, delivered again and again (Kafka is at-least-once). Click repeatedly:</p>
+ <button class="act" onclick="hc6('same')">deliver settlement event #E1</button>
+ <button class="act" onclick="hc6('rekey')">deliver RE-KEYED duplicate (#E2, same payment)</button>
+ <button class="act" onclick="hc6('reset')">reset</button>
+ <div class="out" id="hc6o">confirmed = 0. Deliver the event.</div>
+</div>
+
+</div>
+<div class="card" style="margin-top:1rem">
+ <h3>Settled ground — do not re-litigate (§1, §1.1)</h3>
+ <table>
+ <tr><th>Fact / agreement</th><th>Consequence</th></tr>
+ <tr><td>Engine settles ALL-OR-NOTHING (confirmed)</td><td>any amount mismatch = defect evidence → CRITICAL park, money never moves</td></tr>
+ <tr><td>Collision contract ASSUMED true (sandbox-proven before go-live)</td><td>a known key can never execute twice — every re-POST safety rides on this</td></tr>
+ <tr><td>BA-1: scope-field change ⇒ NEW obligation on purpose</td><td>not a duplicate; no cross-scope detector</td></tr>
+ <tr><td>BA-2: upstream cannot cancel</td><td>a cancelled trade still pays; recovery is a platform-side recall</td></tr>
+ <tr><td>BA-3: message ordering is upstream's problem</td><td>a skew-misordered amendment dropping as stale is by design</td></tr>
+ </table>
+</div>
+</section>
+
+<!-- ============================ TAB 6 INFRA & DR ============================ -->
+<section class="tab" id="t6">
+<h2>Concurrency — two tiers, one lock order</h2>
+<svg viewBox="0 0 1020 210">
+ <rect x="20" y="20" width="480" height="170" rx="8" fill="#f5f2fb" stroke="#6b4fa0"/>
+ <text x="260" y="48" text-anchor="middle" class="b">Obligation lock — SELECT … FOR UPDATE</text>
+ <text x="40" y="78" class="s12">owns MONEY MATH: shortfall, request creation,</text>
+ <text x="40" y="96" class="s12">amount updates, overpay check, completion, derivation</text>
+ <text x="40" y="122" class="s12" fill="#6b4fa0">acquired FIRST by anything touching both tables</text>
+ <text x="40" y="148" class="s12 m">I6 already caps write concurrency per scope at ~1,</text>
+ <text x="40" y="166" class="s12 m">so this lock is cheap</text>
+ <rect x="520" y="20" width="480" height="170" rx="8" fill="#edf3fa" stroke="#2563ab"/>
+ <text x="760" y="48" text-anchor="middle" class="b">Request CAS — conditional UPDATE + row count</text>
+ <text x="540" y="78" class="s12">owns claims, dimension transitions, retries,</text>
+ <text x="540" y="96" class="s12">stale-worker protection</text>
+ <text x="540" y="122" class="s12" fill="#2563ab">WHERE carries the FULL precondition;</text>
+ <text x="540" y="140" class="s12" fill="#2563ab">every caller branches on rowCount == 1</text>
+ <text x="540" y="166" class="s12 m">no ORM dirty-checking · SKIP LOCKED · DB time only</text>
+</svg>
+
+<div class="grid g2" style="margin-top:1rem">
+<div class="card"><h3>Hazelcast — one job, fail-safe direction</h3>
+<table>
+ <tr><th>Situation</th><th>Result</th></tr>
+ <tr><td>toggle absent / grid unreachable / check timeout</td><td><b>FROZEN</b> — a grid outage pauses payments (PO signed off)</td></tr>
+ <tr><td>freeze active</td><td>POSTs stop; feed, resolver queries, card reads continue; retry deadlines suspended (same during breaker-open)</td></tr>
+ <tr><td>flipping it</td><td>separate role control exists today; every effective freeze without an acknowledged ticket → page</td></tr>
+</table></div>
+<div class="card"><h3>Kafka rules that protect money (§16.2)</h3>
+<table>
+ <tr><td>ack only AFTER the DB transaction commits — at-least-once; idempotency absorbs duplicates</td></tr>
+ <tr><td><code>auto-offset-reset = earliest</code> — 'latest' silently skips money events</td></tr>
+ <tr><td>DLT for poison messages only; depth &gt; 0 pages someone</td></tr>
+ <tr><td>no retry-topics for ordered money events (they reorder history)</td></tr>
+ <tr><td>keys: feed by UETR · upstream by business_id</td></tr>
+</table></div>
+</div>
+
+<h2>Disaster recovery — why the key is deterministic (§5)</h2>
+<p class="sub">DR <i>tooling</i> is post-MVP (PO decision). The key design ships from day one — it costs nothing and makes a restore survivable at all. Walk the timeline:</p>
+<div class="card" id="drw">
+ <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+  <button class="act" onclick="dr(0)">1 · normal life</button>
+  <button class="act" onclick="dr(1)">2 · DB restored to an earlier point</button>
+  <button class="act" onclick="dr(2)">3 · replay re-creates the request</button>
+  <button class="act" onclick="dr(3)">4a · if keys were RANDOM…</button>
+  <button class="act" onclick="dr(4)">4b · with DETERMINISTIC keys</button>
+  <button class="act" onclick="dr(5)">5 · the runbook (post-MVP)</button>
+ </div>
+ <div class="out info" id="dro" style="min-height:5.5em">Click through 1 → 5.</div>
+</div>
+<svg viewBox="0 0 1020 130" style="margin-top:.8rem">
+ <defs><marker id="a7" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#555"/></marker></defs>
+ <line x1="40" y1="65" x2="990" y2="65" stroke="#555" stroke-width="2" marker-end="url(#a7)"/>
+ <circle cx="140" cy="65" r="7" fill="#2563ab"/><text x="140" y="42" text-anchor="middle" class="s11">request created</text><text x="140" y="95" text-anchor="middle" class="s11 m">key K = hash(scope|seq)</text>
+ <circle cx="360" cy="65" r="7" fill="#1e7d5a"/><text x="360" y="42" text-anchor="middle" class="s11">POSTed &amp; EXECUTED</text><text x="360" y="95" text-anchor="middle" class="s11 m">engine remembers K</text>
+ <circle cx="590" cy="65" r="7" fill="#b3261e"/><text x="590" y="42" text-anchor="middle" class="s11">DB RESTORE — row lost</text><text x="590" y="95" text-anchor="middle" class="s11 m">we forget; engine doesn't</text>
+ <circle cx="820" cy="65" r="7" fill="#b26a00"/><text x="820" y="42" text-anchor="middle" class="s11">replay: unpaid shortfall</text><text x="820" y="95" text-anchor="middle" class="s11 m">re-creates "the same" request</text>
+</svg>
+</section>
+
+</main>
+<script>
+/* ---------- tabs ---------- */
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('on',s.id===b.dataset.t));
+ window.scrollTo(0,0);
+});
+/* ---------- clickable state-machine rules ---------- */
+document.querySelectorAll('.smrule').forEach(g=>g.addEventListener('click',()=>{
+ const d=document.getElementById('smdetail'); d.textContent=g.dataset.r; d.classList.remove('flash'); void d.offsetWidth; d.classList.add('flash');
+ d.scrollIntoView({block:'nearest',behavior:'smooth'});
+}));
+/* ---------- money widget (tab 2): pipeline-ordered ---------- */
+let W;
+function wReset(){W={ord:0,req:0,com:0,conf:0,marker:null,act:null,latch:false,seq:0,settledOnce:false};}
+wReset();
+const PHN={CREATED:'created — waiting for enrichment',ENRICHED:'ready to pay',RETRY:'retry scheduled (RETRY_WAIT)',
+ ACCEPTED:'acknowledged — awaiting notification',MAYBE:'OUTCOME UNKNOWN (MAYBE_SUBMITTED)',
+ PARKED:'parked — BLOCKED(AMENDMENT_PARKED)',PARKED_MM:'parked — BLOCKED(AMOUNT_MISMATCH)'};
+function wPos(){ // which pipeline step is "current"
+ if(W.req===0)return 0;
+ if(!W.act){ if(W.req>0&&W.conf>=W.req&&W.com===W.conf&&!W.latch)return 6; return 1;}
+ if(W.act.phase==='CREATED')return 3;
+ if(W.act.phase==='ENRICHED'||W.act.phase==='RETRY')return 4;
+ return 5;
+}
+function wPaint(msg,cls){
+ const mx=Math.max(W.req,W.com,W.conf,1);
+ const set=(b,v,vl)=>{document.getElementById(b).style.width=(v/mx*100)+'%';document.getElementById(vl).textContent=v;};
+ set('wb0',W.req,'wv0');set('wb1',W.com,'wv1');set('wb2',W.conf,'wv2');set('wb3',Math.max(0,W.req-W.com),'wv3');
+ const steps=['Kafka message','Obligation','Request creation','Enrichment','Payment call','Kafka notification'];
+ const pos=wPos();
+ document.getElementById('pipe').innerHTML=steps.map((s,i)=>
+  '<span class="pstep'+(pos===6?' done':(i+1<pos?' done':(i+1===pos?' on':'')))+'">'+(i+1)+' · '+s+'</span>'
+ ).join('<span class="parrow">→</span>')+(pos===6?'<span class="parrow">→</span><span class="pstep done">✓ COMPLETE</span>':'');
+ let ch='';
+ ch+='<span class="chip">obligation: '+(W.req?('required '+W.req+' · ordering '+W.ord):'—')+'</span>';
+ ch+='<span class="chip">active request: '+(W.act?('seq '+W.seq+' · amount '+W.act.amt+' · '+PHN[W.act.phase]):'none')+'</span>';
+ if(W.marker)ch+='<span class="chip red">marker: '+W.marker+' (live)</span>';
+ if(W.latch)ch+='<span class="chip red">OVERPAY LATCH — scope is manual forever</span>';
+ const done=W.req>0&&W.conf>=W.req&&W.com===W.conf&&!W.latch&&W.marker!=='validation_failed';
+ ch+='<span class="chip '+(done?'grn':'amb')+'">step status: '+(W.req===0?'NOT_STARTED':done?'COMPLETED':'IN_PROGRESS')+'</span>';
+ document.getElementById('wchips').innerHTML=ch;
+ if(msg!==undefined){const o=document.getElementById('wout');o.textContent=msg;o.className='out '+cls;}
+}
+function mw(a){
+ const R=(m)=>wPaint('✗ '+m,'bad'), OK=(m)=>wPaint('✓ '+m,'ok'), I=(m)=>wPaint(m,'info');
+ switch(a){
+ case 'reset': wReset(); return wPaint('Reset. Start at ① — a Kafka message arrives.','info');
+ /* ---- ① Kafka upstream ---- */
+ case 'msg':
+  if(W.ord>0)return I('Obligation already exists — later messages are amendments (same scope key ⇒ same obligation row). Use the amendment buttons.');
+  W.ord=1;W.req=100;return OK('Obligation row created under the scope key (business_id+type+account+ccy). required = 100. NOTE: no request yet — creation only ever happens at the §6.8 re-evaluation (②).');
+ case 'dupmsg':
+  if(!W.ord)return R('Nothing received yet.');
+  return I('Redelivery (same event) → inbox PK drops it before any lock is taken. At-least-once Kafka is absorbed here; nothing changes.');
+ case 'stale':
+  if(!W.ord)return R('Nothing received yet.');
+  return I('Ordering value older than upstream_ordering('+W.ord+') → §6.7 staleness guard DROPS it + metric. If the ordering was wrong upstream, that is upstream’s data defect (BA-3) — we never guess.');
+ case 'amdown':
+  if(!W.ord)return R('No obligation yet.');
+  if(W.latch)return R('LATCH-WINS (§13): the scope is overpaid and excluded from automation forever. The amendment is recorded for display only; a human reconciles in the platform.');
+  W.ord++;W.req=80;
+  if(!W.act){ if(W.conf>W.req){W.latch=true;return R('required → 80 but confirmed = '+W.conf+' already settled → confirmed > required → OVERPAY LATCH. One-way door: refunds are invisible to this system, so local amounts are untrustworthy from here on.');}
+   return OK('required → 80. No active request; shortfall recomputes to '+Math.max(0,W.req-W.com)+'.');}
+  if(W.act.phase==='CREATED'||W.act.phase==='ENRICHED'||W.act.phase==='RETRY'){
+   W.com-=W.act.amt;W.act=null;return OK('Auto-cancel (§6.4): the request was provably NOT submitted, so cancelling is legal. outcome=CANCELLED, committed −= its amount. Run ② to create the right-sized successor (NEW key).');}
+  if(W.act.phase==='MAYBE'||W.act.phase==='PARKED'){W.act.phase='PARKED';
+   return R('CANNOT cancel — the 100 may already be at the engine (release guard §10.1: the cancel CAS requires NOT_SUBMITTED → row-count 0). Instead: BLOCKED(AMENDMENT_PARKED), reservation HELD, wait-then-decide. Resolver keeps querying; escalation brings ops.');}
+  return I('required → 80 recorded. The request is already acknowledged (SUBMITTED) — it will settle at 100; the overpay latch will catch the difference, or a reject releases it. Evidence decides, not us.');
+ case 'amup':
+  if(!W.ord)return R('No obligation yet.');
+  if(W.latch)return R('LATCH-WINS (§13): scope is manual forever.');
+  W.ord++;W.req=150;
+  return OK('required → 150. Shortfall = '+Math.max(0,W.req-W.com)+'. '+(W.act?'An active request exists, so the DELTA WAITS (I6: one active request; deferred successor — PO-accepted latency). Nothing pays in parallel.':'Run ② to create a request for the shortfall.'));
+ case 'corrected':
+  if(W.marker!=='validation_failed')return I('Nothing to correct — this message matters when a live validation_failed marker blocks the scope (fail enrichment first to see it).');
+  W.ord++;W.marker=null;return OK('Newer valid message → the ordering-tagged validation_failed marker is no longer LIVE. ② may create the successor now. (Upstream only re-emits on real change — §6.0 contract fact.)');
+ /* ---- ② §6.8 re-evaluation ---- */
+ case 'reeval':
+  if(!W.ord)return R('No obligation — nothing to evaluate.');
+  if(W.latch)return R('OVERPAY LATCH: the scope is excluded from auto-payment forever (§13).');
+  if(W.marker==='validation_failed')return R('LIVE validation_failed marker: the data is known-bad; re-creating would re-fail. Blocked until a corrected (newer) message arrives (①).');
+  if(W.marker==='provider_rejected')return R('LIVE provider_rejected marker: the engine refused this payment. One ordering-newer message may retry; ≥2 rejects → ops-only (§19.3 is FUTURE).');
+  if(W.act)return R('I6 — at most ONE active request per obligation (DB function-based unique index). The delta/retry WAITS for the active request to resolve. Any code bug that tries anyway dies on the constraint, loudly.');
+  if(W.req-W.com<=0)return I('Shortfall = '+(W.req-W.com)+' → nothing to do. This button is idempotent by construction: press it after ANY event, it never double-creates.');
+  W.seq++;W.act={amt:W.req-W.com,phase:'CREATED'};W.com+=W.act.amt;
+  return OK('Request seq='+W.seq+' created for the shortfall ('+W.act.amt+'); committed += '+W.act.amt+' IN THE SAME transaction; deterministic key = hash(scope|'+W.seq+') persisted before anything touches the wire. Next: ③ enrichment.');
+ /* ---- ③ enrichment ---- */
+ case 'enrichok':
+  if(!W.act||W.act.phase!=='CREATED')return R(W.act?'Enrichment already done for this attempt.':'No request — run ② first.');
+  W.act.phase='ENRICHED';return OK('Party/account data resolved FRESH from the trade store (§7.0) — the request row stores none of it. No money moves. Next: ④ payment call.');
+ case 'enrichbad':
+  if(!W.act||W.act.phase!=='CREATED')return R(W.act?'This attempt already passed enrichment.':'No request — run ② first.');
+  W.com-=W.act.amt;W.act=null;W.marker='validation_failed';
+  return R('outcome=REJECTED, reservation released (committed −= amount), validation_failed marker set (ordering-tagged). ② is now BLOCKED — a broken scope must not loop. Recovery: a corrected upstream message (①).');
+ /* ---- ④ payment call ---- */
+ case 'accept':
+  if(!W.act||W.act.phase!=='ENRICHED')return R(W.act?'Not ready to post (current: '+PHN[W.act.phase]+').':'No request in flight.');
+  W.act.phase='ACCEPTED';return OK('Posting claim: freeze checked (Hazelcast — unreachable would mean FROZEN), hash persisted BEFORE the wire, SDK validates + mints the UETR + POSTs. Engine accepts → SUBMITTED. Still NO money movement. Next: ⑤ the notification settles it.');
+ case 'balance':
+  if(!W.act||W.act.phase!=='ENRICHED')return R('Needs a ready-to-pay request.');
+  W.act.phase='RETRY';return I('Insufficient balance = business reject, sync and provably NOT executed → RETRY_WAIT per policy. No money movement, SAME key on retry. (The breaker counts this as a SUCCESS — it is not an outage.)');
+ case 'retry':
+  if(!W.act||W.act.phase!=='RETRY')return R('No retry is due.');
+  W.act.phase='ENRICHED';return OK('Retry due → re-claim, RE-ENRICH (fresh data — a party correction since last attempt is picked up automatically), SAME deterministic key. Press ④ again.');
+ case 'defreject':
+  if(!W.act||W.act.phase!=='ENRICHED')return R('Needs a ready-to-pay request.');
+  W.com-=W.act.amt;W.act=null;W.marker='provider_rejected';
+  return R('Definitive sync reject: provably not executed → outcome=REJECTED, reservation released, provider_rejected marker set (L9: every REJECTED sets exactly one marker). A requested payment is NOT happening → alert, never silence.');
+ case 'timeout':
+  if(!W.act||W.act.phase!=='ENRICHED')return R('Needs a ready-to-pay request.');
+  W.act.phase='MAYBE';return R('TIMEOUT: the engine may or may not have executed. submission=MAYBE_SUBMITTED, maybe_since set once. KEY LESSON: committed does NOT move, does NOT release — money that MIGHT have moved stays reserved. Resolver (④b) owns it now. NEVER re-send blindly.');
+ /* ---- ④b resolver ---- */
+ case 'qexec':
+  if(!W.act||(W.act.phase!=='MAYBE'&&W.act.phase!=='PARKED'&&W.act.phase!=='ACCEPTED'))return R('The resolver owns MAYBE (and aged SUBMITTED) rows only (§9.5).');
+  W.conf+=W.act.amt;W.act=null;
+  if(W.conf>W.req){W.latch=true;return R('Query: EXECUTED → confirmed += amount = '+W.conf+' > required '+W.req+' → OVERPAY LATCH (§13). The payment was real; the amendment came too late. Human territory now.');}
+  return OK('Query answer EXECUTED applied through the SAME evidence-guarded CAS as the feed (whichever lands second hits row-count 0). confirmed += amount. Ambiguity resolved by ASKING — zero re-sends.');
+ case 'qnf':
+  if(!W.act||(W.act.phase!=='MAYBE'&&W.act.phase!=='PARKED'))return R('Only meaningful for a MAYBE row.');
+  if(W.act.phase==='PARKED')return R('repost_permitted FAILS (amount is stale vs current shortfall) → NO downgrade. WAIT-THEN-DECIDE: the row stays parked; resolver keeps querying; feed can settle it; escalation (once per episode) brings ops with dual-control options.');
+  W.act.phase='ENRICHED';return OK('NOT_FOUND past trust age + repost_permitted passes → the §9.2 DOWNGRADE (the one backward move): back to the payment call with the SAME key, freshly re-enriched. Safe because a known key can never execute twice (§1 assumed fact). Press ④.');
+ /* ---- ⑤ notification ---- */
+ case 'settle':
+  if(!W.act)return R(W.settledOnce?'The settled row is TERMINAL — a NEW event against a terminal row is a CRITICAL anomaly (§8), not a state change.':'No request to settle — unmatched path would log+ack it.');
+  if(W.act.phase==='CREATED'||W.act.phase==='ENRICHED'||W.act.phase==='RETRY')return R('Nothing was ever sent for this attempt — a settlement here is an anomaly to investigate, not evidence to apply.');
+  W.conf+=W.act.amt;W.settledOnce=true;const wasAmt=W.act.amt;W.act=null;
+  if(W.conf>W.req){W.latch=true;return R('Settlement '+wasAmt+' applied → confirmed '+W.conf+' > required '+W.req+' → OVERPAY LATCH (§13).');}
+  return OK('Amount equals the request EXACTLY (all-or-nothing contract) → outcome=EXECUTED, confirmed += '+wasAmt+', row frozen (L1) + normalized. Step status derives COMPLETED: confirmed ≥ required AND committed = confirmed.');
+ case 'settle120':
+  if(!W.act||(W.act.phase!=='ACCEPTED'&&W.act.phase!=='MAYBE'&&W.act.phase!=='PARKED'))return R('No in-flight request for this event.');
+  W.act.phase='PARKED_MM';return R('120 ≠ '+W.act.amt+'. The engine settles ALL-OR-NOTHING (§1 confirmed fact), so a mismatch is DEFECT EVIDENCE, not a business state → BLOCKED(AMOUNT_MISMATCH) + CRITICAL. confirmed does NOT move; the engine emits a corrected event or the dispute resolves platform-side.');
+ case 'rejectn':
+  if(!W.act)return R('No active request — see "unknown UETR" for what happens to strays.');
+  W.com-=W.act.amt;W.act=null;W.marker='provider_rejected';
+  return R('Authoritative engine negative via the feed → outcome=REJECTED, reservation released, provider_rejected marker. This is the ONLY kind of evidence allowed to release a MAYBE/SUBMITTED reservation (§9.4/§10.1).');
+ case 'dupn':
+  if(!W.settledOnce)return I('Settle something first, then redeliver.');
+  return I('Same event_id → inbox drops it. Re-KEYED duplicate (new event_id)? It passes the inbox but the evidence CAS requires outcome IS NULL → row-count 0 → ignored. The money is protected by the CAS, not the inbox (§8).');
+ case 'unknown':
+  return I('No matching UETR/reference → log (event_id, UETR, status) + metric + ack + DROP. No durable record — deliberate: if the payment is real, the §9 sweep recovers it by OUR key at sweep latency. (Exception: during a DR replay window this becomes CRITICAL.)');
+ }
+}
+wPaint();
+/* ---------- simulator (tab 4) ---------- */
+let S,Q=null,QI=0;
+function simInit(){S={stage:null,ss:null,sub:null,out:null,req:100,com:0,conf:0,stale:false,esc:false,divergent:false,seq:0};}
+simInit();
+const LBL=()=>{
+ if(!S.stage)return '—';
+ if(S.out==='EXECUTED')return 'COMPLETED';
+ if(S.out)return S.out+'_FINAL';
+ if(S.ss&&S.ss.startsWith('BLOCKED'))return 'NEEDS_REVIEW';
+ const k=S.stage+'·'+S.ss+(S.stage==='CONFIRM'?'·'+S.sub:'');
+ return ({'ENRICH·READY':'CREATED','ENRICH·CLAIMED':'ENRICHING','ENRICH·RETRY_WAIT':'ENRICHMENT_RETRYABLE',
+ 'POST·READY':'READY_TO_POST','POST·CLAIMED':'POSTING','POST·RETRY_WAIT':'POST_FAILED_RETRYABLE',
+ 'CONFIRM·READY·MAYBE_SUBMITTED':'UNKNOWN','CONFIRM·READY·SUBMITTED':'COMMITTED_WAITING_CONFIRMATION'})[k]||k;
+};
+const FROZEN='L1 — outcome is set: the row is FROZEN. No further changes, ever (CAS carries outcome IS NULL + trigger backstop). Create a new request if the scope still owes money.';
+const EV={
+ create:{n:'create request (§6.8)',f(){ if(S.stage&&!S.out)return[0,'I6 — at most ONE active request per obligation. The active one must reach an outcome first.'];
+  if(S.req-S.com<=0)return[0,'Shortfall = required − committed = '+(S.req-S.com)+' → §6.8 creates nothing.'];
+  S.seq++;S.stage='ENRICH';S.ss='READY';S.sub='NOT_SUBMITTED';S.out=null;S.esc=false;S.divergent=false;S.stale=false;S.amt=S.req-S.com;S.com+=S.amt;
+  return[1,'Created seq='+S.seq+' with deterministic key hash(scope|'+S.seq+'); committed += amount in the same transaction (§3, §6.8).'];}},
+ claim:{n:'claim',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='READY'&&S.ss!=='RETRY_WAIT')return[0,'Only READY / due RETRY_WAIT rows are claimable (L6 lease).'];
+  if(S.stage==='CONFIRM')return[0,'CONFIRM has no work claim — it waits for evidence (L5). The resolver queries; the feed settles.'];
+  S.ss='CLAIMED';return[1,(S.stage==='POST'?'Posting claim: freeze checked, repost_permitted re-checked, instruction assembled FRESH, hash + last_post_attempt_at persisted BEFORE the wire (§11).':'Claim taken — lease with expiry (L6).')];}},
+ enrichok:{n:'enrichment ok',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='ENRICH'||S.ss!=='CLAIMED')return[0,'Needs ENRICH·CLAIMED.'];
+  S.stage='POST';S.ss='READY';return[1,'Party/account data resolved fresh → POST·READY.'];}},
+ enrichbad:{n:'enrichment invalid data',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='ENRICH'||S.ss!=='CLAIMED')return[0,'Needs ENRICH·CLAIMED.'];
+  S.out='REJECTED';S.ss='READY';S.com-=S.amt;return[1,'outcome=REJECTED, reservation released, validation_failed marker set (ordering-tagged). Recovery = a corrected upstream message → §6.8 creates a NEW request (new key).'];}},
+ accept:{n:'engine accepts',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='POST'||S.ss!=='CLAIMED')return[0,'Needs POST·CLAIMED — the engine can only answer a call we are making.'];
+  S.stage='CONFIRM';S.ss='READY';S.sub='SUBMITTED';return[1,'Accepted → CONFIRM·READY·SUBMITTED (submitted_at set). UETR persisted from this acceptance response (§5).'];}},
+ timeout:{n:'read timeout / crash',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='POST'||S.ss!=='CLAIMED')return[0,'Needs POST·CLAIMED.'];
+  S.stage='CONFIRM';S.ss='READY';S.sub='MAYBE_SUBMITTED';return[1,'Truth unknown → MAYBE_SUBMITTED. maybe_since set ONCE (escalation clock). NEVER blindly resubmit (§7.2); the resolver owns it now. Reservation stays held.'];}},
+ syncrej:{n:'sync definitive reject',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='POST'||S.ss!=='CLAIMED')return[0,'Needs POST·CLAIMED.'];
+  S.out='REJECTED';S.ss='READY';S.com-=S.amt;return[1,'Provably not executed (§7.1) → outcome=REJECTED, reservation released, provider_rejected marker (L9). ≥2 rejects on one scope = ops-only.'];}},
+ transient:{n:'transient failure',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='CLAIMED'||S.stage==='CONFIRM')return[0,'Needs a CLAIMED work stage.'];
+  S.ss='RETRY_WAIT';return[1,'Connect-level failure = NOT_SUBMITTED (nothing reached the engine) → RETRY_WAIT with next_retry_at (L7). Deadlines suspend during freeze/breaker-open (§16.1).'];}},
+ retrydue:{n:'retry due',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='RETRY_WAIT')return[0,'No RETRY_WAIT row is due.'];
+  S.ss='CLAIMED';return[1,'Scanner claims the due row (SKIP LOCKED, DB time). Same key — retries never mint new identity.'];}},
+ feedsettle:{n:'feed settlement',f(){ if(S.out)return[0,'Zero rows matched an ACTIVE request → new event_id against a TERMINAL row = CRITICAL anomaly (§8; the §5.2 tripwire).'];
+  if(!S.stage)return[0,'No request exists — unmatched event: log + metric + ack; the §9 sweep recovers truth later.'];
+  if(S.sub==='NOT_SUBMITTED')return[0,'Terminal evidence can land on any active row — but here nothing was ever sent; treat as anomaly and investigate.'];
+  S.out='EXECUTED';S.sub='SUBMITTED';S.conf+=S.amt;S.ss='READY';S.esc=false;
+  return[1,'Amount equal → outcome=EXECUTED, confirmed += '+S.amt+', row frozen + normalized. '+(S.conf>S.req?'⚠ confirmed > required → OVERPAY LATCH (§13).':'Step derives COMPLETED (§4.1).')];}},
+ qnf1:{n:'NOT_FOUND (inside trust age)',f(){ if(S.out)return[0,FROZEN]; if(S.sub!=='MAYBE_SUBMITTED')return[0,'The resolver only owns MAYBE (and aged SUBMITTED) rows (§9.5).'];
+  return[1,'Engine ingest lag makes early NOT_FOUND meaningless → INDETERMINATE, reschedule. Nothing changes (§9.2 trust-age rule).'];}},
+ qnf2:{n:'NOT_FOUND (past trust age)',f(){ if(S.out)return[0,FROZEN]; if(S.sub!=='MAYBE_SUBMITTED')return[0,'Needs a MAYBE row.'];
+  if(S.divergent)return[0,'repost_permitted fails: divergent_payload_at is set — the engine HOLDS this key; another POST is futile. Wait-then-decide.'];
+  if(S.stale){ if(!S.ss.startsWith('BLOCKED')){S.ss='BLOCKED(AMENDMENT_PARKED)';return[1,'repost_permitted fails on amount staleness → resolver applies the park. WAIT-THEN-DECIDE: keep querying, feed may settle, escalation brings ops.'];}
+   return[0,'Still parked — staleness term fails. Exits: feed/query evidence, dual-control stale re-POST, or §9.3 platform-verified outcome.'];}
+  S.stage='POST';S.ss='RETRY_WAIT';return[1,'§9.2 DOWNGRADE — the one backward move: same key, fresh assembly, attempt counter reset. Safe because a known key can never execute twice (§1 assumed fact, sandbox-proven). Note: submission stays MAYBE until the new POST answers.'];}},
+ qexec:{n:'query: EXECUTED',f(){ if(S.out)return[0,FROZEN]; if(S.sub!=='MAYBE_SUBMITTED'&&S.sub!=='SUBMITTED')return[0,'Resolver only queries MAYBE / aged SUBMITTED rows.'];
+  S.out='EXECUTED';S.sub='SUBMITTED';S.conf+=S.amt;S.ss='READY';S.esc=false;
+  return[1,'Query answer applied through the SAME evidence-guarded CAS as the feed — whichever lands second hits row-count 0. '+(S.conf>S.req?'⚠ OVERPAY LATCH (§13).':'Done.')];}},
+ amend:{n:'amendment → 80',f(){ S.req=80;
+  if(!S.stage||S.out)return[1,'required → 80. No active request: shortfall recomputes; nothing else happens.'];
+  S.stale=true;
+  if(S.sub==='NOT_SUBMITTED'&&S.ss!=='CLAIMED'){S.out='CANCELLED';S.ss='READY';S.com-=S.amt;return[1,'Auto-cancel (§6.4): legal ONLY because NOT_SUBMITTED is provably unexecutable. Reservation released; §6.8 will re-create for 80 with a NEW key.'];}
+  if(S.sub==='MAYBE_SUBMITTED'&&S.ss!=='CLAIMED'){S.ss='BLOCKED(AMENDMENT_PARKED)';return[1,'Cannot cancel money that may have moved (release guard) → park BLOCKED(AMENDMENT_PARKED) + alert. Wait-then-decide.'];}
+  return[1,'required → 80 recorded; the row is CLAIMED so the park defers — the resolver applies it after the claim resolves (never touch a row mid-HTTP-call).'];}},
+ esc:{n:'escalation clock',f(){ if(S.out)return[0,FROZEN]; if(S.sub!=='MAYBE_SUBMITTED')return[0,'Escalation clocks run on maybe_since — only MAYBE rows.'];
+  if(S.esc)return[0,'escalated_at already set — escalation fires ONCE per MAYBE episode (kills the downgrade⇄escalate loop). Tier-2 re-pages on the same clock.'];
+  S.esc=true; if(!S.ss.startsWith('BLOCKED'))S.ss='BLOCKED(ESCALATED)';
+  return[1,'CRITICAL to ops (PAYMENT_OUTCOME_UNKNOWN, rank 1). Resolver KEEPS querying. Ops menu: resolve-via-query · dual-control stale re-POST · TL-10 platform reject · §9.3 verified outcome.'];}},
+ opscancel:{n:'raw manual cancel',f(){ if(S.out)return[0,FROZEN]; if(!S.stage)return[0,'Nothing to cancel.'];
+  if(S.sub!=='NOT_SUBMITTED')return[0,'RELEASE GUARD (§10.1): terminal-negative on a MAYBE/SUBMITTED row is FORBIDDEN without authoritative negative evidence — the DB trigger rejects the write (no session evidence flag). Use the §9.3 procedure.'];
+  S.out='CANCELLED';S.ss='READY';S.com-=S.amt;return[1,'NOT_SUBMITTED → cancellable. Reservation released.'];}},
+ opsverify:{n:'§9.3 verified REJECTED',f(){ if(S.out)return[0,FROZEN]; if(S.sub!=='MAYBE_SUBMITTED'&&S.sub!=='SUBMITTED')return[0,'This procedure exists for MAYBE/SUBMITTED rows whose truth ops verified in the platform.'];
+  S.out='REJECTED';S.ss='READY';S.com-=S.amt;S.esc=false;
+  return[1,'Audited stored procedure: dual-control + ticket ref + platform-records evidence → sets the session evidence flag (trigger passes LEGITIMATELY) → outcome=REJECTED via the normal CAS, reservation released, alert fired. The guaranteed exit — no row is ever wedged forever (§18-3).'];}},
+};
+function simPaint(msg,ok){
+ const g=id=>document.getElementById(id);
+ g('s_stage').textContent=S.stage||'—';g('s_ss').textContent=S.ss||'—';g('s_sub').textContent=S.sub||'—';
+ g('s_out').textContent=S.out||'∅';g('s_lbl').textContent=LBL();
+ const mx=Math.max(S.req,S.com,S.conf,1);
+ [['sb0','sv0',S.req],['sb1','sv1',S.com],['sb2','sv2',S.conf]].forEach(([b,v,x])=>{g(b).style.width=(x/mx*100)+'%';g(v).textContent=x;});
+ if(msg!==undefined){const o=g('simout');o.textContent=msg;o.className='out '+(ok?'ok':'bad');}
+}
+function fire(id){const [ok,msg]=EV[id].f();simPaint('['+EV[id].n+']  '+msg,ok);return ok;}
+document.querySelectorAll('#t4 [data-ev]').forEach(b=>b.onclick=()=>{Q=null;document.getElementById('stepbtn').disabled=true;fire(b.dataset.ev);});
+function simReset(){simInit();Q=null;document.getElementById('stepbtn').disabled=true;simPaint();document.getElementById('simout').textContent='Reset. required=100. Start with "create request".';document.getElementById('simout').className='out info';}
+const SCEN=[
+ ['create','claim','enrichok','claim','accept','feedsettle'],
+ ['create','claim','enrichok','claim','timeout','qnf1','qexec'],
+ ['create','claim','enrichok','claim','timeout','amend','esc','opsverify','create'],
+];
+function scen(i){simInit();simPaint();Q=SCEN[i];QI=0;document.getElementById('stepbtn').disabled=false;
+ const o=document.getElementById('simout');o.textContent='Guided scenario loaded ('+Q.length+' steps). Click "next step".';o.className='out info';}
+function scenStep(){ if(!Q||QI>=Q.length)return; fire(Q[QI]);QI++;
+ if(QI>=Q.length){document.getElementById('stepbtn').disabled=true;
+ const o=document.getElementById('simout');o.textContent+='  ✅ scenario finished — keep clicking events freely.';}}
+simPaint();
+/* ---------- hard concepts ---------- */
+const say=(id,cls,txt)=>{const o=document.getElementById(id);o.className='out '+cls;o.textContent=txt;};
+function hc1(a){ if(a==='resend')say('hc1o','bad','💸 DOUBLE PAYMENT. New key = new payment to the engine; it executes a second 100 EUR. This is exactly why fresh keys after ambiguity are forbidden (§5.1).');
+ else if(a==='samekey')say('hc1o','info','Safe-ish — the engine dedupes the known key (§1 assumed fact) — but it is still not the designed move: you learn nothing and burn an attempt. The design only re-POSTs via the gated §9.2 downgrade.');
+ else say('hc1o','ok','✅ The designed move (§9): status-query by our persisted key → answer says EXECUTED → apply as evidence, confirm the 100. Ambiguity is resolved by ASKING, never by re-sending.');}
+function hc2(a){ if(a==='cancel')say('hc2o','bad','FORBIDDEN by the release guard (§10.1): the 100 may already be at the engine. Cancel + pay 80 = potentially 180 out the door. The auto-cancel CAS requires NOT_SUBMITTED and hits row-count 0 here.');
+ else if(a==='repost')say('hc2o','bad','The re-POST would knowingly send a STALE amount (100 ≠ 80). repost_permitted fails on the staleness term — only a dual-control human override may consciously do this (§9.3).');
+ else say('hc2o','ok','✅ WAIT-THEN-DECIDE (§9.2): park BLOCKED(AMENDMENT_PARKED), resolver keeps querying, the feed can settle it any time, escalation (once per episode, on maybe_since) brings ops in before cutoff. If it turns out EXECUTED → overpay latch handles it; NOT executed → §9.3 REJECTED → pay 80 fresh.');}
+function hc3(k){ if(k)say('hc3o','ok','✅ EXPECTED divergence: prior attempt hash ≠ current hash (we re-enriched newer details). The rejection is EVIDENCE — the original DID arrive. Stay MAYBE, set divergent_payload_at (no more re-POSTs — futile), let the query recover the outcome. No park, no alarm (§7.2).');
+ else say('hc3o','bad','⚠ ANOMALOUS: we sent the SAME bytes and the engine says "different payload" — either a DR-replay divergence (empty attempt history) or the engine disagrees with itself. BLOCKED(ENGINE_INCONSISTENCY) + CRITICAL. Never overwrite, never retry (§7.2).');}
+function hc4(i){ const m=[
+ '∅ Crash before the posting claim: nothing was persisted, nothing was sent. The row is simply re-claimed later. No identity ever reached the wire.',
+ '🔑 Crash DURING the SDK call — the interesting one. Our idempotency_key was persisted BEFORE the wire (write-ahead, §5/§11); the SDK-minted UETR is LOST (it only comes back in a response we never got). Lease expiry → MAYBE → the resolver queries by OUR KEY and recovers the truth. Feed events for that UETR go unmatched until then — by design.',
+ '✅ Crash after acceptance: key AND UETR both persisted (UETR only from acceptance-class responses, §5). Feed matches by UETR; if the feed is lost, the sweep still recovers by key. The key is the keystone; the UETR is a convenience.'][i];
+ say('hc4o',i===0?'info':i===1?'ok':'ok',m);}
+function hc5(a){ if(a==='auto')say('hc5o','bad','Rejected at design (§13): after an overpay, local amounts are UNTRUSTWORTHY — refunds/returns are invisible to this system (§19.2). "Amounts match again" might mean a refund happened… or a second amendment. Auto-unlatching would pay again on top of an unknown money position.');
+ else say('hc5o','ok','✅ The latch is a one-way door: the scope is excluded from auto-payment forever; ops reconciles in the payment platform (which SEES refunds) and — post-MVP — applies a manual adjustment. Deliberate: correctness over convenience.');}
+let H6={conf:0,seen:new Set()};
+function hc6(a){ if(a==='reset'){H6={conf:0,seen:new Set()};return say('hc6o','info','confirmed = 0. Deliver the event.');}
+ if(a==='same'){ if(!H6.seen.has('E1')){H6.seen.add('E1');H6.conf+=100;return say('hc6o','ok','#E1 first delivery → inbox INSERT ok → evidence CAS row-count 1 → confirmed = '+H6.conf+'.');}
+  return say('hc6o','info','#E1 again → inbox PK violation → dropped before any lock. confirmed still '+H6.conf+'. (This is the cheap layer.)');}
+ if(a==='rekey'){ if(!H6.seen.has('E1'))return say('hc6o','info','Deliver #E1 first.');
+  H6.seen.add('E2');return say('hc6o','ok','#E2 passes the inbox (new event_id!) … but the evidence CAS WHERE requires outcome IS NULL → row-count 0 → ignored. confirmed still '+H6.conf+'. THE MONEY IS PROTECTED HERE, not in the inbox (§8).');}}
+/* ---------- DR walkthrough ---------- */
+const DRT=[
+ ['info','Request seq 5 created for scope X → key K = hash(X|5), persisted BEFORE posting (write-ahead). POSTed, EXECUTED, confirmed. Everyone is happy.'],
+ ['bad','Storage incident → the database is RESTORED to a point before seq 5 existed. Our row, its key, its outcome: gone. The engine, of course, still remembers executing K.'],
+ ['info','Kafka is rewound and replayed (safe: inbox + evidence rules). The obligation shows an unpaid shortfall again → §6.8 re-creates "the same" request. Question: what key does it get?'],
+ ['bad','With RANDOM keys: a fresh K′. The engine has never seen K′ → it EXECUTES a brand-new payment → silent duplicate. Nothing in our DB is wrong; the money is. This is why random keys are banned (§5.1).'],
+ ['ok','With DETERMINISTIC keys: hash(X|5) = K again. Engine: "DUPLICATE_REQUEST" → routed to MAYBE → the status query recovers the lost outcome (EXECUTED) → row completes without a cent moving. A restore became a reconciliation chore.'],
+ ['info','Runbook (§5.2, post-MVP): freeze posting via Hazelcast (outside the DB — a restore cannot unfreeze it) → restore → replay → sweep + query every re-created key → ALSO enumerate hash(scope|seq) per touched obligation up to the log-derived bound (§14 log lines carry key+seq and survive the restore) — this catches an executed payment whose row was never re-created → drift check → unfreeze.'],
+];
+function dr(i){say('dro',DRT[i][0],(i+1)+' / 6 — '+DRT[i][1]);}
+</script>
+</body>
+</html>

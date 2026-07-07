@@ -1,0 +1,81 @@
+> **Purpose:** Minimal context packets S-01..S-09 — paste-alone briefs for a small-context local agent (original Section I, phase P3).
+> **When to use this file:** Paired with the matching task-card file 08-task-cards/03-schema-and-migration.md — one packet per task, used as the working brief.
+> **Depends on:** 09-minimal-context-packets/README.md; the matching task card; the requirement sections each packet cites; 07-placeholder-glossary.md.
+> **Used by:** The local coding agent executing phase P3.
+> **Safe to transfer:** yes
+> **Contains local code names:** no
+
+# Minimal Context Packets — Phase P3
+
+```text
+[S-01] Migration plan freeze
+Read: §16.5; CA-4; D-02 inventory. Invariant: expand/contract — additive first, VALIDATE after backfill, drops post-rollout.
+Placeholders: [DB Migration Directory]. Mappings: directory Confirmed.
+Objective: ordered migration list (one concern each): columns → inbox → UNIQUEs/I6 → CHECKs NOVALIDATE → triggers → indexes → backfill → VALIDATE; per entry rollback + dual-run note.
+Tests: none. Stop: plan approved by owner + DBA.
+```
+
+```text
+[S-02] Obligation columns
+Read: §2.1 (whole) §16.5. Invariant: additive only; nullable-with-default first; scope key per B-01.
+Placeholders: [DB Migration Directory] [Obligation Repository]. Mappings: both.
+Objective: add §2.1 columns (amounts, markers+counters+first_at, ordering fields, read-model fields, reopened_at, next_request_seq), scope-key UNIQUE, amounts>=0 CHECK, business_id index; entity mapping additive.
+Tests: apply on clean+prod-shaped schema; entity round-trip. Stop: merged, D-11 baseline green. Duplicate-scope data → STOP and report.
+```
+
+```text
+[S-03] Request columns
+Read: §2.2 (whole) §16.5. Invariant: dimension columns nullable until S-08 backfill; legacy status column untouched.
+Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: both.
+Objective: add the four dimensions + blocked_reason + identity/uetr/provider_reference + version/claim/retry/next_query_at + created_at/state_changed_at/creating_ordering + last_sent_hash/divergence_expected/divergent_payload_at + maybe_since/escalated_at/submitted_at/last_post_attempt_at.
+Tests: apply tests; entity round-trip. Stop: merged, baseline green.
+```
+
+```text
+[S-04] Inbox table + purge
+Read: §2.3 (DDL given) §16.2 (retention chain). Invariant: no parked-event table exists or ever will (SPEC_CONFLICT).
+Placeholders: [DB Migration Directory] [Inbox / Processed Event Repository]. Mappings: F.8 status.
+Objective: create processed_inbound_event (PK (source,event_id), processed_at UTC default) + purge job (retention > kafka retention ≥ replay window).
+Tests: duplicate-key clean return; purge boundary. Stop: merged.
+```
+
+```text
+[S-05] CHECKs, UNIQUEs, I6
+Read: §10.3 (matrix) §2.2 constraints CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified).
+Placeholders: [DB Migration Directory]. Mappings: real-Oracle test lane (STOP if H2-only).
+Objective: enum CHECKs; L2–L8 + L1-shape CHECKs; UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); I6 = unique fn index CASE WHEN outcome IS NULL THEN payment_obligation_id END. NOVALIDATE→VALIDATE per plan.
+Tests: one violation test per constraint; I6 second-active rejected. Stop: validated + green.
+```
+
+```text
+[S-06] Freeze + release-guard triggers
+Read: §10.3 (backstops) §10.1 §9.3 (flag setters). Invariant: raw SQL on MAYBE/SUBMITTED rows fails loudly; flag setters are exactly the authoritative-negative path and the §9.3 procedure.
+Placeholders: [Stored Procedure / Trigger Area] [DB Migration Directory]. Mappings: session-context facility confirmed; pool interaction verified.
+Objective: freeze trigger (dimension change on already-terminal row → raise); release-guard trigger (terminal-negative on MAYBE/SUBMITTED without session evidence flag → raise); flag transaction-scoped.
+Tests: rejected/accepted paths; pool non-leakage (two sessions). Stop: green on real Oracle.
+```
+
+```text
+[S-07] Active-row-bounded indexes
+Read: §16.6 artifact 4 (index list) §9.5 §15. Invariant: scan plans independent of terminal-row count; query expressions must textually match index expressions.
+Placeholders: [DB Migration Directory]. Mappings: directory.
+Objective: per CA-4, one CASE WHEN outcome IS NULL fn index per standing scan (resolver, retry, escalation, BLOCKED queue, stuck-state, drift) + created_at window index; record exact expressions for later scanner queries.
+Tests: EXPLAIN plan assertions on terminal-heavy seed. Stop: merged.
+```
+
+```text
+[S-08] Backfill dimensions
+Read: §10.4 (reverse map) §10.2 §2.2 anchors §7.1. Invariant: ambiguous legacy states backfill to MAYBE_SUBMITTED (fail toward resolver, never NOT_SUBMITTED).
+Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: legacy meanings memo (D-04); unmappable values = BLOCKED, report.
+Objective: reviewed legacy→tuple map; idempotent backfill; anchors defensibly set; terminal rows L1-normalized; run in a quiet window.
+Tests: idempotency; per-value spot checks; constraint dry-validate. Stop: validated; anomaly list dispositioned.
+```
+
+```text
+[S-09] Migration test pass
+Read: §16.5. Invariant: the OLD app version must run against the NEW schema.
+Placeholders: [DB Migration Directory] [Integration Test Suite]. Mappings: Oracle lane (set it up first if missing).
+Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema; constraint suite in CI.
+Tests: the four proofs. Stop: green; report filed.
+```
+
