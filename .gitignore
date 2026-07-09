@@ -12,3 +12,6 @@ design-review*
 
 /*.xml
 /*.iml
+
+# IDE
+.idea/
