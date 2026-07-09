@@ -30,8 +30,8 @@ provider / tech-lead / PO / upstream confirmation.
 | C2 | §1, §8, §16.4 | Confirmed contract fact: engine settles all-or-nothing; amount mismatch = defect | MVP | IN-08, RG-03 | — | no | yes | confirmed |
 | C3 | §1 | Assumed contract facts: known-key re-POST never executes new payment; key retention covers row lifetime; dedup keys on caller key | GATE (§18-1) | CT-01..05; no runtime gating anywhere | B-02 | YES | no | yes (proof by test) |
 | C4 | §1.1 | BA-1..3 Basic Agreements (scope-key mutability; no upstream cancel; ordering is upstream's) | settled constraint | none — do NOT build machinery for these | — | no | no | no |
-| C5 | §2.1 | payment_obligation: scope key, amounts, ordering fields, markers (validation_failed, provider_rejected + counters + first_at), read-model fields | MVP | S-02, S-05 | B-01 (scope key) | yes | yes | via B-01 |
-| C6 | §2.2 | payment_request: 4 dimension columns; supporting fields (identity, uetr, version, claim/retry/resolver fields, last_sent_hash, divergence_expected, divergent_payload_at, episode anchors) | MVP | S-03, S-05 | B-01 | yes | yes | no |
+| C5 | §2.1 | payment_obligation: scope key, amounts, ordering fields, markers (validation_failed, provider_rejected + counters + first_at), read-model fields | MVP | S-02, S-05 | — (scope key settled, §1) | yes | yes | no |
+| C6 | §2.2 | payment_request: 4 dimension columns; supporting fields (identity, uetr, version, claim/retry/resolver fields, last_sent_hash, divergence_expected, divergent_payload_at, episode anchors) | MVP | S-03, S-05 | — (scope key settled, §1) | yes | yes | no |
 | C7 | §2.2, §10.3 | Constraints: UNIQUE(idempotency_key), UNIQUE(uetr), I6 function-based unique index, enum CHECKs, L1-shape/L2–L8 CHECKs, freeze + release-guard triggers | MVP | S-05, S-06 | S-02/S-03 | yes | yes | no |
 | C8 | §2.3, §16.2 | processed_inbound_event inbox + purge policy (inbox_retention > kafka_retention ≥ replay_window, named owner) | MVP + RUNBOOK | S-04, OB-05 | — | no | yes | owner needed |
 | C9 | §3 | Reservation semantics: +committed at creation, −committed on terminal-negative row-count-1, no movement at POST/confirm; I1–I6 | MVP | RG-01..03, RG-06 | S-xx | yes | yes | no |
@@ -41,7 +41,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C13 | §4.2, §4.5 | Active-exception derivation (precedence ranks) + next-actor derivation — derived, never stored/accumulated | MVP | RG-09 | RG-08 | no | yes | no |
 | C14 | §4.4, §10.1 | Evidence rules: terminal evidence → any active row; intermediate → non-CLAIMED only; stale/duplicate → zero rows | MVP | IN-07, RC-06 | ST-02 | yes | yes | no |
 | C15 | §5 | Write-ahead identity: no POST under a caller-supplied identity not durably persisted | MVP | K-04 | K-02 | YES | yes | no |
-| C16 | §5, §5.1 | Deterministic idempotency key: hash(scope + request_seq), byte-exact, versioned, amount NOT in key, golden vectors | MVP + ARTIFACT (CA-5) | K-01..03 | B-01 | YES | yes | via B-01 |
+| C16 | §5, §5.1 | Deterministic idempotency key: hash(scope + request_seq), byte-exact, versioned, amount NOT in key, golden vectors | MVP + ARTIFACT (CA-5) | K-01..03 | — (scope key settled, §1) | YES | yes | no |
 | C17 | §5 | UETR is SDK/engine-assigned; never generated/validated here; persisted ONLY from acceptance-class responses; never a dedup key | MVP | U-01..03 | D-05 | yes | yes | TL-11 |
 | C18 | §5.2 | Post-restore DR runbook + step-5b enumeration tooling | FUTURE (post-MVP, PO decision) | none now; deterministic key (C16) stays | — | no | no | TL-3 |
 | C19 | §6.0 | Upstream message contract (fields, Kafka key = business_id, payload-equality definition); build-time enforcement | MVP + QUESTION | IN-01; Q upstream 1–4 | — | no | yes | yes |
@@ -81,13 +81,13 @@ provider / tech-lead / PO / upstream confirmation.
 | C53 | §16.6-1 | Engine error-code → classification table (incl. replay-original-response class) | ARTIFACT | CA-1 | provider | YES (feeds RC-01) | no | yes |
 | C54 | §16.6-2 | Engine status vocabulary + precedence/evidence mapping + feed event schema | ARTIFACT | CA-2 | provider | YES (feeds IN-07) | no | yes |
 | C55 | §16.6-3 | Status-query response → §9.1 outcome mapping | ARTIFACT | CA-3 | provider | YES (feeds RC-06) | no | yes |
-| C56 | §16.6-4 | Full Flyway DDL migration set (I6 expression, CHECKs, triggers, active-row-bounded index list) | ARTIFACT | CA-4 | B-01 | YES | yes | no |
-| C57 | §16.6-5 | Identity-derivation spec + golden vectors | ARTIFACT | CA-5 | B-01 | YES | no | no |
+| C56 | §16.6-4 | Full Flyway DDL migration set (I6 expression, CHECKs, triggers, active-row-bounded index list) | ARTIFACT | CA-4 | — (scope key settled, §1) | YES | yes | no |
+| C57 | §16.6-5 | Identity-derivation spec + golden vectors | ARTIFACT | CA-5 | — (scope key settled, §1) | YES | no | no |
 | C58 | §16.6-5 | Canonical instruction serialization + last_sent_hash definition | ARTIFACT | CA-6 | CA-5 | YES | yes | no |
 | C59 | §16.6-6 | Test catalog aligned to the spec | ARTIFACT | CA-7 | — | YES | yes | no |
 | C60 | §16.6-7 | Runbook stubs (one per §15 alert; aged-MAYBE runbook) | ARTIFACT + RUNBOOK | CA-8 | OB-xx | YES | no | no |
 | C61 | §16.6-8 | apply-platform-verified-outcome stored procedure spec + drill script | ARTIFACT + GATE (§18-3) | CA-9, OP-01..03 | B-04 | YES | yes | no |
-| C62 | §18-0 | BLOCKING: payments-per-trade / scope-key contradiction — re-confirm before schema/identity freeze | GATE | B-01 | upstream/UI teams | YES | no | YES |
+| C62 | §18-0 | BLOCKING residue of the snapshot contract (model = §1 contract fact: multiple payments; snapshot messages; tuple unique within snapshot; no discriminator — schema freeze not gated): upstream ask 5 in writing, §6.0 intake validation, PO-9, TL-16 — gates IN-02 | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
 | C63 | §18-1 | BLOCKING: engine idempotency-collision contract proven by sandbox test (a–d), re-run on engine releases | GATE | B-02, CT-01..05 | sandbox access | YES | no | YES |
 | C64 | §18-2 | BLOCKING: payment cutoff calendar (source, owner, semantics, tz-aware, refresh, fail direction) | GATE | B-03 | calendar owner | YES | no | YES |
 | C65 | §18-3 | BLOCKING: MVP MAYBE-row terminal exit (procedure EXISTS + DRILLED, or TL-10 ∧ TL-5 alternative) | GATE | B-04, OP-01..03 | CA-9 | YES | yes | possibly |

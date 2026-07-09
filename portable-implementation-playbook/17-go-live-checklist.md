@@ -13,7 +13,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 
 | # | Item | Source | PASS/FAIL/BLOCKED | Evidence |
 |---|------|--------|-------------------|----------|
-| Q1 | §18 BLOCKING item 0 answered; scope key + identity + card lookup finalized accordingly | §18-0, B-01 | | |
+| Q1 | §18 BLOCKING item 0 residue closed: written snapshot-contract confirmation (upstream ask 5); §6.0 within-snapshot uniqueness intake validation live; PO-9 (absence semantics) and TL-16 (ordering watermark) answered and implemented | §18-0, B-01 | | |
 | Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 BLOCKING item 2: cutoff calendar sourced, owned, tz-aware, refresh + fail direction configured | §18-2, B-03 | | |
 | Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome procedure EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |

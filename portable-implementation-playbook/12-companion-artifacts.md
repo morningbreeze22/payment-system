@@ -91,9 +91,10 @@ Failure if omitted: illegal states representable; fat-finger releases
 
 ```text
 Section: §16.6 artifact 5 (first half); §5.1.
-Owner type: TEAM (frozen after B-01).
+Owner type: TEAM (scope key settled, §1 contract facts — no B-01 gate).
 Purpose: byte-exact, versioned DR keystone.
-Required contents: input list (scope|seq [+ B-01 discriminator]);
+Required contents: input list (scope|seq — no discriminator; §1
+  contract facts);
   per-field canonicalization; delimiter/encoding (delimiter-in-field
   rule); algorithm; version; ≥12 vectors authored independently.
 Validation: independent reproduction of all vectors; K-03 suite green;

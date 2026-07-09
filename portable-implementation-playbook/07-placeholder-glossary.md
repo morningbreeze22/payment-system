@@ -118,7 +118,8 @@ Identify:     F.1.
 Responsibilities: obligation lock as THE money mutex (§11); §6.7
               ordering-guarded writes; §6.9 monotonic marker writes;
               derivation output writes (§4).
-Do not change: scope-key semantics before B-01 is answered.
+Do not change: scope-key semantics (settled by §1 contract facts;
+              changing them requires the PO, not a task).
 Tests:        upsert race (ORA-00001 retry), ordering guard, marker
               monotonicity.
 Mode:         MODIFIED.

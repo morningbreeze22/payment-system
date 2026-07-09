@@ -17,7 +17,7 @@ Section E). Arrows read "must be settled before".
                                       ▼
         ┌───────────────────────────────────────────────────────────┐
         │ P2 §18 BLOCKING GATES + COMPANION ARTIFACTS                │
-        │  B-01 scope key (§18-0)  ── blocks schema+identity freeze  │
+        │  B-01 snapshot residue (§18-0) ── blocks IN-02 (§6 flow)   │
         │  B-02 sandbox access (§18-1) ── blocks P8 execution        │
         │  B-03 cutoff calendar (§18-2) ── blocks cutoff config      │
         │  B-04 MAYBE exit decision (§18-3) ── default = P11         │
@@ -25,9 +25,9 @@ Section E). Arrows read "must be settled before".
         └───────┬───────────────────────────────────────────────────┘
                 ▼
         ┌──────────────────────────────┐
-        │ P3 SCHEMA & MIGRATION        │  ← B-01 answered first:
-        │ (tables, CHECKs, I6, triggers│    scope key + identity
-        │  indexes; expand/contract)   │    inputs are at stake
+        │ P3 SCHEMA & MIGRATION        │  ← scope key settled
+        │ (tables, CHECKs, I6, triggers│    (§1 contract facts);
+        │  indexes; expand/contract)   │    CA-4 is the gate
         └───────┬──────────────────────┘
                 ▼
         ┌──────────────────────────────┐     ┌───────────────────────┐
@@ -86,11 +86,13 @@ Section E). Arrows read "must be settled before".
 **Why this order (each required ordering, explicitly):**
 
 ```text
-1. §18 BLOCKING item 0 BEFORE scope key / identity / schema freeze:
-   if "multiple payments per trade" is true, the obligation scope key
-   and the §5.1 identity derivation gain a payment discriminator and
-   §12's lookup rewrites (§18-0). Freezing schema or golden vectors
-   before B-01 risks a full rework of P3/P4 and every dependent test.
+1. §18 item 0 residue BEFORE the §6 consumer freeze: the model is a
+   §1 contract fact (multiple payments per trade; snapshot messages;
+   tuple unique within a snapshot → NO discriminator), so the
+   scope-key/identity/schema freeze is NOT gated here. The §6
+   consumer (IN-02) waits on the B-01 residue: written uniqueness
+   guarantee (upstream ask 5), intake validation (§6.0), PO-9
+   (absence), TL-16 (watermark).
 2. Schema BEFORE state-machine persistence: the four dimension
    columns, CHECK constraints, I6, and triggers (§2.2, §10.3) are the
    substrate every CAS in P6 writes against; code written before the

@@ -83,13 +83,20 @@ P1 → P2 → P3 → P4 → P5 → P6 → P7 → P9 → P10 → P11 → P12 → 
 ## BLOCKED tasks (unsafe before a §18 BLOCKING decision)
 
 ```text
-BLOCKED on §18 item 0 (scope key / payments-per-trade — task B-01):
-  S-02 S-03 S-05 (schema finalization: obligation scope key, I6, UNIQUE keys)
-  K-02 K-03      (identity derivation input list + golden vectors)
-  CA-4 CA-5      (DDL set; identity spec — cannot be frozen before B-01)
-  IN-02          (scope upsert semantics)
-  Discovery (D-xx) and draft-level work on these MAY proceed; nothing
-  is FROZEN or MERGED to a shared branch before B-01 is answered.
+BLOCKED on §18 item 0 residue (snapshot contract — task B-01):
+  Per the §1 contract facts (one trade carries MULTIPLE payments;
+  each message is a full-trade snapshot, newer overwrites older;
+  scope tuple unique within a snapshot), the scope key needs NO
+  discriminator and §5.1 identity stands — S-02/S-03/S-05/K-02/
+  K-03/CA-4/CA-5 are NOT gated by this item. What it DOES gate is
+  the §6 consumer freeze (IN-02):
+    - written upstream confirmation (upstream ask 5) of the snapshot
+      schema + within-snapshot uniqueness
+    - within-snapshot uniqueness intake validation (§6.0)
+    - PO-9 (absence semantics — BA-2 amendment) and TL-16 (snapshot
+      ordering-watermark rule): both shape §6.1 fan-out (IN-02)
+    - §12 card lookup rewrite (returns ALL obligations of the trade;
+      step-granularity clause added to TL-2)
 
 BLOCKED on §18 item 1 (collision contract proof — tasks CT-01..05):
   Nothing at implementation time (the design carries no runtime gate —
@@ -110,7 +117,8 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 ## Go-live blockers (full checklist in Section Q)
 
 ```text
-1. §18 item 0 answered and schema/identity finalized accordingly (B-01)
+1. §18 item 0 residue closed: written snapshot-contract confirmation
+   (upstream ask 5), §6.0 intake validation, PO-9, TL-16 (B-01)
 2. §18 item 1 sandbox proof executed and PASSED (CT-02..CT-05)
 3. §18 item 2 cutoff calendar sourced, owned, configured (B-03)
 4. §18 item 3 apply-platform-verified-outcome procedure EXISTS and is

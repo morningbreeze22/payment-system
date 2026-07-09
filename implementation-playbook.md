@@ -87,13 +87,20 @@ P1 → P2 → P3 → P4 → P5 → P6 → P7 → P9 → P10 → P11 → P12 → 
 ## BLOCKED tasks (unsafe before a §18 BLOCKING decision)
 
 ```text
-BLOCKED on §18 item 0 (scope key / payments-per-trade — task B-01):
-  S-02 S-03 S-05 (schema finalization: obligation scope key, I6, UNIQUE keys)
-  K-02 K-03      (identity derivation input list + golden vectors)
-  CA-4 CA-5      (DDL set; identity spec — cannot be frozen before B-01)
-  IN-02          (scope upsert semantics)
-  Discovery (D-xx) and draft-level work on these MAY proceed; nothing
-  is FROZEN or MERGED to a shared branch before B-01 is answered.
+BLOCKED on §18 item 0 residue (snapshot contract — task B-01):
+  Per the §1 contract facts (one trade carries MULTIPLE payments;
+  each message is a full-trade snapshot, newer overwrites older;
+  scope tuple unique within a snapshot), the scope key needs NO
+  discriminator and §5.1 identity stands — S-02/S-03/S-05/K-02/
+  K-03/CA-4/CA-5 are NOT gated by this item. What it DOES gate is
+  the §6 consumer freeze (IN-02):
+    - written upstream confirmation (upstream ask 5) of the snapshot
+      schema + within-snapshot uniqueness
+    - within-snapshot uniqueness intake validation (§6.0)
+    - PO-9 (absence semantics — BA-2 amendment) and TL-16 (snapshot
+      ordering-watermark rule): both shape §6.1 fan-out (IN-02)
+    - §12 card lookup rewrite (returns ALL obligations of the trade;
+      step-granularity clause added to TL-2)
 
 BLOCKED on §18 item 1 (collision contract proof — tasks CT-01..05):
   Nothing at implementation time (the design carries no runtime gate —
@@ -114,7 +121,8 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 ## Go-live blockers (full checklist in Section Q)
 
 ```text
-1. §18 item 0 answered and schema/identity finalized accordingly (B-01)
+1. §18 item 0 residue closed: written snapshot-contract confirmation
+   (upstream ask 5), §6.0 intake validation, PO-9, TL-16 (B-01)
 2. §18 item 1 sandbox proof executed and PASSED (CT-02..CT-05)
 3. §18 item 2 cutoff calendar sourced, owned, configured (B-03)
 4. §18 item 3 apply-platform-verified-outcome procedure EXISTS and is
@@ -274,8 +282,8 @@ provider / tech-lead / PO / upstream confirmation.
 | C2 | §1, §8, §16.4 | Confirmed contract fact: engine settles all-or-nothing; amount mismatch = defect | MVP | IN-08, RG-03 | — | no | yes | confirmed |
 | C3 | §1 | Assumed contract facts: known-key re-POST never executes new payment; key retention covers row lifetime; dedup keys on caller key | GATE (§18-1) | CT-01..05; no runtime gating anywhere | B-02 | YES | no | yes (proof by test) |
 | C4 | §1.1 | BA-1..3 Basic Agreements (scope-key mutability; no upstream cancel; ordering is upstream's) | settled constraint | none — do NOT build machinery for these | — | no | no | no |
-| C5 | §2.1 | payment_obligation: scope key, amounts, ordering fields, markers (validation_failed, provider_rejected + counters + first_at), read-model fields | MVP | S-02, S-05 | B-01 (scope key) | yes | yes | via B-01 |
-| C6 | §2.2 | payment_request: 4 dimension columns; supporting fields (identity, uetr, version, claim/retry/resolver fields, last_sent_hash, divergence_expected, divergent_payload_at, episode anchors) | MVP | S-03, S-05 | B-01 | yes | yes | no |
+| C5 | §2.1 | payment_obligation: scope key, amounts, ordering fields, markers (validation_failed, provider_rejected + counters + first_at), read-model fields | MVP | S-02, S-05 | — (scope key settled, §1) | yes | yes | no |
+| C6 | §2.2 | payment_request: 4 dimension columns; supporting fields (identity, uetr, version, claim/retry/resolver fields, last_sent_hash, divergence_expected, divergent_payload_at, episode anchors) | MVP | S-03, S-05 | — (scope key settled, §1) | yes | yes | no |
 | C7 | §2.2, §10.3 | Constraints: UNIQUE(idempotency_key), UNIQUE(uetr), I6 function-based unique index, enum CHECKs, L1-shape/L2–L8 CHECKs, freeze + release-guard triggers | MVP | S-05, S-06 | S-02/S-03 | yes | yes | no |
 | C8 | §2.3, §16.2 | processed_inbound_event inbox + purge policy (inbox_retention > kafka_retention ≥ replay_window, named owner) | MVP + RUNBOOK | S-04, OB-05 | — | no | yes | owner needed |
 | C9 | §3 | Reservation semantics: +committed at creation, −committed on terminal-negative row-count-1, no movement at POST/confirm; I1–I6 | MVP | RG-01..03, RG-06 | S-xx | yes | yes | no |
@@ -285,7 +293,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C13 | §4.2, §4.5 | Active-exception derivation (precedence ranks) + next-actor derivation — derived, never stored/accumulated | MVP | RG-09 | RG-08 | no | yes | no |
 | C14 | §4.4, §10.1 | Evidence rules: terminal evidence → any active row; intermediate → non-CLAIMED only; stale/duplicate → zero rows | MVP | IN-07, RC-06 | ST-02 | yes | yes | no |
 | C15 | §5 | Write-ahead identity: no POST under a caller-supplied identity not durably persisted | MVP | K-04 | K-02 | YES | yes | no |
-| C16 | §5, §5.1 | Deterministic idempotency key: hash(scope + request_seq), byte-exact, versioned, amount NOT in key, golden vectors | MVP + ARTIFACT (CA-5) | K-01..03 | B-01 | YES | yes | via B-01 |
+| C16 | §5, §5.1 | Deterministic idempotency key: hash(scope + request_seq), byte-exact, versioned, amount NOT in key, golden vectors | MVP + ARTIFACT (CA-5) | K-01..03 | — (scope key settled, §1) | YES | yes | no |
 | C17 | §5 | UETR is SDK/engine-assigned; never generated/validated here; persisted ONLY from acceptance-class responses; never a dedup key | MVP | U-01..03 | D-05 | yes | yes | TL-11 |
 | C18 | §5.2 | Post-restore DR runbook + step-5b enumeration tooling | FUTURE (post-MVP, PO decision) | none now; deterministic key (C16) stays | — | no | no | TL-3 |
 | C19 | §6.0 | Upstream message contract (fields, Kafka key = business_id, payload-equality definition); build-time enforcement | MVP + QUESTION | IN-01; Q upstream 1–4 | — | no | yes | yes |
@@ -325,13 +333,13 @@ provider / tech-lead / PO / upstream confirmation.
 | C53 | §16.6-1 | Engine error-code → classification table (incl. replay-original-response class) | ARTIFACT | CA-1 | provider | YES (feeds RC-01) | no | yes |
 | C54 | §16.6-2 | Engine status vocabulary + precedence/evidence mapping + feed event schema | ARTIFACT | CA-2 | provider | YES (feeds IN-07) | no | yes |
 | C55 | §16.6-3 | Status-query response → §9.1 outcome mapping | ARTIFACT | CA-3 | provider | YES (feeds RC-06) | no | yes |
-| C56 | §16.6-4 | Full Flyway DDL migration set (I6 expression, CHECKs, triggers, active-row-bounded index list) | ARTIFACT | CA-4 | B-01 | YES | yes | no |
-| C57 | §16.6-5 | Identity-derivation spec + golden vectors | ARTIFACT | CA-5 | B-01 | YES | no | no |
+| C56 | §16.6-4 | Full Flyway DDL migration set (I6 expression, CHECKs, triggers, active-row-bounded index list) | ARTIFACT | CA-4 | — (scope key settled, §1) | YES | yes | no |
+| C57 | §16.6-5 | Identity-derivation spec + golden vectors | ARTIFACT | CA-5 | — (scope key settled, §1) | YES | no | no |
 | C58 | §16.6-5 | Canonical instruction serialization + last_sent_hash definition | ARTIFACT | CA-6 | CA-5 | YES | yes | no |
 | C59 | §16.6-6 | Test catalog aligned to the spec | ARTIFACT | CA-7 | — | YES | yes | no |
 | C60 | §16.6-7 | Runbook stubs (one per §15 alert; aged-MAYBE runbook) | ARTIFACT + RUNBOOK | CA-8 | OB-xx | YES | no | no |
 | C61 | §16.6-8 | apply-platform-verified-outcome stored procedure spec + drill script | ARTIFACT + GATE (§18-3) | CA-9, OP-01..03 | B-04 | YES | yes | no |
-| C62 | §18-0 | BLOCKING: payments-per-trade / scope-key contradiction — re-confirm before schema/identity freeze | GATE | B-01 | upstream/UI teams | YES | no | YES |
+| C62 | §18-0 | BLOCKING residue of the snapshot contract (model = §1 contract fact: multiple payments; snapshot messages; tuple unique within snapshot; no discriminator — schema freeze not gated): upstream ask 5 in writing, §6.0 intake validation, PO-9, TL-16 — gates IN-02 | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
 | C63 | §18-1 | BLOCKING: engine idempotency-collision contract proven by sandbox test (a–d), re-run on engine releases | GATE | B-02, CT-01..05 | sandbox access | YES | no | YES |
 | C64 | §18-2 | BLOCKING: payment cutoff calendar (source, owner, semantics, tz-aware, refresh, fail direction) | GATE | B-03 | calendar owner | YES | no | YES |
 | C65 | §18-3 | BLOCKING: MVP MAYBE-row terminal exit (procedure EXISTS + DRILLED, or TL-10 ∧ TL-5 alternative) | GATE | B-04, OP-01..03 | CA-9 | YES | yes | possibly |
@@ -357,7 +365,7 @@ Section E). Arrows read "must be settled before".
                                       ▼
         ┌───────────────────────────────────────────────────────────┐
         │ P2 §18 BLOCKING GATES + COMPANION ARTIFACTS                │
-        │  B-01 scope key (§18-0)  ── blocks schema+identity freeze  │
+        │  B-01 snapshot residue (§18-0) ── blocks IN-02 (§6 flow)   │
         │  B-02 sandbox access (§18-1) ── blocks P8 execution        │
         │  B-03 cutoff calendar (§18-2) ── blocks cutoff config      │
         │  B-04 MAYBE exit decision (§18-3) ── default = P11         │
@@ -365,9 +373,9 @@ Section E). Arrows read "must be settled before".
         └───────┬───────────────────────────────────────────────────┘
                 ▼
         ┌──────────────────────────────┐
-        │ P3 SCHEMA & MIGRATION        │  ← B-01 answered first:
-        │ (tables, CHECKs, I6, triggers│    scope key + identity
-        │  indexes; expand/contract)   │    inputs are at stake
+        │ P3 SCHEMA & MIGRATION        │  ← scope key settled
+        │ (tables, CHECKs, I6, triggers│    (§1 contract facts);
+        │  indexes; expand/contract)   │    CA-4 is the gate
         └───────┬──────────────────────┘
                 ▼
         ┌──────────────────────────────┐     ┌───────────────────────┐
@@ -426,11 +434,13 @@ Section E). Arrows read "must be settled before".
 **Why this order (each required ordering, explicitly):**
 
 ```text
-1. §18 BLOCKING item 0 BEFORE scope key / identity / schema freeze:
-   if "multiple payments per trade" is true, the obligation scope key
-   and the §5.1 identity derivation gain a payment discriminator and
-   §12's lookup rewrites (§18-0). Freezing schema or golden vectors
-   before B-01 risks a full rework of P3/P4 and every dependent test.
+1. §18 item 0 residue BEFORE the §6 consumer freeze: the model is a
+   §1 contract fact (multiple payments per trade; snapshot messages;
+   tuple unique within a snapshot → NO discriminator), so the
+   scope-key/identity/schema freeze is NOT gated here. The §6
+   consumer (IN-02) waits on the B-01 residue: written uniqueness
+   guarantee (upstream ask 5), intake validation (§6.0), PO-9
+   (absence), TL-16 (watermark).
 2. Schema BEFORE state-machine persistence: the four dimension
    columns, CHECK constraints, I6, and triggers (§2.2, §10.3) are the
    substrate every CAS in P6 writes against; code written before the
@@ -501,19 +511,24 @@ Go-live blocking: no (but P2+ cannot start safely without it).
 Goal:            Drive answers to §18 BLOCKING items 0–3 (record, not
                  decide); author the nine §16.6 companion artifacts
                  with named owners.
-Why here:        §18-0 blocks schema/identity freeze (D graph #1);
+Why here:        §18-0's residue gates the §6 consumer (D graph #1);
                  CA-1/2/3/5/6 are inputs to implementation phases;
                  CA-4 is the P3 deliverable spec; CA-9 is P11's spec.
 Sections:        §18 (all), §16.6, §5.1, §7, §9.1, §10.3, §9.3.
 Classification:  GATE + ARTIFACT.
 Required concepts: none in code (documents + provider engagement).
 Placeholders:    [Contract Test Suite] (planning only), owners.
-Data/schema deps: none (CA-4 drafted, frozen after B-01).
+Data/schema deps: none (CA-4 drafted; freeze not gated on B-01 —
+                 scope key settled, §1 contract facts).
 State-transition deps: none.
 Tests required:  golden vectors DRAFTED in CA-5 (executed in P4).
-Edge cases:      B-01 answered "multiple payments per trade" → CA-4/
-                 CA-5 and §12 lookup gain a payment discriminator —
-                 re-issue affected drafts before P3 freeze.
+Edge cases:      CA-4/CA-5 freeze is NOT gated on §18-0 — no
+                 discriminator under the §1 contract facts (multiple
+                 payments per trade; snapshot messages; tuple unique
+                 within snapshot). §12 lookup returns ALL of the
+                 trade's obligations. IN-02 residue: upstream ask 5
+                 (written uniqueness), §6.0 intake validation, PO-9
+                 (absence), TL-16 (watermark).
 Common mistakes: treating a written "yes" as closing TL-4/TL-6 (only
                  the §18-1 sandbox test closes them); letting artifact
                  authoring drift unowned; promoting PO-discussion
@@ -543,7 +558,7 @@ Required concepts: existing obligation/request-equivalent tables and
 Placeholders:    [DB Migration Directory], [Stored Procedure / Trigger
                  Area], [Reservation Repository], [Obligation
                  Repository], [Request Status Persistence Layer].
-Data/schema deps: B-01 (scope key) answered before FREEZE; CA-4 as
+Data/schema deps: scope key settled (§1 contract facts); CA-4 as
                  the authoritative DDL spec.
 State-transition deps: none yet (columns land before rules).
 Tests required:  migration apply on clean + prod-shaped schema;
@@ -1625,7 +1640,8 @@ Identify:     F.1.
 Responsibilities: obligation lock as THE money mutex (§11); §6.7
               ordering-guarded writes; §6.9 monotonic marker writes;
               derivation output writes (§4).
-Do not change: scope-key semantics before B-01 is answered.
+Do not change: scope-key semantics (settled by §1 contract facts;
+              changing them requires the PO, not a task).
 Tests:        upsert race (ORA-00001 retry), ordering guard, marker
               monotonicity.
 Mode:         MODIFIED.
@@ -2082,26 +2098,22 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 ### B-01 — Resolve §18 BLOCKING item 0 (payments-per-trade / scope key)
 
 - **Task ID:** B-01
-- **Title:** Drive and record the payments-per-trade decision; propagate to scope key + identity + card lookup
+- **Title:** Drive the snapshot-contract residue: written confirmation, intake validation, PO-9, TL-16
 - **Classification:** §18 BLOCKING go-live gate
-- **Purpose:** §18-0: two contradictory recorded facts; §12's business_id-only lookup and the §2.1 scope key stand on "one payment case per business payment". The scope key and §5.1 derivation are at stake.
-- **Prerequisites:** none (start immediately; human task).
-- **Requirement sections / concepts to read:** §18 BLOCKING item 0, §2.1 (scope key), §5.1, §12.
-- **Placeholder components involved:** none (decision task).
-- **Local placeholder mappings required before starting:** none.
-- **Local code areas to discover:** none.
-- **How to locate:** n/a.
-- **Implementation instructions:** put the question to the upstream/UI teams EXACTLY as §18-0 frames it, stating that the obligation scope key and identity derivation are at stake; record the written answer; if "multiple payments per trade" is true, record the chosen discriminator (ui_step_instance_id or an upstream payment sequence per §18-0) and flag CA-4/CA-5/S-02/S-03/K-02/IN-02 plus the §12 lookup rewrite for re-draft.
+- **Purpose:** the §1 contract facts record the model: one trade carries MULTIPLE payments; each message is a FULL-TRADE SNAPSHOT (newer overwrites older); (payment_type + debit_account + currency) is unique WITHIN a snapshot, and an equal tuple ACROSS snapshots means the same payment. Consequence: the §2.1 scope key needs NO discriminator, §5.1 identity stands unchanged, and the schema/identity freeze (S-02/S-03/S-05/K-02/K-03/CA-4/CA-5) is NOT gated here. §12 lookup: business_id returns ALL of the trade's obligations (multiple results = normal). This task drives the model's four open edges to closure.
+- **Prerequisites:** none (human task).
+- **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 BLOCKING item 0.
+- **Implementation instructions (residue):** (1) obtain the WRITTEN upstream confirmation of the snapshot schema + within-snapshot uniqueness (upstream ask 5) — the cross-snapshot identity half is unverifiable at runtime and rests on this document; (2) ensure IN-02 implements the §6.0 within-snapshot uniqueness intake validation (whole-snapshot validation failure, fail closed); (3) drive PO-9 (absence semantics — a BA-2 amendment, PO-only) and TL-16 (snapshot ordering-watermark rule) to answers BEFORE the IN-02 consumer freeze — both shape §6.1's fan-out; (4) TL-2's read contract now must also answer step granularity (per-payment vs per-trade rollup, §12).
 - **Do not change:** code.
-- **Tests to add:** none.
-- **Edge cases:** an answer of "usually one" is NOT an answer — §18-0 needs a guarantee or a discriminator.
-- **Manual validation:** answer is written, attributed, and names the deciding party.
-- **Expected outcome:** recorded decision unblocking schema/identity freeze.
-- **Failure signs:** proceeding to S-02/K-02 freeze on a verbal answer.
-- **Common mistakes:** letting the answerer respond without knowing the scope key is at stake (§18-0 explicitly warns).
-- **Completion criteria:** decision recorded; blocked-task list updated.
-- **Stop condition:** decision recorded (or explicitly still pending — then downstream stays BLOCKED).
-- **Next task:** B-02 (parallel); S-01 unblocked on answer.
+- **Tests to add:** intake test — snapshot with two blocks sharing a tuple → whole-snapshot validation failure + anchors (§6.0/§6.6); fan-out convergence test — kill consumer mid-fan-out, redeliver, assert per-obligation ordering guard converges (§6.1).
+- **Edge cases:** "usually unique" is NOT an answer for ask 5 — the identity contract needs a guarantee; PO-9 unanswered means absence = NO-OP (BA-2 stands), which knowingly leaves a genuinely-removed payment paying.
+- **Manual validation:** written confirmation attributed and filed; PO-9/TL-16 answers recorded in §18.
+- **Expected outcome:** B-01 fully closed; IN-02 consumer freeze unblocked.
+- **Failure signs:** IN-02 frozen while PO-9/TL-16 are open; treating a verbal model confirmation as the written contract.
+- **Common mistakes:** re-litigating the §1 contract fact instead of driving its open edges.
+- **Completion criteria:** all four residue items closed; blocked-task list updated.
+- **Stop condition:** residue items closed (or explicitly pending — then IN-02 stays BLOCKED).
+- **Next task:** B-02 (parallel); S-01/S-02/K-02 are not gated by this item.
 
 ### B-02 — Secure sandbox access + engine written statements (§18 item 1 inputs)
 
@@ -2253,7 +2265,7 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 - **Title:** Flyway/Oracle DDL migration set: tables, CHECKs, I6 expression, triggers, index list (§16.6 artifact 4)
 - **Classification:** §16.6 companion artifact
 - **Purpose:** P3's authoritative spec — exact I6 function-index expression, L1-shape + L2–L8 CHECKs, freeze + release-guard triggers, one active-row-bounded index per standing scan.
-- **Prerequisites:** B-01 ANSWERED (scope key at stake); D-02 gap inventory.
+- **Prerequisites:** scope key settled (§1 contract facts — multi-payment snapshot model, no discriminator; B-01 residue does not gate this); D-02 gap inventory.
 - **Requirement sections / concepts to read:** §2.1, §2.2, §2.3, §10.3, §3 (I6), §16.5 (expand/contract, enum evolution), §16.6 artifact 4.
 - **Placeholder components involved:** [DB Migration Directory], [Stored Procedure / Trigger Area].
 - **Local placeholder mappings required before starting:** D-02 rows (real current shape).
@@ -2277,14 +2289,14 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 - **Title:** Identity derivation spec (byte-exact, versioned) + golden vectors (§16.6 artifact 5, first half)
 - **Classification:** §16.6 companion artifact
 - **Purpose:** §5.1 exactness: hash algorithm, field serialization order, delimiter, canonicalization (case, trimming, encoding, account-number normalization), versioning — frozen by golden vectors. Byte-identical reproducibility IS the DR property.
-- **Prerequisites:** B-01 ANSWERED (derivation input list at stake).
+- **Prerequisites:** scope key settled (§1 contract facts — derivation input list final; B-01 residue does not gate this).
 - **Requirement sections / concepts to read:** §5.1 (all rules: amount NOT in key; UETR NOT in derivation), §2.1 (next_request_seq), §16.6 artifact 5.
 - **Placeholder components involved:** [Payment Request Creation Component] (consumer).
 - **Local placeholder mappings required before starting:** none for authoring.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (+ B-01 discriminator if decided); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, scope variants, and (if B-01 adds one) discriminator variants — each vector = inputs + exact expected key bytes.
-- **Do not change:** the input list beyond B-01's decision — amount and UETR stay OUT (§5.1 records why).
+- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (no discriminator — scope key settled, §1 contract facts); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, and scope variants — each vector = inputs + exact expected key bytes.
+- **Do not change:** the input list — amount and UETR stay OUT (§5.1 records why); the scope fields are a §1 contract fact (changing them requires the PO).
 - **Tests to add:** none here (K-03 turns vectors into tests).
 - **Edge cases:** fields that can legally contain the delimiter — the spec must make that unambiguous (length-prefix or escaping — choose and freeze).
 - **Manual validation:** two independent implementations (or one implementation + manual computation) reproduce all vectors.
@@ -3537,19 +3549,19 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 ### IN-02 — Obligation upsert + §6.7 ordering guard
 
 - **Task ID:** IN-02
-- **Title:** Locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
+- **Title:** Snapshot fan-out; locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
 - **Classification:** MVP normative implementation
-- **Purpose:** §6.7: a redelivered older message must never regress required_amount; ties are payload-aware; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
-- **Prerequisites:** IN-01; S-02; B-01 (scope key final).
-- **Requirement sections / concepts to read:** §6.1, §6.7 (whole), §6.9 (required_amount row), §6.0 (ordering source).
+- **Purpose:** §6.1/§6.7: a message is a FULL-TRADE SNAPSHOT fanning out to one application per payment block; a redelivered older message must never regress required_amount; ties are payload-aware; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
+- **Prerequisites:** IN-01; S-02; B-01 RESIDUE (upstream ask 5 in writing; PO-9 absence semantics; TL-16 watermark rule — the fan-out cannot freeze while these are open).
+- **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §6.0 (snapshot shape + within-snapshot uniqueness validation), §6.1 (fan-out + convergence + the two OPEN markers), §6.7 (whole), §6.9 (required_amount row).
 - **Placeholder components involved:** [Obligation Repository].
 - **Local placeholder mappings required before starting:** obligation upsert path.
 - **How to locate:** F.1.
 - **Local code areas to discover:** current amount-update path.
-- **Implementation instructions:** under the obligation lock: upsert by scope key (ORA-00001 → retry + re-read, §6.1); mutate required_amount + advance upstream_ordering ONLY if message ordering strictly newer; else count stale (metric) and drop; ties: identical payload (IN-01's function) → silent drop; differing → AMENDMENT_TIE_CONFLICT alert, NO application; ordering comparison isolated behind one pluggable comparator (business timestamp today; explicit sequence later — no logic change on cutover); after application → RG-06 evaluation (T1: even without amount change).
+- **Implementation instructions:** validate the snapshot ONCE (schema, amounts, within-snapshot tuple uniqueness → whole-snapshot validation failure per §6.0/§6.6); then fan out per payment block in deterministic tuple order (fixed lock order); per block, under that obligation's lock: upsert by scope key (ORA-00001 → retry + re-read, §6.1); mutate required_amount + advance upstream_ordering ONLY if message ordering strictly newer; else count stale (metric) and drop; ties: identical payload (IN-01's function, WHOLE-snapshot equality per §6.0) → silent drop; differing → AMENDMENT_TIE_CONFLICT alert, NO application; ordering comparison isolated behind one pluggable comparator (business timestamp today; explicit sequence later — no logic change on cutover); after application → RG-06 evaluation (T1: even without amount change). ABSENT payments: INTERIM no-op until PO-9 is answered (BA-2 stands); watermark treatment of absent obligations per TL-16's answer.
 - **Do not change:** BA-3 stance — no compensating ordering machinery beyond §6.7.
-- **Tests to add:** the §6.7 failure trace (late original must not regress 120→100); strictly-newer applies; equal-older counted+dropped; both tie branches; T1 fires on ordering advance without amount change.
-- **Edge cases:** first message (NULL stored ordering) applies; failed-validation messages never advance ordering (IN-03's rule — assert here too).
+- **Tests to add:** the §6.7 failure trace (late original must not regress 120→100); strictly-newer applies; equal-older counted+dropped; both tie branches; T1 fires on ordering advance without amount change; snapshot fan-out: two-block snapshot updates two obligations; new-tuple block creates its obligation; within-snapshot collision → whole-snapshot validation failure; crash mid-fan-out + redelivery converges (applied blocks drop stale, unapplied apply); absent payment → no-op (interim, until PO-9).
+- **Edge cases:** first message (NULL stored ordering) applies; failed-validation messages never advance ordering (IN-03's rule — assert here too); delayed-older-snapshot-containing-an-absent-payment (the TL-16 failure trace) — test per TL-16's answer.
 - **Manual validation:** seeded out-of-order sequence.
 - **Expected outcome:** regression-proof amounts.
 - **Failure signs:** amount writes outside the comparator's gate.
@@ -4442,11 +4454,11 @@ Tests: none. Stop: report delivered; WAIT for human review before implementation
 ```
 
 ```text
-[B-01] Resolve §18-0 scope key
-Read: §18 item 0, §2.1, §5.1, §12. Invariant: schema/identity freeze is unsafe until answered; answerer must know the scope key is at stake.
+[B-01] §18-0 snapshot-contract residue
+Read: §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 item 0. Model (§1 fact): multiple payments per trade; snapshot messages (newer overwrites older); tuple unique within snapshot → NO discriminator; schema/identity freeze not gated here.
 Placeholders: none. Mappings: none.
-Objective: obtain the written payments-per-trade decision; if multiple, record the discriminator and flag CA-4/CA-5/S-02/S-03/K-02/IN-02/§12 for re-draft.
-Tests: none. Stop: written decision recorded (or downstream stays BLOCKED).
+Objective (residue): written upstream confirmation of snapshot schema + uniqueness (ask 5); §6.0 intake uniqueness validation in IN-02; PO-9 (absence semantics, BA-2 amendment) and TL-16 (ordering-watermark rule) answered before IN-02 freeze; TL-2 gains the step-granularity clause.
+Tests: within-snapshot collision → whole-snapshot validation failure; mid-fan-out crash + redelivery converges. Stop: residue closed (or IN-02 stays BLOCKED).
 ```
 
 ```text
@@ -4500,7 +4512,7 @@ Tests: none. Stop: published.
 ```text
 [CA-4] DDL migration set spec
 Read: §2.1 §2.2 §2.3 §10.3 §3(I6) §16.5 §16.6 artifact 4. Invariant: three tables only; new-table needs = SPEC_CONFLICT.
-Placeholders: [DB Migration Directory] [Stored Procedure / Trigger Area]. Mappings: D-02 inventory; B-01 ANSWERED.
+Placeholders: [DB Migration Directory] [Stored Procedure / Trigger Area]. Mappings: D-02 inventory; scope key settled (§1 contract facts).
 Objective: spec all columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum+L1-shape+L2–L8 CHECKs, freeze+release-guard triggers w/ evidence-flag mechanics, active-row-bounded index list, expand/contract sequencing.
 Tests: none (S-09 executes). Stop: DBA-reviewed spec published.
 ```
@@ -4508,8 +4520,8 @@ Tests: none (S-09 executes). Stop: DBA-reviewed spec published.
 ```text
 [CA-5] Identity spec + golden vectors
 Read: §5.1 (amount/UETR excluded), §2.1 (seq), §16.6 artifact 5. Invariant: byte-exact, versioned; vectors computed independently of the implementation.
-Placeholders: [Payment Request Creation Component] (consumer). Mappings: B-01 ANSWERED.
-Objective: spec inputs (scope|seq + B-01 discriminator if any), canonicalization, delimiter/encoding, algorithm, version; ≥12 vectors incl. canonicalization + delimiter-in-field cases.
+Placeholders: [Payment Request Creation Component] (consumer). Mappings: scope key settled (§1 contract facts).
+Objective: spec inputs (scope|seq — no discriminator, §1 contract facts), canonicalization, delimiter/encoding, algorithm, version; ≥12 vectors incl. canonicalization + delimiter-in-field cases.
 Tests: none (K-03). Stop: spec + vectors published.
 ```
 
@@ -5692,7 +5704,7 @@ tests.
 
 | ID | Priority | To | Question | Consumed by |
 |----|----------|----|----------|-------------|
-| Q-01 | BLOCKING | Upstream + UI teams | §18-0: payments-per-trade — "one payment case per business payment" or "one trade can have multiple payments"? The obligation scope key, §5.1 identity derivation, and §12 card lookup are at stake; if multiple, which discriminator (ui_step_instance_id / upstream payment sequence)? | B-01 → S-xx, K-02, CA-4/5, IN-02 |
+| Q-01 | BLOCKING | Upstream + UI teams + PO | §18-0 residue (model = §1 contract fact: multiple payments per trade; snapshot messages, newer overwrites older; tuple unique within snapshot — no discriminator): written confirmation of snapshot schema + uniqueness (upstream ask 5); PO-9 absence semantics (BA-2 amendment); TL-16 ordering-watermark rule; TL-2 step-granularity clause (§12). | B-01 → IN-02 (schema/identity tasks not gated) |
 | Q-02 | BLOCKING | Provider (by sandbox test) | §18-1(a): can a known idempotency key + IDENTICAL payload ever execute twice? | CT-02 |
 | Q-03 | BLOCKING | Provider (by sandbox test) | §18-1(b)/TL-4: can a known key + DIVERGENT payload execute? Is the rejection code distinguishable from plain DUPLICATE_REQUEST? | CT-03, CA-1, §7.2 branch |
 | Q-04 | BLOCKING | Provider | §18-1(c): key-retention TTL IN WRITING; is TTL ≥ max row lifetime incl. ops-queue SLA, weekends, holidays, incidents, cutoff constraints? Verified at the retention edge? | CT-04; repost_permitted TTL term if short |
@@ -5801,9 +5813,10 @@ Failure if omitted: illegal states representable; fat-finger releases
 
 ```text
 Section: §16.6 artifact 5 (first half); §5.1.
-Owner type: TEAM (frozen after B-01).
+Owner type: TEAM (scope key settled, §1 contract facts — no B-01 gate).
 Purpose: byte-exact, versioned DR keystone.
-Required contents: input list (scope|seq [+ B-01 discriminator]);
+Required contents: input list (scope|seq — no discriminator; §1
+  contract facts);
   per-field canonicalization; delimiter/encoding (delimiter-in-field
   rule); algorithm; version; ≥12 vectors authored independently.
 Validation: independent reproduction of all vectors; K-03 suite green;
@@ -6446,7 +6459,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 
 | # | Item | Source | PASS/FAIL/BLOCKED | Evidence |
 |---|------|--------|-------------------|----------|
-| Q1 | §18 BLOCKING item 0 answered; scope key + identity + card lookup finalized accordingly | §18-0, B-01 | | |
+| Q1 | §18 BLOCKING item 0 residue closed: written snapshot-contract confirmation (upstream ask 5); §6.0 within-snapshot uniqueness intake validation live; PO-9 (absence semantics) and TL-16 (ordering watermark) answered and implemented | §18-0, B-01 | | |
 | Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 BLOCKING item 2: cutoff calendar sourced, owned, tz-aware, refresh + fail direction configured | §18-2, B-03 | | |
 | Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome procedure EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |

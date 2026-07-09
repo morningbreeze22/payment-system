@@ -43,19 +43,24 @@ Go-live blocking: no (but P2+ cannot start safely without it).
 Goal:            Drive answers to §18 BLOCKING items 0–3 (record, not
                  decide); author the nine §16.6 companion artifacts
                  with named owners.
-Why here:        §18-0 blocks schema/identity freeze (D graph #1);
+Why here:        §18-0's residue gates the §6 consumer (D graph #1);
                  CA-1/2/3/5/6 are inputs to implementation phases;
                  CA-4 is the P3 deliverable spec; CA-9 is P11's spec.
 Sections:        §18 (all), §16.6, §5.1, §7, §9.1, §10.3, §9.3.
 Classification:  GATE + ARTIFACT.
 Required concepts: none in code (documents + provider engagement).
 Placeholders:    [Contract Test Suite] (planning only), owners.
-Data/schema deps: none (CA-4 drafted, frozen after B-01).
+Data/schema deps: none (CA-4 drafted; freeze not gated on B-01 —
+                 scope key settled, §1 contract facts).
 State-transition deps: none.
 Tests required:  golden vectors DRAFTED in CA-5 (executed in P4).
-Edge cases:      B-01 answered "multiple payments per trade" → CA-4/
-                 CA-5 and §12 lookup gain a payment discriminator —
-                 re-issue affected drafts before P3 freeze.
+Edge cases:      CA-4/CA-5 freeze is NOT gated on §18-0 — no
+                 discriminator under the §1 contract facts (multiple
+                 payments per trade; snapshot messages; tuple unique
+                 within snapshot). §12 lookup returns ALL of the
+                 trade's obligations. IN-02 residue: upstream ask 5
+                 (written uniqueness), §6.0 intake validation, PO-9
+                 (absence), TL-16 (watermark).
 Common mistakes: treating a written "yes" as closing TL-4/TL-6 (only
                  the §18-1 sandbox test closes them); letting artifact
                  authoring drift unowned; promoting PO-discussion
@@ -85,7 +90,7 @@ Required concepts: existing obligation/request-equivalent tables and
 Placeholders:    [DB Migration Directory], [Stored Procedure / Trigger
                  Area], [Reservation Repository], [Obligation
                  Repository], [Request Status Persistence Layer].
-Data/schema deps: B-01 (scope key) answered before FREEZE; CA-4 as
+Data/schema deps: scope key settled (§1 contract facts); CA-4 as
                  the authoritative DDL spec.
 State-transition deps: none yet (columns land before rules).
 Tests required:  migration apply on clean + prod-shaped schema;

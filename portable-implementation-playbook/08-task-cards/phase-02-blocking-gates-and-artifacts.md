@@ -10,26 +10,22 @@
 ### B-01 — Resolve §18 BLOCKING item 0 (payments-per-trade / scope key)
 
 - **Task ID:** B-01
-- **Title:** Drive and record the payments-per-trade decision; propagate to scope key + identity + card lookup
+- **Title:** Drive the snapshot-contract residue: written confirmation, intake validation, PO-9, TL-16
 - **Classification:** §18 BLOCKING go-live gate
-- **Purpose:** §18-0: two contradictory recorded facts; §12's business_id-only lookup and the §2.1 scope key stand on "one payment case per business payment". The scope key and §5.1 derivation are at stake.
-- **Prerequisites:** none (start immediately; human task).
-- **Requirement sections / concepts to read:** §18 BLOCKING item 0, §2.1 (scope key), §5.1, §12.
-- **Placeholder components involved:** none (decision task).
-- **Local placeholder mappings required before starting:** none.
-- **Local code areas to discover:** none.
-- **How to locate:** n/a.
-- **Implementation instructions:** put the question to the upstream/UI teams EXACTLY as §18-0 frames it, stating that the obligation scope key and identity derivation are at stake; record the written answer; if "multiple payments per trade" is true, record the chosen discriminator (ui_step_instance_id or an upstream payment sequence per §18-0) and flag CA-4/CA-5/S-02/S-03/K-02/IN-02 plus the §12 lookup rewrite for re-draft.
+- **Purpose:** the §1 contract facts record the model: one trade carries MULTIPLE payments; each message is a FULL-TRADE SNAPSHOT (newer overwrites older); (payment_type + debit_account + currency) is unique WITHIN a snapshot, and an equal tuple ACROSS snapshots means the same payment. Consequence: the §2.1 scope key needs NO discriminator, §5.1 identity stands unchanged, and the schema/identity freeze (S-02/S-03/S-05/K-02/K-03/CA-4/CA-5) is NOT gated here. §12 lookup: business_id returns ALL of the trade's obligations (multiple results = normal). This task drives the model's four open edges to closure.
+- **Prerequisites:** none (human task).
+- **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 BLOCKING item 0.
+- **Implementation instructions (residue):** (1) obtain the WRITTEN upstream confirmation of the snapshot schema + within-snapshot uniqueness (upstream ask 5) — the cross-snapshot identity half is unverifiable at runtime and rests on this document; (2) ensure IN-02 implements the §6.0 within-snapshot uniqueness intake validation (whole-snapshot validation failure, fail closed); (3) drive PO-9 (absence semantics — a BA-2 amendment, PO-only) and TL-16 (snapshot ordering-watermark rule) to answers BEFORE the IN-02 consumer freeze — both shape §6.1's fan-out; (4) TL-2's read contract now must also answer step granularity (per-payment vs per-trade rollup, §12).
 - **Do not change:** code.
-- **Tests to add:** none.
-- **Edge cases:** an answer of "usually one" is NOT an answer — §18-0 needs a guarantee or a discriminator.
-- **Manual validation:** answer is written, attributed, and names the deciding party.
-- **Expected outcome:** recorded decision unblocking schema/identity freeze.
-- **Failure signs:** proceeding to S-02/K-02 freeze on a verbal answer.
-- **Common mistakes:** letting the answerer respond without knowing the scope key is at stake (§18-0 explicitly warns).
-- **Completion criteria:** decision recorded; blocked-task list updated.
-- **Stop condition:** decision recorded (or explicitly still pending — then downstream stays BLOCKED).
-- **Next task:** B-02 (parallel); S-01 unblocked on answer.
+- **Tests to add:** intake test — snapshot with two blocks sharing a tuple → whole-snapshot validation failure + anchors (§6.0/§6.6); fan-out convergence test — kill consumer mid-fan-out, redeliver, assert per-obligation ordering guard converges (§6.1).
+- **Edge cases:** "usually unique" is NOT an answer for ask 5 — the identity contract needs a guarantee; PO-9 unanswered means absence = NO-OP (BA-2 stands), which knowingly leaves a genuinely-removed payment paying.
+- **Manual validation:** written confirmation attributed and filed; PO-9/TL-16 answers recorded in §18.
+- **Expected outcome:** B-01 fully closed; IN-02 consumer freeze unblocked.
+- **Failure signs:** IN-02 frozen while PO-9/TL-16 are open; treating a verbal model confirmation as the written contract.
+- **Common mistakes:** re-litigating the §1 contract fact instead of driving its open edges.
+- **Completion criteria:** all four residue items closed; blocked-task list updated.
+- **Stop condition:** residue items closed (or explicitly pending — then IN-02 stays BLOCKED).
+- **Next task:** B-02 (parallel); S-01/S-02/K-02 are not gated by this item.
 
 ### B-02 — Secure sandbox access + engine written statements (§18 item 1 inputs)
 
@@ -181,7 +177,7 @@
 - **Title:** Flyway/Oracle DDL migration set: tables, CHECKs, I6 expression, triggers, index list (§16.6 artifact 4)
 - **Classification:** §16.6 companion artifact
 - **Purpose:** P3's authoritative spec — exact I6 function-index expression, L1-shape + L2–L8 CHECKs, freeze + release-guard triggers, one active-row-bounded index per standing scan.
-- **Prerequisites:** B-01 ANSWERED (scope key at stake); D-02 gap inventory.
+- **Prerequisites:** scope key settled (§1 contract facts — multi-payment snapshot model, no discriminator; B-01 residue does not gate this); D-02 gap inventory.
 - **Requirement sections / concepts to read:** §2.1, §2.2, §2.3, §10.3, §3 (I6), §16.5 (expand/contract, enum evolution), §16.6 artifact 4.
 - **Placeholder components involved:** [DB Migration Directory], [Stored Procedure / Trigger Area].
 - **Local placeholder mappings required before starting:** D-02 rows (real current shape).
@@ -205,14 +201,14 @@
 - **Title:** Identity derivation spec (byte-exact, versioned) + golden vectors (§16.6 artifact 5, first half)
 - **Classification:** §16.6 companion artifact
 - **Purpose:** §5.1 exactness: hash algorithm, field serialization order, delimiter, canonicalization (case, trimming, encoding, account-number normalization), versioning — frozen by golden vectors. Byte-identical reproducibility IS the DR property.
-- **Prerequisites:** B-01 ANSWERED (derivation input list at stake).
+- **Prerequisites:** scope key settled (§1 contract facts — derivation input list final; B-01 residue does not gate this).
 - **Requirement sections / concepts to read:** §5.1 (all rules: amount NOT in key; UETR NOT in derivation), §2.1 (next_request_seq), §16.6 artifact 5.
 - **Placeholder components involved:** [Payment Request Creation Component] (consumer).
 - **Local placeholder mappings required before starting:** none for authoring.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (+ B-01 discriminator if decided); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, scope variants, and (if B-01 adds one) discriminator variants — each vector = inputs + exact expected key bytes.
-- **Do not change:** the input list beyond B-01's decision — amount and UETR stay OUT (§5.1 records why).
+- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (no discriminator — scope key settled, §1 contract facts); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, and scope variants — each vector = inputs + exact expected key bytes.
+- **Do not change:** the input list — amount and UETR stay OUT (§5.1 records why); the scope fields are a §1 contract fact (changing them requires the PO).
 - **Tests to add:** none here (K-03 turns vectors into tests).
 - **Edge cases:** fields that can legally contain the delimiter — the spec must make that unambiguous (length-prefix or escaping — choose and freeze).
 - **Manual validation:** two independent implementations (or one implementation + manual computation) reproduce all vectors.

@@ -34,19 +34,19 @@
 ### IN-02 — Obligation upsert + §6.7 ordering guard
 
 - **Task ID:** IN-02
-- **Title:** Locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
+- **Title:** Snapshot fan-out; locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
 - **Classification:** MVP normative implementation
-- **Purpose:** §6.7: a redelivered older message must never regress required_amount; ties are payload-aware; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
-- **Prerequisites:** IN-01; S-02; B-01 (scope key final).
-- **Requirement sections / concepts to read:** §6.1, §6.7 (whole), §6.9 (required_amount row), §6.0 (ordering source).
+- **Purpose:** §6.1/§6.7: a message is a FULL-TRADE SNAPSHOT fanning out to one application per payment block; a redelivered older message must never regress required_amount; ties are payload-aware; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
+- **Prerequisites:** IN-01; S-02; B-01 RESIDUE (upstream ask 5 in writing; PO-9 absence semantics; TL-16 watermark rule — the fan-out cannot freeze while these are open).
+- **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §6.0 (snapshot shape + within-snapshot uniqueness validation), §6.1 (fan-out + convergence + the two OPEN markers), §6.7 (whole), §6.9 (required_amount row).
 - **Placeholder components involved:** [Obligation Repository].
 - **Local placeholder mappings required before starting:** obligation upsert path.
 - **How to locate:** F.1.
 - **Local code areas to discover:** current amount-update path.
-- **Implementation instructions:** under the obligation lock: upsert by scope key (ORA-00001 → retry + re-read, §6.1); mutate required_amount + advance upstream_ordering ONLY if message ordering strictly newer; else count stale (metric) and drop; ties: identical payload (IN-01's function) → silent drop; differing → AMENDMENT_TIE_CONFLICT alert, NO application; ordering comparison isolated behind one pluggable comparator (business timestamp today; explicit sequence later — no logic change on cutover); after application → RG-06 evaluation (T1: even without amount change).
+- **Implementation instructions:** validate the snapshot ONCE (schema, amounts, within-snapshot tuple uniqueness → whole-snapshot validation failure per §6.0/§6.6); then fan out per payment block in deterministic tuple order (fixed lock order); per block, under that obligation's lock: upsert by scope key (ORA-00001 → retry + re-read, §6.1); mutate required_amount + advance upstream_ordering ONLY if message ordering strictly newer; else count stale (metric) and drop; ties: identical payload (IN-01's function, WHOLE-snapshot equality per §6.0) → silent drop; differing → AMENDMENT_TIE_CONFLICT alert, NO application; ordering comparison isolated behind one pluggable comparator (business timestamp today; explicit sequence later — no logic change on cutover); after application → RG-06 evaluation (T1: even without amount change). ABSENT payments: INTERIM no-op until PO-9 is answered (BA-2 stands); watermark treatment of absent obligations per TL-16's answer.
 - **Do not change:** BA-3 stance — no compensating ordering machinery beyond §6.7.
-- **Tests to add:** the §6.7 failure trace (late original must not regress 120→100); strictly-newer applies; equal-older counted+dropped; both tie branches; T1 fires on ordering advance without amount change.
-- **Edge cases:** first message (NULL stored ordering) applies; failed-validation messages never advance ordering (IN-03's rule — assert here too).
+- **Tests to add:** the §6.7 failure trace (late original must not regress 120→100); strictly-newer applies; equal-older counted+dropped; both tie branches; T1 fires on ordering advance without amount change; snapshot fan-out: two-block snapshot updates two obligations; new-tuple block creates its obligation; within-snapshot collision → whole-snapshot validation failure; crash mid-fan-out + redelivery converges (applied blocks drop stale, unapplied apply); absent payment → no-op (interim, until PO-9).
+- **Edge cases:** first message (NULL stored ordering) applies; failed-validation messages never advance ordering (IN-03's rule — assert here too); delayed-older-snapshot-containing-an-absent-payment (the TL-16 failure trace) — test per TL-16's answer.
 - **Manual validation:** seeded out-of-order sequence.
 - **Expected outcome:** regression-proof amounts.
 - **Failure signs:** amount writes outside the comparator's gate.

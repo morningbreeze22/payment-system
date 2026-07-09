@@ -8,11 +8,11 @@
 # Minimal Context Packets — Phase P2
 
 ```text
-[B-01] Resolve §18-0 scope key
-Read: §18 item 0, §2.1, §5.1, §12. Invariant: schema/identity freeze is unsafe until answered; answerer must know the scope key is at stake.
+[B-01] §18-0 snapshot-contract residue
+Read: §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 item 0. Model (§1 fact): multiple payments per trade; snapshot messages (newer overwrites older); tuple unique within snapshot → NO discriminator; schema/identity freeze not gated here.
 Placeholders: none. Mappings: none.
-Objective: obtain the written payments-per-trade decision; if multiple, record the discriminator and flag CA-4/CA-5/S-02/S-03/K-02/IN-02/§12 for re-draft.
-Tests: none. Stop: written decision recorded (or downstream stays BLOCKED).
+Objective (residue): written upstream confirmation of snapshot schema + uniqueness (ask 5); §6.0 intake uniqueness validation in IN-02; PO-9 (absence semantics, BA-2 amendment) and TL-16 (ordering-watermark rule) answered before IN-02 freeze; TL-2 gains the step-granularity clause.
+Tests: within-snapshot collision → whole-snapshot validation failure; mid-fan-out crash + redelivery converges. Stop: residue closed (or IN-02 stays BLOCKED).
 ```
 
 ```text
@@ -66,7 +66,7 @@ Tests: none. Stop: published.
 ```text
 [CA-4] DDL migration set spec
 Read: §2.1 §2.2 §2.3 §10.3 §3(I6) §16.5 §16.6 artifact 4. Invariant: three tables only; new-table needs = SPEC_CONFLICT.
-Placeholders: [DB Migration Directory] [Stored Procedure / Trigger Area]. Mappings: D-02 inventory; B-01 ANSWERED.
+Placeholders: [DB Migration Directory] [Stored Procedure / Trigger Area]. Mappings: D-02 inventory; scope key settled (§1 contract facts).
 Objective: spec all columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum+L1-shape+L2–L8 CHECKs, freeze+release-guard triggers w/ evidence-flag mechanics, active-row-bounded index list, expand/contract sequencing.
 Tests: none (S-09 executes). Stop: DBA-reviewed spec published.
 ```
@@ -74,8 +74,8 @@ Tests: none (S-09 executes). Stop: DBA-reviewed spec published.
 ```text
 [CA-5] Identity spec + golden vectors
 Read: §5.1 (amount/UETR excluded), §2.1 (seq), §16.6 artifact 5. Invariant: byte-exact, versioned; vectors computed independently of the implementation.
-Placeholders: [Payment Request Creation Component] (consumer). Mappings: B-01 ANSWERED.
-Objective: spec inputs (scope|seq + B-01 discriminator if any), canonicalization, delimiter/encoding, algorithm, version; ≥12 vectors incl. canonicalization + delimiter-in-field cases.
+Placeholders: [Payment Request Creation Component] (consumer). Mappings: scope key settled (§1 contract facts).
+Objective: spec inputs (scope|seq — no discriminator, §1 contract facts), canonicalization, delimiter/encoding, algorithm, version; ≥12 vectors incl. canonicalization + delimiter-in-field cases.
 Tests: none (K-03). Stop: spec + vectors published.
 ```
 

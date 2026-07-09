@@ -71,6 +71,19 @@ Confirmed contract facts this design relies on:
 - The payment engine settles ALL-OR-NOTHING: partial settlement and
   fee-deducted amounts are impossible by contract (§8, §16.4).
 - The engine offers a status-query API by idempotency key / UETR (§9).
+- Trade-payment cardinality: one trade (business_id) can carry
+  MULTIPLE payments. Each upstream message is a FULL-TRADE SNAPSHOT —
+  the complete current truth of the trade, carrying ALL of its
+  payments; a newer snapshot OVERWRITES the older one in full (a trade
+  has exactly one current XML at a time). Within one snapshot,
+  (payment_type + debit_account + currency) is UNIQUE per payment
+  block — validated at intake (§6.0); across snapshots, an equal
+  tuple MEANS the same payment (that identity IS the contract — it is
+  how amendments are recognized). Written upstream confirmation of
+  the snapshot schema and the uniqueness guarantee is tracked as §18
+  upstream ask 5. Two consequences remain OPEN: absence semantics
+  (PO-9, §18 — interacts with BA-2) and the snapshot ordering-
+  watermark rule (TL-16, §18).
 ```
 
 Assumed contract facts — the design ASSUMES these are true and
@@ -113,6 +126,13 @@ BA-2 Upstream CANNOT cancel a payment. No cancellation signal
      started still pays; recovery for an executed payment is a
      platform-side recall (§19.2 family). Accepted by the PO. PO-5
      (§18) remains purely a DISPLAY question.
+     Snapshot-model interaction (§1 contract facts): a payment
+     ABSENT from a newer snapshot is a candidate cancellation
+     signal. Whether absence means "cancelled" (for provably-unsent
+     payments only) is PO-9 (§18): a deliberate BA-2 amendment
+     question, routed to the BA owner. Until the PO answers,
+     absence is treated as NO-OP (BA-2 stands unamended) — see
+     §6.1.
 BA-3 Message-ordering correctness is upstream's
      responsibility. The system trusts the ordering value as
      delivered (§6.7): a genuinely-newer amendment carrying an
@@ -135,6 +155,13 @@ One row per payment scope. Scope key:
 ```text
 business_id + payment_type + debit_account + currency   (UNIQUE)
 ```
+
+A trade (business_id) carrying multiple payments (§1 contract facts)
+therefore owns MULTIPLE obligation rows — one per payment — and that
+is the normal case, not an anomaly. The scope key needs no
+discriminator: within one snapshot the tuple is unique by contract
+(validated at intake, §6.0), and across snapshots an equal tuple
+means the same payment.
 
 Financial fields:
 
@@ -869,27 +896,44 @@ and ops resolves before the successor ever posts.
 
 ### 6.0 Message contract (normative)
 
-The upstream Kafka message shall carry:
+The message is a FULL-TRADE SNAPSHOT (§1 contract facts): it carries
+the complete current truth of the trade, including ALL of its
+payments; a newer snapshot supersedes the older one in full. The
+upstream Kafka message shall carry:
 
 ```text
+Trade level (once per message):
 business_id             — ALSO the Kafka message key (upstream ask 2,
                           §18): partition routing AND §6.6 key-only
                           anchoring depend on it
-payment_type, debit_account, currency
-                        — scope-key fields (§2.1)
-required_amount         — positive; currency-scale validated (§16.4)
 ordering value          — the business timestamp TODAY; an explicit
                           sequence in the FUTURE (§6.7); exact field
-                          name: upstream contract (§18)
+                          name: upstream contract (§18); ONE value
+                          per snapshot, shared by all payment blocks
 trade reference         — the id used to look up payment details
 ui_process_instance_id, ui_step_instance_id
                         — display/reference (§2.1)
 correlation_id          — cross-system tracing (§2.1, §14)
+
+Payment block (one per payment in the trade; 1..N):
+payment_type, debit_account, currency
+                        — scope-key fields (§2.1); with business_id
+                          they identify the payment
+required_amount         — positive; currency-scale validated (§16.4)
 ```
 
+Intake validation — within-snapshot uniqueness: the tuple
+(payment_type + debit_account + currency) shall be unique across the
+payment blocks of one snapshot. A snapshot violating this is a
+VALIDATION FAILURE for the whole message (fail closed: §6.6 handling,
+alert) — it is the one runtime-checkable edge of the §1 cardinality
+contract: applying such a snapshot would silently merge two payments
+into one obligation, one payment's amount REPLACING the other's.
+
 Payload equality (used by §6.7 tie handling) is defined over the
-CANONICALIZED BUSINESS-FIELD SUBSET — scope-key fields +
-required_amount + trade reference — never over raw bytes or envelope
+CANONICALIZED BUSINESS-FIELD SUBSET — the SET of payment blocks
+(sorted by scope tuple; each block: scope-key fields +
+required_amount) + trade reference — never over raw bytes or envelope
 fields (message ids, emission timestamps), which would turn every
 redelivery into a false tie-conflict.
 
@@ -905,14 +949,51 @@ This schema is one of the three build-time-enforced contracts
 
 ### 6.1 Normal processing
 
-Under the obligation lock: validate → upsert obligation → apply
+A snapshot FANS OUT to one application per payment block. Message
+validation (schema, amounts, within-snapshot uniqueness §6.0) runs
+once for the whole snapshot; then, per payment block, in a
+deterministic order (sorted by scope tuple — a fixed lock order so
+concurrent redeliveries cannot deadlock), each block is applied to
+its own obligation:
+
+Under that obligation's lock: upsert obligation → apply
 amounts/ordering (§6.7) → run the standing shortfall re-evaluation
 (§6.8, the single request-creation point) → re-derive (§4).
 `ui_step_status = IN_PROGRESS` from the first request.
 
-Two concurrent first messages can race the obligation insert; the
-scope-key unique constraint is the backstop — on `ORA-00001`, retry
-the transaction and re-read.
+Everything downstream of this point (§6.2–§6.9, §7–§13) operates per
+payment scope, exactly as before — the snapshot model changes HOW
+obligations receive updates, not what an obligation is.
+
+Per-block transactions + at-least-once redelivery CONVERGE by the
+§6.7 ordering guard: if the consumer dies mid-fan-out, the
+redelivered snapshot re-applies — blocks already applied drop as
+stale (ordering not newer for that obligation), unapplied blocks
+apply normally. No cross-obligation transaction is required.
+
+A payment block whose scope tuple has no existing obligation creates
+one (the normal first-message path). Two concurrent first messages
+can race the obligation insert; the scope-key unique constraint is
+the backstop — on `ORA-00001`, retry the transaction and re-read.
+
+OPEN — absence semantics (PO-9, §18): a payment that exists as an
+obligation but is ABSENT from a newer snapshot. Candidate meaning
+under overwrite semantics: "this payment no longer exists" →
+amendment to zero → §6.4 auto-cancel if provably unsent,
+wait-then-decide if it may have been sent. But BA-2 (§1.1) currently
+records that NO cancellation signal exists — answering "absence =
+cancel" amends BA-2 and is therefore the PO's call, not a default.
+INTERIM (until PO-9 is answered): absence is a NO-OP — the absent
+payment's obligation is left untouched.
+
+OPEN — snapshot ordering-watermark rule (TL-16, §18): must applying
+a snapshot advance the §6.7 ordering watermark on ALL of the trade's
+obligations, INCLUDING those absent from the snapshot? Failure mode
+if not: obligation B's watermark stays old while newer snapshots
+(without B) arrive; a DELAYED older snapshot that still contains B
+then passes B's staleness guard and applies stale amounts to B.
+Interacts with PO-9 (if absence cancels, absent obligations
+terminalize and the window shrinks) — decide both together.
 
 ### 6.2 Zero shortfall
 
@@ -1051,6 +1132,13 @@ to monotonic writes, §6.9) but does NOT advance `upstream_ordering`
 anchor. A later corrected message creates the first request against
 this same obligation.
 
+Snapshot note (§6.0): validation failure is a WHOLE-SNAPSHOT verdict
+(including within-snapshot uniqueness violations). The anchor rule
+above then applies PER extractable payment block — one anchor per
+extractable scope tuple; blocks colliding on the same tuple
+necessarily share one anchor row, which is fine: the anchor exists
+to surface the problem, not to resolve it.
+
 If the message is too malformed to identify the scope, route it to the
 dead-letter/ops-alert path. This blind spot is accepted and monitored.
 
@@ -1064,11 +1152,22 @@ arrives with a readable key. Tiered handling:
 1. Body parseable → normal processing / normal anchor (above).
 2. Body unparseable, key readable:
    - No obligation exists for the business_id → create the anchor
-     from the KEY alone (business_id set; other scope fields NULL
-     until the first valid message), IN_PROGRESS +
-     DATA_VALIDATION_FAILED. The card then shows a problem instead
-     of a healthy NOT_STARTED, and the DLT alert carries the
-     business_id so the platform and business investigations meet.
+     from the KEY alone (business_id set; other scope fields NULL),
+     IN_PROGRESS + DATA_VALIDATION_FAILED. The card then shows a
+     problem instead of a healthy NOT_STARTED, and the DLT alert
+     carries the business_id so the platform and business
+     investigations meet. Multi-payment note: a key-only anchor is
+     a TRADE-LEVEL display row, never a payment scope — under the
+     snapshot model (§1) it cannot be "populated into" any one
+     payment. When the first valid snapshot for that business_id
+     applies (creating the real per-payment obligations), the
+     key-only anchor row is DELETED in the same processing — it is
+     a pure placeholder (no money, no requests, no applied
+     ordering; the failure record lives in the DLT and logs), and
+     it existed only to surface the problem, which is now over.
+     This is the single sanctioned obligation-row deletion in the
+     system, possible only because the row can never have held
+     value.
    - An obligation already exists → touch NO markers (an unparseable
      body has no readable ordering value and cannot be proven
      non-stale, §6.9); DLT + alert carrying the business_id.
@@ -1113,6 +1212,11 @@ Guard:
                                not a recovery for ties: the resend
                                carries the identical timestamp and
                                would be rejected forever.
+    Snapshot note: equality is evaluated over the WHOLE snapshot
+    (§6.0). Two tying snapshots differing in only one payment block
+    therefore raise the tie-conflict for the snapshot as a whole —
+    deliberately conservative; manual application resolves all
+    blocks together.
 - Regressing required_amount remains the non-recoverable direction;
   everything above fails toward alerts and manual application.
 ```
@@ -2250,16 +2354,20 @@ active exception:    a separate concept from step status; a step can
 Both are derived per §4; the card only ever reads them. Requests are
 shown to humans via the §10.4 display labels.
 
-Card addressing: the card looks up state by `business_id` ONLY.
-Upstream guarantees exactly one payment case per business payment and
-unique steps, so a business_id resolves to at most one obligation
-(BLOCKING open question §18 item 0: this recorded guarantee conflicts
-with the earlier recorded "one trade can have multiple payments" —
-must be re-confirmed before implementation). An index on business_id
-backs the lookup. Defensive rule: if the lookup ever returns more
-than one obligation, the card shows an error state and an alert
-fires — never silently pick one. `ui_process_instance_id` /
-`ui_step_instance_id` remain stored as display/reference fields.
+Card addressing: the card looks up state by `business_id` ONLY, and
+the lookup returns ALL obligations of that trade — one entry per
+payment (§1 contract facts: a trade can carry multiple payments;
+multiple results are the NORMAL case, not an error — no rule may
+treat result count as a health signal). An index on business_id
+backs the lookup. `ui_process_instance_id` / `ui_step_instance_id`
+remain stored as display/reference fields.
+
+Step granularity (open, folded into the TL-2 read contract, §18):
+does the UI render one step per PAYMENT, or one rolled-up step per
+TRADE? The §4 derivations are per obligation; a per-trade rollup
+("completed when ALL the trade's payments complete, exception when
+ANY has one") is a display aggregation the read contract must define
+— no core-model change either way.
 
 Lookup semantics:
 
@@ -2863,21 +2971,19 @@ payment platform
 ### BLOCKING — must be answered before implementation
 
 ```text
-0. Payments-per-trade: the decision log contains two
-   contradictory recorded facts — "one trade can have multiple
-   payments" (v1 §22.12.5, from the UI side) vs "one payment case
-   per business payment" (M3 decision, from upstream) — and §12's
-   business_id-only card lookup is built on the second. Re-confirm
-   with the upstream/UI teams. If "multiple" is true, the blast
-   radius is the DATA MODEL, not the card: the obligation
-   scope key and the §5.1 identity derivation gain a payment
-   discriminator (ui_step_instance_id or an upstream payment
-   sequence) — otherwise two payments sharing payment_type +
-   debit_account + currency collide into ONE obligation and the
-   second's message reads as an amendment, silently REPLACING
-   required_amount (one payment's worth vanishes, or permanent
-   tie-conflicts). §12's lookup and defensive rule also rewrite.
-   Whoever answers this item must know the scope key is at stake.
+0. Snapshot-contract residue (the multi-payment snapshot model
+   itself is a §1 contract fact; these are its open edges, blocking
+   before the §6 implementation freeze):
+     a. WRITTEN upstream confirmation of the snapshot schema and the
+        within-snapshot uniqueness guarantee (upstream ask 5) — the
+        cross-snapshot half of the identity ("equal tuple = same
+        payment") is unverifiable at runtime and rests entirely on
+        this contract.
+     b. The within-snapshot uniqueness intake validation (§6.0)
+        implemented — the runtime-checkable half.
+     c. PO-9 (absence semantics — amends BA-2) and TL-16 (snapshot
+        ordering-watermark rule) answered: both shape §6.1's
+        fan-out behavior.
 1. Engine idempotency-collision contract —
    PROVEN by a sandbox test, not asked: executed before go-live and
    re-run on engine releases. Test matrix:
@@ -2961,6 +3067,18 @@ payment platform
    accepts this (it is the physical reality of payments; the
    alternative, freezing the payload, was considered and REJECTED —
    it pays with stale details in the never-arrived case).
+9. Absence semantics under the snapshot model (§6.1 — a BA-2
+   AMENDMENT question, hence the PO's alone): when a payment that
+   exists as an obligation is ABSENT from a newer snapshot, does
+   that mean "this payment no longer exists" (→ amendment to zero:
+   auto-cancel if provably unsent per §6.4; wait-then-decide if it
+   may have been sent), or "unchanged"? Overwrite semantics argue
+   for "cancelled"; BA-2 currently records that no cancellation
+   signal exists. Risk either way: "cancelled" lets a producer bug
+   (accidentally dropped block) cancel real unsent payments;
+   "unchanged" leaves a genuinely-removed payment paying. INTERIM
+   until answered: absence is a no-op (BA-2 stands). Decide together
+   with TL-16.
 ```
 
 ### Requiring tech lead review
@@ -3055,6 +3173,21 @@ payment platform
 15. Production measurement, first quarter: NOT_FOUND-after-
     trust-age frequency — how often the §9.2 downgrade would fire —
     to revisit auto vs ops-triggered enablement with data (§9.2).
+16. Snapshot ordering-watermark rule (§6.1): must applying a
+    snapshot advance the §6.7 ordering watermark on ALL of the
+    trade's obligations, INCLUDING those absent from that snapshot?
+    Failure mode if not: an absent payment's watermark goes stale;
+    a DELAYED older snapshot still containing that payment then
+    passes its staleness guard and applies stale amounts. Options:
+    (a) advance watermarks on absent obligations (an extra no-op
+    write per absent obligation per snapshot); (b) track a
+    trade-level watermark consulted alongside the per-obligation
+    one; (c) accept the window and rely on upstream ask 1 (strictly
+    increasing ordering) + partition ordering (ask 2) making
+    delayed-older-snapshot delivery impossible — verify that claim
+    before choosing it. Interacts with PO-9 (if absence cancels,
+    absent obligations terminalize and the window shrinks) — decide
+    both together.
 ```
 
 ### Upstream contract asks
@@ -3067,11 +3200,21 @@ payment platform
    just as a partitioning convention) — §6.0; prerequisite for §6.6
    key-only anchoring.
 3. The §6.0 message schema formalized (field names — including the
-   ordering field — types, and the correlation_id).
+   ordering field — types, the correlation_id, and the payment-block
+   list structure of the snapshot).
 4. Emission contract: confirm a new message is emitted ONLY
    when a business field changed — no blind re-emissions of
    identical snapshots (§6.0 contract fact; bounds the validation
-   reject cycle, §2.1).
+   reject cycle, §2.1). Under the snapshot model this matters MORE:
+   if PO-9 answers "absence = cancel", an accidental re-emission
+   missing a payment block would cancel a real unsent payment.
+5. Within-snapshot uniqueness IN WRITING: no two payment blocks in
+   one snapshot share (payment_type + debit_account + currency),
+   and an equal tuple across snapshots always denotes the SAME
+   payment (§1 contract facts, §18 BLOCKING item 0a). We validate
+   the within-snapshot half at intake (§6.0); the cross-snapshot
+   half is unverifiable at runtime and rests on this written
+   contract alone.
 ```
 
 ### Resolved: workflow advancement

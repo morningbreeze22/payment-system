@@ -36,13 +36,13 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 17 | CA-1 | HUMAN+AGENT | B-02 channel; D-05 memo | phase-02 |
 | 18 | CA-2 | HUMAN+AGENT | B-02 | phase-02 |
 | 19 | CA-3 | HUMAN+AGENT | B-02 | phase-02 |
-| 20 | CA-4 | HUMAN+AGENT | B-01 ANSWERED (hard gate) | phase-02 |
-| 21 | CA-5 | HUMAN+AGENT | B-01 ANSWERED (hard gate) | phase-02 |
+| 20 | CA-4 | HUMAN+AGENT | scope key settled (§1 contract facts — B-01 residue does not gate) | phase-02 |
+| 21 | CA-5 | HUMAN+AGENT | scope key settled (§1 contract facts — B-01 residue does not gate) | phase-02 |
 | 22 | CA-6 | HUMAN+AGENT | CA-5; D-05 | phase-02 |
 | 23 | CA-7 | HUMAN+AGENT | none | phase-02 |
 | 24 | CA-8 | HUMAN+AGENT | Section-N seeds (14-observability file) | phase-02 |
 | 25 | CA-9 | HUMAN+AGENT | B-04; CA-4 | phase-02 |
-| 26–34 | S-01 → S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | B-01 + CA-4 published | phase-03-schema-and-migration.md |
+| 26–34 | S-01 → S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts) | phase-03-schema-and-migration.md |
 | 35–40 | K-01 → K-06 | AGENT | S-09 green; CA-5 for K-02/K-03 | phase-04-identity-and-idempotency.md |
 | 41–47 | CT-01 → CT-07 | HUMAN+AGENT | B-02 sandbox access; K-02/K-03 (see DD-6 if access missing) | phase-08-provider-contract-tests.md |
 | 48–50 | U-01 → U-03 | AGENT | S-03; K-04 path | phase-05-uetr-response-persistence.md |
