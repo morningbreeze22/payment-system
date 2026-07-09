@@ -155,7 +155,7 @@
 <div class="hero"><div class="wrap">
   <p class="eyebrow">payment orchestration · request state model §10</p>
   <h1>Every state. Every rule. One playable map.</h1>
-  <p class="lede">This is the complete territory a payment can travel — all twelve states, every legal move from the spec's flow table. <b>Pick a story</b> and watch the coin make the journey, told in plain words. Flip on <b>Plain&nbsp;+&nbsp;Tech</b> for the exact state tuple, money moves, and § references at every step. Click <b>any arrow</b> — story or not — to interrogate its rule.</p>
+  <p class="lede">This is the complete territory a payment can travel — all twelve states, every legal move from the spec's flow table. <b>Pick a story</b> and watch the coin make the journey, told in plain words. Flip on <b>Plain&nbsp;+&nbsp;Tech</b> for the exact state tuple, money moves, and § references at every step. Click <b>any arrow</b> — story or not — to interrogate its rule. One scoping fact before you play: this machine runs <b>per payment</b>, and a trade can carry several payments — a three-payment trade runs three of these maps in parallel, coupled only by the trade's snapshot messages (the stories <i>“Two payments, one trade”</i> and <i>“A trade-mate poisons the snapshot”</i> show exactly that coupling).</p>
 </div></div>
 
 <div class="wrap">
@@ -401,6 +401,8 @@ const SECS = {
  cancel:[0,3600,1],
  exhaust:[0,2,2,1,2,14400,7200,60,3,7200],
  collision:[0,2,2,1,30,21600,60,3,600],
+ twinpay:[0,2,2,1,3,3600,7200],
+ poison:[0,2,2,1,3,3600,7200,14400],
  mismatch:[0,2,2,1,3,7200,86400]};
 function fmtDur(s){
   if(s<1) return '0s';
@@ -498,6 +500,23 @@ const STORIES = [
  {e:'pdue',ev:'Re-posting — but details were re-enriched meanwhile',n:'Every attempt re-fetches bank data, and the agent bank was corrected in between — so the re-POST carries the same key with DIFFERENT content.'},
  {e:'collexp',ev:'Engine: “known key, different content”',n:'We KNOW why the payload differs (divergence_expected = true) — so this collision is good news: it proves the original POST arrived. No alarm; ask the resolver.'},
  {e:'qexec',ev:'Resolver: the original executed',n:'Booked. The "failed" first attempt had quietly succeeded — and the design caught it without ever risking a double payment.',money:[100,100,100],fx:'win'}]},
+{id:'twinpay',n:'Two payments, one trade',steps:[
+ {e:'create',ev:'Snapshot: trade T wants payment A (100) and payment B (250)',n:'One message, two payments. Each payment gets its OWN record and its OWN copy of this entire state machine. The coin follows payment A; payment B starts the identical journey in parallel on its own map.',money:[100,100,0],badge:'payment A of 2'},
+ {e:'claim',ev:'A worker picks up payment A'},
+ {e:'enrichok',ev:'A’s details check out',n:'Payment B — different account, different details — may be at a completely different station right now. The one-active-attempt rule counts PER PAYMENT, so A and B both in flight is normal, never a violation.'},
+ {e:'postclaim',ev:'Sending payment A…'},
+ {e:'accept',ev:'A accepted — awaiting settlement'},
+ {at:'AWAITING',who:'up',ev:'Snapshot 2: A unchanged, B raised to 300',n:'Snapshot messages are the ONLY coupling between the two machines: one message fans out to both payments, each applied under its own lock in a fixed order (so two redeliveries can never deadlock each other). For A this snapshot says “no change” — nothing moves. B applies its raise over on its own map.',d:['CONFIRM','READY','SUBMITTED','∅'],m:'A: no-op · B (own machine): required := 300',r:'§6.1 · §11'},
+ {e:'settle',ev:'A settles — B still traveling',n:'A completes and freezes forever. B is untouched — its settlement arrives on its own schedule. The trade’s card shows BOTH payments, each with its own state; the trade is “done” only when every payment is.',money:[100,100,100],fx:'win'}]},
+{id:'poison',n:'A trade-mate poisons the snapshot',steps:[
+ {e:'create',ev:'Snapshot 1: payment A (100) — clean',money:[100,100,0],badge:'payment A'},
+ {e:'claim',ev:'Details…'},
+ {e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'accept',ev:'A accepted — awaiting settlement'},
+ {at:'AWAITING',who:'up',ev:'Snapshot 2: A raised to 150 — but payment B’s block is corrupt',n:'The snapshot is ONE document: if any part violates the contract (bad data, or two blocks claiming the same identity fields), NONE of it is applied. A’s raise is NOT applied, and a data-problem flag lands on every payment of the trade — visible on the card. But look at the tuple: A’s in-flight attempt is completely untouched. The flag stops NEW attempts, never running ones.',d:['CONFIRM','READY','SUBMITTED','∅'],m:'whole-snapshot validation failure · validation_failed flag on ALL the trade’s payments · required still 100',r:'§6.0 · §6.6'},
+ {e:'settle',ev:'The 100 settles normally',n:'Terminal evidence is never blocked by the flag — the original payment completes and freezes. But upstream MEANT 150, and the extra 50 cannot start while the flag is up: fail closed until trusted data arrives.',money:[100,100,100]},
+ {e:'create',ev:'Snapshot 3: corrected — A: 150, B: fixed',n:'The corrected snapshot applies: A’s required becomes 150, the flag clears (newer message wins), and the standing rule immediately creates the 50-successor. Nothing was lost — one corrupt trade-mate DELAYED its sibling’s new work, but never touched its in-flight work.',money:[150,150,100],fx:'new',badge:'attempt 2 · 50 · new key'}]},
 {id:'mismatch',n:'Wrong-amount settlement',steps:[
  {e:'create',ev:'Pay 100',money:[100,100,0]},
  {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},

@@ -1139,6 +1139,22 @@ extractable scope tuple; blocks colliding on the same tuple
 necessarily share one anchor row, which is fine: the anchor exists
 to surface the problem, not to resolve it.
 
+Trade-wide blast radius (deliberate, fail closed): because the
+snapshot is ONE document, a whole-snapshot validation failure sets
+the validation_failed marker (monotonic writes, §6.9; failing
+ordering recorded; upstream_ordering NOT advanced) on ALL of the
+trade's extractable scopes — existing obligations and anchors alike,
+including payments whose own blocks were fine. Consequences, scoped
+precisely: in-flight requests are UNTOUCHED (the marker is not a
+state-machine input); terminal evidence still applies (§10.1);
+retries of existing requests continue (the marker gates creation,
+not retry); what stops is NEW request creation (§6.8's
+validation-marker condition) across the whole trade, until a newer
+valid snapshot clears the markers by ordering. One corrupt
+trade-mate delays its siblings' NEW work — never their in-flight
+work. Partial application of a document that violated its own
+contract would be worse.
+
 If the message is too malformed to identify the scope, route it to the
 dead-letter/ops-alert path. This blind spot is accepted and monitored.
 
@@ -2275,6 +2291,15 @@ Rules:
 
 - Global lock ordering: any transaction touching both tables acquires
   the obligation lock FIRST.
+- Multi-payment trades (§1 contract facts): the state machine (§10)
+  is per REQUEST, and I6 caps active requests per OBLIGATION — so a
+  trade with N payments legitimately runs N request state machines
+  IN PARALLEL; no rule may treat concurrent active requests across
+  one trade's obligations as an anomaly. Their only coupling is the
+  trade's snapshot messages: one snapshot may drive transitions on
+  several obligations in one consumption, each under its own
+  obligation lock, taken in the §6.1 deterministic tuple order
+  (never all at once — no cross-obligation transaction exists).
 - Every DIMENSION-CHANGING update (stage, stage_state,
   submission_state, outcome, blocked_reason) acquires the obligation
   lock first and re-derives (§4) in the same transaction — a
