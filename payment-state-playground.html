@@ -1,0 +1,722 @@
+<title>Payment State Playground — every state, every story</title>
+<style>
+  :root{
+    --bg:#F3F5F8; --surface:#FFF; --ink:#1B2532; --ink2:#4A5866; --ink3:#7A8794;
+    --line:#D8DEE5; --acc:#4A5BB5; --accbg:#EAEDF9;
+    --ok:#2E7D4F; --okbg:#E4F1E9; --wait:#9A6A00; --waitbg:#FBF3DF;
+    --bad:#B23A32; --badbg:#FBEAE8; --maybe:#6B4FA0; --maybebg:#EFEAF7; --grey:#7A8794;
+    --token:#C7811F; --mono:ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --bg:#12161D; --surface:#1B222C; --ink:#E4E9EE; --ink2:#A9B4BF; --ink3:#77828E;
+    --line:#313B48; --acc:#93A2E8; --accbg:#242B45;
+    --ok:#6FBE8F; --okbg:#1B2F23; --wait:#E0B457; --waitbg:#33290F;
+    --bad:#E58077; --badbg:#3A1F1C; --maybe:#A996D8; --maybebg:#2A2440; --grey:#8B96A2;
+    --token:#EBB35A;}}
+  :root[data-theme="dark"]{
+    --bg:#12161D; --surface:#1B222C; --ink:#E4E9EE; --ink2:#A9B4BF; --ink3:#77828E;
+    --line:#313B48; --acc:#93A2E8; --accbg:#242B45;
+    --ok:#6FBE8F; --okbg:#1B2F23; --wait:#E0B457; --waitbg:#33290F;
+    --bad:#E58077; --badbg:#3A1F1C; --maybe:#A996D8; --maybebg:#2A2440; --grey:#8B96A2;
+    --token:#EBB35A;}
+  :root[data-theme="light"]{
+    --bg:#F3F5F8; --surface:#FFF; --ink:#1B2532; --ink2:#4A5866; --ink3:#7A8794;
+    --line:#D8DEE5; --acc:#4A5BB5; --accbg:#EAEDF9;
+    --ok:#2E7D4F; --okbg:#E4F1E9; --wait:#9A6A00; --waitbg:#FBF3DF;
+    --bad:#B23A32; --badbg:#FBEAE8; --maybe:#6B4FA0; --maybebg:#EFEAF7; --grey:#7A8794;
+    --token:#C7811F;}
+
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;padding:0 0 90px}
+  .hero{padding:38px 22px 26px;background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 9%,var(--bg)),var(--bg))}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 18px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);margin:0 0 8px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--ink2);max-width:74ch;margin:0}
+  .lede b{color:var(--ink)}
+
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:16px;align-items:start;margin-top:18px}
+  @media(max-width:980px){.stage{grid-template-columns:1fr}}
+  .mapbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  svg{display:block;min-width:920px;width:100%;height:auto}
+  svg text{font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
+
+  .node rect{fill:var(--bg);stroke:var(--line);stroke-width:1.5}
+  .node text.nm{font-size:13px;font-weight:600;fill:var(--ink)}
+  .node text.ic{font-size:14px}
+  .node text.tt{font-size:9.5px;fill:var(--ink3);font-family:var(--mono);opacity:0}
+  body.tech .node text.tt{opacity:1}
+  .node.terminal-ok rect{stroke:var(--ok)} .node.terminal-ok .nm{fill:var(--ok)}
+  .node.terminal-bad rect{stroke:var(--bad)} .node.terminal-bad .nm{fill:var(--bad)}
+  .node.blocked rect{stroke:var(--bad);stroke-dasharray:5 3}
+  .node.maybe rect{stroke:var(--maybe)}
+  .node.waitn rect{stroke:var(--wait)}
+  .node.here rect{stroke-width:3;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--acc) 55%,transparent))}
+  .node .ring{fill:none;stroke:var(--acc);stroke-width:2;opacity:0;pointer-events:none}
+  .node.here .ring{animation:ring 1.6s ease-out infinite}
+  @keyframes ring{0%{opacity:.7;transform:scale(1)}100%{opacity:0;transform:scale(1.18)}}
+  .node .ring{transform-box:fill-box;transform-origin:center}
+
+  .edge path{fill:none;stroke-width:1.8;cursor:pointer;transition:opacity .25s,stroke-width .2s}
+  .edge text{font-size:10.5px;fill:var(--ink3);cursor:pointer;transition:opacity .25s}
+  .edge:hover path{stroke-width:3.2}
+  .edge.dim path,.edge.dim text{opacity:.10}
+  .edge.sel path{stroke-width:3.6}
+  .edge.travel path{stroke-width:4;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--token) 60%,transparent))}
+  .edge.hidden{display:none}
+
+  #token{pointer-events:none}
+  #token .coin{fill:var(--token);stroke:#fff;stroke-width:1.6}
+  #token .sym{font-size:11px;font-weight:800;fill:#fff;text-anchor:middle}
+  #token .glow{fill:var(--token);opacity:.28;animation:glow 1.4s ease-in-out infinite alternate}
+  @keyframes glow{from{transform:scale(1)}to{transform:scale(1.5)}}
+  #token .glow{transform-box:fill-box;transform-origin:center}
+  #tokenbadge{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:var(--ink2)}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .card h3{margin:0 0 8px;font-size:13px;font-family:var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+  .scen{display:flex;flex-wrap:wrap;gap:6px}
+  .scen button{font:500 12.5px/1.25 inherit;padding:5px 11px;border:1px solid var(--line);border-radius:15px;background:var(--bg);color:var(--ink2);cursor:pointer;transition:all .15s}
+  .scen button:hover{border-color:var(--acc);color:var(--acc)}
+  .scen button.on{border-color:var(--acc);color:var(--acc);background:var(--accbg);font-weight:700}
+
+  .narr{min-height:5.2em}
+  .narr .ev{font-size:15.5px;font-weight:700;margin:0 0 5px;display:flex;gap:8px;align-items:baseline}
+  .narr .ev .stepn{font-family:var(--mono);font-size:11px;color:var(--ink3);font-weight:600;white-space:nowrap}
+  .narr p{margin:0;color:var(--ink2);font-size:14px}
+  .techbox{display:none;border-top:1px dashed var(--line);margin-top:10px;padding-top:10px}
+  body.tech .techbox{display:block}
+  .dims{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+  .dim{border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--bg)}
+  .dim b{display:block;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);font-family:var(--mono)}
+  .dim span{font-family:var(--mono);font-size:12px;font-weight:700}
+  .dim.chg{border-color:var(--token);background:color-mix(in srgb,var(--token) 12%,var(--bg))}
+  .dim.chg span{color:var(--token)}
+  .meta{font-size:12.5px;color:var(--ink2)}
+  .meta .ref{font-family:var(--mono);color:var(--ink3);margin-left:6px}
+
+  .controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+  .controls button{font:600 13px/1 inherit;padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer;transition:all .15s}
+  .controls button:hover:not(:disabled){border-color:var(--acc)}
+  .controls button.pri{background:var(--acc);border-color:var(--acc);color:var(--surface)}
+  .controls button:disabled{opacity:.35;cursor:default}
+  .dots{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+  .dots i{width:8px;height:8px;border-radius:50%;background:var(--line);transition:background .2s}
+  .dots i.done{background:var(--acc);opacity:.45}
+  .dots i.on{background:var(--acc);opacity:1;transform:scale(1.25)}
+
+  .bars .bar{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:11.5px}
+  .bars label{width:74px;text-align:right;font-family:var(--mono);color:var(--ink3)}
+  .bars .tr{flex:1;height:14px;background:var(--bg);border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+  .bars .fl{height:100%;border-radius:7px;transition:width .7s cubic-bezier(.2,.8,.3,1)}
+  .bars .v{width:34px;font-family:var(--mono);font-weight:700;font-size:12px}
+  .f-req{background:var(--grey)} .f-com{background:var(--wait)} .f-con{background:var(--ok)}
+
+  .modes{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content}
+  .modes button{font:600 12.5px/1 inherit;padding:8px 14px;border:0;background:var(--surface);color:var(--ink2);cursor:pointer}
+  .modes button.on{background:var(--acc);color:var(--surface)}
+
+  .explore{margin-top:20px}
+  .exgrid{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:16px;align-items:start}
+  @media(max-width:980px){.exgrid{grid-template-columns:1fr}}
+  .filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .filters label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:14px;padding:4px 10px;cursor:pointer;background:var(--surface);color:var(--ink2);transition:opacity .2s}
+  .filters label.off{opacity:.35}
+  .dotk{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .rulebox .row{display:grid;grid-template-columns:70px 1fr;gap:8px;margin:6px 0;font-size:13px}
+  .rulebox .k{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-top:2px}
+  .rulebox code{font-family:var(--mono);font-size:12px}
+  .rulebox .plain{border-top:1px dashed var(--line);margin-top:9px;padding-top:9px;color:var(--ink2);font-size:13px}
+  details{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0;overflow:hidden;margin-top:14px}
+  details summary{padding:13px 16px;font-weight:700;cursor:pointer;font-size:14px;color:var(--ink2)}
+  details[open] summary{border-bottom:1px solid var(--line)}
+  .tblbox{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:760px}
+  th,td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);background:var(--bg)}
+  tbody tr{cursor:pointer}
+  tbody tr:hover,tbody tr.sel{background:var(--accbg)}
+  tbody tr.sel{box-shadow:inset 3px 0 0 var(--acc)}
+  td code{font-family:var(--mono);font-size:11.5px}
+  .whorow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0 8px}
+  .who{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;font-family:var(--mono);letter-spacing:.03em;padding:3px 9px;border-radius:12px;border:1.5px solid}
+  .clockchip{font-family:var(--mono);font-size:11.5px;color:var(--ink3);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px 9px}
+  .clockchip b{color:var(--ink)}
+  .colorby{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content;margin-bottom:8px}
+  .colorby button{font:600 12px/1 inherit;padding:6px 12px;border:0;background:var(--surface);color:var(--ink2);cursor:pointer}
+  .colorby button.on{background:var(--acc);color:var(--surface)}
+  .actorlegend{display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .actorlegend.show{display:flex}
+  .actorlegend span{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ink2);border:1px solid var(--line);border-radius:13px;padding:3px 10px;background:var(--surface)}
+  .timenote{font-size:12px;color:var(--ink3);margin:6px 0 0;max-width:70ch}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="hero"><div class="wrap">
+  <p class="eyebrow">payment orchestration · request state model §10</p>
+  <h1>Every state. Every rule. One playable map.</h1>
+  <p class="lede">This is the complete territory a payment can travel — all twelve states, every legal move from the spec's flow table. <b>Pick a story</b> and watch the coin make the journey, told in plain words. Flip on <b>Plain&nbsp;+&nbsp;Tech</b> for the exact state tuple, money moves, and § references at every step. Click <b>any arrow</b> — story or not — to interrogate its rule.</p>
+</div></div>
+
+<div class="wrap">
+  <div class="modes" style="margin-top:14px"><button id="mPlain" class="on">Plain</button><button id="mTech">Plain + Tech</button></div>
+
+  <div class="stage">
+    <div class="mapbox"><svg id="map" viewBox="0 0 1160 600" aria-label="complete payment state map"></svg></div>
+    <div class="side">
+      <div class="card"><h3>Pick a story</h3><div class="scen" id="scen"></div></div>
+      <div class="card narrcard">
+        <div class="narr">
+          <div class="ev"><span class="stepn" id="stepn"></span><span id="ev"></span></div>
+          <div class="whorow"><span class="who" id="who"></span><span class="clockchip" id="clock"></span></div>
+          <p id="narr"></p>
+          <div class="techbox">
+            <div class="dims" id="dims"></div>
+            <div class="meta" id="meta"></div>
+            <div class="meta" id="dwell" style="margin-top:6px"></div>
+          </div>
+        </div>
+        <div class="controls" style="margin-top:12px">
+          <button id="bPrev" title="back">←</button>
+          <button id="bNext" class="pri">Next →</button>
+          <button id="bPlay" title="auto-play">▶ Play</button>
+          <div class="dots" id="dots"></div>
+        </div>
+      </div>
+      <div class="card bars">
+        <h3>The money <span id="badge" style="float:right;color:var(--token)"></span></h3>
+        <div class="bar"><label>required</label><div class="tr"><div class="fl f-req" id="b0"></div></div><div class="v" id="v0">0</div></div>
+        <div class="bar"><label>committed</label><div class="tr"><div class="fl f-com" id="b1"></div></div><div class="v" id="v1">0</div></div>
+        <div class="bar"><label>confirmed</label><div class="tr"><div class="fl f-con" id="b2"></div></div><div class="v" id="v2">0</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explore">
+    <div class="exgrid">
+      <div>
+        <div class="colorby"><button id="cbLayer" class="on">Color: rule layers</button><button id="cbActor">Color: who acts</button></div>
+        <div class="filters" id="filters"></div>
+        <div class="actorlegend" id="actorlegend"></div>
+        <p style="font-size:13px;color:var(--ink3);margin:4px 0 0">Layers you can peel: hide everything but <b>Normal flow</b> for the beginner's view; add layers as questions come up. Stories temporarily override the filters for the arrows they travel. Switch to <b>who acts</b> to recolor every arrow by the component (or human) that performs the write.</p>
+        <p class="timenote">⏱ Story timings are <b>illustrative</b> — real intervals (retry backoff, trust age, escalation age) are externalized config (§16.6). The bounds shown per state are the normative part.</p>
+      </div>
+      <div class="card rulebox" id="panel"><h3>Rule inspector</h3><p style="font-size:13px;color:var(--ink2);margin:0">Click any arrow on the map — or a row of the inventory below — to see its trigger, guard, exact state delta, money effect, and spec reference.</p></div>
+    </div>
+    <details>
+      <summary>Full transition inventory — every arrow, one row each (§10.5)</summary>
+      <div class="tblbox"><table id="tbl">
+        <thead><tr><th>layer</th><th>event</th><th>state delta</th><th>money / markers</th><th>ref</th></tr></thead><tbody></tbody>
+      </table></div>
+    </details>
+  </div>
+</div>
+
+<script>
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GROUPS = {
+  flow:{n:'Normal flow',c:'var(--acc)'}, retry:{n:'Retries',c:'var(--wait)'},
+  maybe:{n:'Unknown & resolver',c:'var(--maybe)'}, evidence:{n:'Terminal evidence',c:'var(--ok)'},
+  ops:{n:'Human (ops)',c:'var(--bad)'}, cancel:{n:'Cancel',c:'var(--grey)'}
+};
+const NODES = {
+  CREATED:{x:90,y:100,w:122,h:54,ic:'✉️',p:'Created',t:'ENRICH·READY·NOT'},
+  ENRICHING:{x:268,y:100,w:142,h:54,ic:'🔍',p:'Getting details',t:'ENRICH·CLAIMED'},
+  READY:{x:455,y:100,w:140,h:54,ic:'📦',p:'Ready to send',t:'POST·READY·NOT'},
+  POSTING:{x:640,y:100,w:128,h:54,ic:'📤',p:'Sending',t:'POST·CLAIMED'},
+  AWAITING:{x:845,y:100,w:172,h:54,ic:'🏦',p:'Accepted — awaiting',t:'CONFIRM·READY·SUBMITTED'},
+  DONE:{x:1065,y:100,w:112,h:54,ic:'✅',p:'Paid',t:'outcome=EXECUTED',cls:'terminal-ok'},
+  RETRY_E:{x:268,y:265,w:160,h:54,ic:'⏱️',p:'Retry wait — data',t:'ENRICH·RETRY_WAIT',cls:'waitn'},
+  RETRY_P:{x:640,y:265,w:160,h:54,ic:'⏱️',p:'Retry wait — send',t:'POST·RETRY_WAIT',cls:'waitn'},
+  UNKNOWN:{x:845,y:265,w:152,h:54,ic:'❓',p:'Sent? — unknown',t:'CONFIRM·READY·MAYBE',cls:'maybe'},
+  REVIEW:{x:455,y:440,w:172,h:54,ic:'🙋',p:'Needs a human',t:'any·BLOCKED(+reason)',cls:'blocked'},
+  REJ:{x:845,y:440,w:130,h:54,ic:'⛔',p:'Rejected',t:'outcome=REJECTED',cls:'terminal-bad'},
+  CXL:{x:1065,y:440,w:150,h:54,ic:'🚫',p:'Cancelled/replaced',t:'CANCELLED/SUPERSEDED'}
+};
+const EDGES = [
+{id:'create',g:'flow',path:'M6,100 L27,100',lx:0,ly:0,l:'',to:'CREATED',
+ t:'§6.8 creates the request',delta:'— → ENRICH·READY·NOT·∅',money:'+committed',guard:'shortfall>0 · no active request (I6) · no live marker · overpay not latched · successor policy',ref:'§6.8',
+ plain:'The only place an attempt is ever born: a standing rule re-checked after every change. Run it twice — it can never double-create.'},
+{id:'claim',g:'flow',path:'M151,100 L195,100',lx:173,ly:88,l:'claim',to:'ENRICHING',
+ t:'Enrichment claim',delta:'ENRICH·READY → ENRICH·CLAIMED',money:'—',guard:'lease: claimed_by + claim_expires_at (L6)',ref:'§10.5',
+ plain:'A worker takes the payment and looks up fresh bank details — details are never stored, so the newest data always wins.'},
+{id:'enrichok',g:'flow',path:'M339,100 L383,100',lx:361,ly:88,l:'data ok',to:'READY',
+ t:'Enrichment success',delta:'ENRICH·CLAIMED → POST·READY',money:'—',guard:'—',ref:'§10.2',
+ plain:'Details resolved; queue for sending.'},
+{id:'postclaim',g:'flow',path:'M525,100 L574,100',lx:550,ly:88,l:'claim',to:'POSTING',
+ t:'Posting claim',delta:'POST·READY/RETRY_WAIT → POST·CLAIMED',money:'identity + instruction hash persisted BEFORE the call',guard:'repost_permitted (§7.0): cutoff · amount freshness · divergence · freeze toggle',ref:'§7.0 · §11',
+ plain:'Before anything is sent: is sending still allowed? Cutoff, freeze switch, stale amount — all checked at the door.'},
+{id:'accept',g:'flow',path:'M704,100 L757,100',lx:731,ly:88,l:'accepted',to:'AWAITING',
+ t:'Engine accepts (sync)',delta:'POST·CLAIMED → CONFIRM·READY · SUB=SUBMITTED',money:'—',guard:'—',ref:'§7.1',
+ plain:'The engine acknowledged the payment; now await settlement.'},
+{id:'settle',g:'evidence',path:'M931,100 L1007,100',lx:969,ly:88,l:'settlement',to:'DONE',
+ t:'Feed settlement — terminal evidence',delta:'ANY active row → O=EXECUTED · SUB=SUBMITTED',money:'+confirmed (amount must match EXACTLY)',guard:'evidence-guarded CAS · amount equality · row freezes (L1)',ref:'§8 · §10.1',
+ plain:'The confirmation. Applies to any live payment — even a parked one. Wrong amount? Money is NOT booked; see the mismatch arrow.'},
+{id:'etrans',g:'retry',path:'M293,127 L293,236',lx:306,ly:182,l:'timeout',to:'RETRY_E',
+ t:'Enrichment transient failure',delta:'ENRICH·CLAIMED → ENRICH·RETRY_WAIT',money:'next_retry_at set (L7)',guard:'per-error-class retry policy; breaker-open time suspends the budget',ref:'§7.3 · §16.1',
+ plain:'The data service hiccupped. Park with a timer and try again — outages pause the clock instead of burning attempts.'},
+{id:'edue',g:'retry',path:'M243,236 L243,129',lx:228,ly:182,l:'due',to:'ENRICHING',
+ t:'Retry due (enrichment)',delta:'ENRICH·RETRY_WAIT → ENRICH·CLAIMED',money:'—',guard:'DB scanner claims when next_retry_at passes',ref:'§7.4',
+ plain:'The scanner re-claims it on schedule; data is fetched fresh.'},
+{id:'ptrans',g:'retry',path:'M665,127 L665,236',lx:679,ly:182,l:'clean fail',to:'RETRY_P',
+ t:'POST failure, provably not executed',delta:'POST·CLAIMED → POST·RETRY_WAIT',money:'—',guard:'NOT_SUBMITTED-class errors only (connect refused, insufficient balance)',ref:'§7.2',
+ plain:'The bank said no in a way that PROVES nothing executed. Safe to retry on schedule — and business rejects count as SUCCESS to the circuit breaker.'},
+{id:'pdue',g:'retry',path:'M615,236 L615,129',lx:600,ly:182,l:'due',to:'POSTING',
+ t:'Retry due (posting)',delta:'POST·RETRY_WAIT → POST·CLAIMED',money:'—',guard:'repost_permitted re-checked at the claim',ref:'§7.4 · §7.0',
+ plain:'Try again — through the same safety gate as the first send.'},
+{id:'ambig',g:'maybe',path:'M701,122 C755,160 776,200 789,238',lx:793,ly:180,l:'timeout?',to:'UNKNOWN',
+ t:'Ambiguous POST outcome',delta:'POST·CLAIMED → CONFIRM·READY · SUB=MAYBE',money:'maybe_since set once (escalation clock)',guard:'read timeout, crash, lease expiry, DUPLICATE_REQUEST — truth unknown',ref:'§7.2 · §11',
+ plain:'Sent — but no answer came back. Did the bank get it? Unknown. Never guess, never blind-resend: hold the money and ask.'},
+{id:'collexp',g:'maybe',path:'M714,136 C772,176 792,210 802,238',lx:0,ly:0,l:'',to:'UNKNOWN',
+ t:'Key collision — EXPECTED divergence',delta:'POST·CLAIMED → CONFIRM·READY · SUB=MAYBE · divergent_payload_at set',money:'—',guard:'divergence_expected = true (we know details changed between attempts)',ref:'§7.2',
+ plain:'"Known key, different content" — and we know why (details were refreshed between attempts). The collision PROVES the first attempt arrived; the resolver fetches its outcome. No alarm.'},
+{id:'syncrej',g:'evidence',path:'M655,127 C650,300 716,400 779,431',lx:702,ly:330,l:'definitive no',to:'REJ',
+ t:'Sync definitive reject',delta:'POST·CLAIMED → O=REJECTED (SUB stays NOT)',money:'−committed · exactly ONE marker set (validation_failed / provider_rejected, L9)',guard:'own-POST synchronous evidence — provably nothing executed',ref:'§7.2 · §10.1',
+ plain:'The engine refused outright. Our own call proves nothing executed, so releasing the money is safe. A marker on the obligation remembers why.'},
+{id:'einvalid',g:'evidence',path:'M283,127 C238,400 420,532 779,453',lx:392,ly:508,l:'invalid data',to:'REJ',
+ t:'Enrichment: definitive invalid data',delta:'ENRICH·CLAIMED → O=REJECTED',money:'−committed · validation_failed marker',guard:'authoritative invalid-data answer; recovery = corrected upstream message (§6.8)',ref:'§7.3',
+ plain:'The data is wrong, and retrying cannot fix wrong data. Close the attempt; a corrected upstream message auto-creates a fresh one.'},
+{id:'exhE',g:'retry',path:'M268,292 C294,360 331,400 368,423',lx:294,ly:372,l:'exhausted',to:'REVIEW',
+ t:'Exhaustion / unmapped / cutoff (enrichment)',delta:'ENRICH·RETRY_WAIT/CLAIMED → ENRICH·BLOCKED',money:'blocked_reason = RETRY_EXHAUSTED / UNMAPPED_CODE / CUTOFF_EXPIRED (L8) + alert',guard:'fail closed — never loop, never guess',ref:'§7.3 · §7.4',
+ plain:'Retries ran out, or the service answered something unrecognizable. Park it loudly for a human.'},
+{id:'exhP',g:'retry',path:'M640,292 C618,360 581,400 544,423',lx:620,ly:372,l:'exhausted / cutoff',to:'REVIEW',
+ t:'Exhaustion / cutoff (posting)',delta:'POST·RETRY_WAIT → POST·BLOCKED',money:'blocked_reason = RETRY_EXHAUSTED / CUTOFF_EXPIRED (L8)',guard:'deadline & cutoff checked before every attempt; breaker-open time never burns budget',ref:'§7.4 · §16.1',
+ plain:'The retry budget is spent or the banking day closed. A human decides: re-arm, or cancel and re-issue.'},
+{id:'qexec',g:'maybe',path:'M919,245 C990,215 1040,166 1058,129',lx:1013,ly:202,l:'query: executed',to:'DONE',
+ t:'Resolver query → EXECUTED',delta:'CONFIRM·READY·MAYBE → O=EXECUTED · SUB=SUBMITTED',money:'+confirmed (amount equality)',guard:'status query by OUR deterministic key',ref:'§9.1',
+ plain:'We asked the engine what happened. "Executed" — book it, done. No duplicate ever risked.'},
+{id:'qrej',g:'maybe',path:'M845,292 L845,411',lx:860,ly:352,l:'query/feed: rejected',to:'REJ',
+ t:'Resolver / feed reject',delta:'any active → O=REJECTED',money:'−committed · provider_rejected marker',guard:'authoritative engine negative → release guard passes',ref:'§9.1 · §10.1',
+ plain:'The engine itself says the payment was rejected — authoritative, so the reservation is released.'},
+{id:'downgrade',g:'maybe',path:'M769,265 L722,265',lx:746,ly:253,l:'§9.2',to:'RETRY_P',
+ t:'NOT_FOUND past trust age — same-key re-send (§9.2)',delta:'any·any·MAYBE → POST·RETRY_WAIT·MAYBE — the ONE backward move',money:'attempt counter reset · SAME idempotency key',guard:'trust age elapsed · repost_permitted passes (else stay parked: wait-then-decide) · safety = the §18-tested collision contract',ref:'§9.2 · §10.5',
+ plain:'The engine kept saying "never saw it" long enough to trust. Re-send with the SAME key — if it secretly arrived, the engine dedupes.'},
+{id:'esc',g:'maybe',path:'M791,292 C702,366 617,420 544,437',lx:668,ly:397,l:'too old → escalate',to:'REVIEW',
+ t:'MAYBE escalation / amendment-park',delta:'CONFIRM·READY·MAYBE → CONFIRM·BLOCKED (ESCALATED / AMENDMENT_PARKED)',money:'escalated_at set once per episode',guard:'maybe_since age limit; or an amendment lowered the amount under a MAYBE row (§6.4)',ref:'§9.3 · §6.4',
+ plain:'An unknown that got old — or an amount change colliding with an unknown — pages a human. The resolver keeps asking meanwhile.'},
+{id:'panom',g:'maybe',path:'M603,127 C545,250 494,340 464,411',lx:508,ly:282,l:'contradiction',to:'REVIEW',
+ t:'Unmapped engine code / ANOMALOUS collision',delta:'POST·CLAIMED → POST·BLOCKED · SUB=MAYBE',money:'blocked_reason = UNMAPPED_CODE / ENGINE_INCONSISTENCY + CRITICAL',guard:'divergence_expected = false: engine and our records contradict — fail closed',ref:'§7.2',
+ plain:'The engine answered something that contradicts our records with no explanation. Never guess against contradictory evidence — stop and page.'},
+{id:'subnf',g:'evidence',path:'M809,130 C702,256 592,346 530,411',lx:643,ly:302,l:'mismatch / lost',to:'REVIEW',
+ t:'Amount mismatch / NOT_FOUND-for-SUBMITTED',delta:'CONFIRM·READY·SUBMITTED → CONFIRM·BLOCKED',money:'AMOUNT_MISMATCH: money NOT booked · ENGINE_INCONSISTENCY: stays in resolver scope',guard:'all-or-nothing settlement contract; a lag-caused false park self-heals',ref:'§8 · §9.2',
+ plain:'Settlement with the wrong amount, or an accepted payment the engine claims not to know — both are defect evidence; both park loudly.'},
+{id:'opsretry',g:'ops',path:'M544,447 C652,424 683,352 663,294',lx:684,ly:412,l:'ops re-arm',to:'RETRY_P',
+ t:'Ops retry (blocked, provably unsent)',delta:'any·BLOCKED·NOT → SAME-stage·RETRY_WAIT',money:'—',guard:'NOT_SUBMITTED rows only · same stage (an enrich-blocked row re-enriches) · POST exits gated by repost_permitted',ref:'§10.5 · §7.0',
+ plain:'A human re-arms a stuck payment. It resumes at the SAME step it stopped at — nothing skips validation.'},
+{id:'opsverified',g:'ops',path:'M541,429 C900,386 1048,252 1062,129',lx:922,ly:332,l:'verified: paid',to:'DONE',
+ t:'Ops apply-platform-verified-outcome → EXECUTED (§9.3)',delta:'any active·MAYBE/SUBMITTED → O=EXECUTED (SUB=SUBMITTED)',money:'+confirmed (amount equality)',guard:'dual-control · audited stored procedure · platform records ARE the evidence',ref:'§9.3 · §10.1',
+ plain:'For payments stuck in "maybe": ops checks the platform’s own records and applies the verified truth — here, it DID pay.'},
+{id:'opsverR',g:'ops',path:'M542,443 L777,443',lx:660,ly:432,l:'verified: rejected',to:'REJ',
+ t:'Ops apply-platform-verified-outcome → REJECTED (§9.3)',delta:'any active·MAYBE/SUBMITTED → O=REJECTED',money:'−committed · provider_rejected marker',guard:'dual-control · audited procedure · platform-records evidence — the ONLY manual door through the release guard (§10.1)',ref:'§9.3 · §10.1',
+ plain:'Same audited procedure, opposite verdict: the platform’s records prove it never executed, so the money can be released. Two people, full audit, real evidence.'},
+{id:'opsclose',g:'ops',path:'M544,457 C702,522 882,506 988,456',lx:772,ly:508,l:'ops close',to:'CXL',
+ t:'Ops reject / supersede / close',delta:'any·BLOCKED (or stalled) → O=REJECTED / SUPERSEDED / CANCELLED',money:'−committed · marker per L9 on REJECTED',guard:'release guard (§10.1): NOT_SUBMITTED, or authoritative negative, or the §9.3 procedure',ref:'§10.5 · §10.1',
+ plain:'A human closes the case — but the same money-safety rule binds humans and code alike.'},
+{id:'latesettle',g:'evidence',path:'M472,413 C852,346 1034,246 1052,129',lx:0,ly:0,l:'',to:'DONE',
+ t:'Late settlement for a BLOCKED row',delta:'any·BLOCKED (active) → O=EXECUTED · SUB=SUBMITTED',money:'+confirmed (amount equality)',guard:'terminal evidence applies to ANY active row — parked or not',ref:'§10.5 · §10.1',
+ plain:'Even a parked payment completes normally when the real confirmation finally arrives. Evidence always wins.'},
+{id:'autocancel',g:'cancel',path:'M455,127 C420,540 852,578 988,451',lx:565,ly:556,l:'trade cancelled → auto-cancel',to:'CXL',
+ t:'Auto-cancel (§6.4)',delta:'ENRICH·any / POST·(READY,RETRY_WAIT) · NOT_SUBMITTED, not BLOCKED → O=CANCELLED',money:'−committed',guard:'ONLY while provably unsent — a sent payment is never auto-cancelled: wait-then-decide',ref:'§6.4 · §10.1',
+ plain:'The trade no longer needs this payment and nothing was ever sent — cancel free of risk. If it might have been sent: no cancel; resolve the unknown first.'}
+];
+
+// ---------- tuples per edge (post-transition), for the tech drawer ----------
+const TUP = {create:['ENRICH','READY','NOT_SUB','∅'],claim:['ENRICH','CLAIMED','NOT_SUB','∅'],
+ enrichok:['POST','READY','NOT_SUB','∅'],postclaim:['POST','CLAIMED','NOT_SUB','∅'],
+ accept:['CONFIRM','READY','SUBMITTED','∅'],settle:['CONFIRM','READY','SUBMITTED','EXECUTED'],
+ etrans:['ENRICH','RETRY_WAIT','NOT_SUB','∅'],edue:['ENRICH','CLAIMED','NOT_SUB','∅'],
+ ptrans:['POST','RETRY_WAIT','NOT_SUB','∅'],pdue:['POST','CLAIMED','NOT_SUB','∅'],
+ ambig:['CONFIRM','READY','MAYBE','∅'],collexp:['CONFIRM','READY','MAYBE','∅'],
+ syncrej:['POST','READY','NOT_SUB','REJECTED'],einvalid:['ENRICH','READY','NOT_SUB','REJECTED'],
+ exhE:['ENRICH','BLOCKED','NOT_SUB','∅'],exhP:['POST','BLOCKED','NOT_SUB','∅'],
+ qexec:['CONFIRM','READY','SUBMITTED','EXECUTED'],qrej:['CONFIRM','READY','MAYBE','REJECTED'],
+ downgrade:['POST','RETRY_WAIT','MAYBE','∅'],esc:['CONFIRM','BLOCKED','MAYBE','∅'],
+ panom:['POST','BLOCKED','MAYBE','∅'],subnf:['CONFIRM','BLOCKED','SUBMITTED','∅'],
+ opsretry:['POST','RETRY_WAIT','NOT_SUB','∅'],opsverified:['CONFIRM','READY','SUBMITTED','EXECUTED'],
+ opsverR:['CONFIRM','READY','MAYBE','REJECTED'],opsclose:['ENRICH','READY','NOT_SUB','CANCELLED'],
+ latesettle:['CONFIRM','READY','SUBMITTED','EXECUTED'],autocancel:['ENRICH','READY','NOT_SUB','CANCELLED']};
+
+// ---------- who acts, when, and how long things can sit ----------
+const ACTORS = {
+  up:{n:'Upstream message',ic:'📨',c:'#3B7DC4'},
+  wk:{n:'Service worker',ic:'⚙️',c:'#4A5BB5'},
+  sc:{n:'Retry scanner',ic:'🔁',c:'#9A6A00'},
+  rs:{n:'Resolver (status query)',ic:'🔎',c:'#6B4FA0'},
+  fd:{n:'Feed consumer',ic:'📡',c:'#2E7D4F'},
+  ck:{n:'Escalation clock',ic:'⏰',c:'#7A8794'},
+  op:{n:'Ops human',ic:'🧑‍💼',c:'#B23A32'}
+};
+const WHO = {create:'up',claim:'wk',enrichok:'wk',etrans:'wk',edue:'sc',postclaim:'wk',accept:'wk',
+ ptrans:'wk',pdue:'sc',ambig:'wk',collexp:'wk',syncrej:'wk',einvalid:'wk',exhE:'sc',exhP:'sc',
+ settle:'fd',qexec:'rs',qrej:'rs',downgrade:'rs',subnf:'fd',esc:'ck',panom:'wk',
+ opsretry:'op',opsverified:'op',opsverR:'op',opsclose:'op',latesettle:'fd',autocancel:'up'};
+const WHO_NOTE = {create:'the message handler (or §6.8 standing re-evaluation) performs the write',
+ ambig:'the posting worker — or the lease-expiry sweeper if the worker died',
+ accept:'the worker records the engine’s synchronous answer',
+ subnf:'feed consumer (mismatch) or resolver (NOT_FOUND-for-SUBMITTED)',
+ autocancel:'triggered by the upstream amendment; executed by the message handler'};
+const WHEN = {create:'instant, on message apply / re-evaluation',
+ claim:'within one scanner cycle (seconds)',enrichok:'seconds (call budget §16.1)',
+ etrans:'at the timeout boundary (per-dependency budget)',
+ edue:'when next_retry_at passes — per error-class backoff (config §16.6); SUSPENDED while breaker open / posting frozen',
+ postclaim:'within one scanner cycle; gate re-checked at the door',
+ accept:'seconds (engine sync response)',ptrans:'seconds (engine sync response)',
+ pdue:'when next_retry_at passes (backoff per error class; suspended during outages)',
+ ambig:'at the read-timeout boundary, or on lease expiry',
+ collexp:'seconds (engine sync response)',syncrej:'seconds (engine sync response)',
+ einvalid:'seconds (reference service answers definitively)',
+ exhE:'when attempts/deadline are spent, or at cutoff — checked BEFORE each attempt',
+ exhP:'when attempts/deadline are spent, or at cutoff — checked BEFORE each attempt',
+ settle:'engine-dependent: seconds to hours after acceptance',
+ qexec:'next resolver sweep (scheduled, config)',qrej:'next resolver sweep',
+ downgrade:'ONLY after the trust age since the last attempt (config; hours) — never earlier',
+ subnf:'on feed arrival / after trust age for SUBMITTED rows',
+ esc:'when maybe_since exceeds the max age (config) — fires once per episode',
+ panom:'seconds (engine sync response)',
+ opsretry:'human SLA — alert-driven',opsverified:'human SLA — dual-control, needs platform records',
+ opsverR:'human SLA — dual-control, needs platform records',opsclose:'human SLA',
+ latesettle:'whenever real evidence finally arrives — no deadline',
+ autocancel:'instant, on amendment apply'};
+const DWELL = {
+ CREATED:'sits ≤ one scanner cycle',
+ ENRICHING:'seconds — bounded by the claim lease; a dead worker’s lease expires and the row recovers',
+ READY:'sits ≤ one scanner cycle',
+ POSTING:'seconds — bounded by the claim lease; expiry after a possible send → UNKNOWN, never a blind re-send',
+ AWAITING:'until feed evidence arrives; a lost one is caught by the resolver (NOT_FOUND-for-SUBMITTED → park)',
+ RETRY_E:'minutes–hours: capped by attempts + retry deadline + cutoff; the clock is SUSPENDED during outages',
+ RETRY_P:'minutes–hours: capped by attempts + retry deadline + cutoff; suspended during outages/freeze',
+ UNKNOWN:'never forever: resolver polls each sweep; trust age gates the §9.2 re-send; the maybe-age clock escalates to a human',
+ REVIEW:'until ops acts (alert + SLA); for MAYBE rows the resolver keeps working it meanwhile',
+ DONE:'frozen forever (L1)',REJ:'frozen forever (L1)',CXL:'frozen forever (L1)'};
+// illustrative per-step delays (seconds) for each story — real values are config (§16.6)
+const SECS = {
+ happy:[0,2,2,1,3,7200],
+ hiccup:[0,2,30,300,2,1,2,900,3,7200],
+ baddata:[0,2,3,14400],
+ bankreject:[0,2,2,1,2,86400],
+ timeout1:[0,2,2,1,30,600],
+ timeout2:[0,2,2,1,30,600,21600,60,3,7200],
+ stuck:[0,2,2,1,30,3600,172800,14400],
+ amendup:[0,2,2,1,5,3,7200,1],
+ cancel:[0,3600,1],
+ exhaust:[0,2,2,1,2,14400,7200,60,3,7200],
+ collision:[0,2,2,1,30,21600,60,3,600],
+ mismatch:[0,2,2,1,3,7200,86400]};
+function fmtDur(s){
+  if(s<1) return '0s';
+  if(s<60) return s+'s';
+  if(s<3600){const m=Math.floor(s/60);return m+'m'+(s%60?' '+s%60+'s':'')}
+  if(s<86400){const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h+'h'+(m?' '+m+'m':'')}
+  const d=Math.floor(s/86400),h=Math.round(s%86400/3600);return d+'d'+(h?' '+h+'h':'');
+}
+
+// ---------- stories ----------
+// step: {e:edgeId} moves; {at:node} stays. Optional: n (narration), ev (title), d (tuple), m, r, money [req,com,conf], fx ('win'|'alert'|'new'), badge
+const STORIES = [
+{id:'happy',n:'Everything works',steps:[
+ {e:'create',ev:'A trade message arrives: pay 100',n:'Upstream tells us to pay 100. The standing rule creates exactly one attempt and reserves the money internally.',money:[100,100,0]},
+ {e:'claim',ev:'A worker picks it up'},
+ {e:'enrichok',ev:'Bank details check out'},
+ {e:'postclaim',ev:'Sending to the payment engine',n:'The instruction is assembled fresh and sent with a deterministic idempotency key — the engine can always recognize a retry of this exact payment.'},
+ {e:'accept',ev:'The engine says: accepted'},
+ {e:'settle',ev:'Settlement confirmed — paid!',n:'The feed confirms 100 settled, exactly as instructed. The payment completes and the row freezes forever.',money:[100,100,100],fx:'win'}]},
+{id:'hiccup',n:'Temporary failures',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Fetching bank details…'},
+ {e:'etrans',ev:'The account service times out',n:'Park with a retry timer. If the whole service is down, the circuit breaker pauses everything quietly — and the retry budget is suspended, so an outage never burns attempts.'},
+ {e:'edue',ev:'Retry due — service recovered',n:'The database scanner picks it up on schedule. No human touched anything.'},
+ {e:'enrichok',ev:'Data ok this time'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ptrans',ev:'Engine: insufficient balance',n:'A clean business "no" — provably nothing executed, so it just retries on schedule. Business rejects count as SUCCESS to the circuit breaker.'},
+ {e:'pdue',ev:'Retry due — funds arrived meanwhile'},
+ {e:'accept',ev:'Accepted'},
+ {e:'settle',ev:'Paid — two failures, zero humans',money:[100,100,100],fx:'win'}]},
+{id:'baddata',n:'Bad data',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Fetching bank details…'},
+ {e:'einvalid',ev:'The account data is definitively wrong',n:'Retrying cannot fix wrong data. The attempt closes, the reservation is released, and a validation_failed marker on the obligation remembers why.',money:[100,0,0],fx:'alert'},
+ {e:'create',ev:'Upstream sends corrected data',n:'The correction is NEWER than the failure, so the marker unlatches and the standing rule creates a fresh attempt automatically — nobody pressed anything. From here: the happy path.',money:[100,100,0],fx:'new',badge:'attempt 2 · new key'}]},
+{id:'bankreject',n:'The bank says no',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details fetched…'},
+ {e:'enrichok',ev:'…all fine'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'syncrej',ev:'Engine: definitive reject',n:'A compliance-style refusal, synchronous and definitive — provably nothing executed, so releasing the money is safe. The provider_rejected marker latches.',money:[100,0,0],fx:'alert'},
+ {e:'create',ev:'A newer message permits ONE more try',n:'If the engine rejects again, the payment parks for humans — the system never ping-pongs a rejected payment at the bank.',money:[100,100,0],fx:'new',badge:'attempt 2 · new key'}]},
+{id:'timeout1',n:'Timeout → engine answers',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ambig',ev:'The call TIMES OUT',n:'Did the bank get it? Unknown — and the system refuses to guess. Money stays reserved; nothing is blindly re-sent (that is the double-payment path). Instead, it will ASK.'},
+ {e:'qexec',ev:'Resolver asks: what happened? — "Executed"',n:'The scheduled resolver queries by OUR key. Confirmed and complete — no duplicate ever risked.',money:[100,100,100],fx:'win'}]},
+{id:'timeout2',n:'Timeout → “never saw it”',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ambig',ev:'Timeout — outcome unknown'},
+ {at:'UNKNOWN',who:'rs',ev:'Query: NOT_FOUND — but too fresh to trust',n:'Query stores lag behind reality. A young "not found" is not evidence; the system waits out the trust age.',d:['CONFIRM','READY','MAYBE','∅'],m:'no state change',r:'§9.2'},
+ {e:'downgrade',ev:'Still NOT_FOUND past trust age → re-send, SAME key',n:'The one sanctioned backward move. Watch the badge: the key does NOT change — if the first POST secretly arrived, the engine dedupes it (the §18-tested contract).',badge:'attempt 1 · SAME key'},
+ {e:'pdue',ev:'Re-posting…'},
+ {e:'accept',ev:'Accepted this time'},
+ {e:'settle',ev:'Paid exactly once',money:[100,100,100],fx:'win'}]},
+{id:'stuck',n:'Stuck unknown → ops',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ambig',ev:'Timeout — outcome unknown'},
+ {e:'esc',who:'up',ev:'Amendment: the trade now wants 80',n:'Cancelling the 100 could double-pay if it secretly went through. So: wait-then-decide — parked for review while the resolver keeps asking.',money:[80,100,0],fx:'alert'},
+ {at:'REVIEW',ev:'The unknown gets old — escalation pages ops',n:'One timestamp is written (escalated_at); the row itself is untouched. Escalation alerts, it never mutates parked state.',d:['CONFIRM','BLOCKED','MAYBE','∅'],m:'escalated_at set, once per episode',r:'§9.3'},
+ {e:'opsverR',ev:'Ops: platform records prove it never executed',n:'The dual-control audited procedure applies the verified outcome. The ONLY manual door that can release possibly-moved money — and it demands platform evidence.',money:[80,0,0]}]},
+{id:'amendup',n:'Amount raised mid-flight',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending the 100…'},
+ {at:'POSTING',who:'up',ev:'Amendment: the trade now wants 150',n:'The in-flight attempt is untouched — its amount is immutable. The extra 50 is DEFERRED, not lost; nothing races.',d:['POST','CLAIMED','NOT_SUB','∅'],m:'required := 150 · successor deferred',r:'§6.3 · §6.8',money:[150,100,0]},
+ {e:'accept',ev:'The 100 is accepted'},
+ {e:'settle',ev:'The 100 settles',money:[150,100,100]},
+ {e:'create',ev:'The standing rule creates the 50-payment',n:'The moment the first attempt resolved, re-evaluation saw shortfall 50 and created the successor. One creation point — a deferral can never be lost or doubled.',money:[150,150,100],fx:'new',badge:'attempt 2 · 50 · new key'}]},
+{id:'cancel',n:'Trade cancelled in time',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {at:'CREATED',who:'up',ev:'Amendment: the trade drops to 0',n:'Nothing has been sent yet — and that is provable (NOT_SUBMITTED).',d:['ENRICH','READY','NOT_SUB','∅'],m:'required := 0',r:'§6.3',money:[0,100,0]},
+ {e:'autocancel',ev:'Auto-cancel — risk-free',n:'Because the payment is provably unsent, cancelling is automatic and safe. Had it already been sent: no cancel — wait-then-decide.',money:[0,0,0]}]},
+{id:'exhaust',n:'Retries run out',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ptrans',ev:'Clean failure — will retry'},
+ {e:'exhP',ev:'The retry budget runs out',n:'Outages never consume this budget (the breaker suspends it) — exhaustion means REAL repeated failures. A human should look.',fx:'alert'},
+ {e:'opsretry',ev:'Ops re-arms the retry',n:'Back to the SAME stage it stopped at — an enrich-blocked row would re-fetch data first. Every re-send gate still applies.'},
+ {e:'pdue',ev:'Trying again…'},
+ {e:'accept',ev:'Accepted'},
+ {e:'settle',ev:'Paid',money:[100,100,100],fx:'win'}]},
+{id:'collision',n:'The helpful collision',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ambig',ev:'Timeout — outcome unknown'},
+ {e:'downgrade',ev:'NOT_FOUND past trust age → same-key re-send',badge:'attempt 1 · SAME key'},
+ {e:'pdue',ev:'Re-posting — but details were re-enriched meanwhile',n:'Every attempt re-fetches bank data, and the agent bank was corrected in between — so the re-POST carries the same key with DIFFERENT content.'},
+ {e:'collexp',ev:'Engine: “known key, different content”',n:'We KNOW why the payload differs (divergence_expected = true) — so this collision is good news: it proves the original POST arrived. No alarm; ask the resolver.'},
+ {e:'qexec',ev:'Resolver: the original executed',n:'Booked. The "failed" first attempt had quietly succeeded — and the design caught it without ever risking a double payment.',money:[100,100,100],fx:'win'}]},
+{id:'mismatch',n:'Wrong-amount settlement',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'accept',ev:'Accepted — awaiting settlement'},
+ {e:'subnf',ev:'Settlement arrives… for 60?!',n:'The engine settles all-or-nothing, so a partial amount cannot be real money — it is DEFECT EVIDENCE. Nothing is booked; the payment parks loudly. Note: submission still tightens to SUBMITTED — even wrong evidence proves it was sent.',fx:'alert'},
+ {e:'latesettle',ev:'The correct settlement finally arrives',n:'Terminal evidence applies to any active payment, parked or not. Booked, complete, frozen.',money:[100,100,100],fx:'win'}]}
+];
+
+// ---------- build SVG ----------
+const svg = document.getElementById('map');
+const NS='http://www.w3.org/2000/svg';
+function el(t,at,parent){const e=document.createElementNS(NS,t);for(const k in at)e.setAttribute(k,at[k]);(parent||svg).appendChild(e);return e}
+const defs = el('defs',{});
+for(const [g,c] of Object.entries(GROUPS)){
+  const m = el('marker',{id:'m_'+g,markerWidth:8,markerHeight:8,refX:7,refY:4,orient:'auto'},defs);
+  el('path',{d:'M0,0 L8,4 L0,8 z',fill:c.c},m);
+}
+for(const [a,c] of Object.entries(ACTORS)){
+  const m = el('marker',{id:'ma_'+a,markerWidth:8,markerHeight:8,refX:7,refY:4,orient:'auto'},defs);
+  el('path',{d:'M0,0 L8,4 L0,8 z',fill:c.c},m);
+}
+const edgeEls={};
+EDGES.forEach(e=>{
+  const grp = el('g',{class:'edge',id:'e_'+e.id});
+  el('path',{d:e.path,stroke:GROUPS[e.g].c,'marker-end':`url(#m_${e.g})`},grp);
+  if(e.l) el('text',{x:e.lx,y:e.ly,'text-anchor':'middle'},grp).textContent=e.l;
+  grp.addEventListener('click',()=>inspect(e.id,true));
+  edgeEls[e.id]=grp;
+});
+const nodeEls={};
+for(const [id,n] of Object.entries(NODES)){
+  const g = el('g',{class:'node '+(n.cls||''),id:'n_'+id});
+  const tip = el('title',{},g); tip.textContent = `${n.p} — how long can it sit here? ${DWELL[id]}`;
+  el('rect',{x:n.x-n.w/2,y:n.y-n.h/2,width:n.w,height:n.h,rx:11},g);
+  el('rect',{x:n.x-n.w/2-4,y:n.y-n.h/2-4,width:n.w+8,height:n.h+8,rx:14,class:'ring'},g);
+  el('text',{x:n.x-n.w/2+12,y:n.y+1,class:'ic'},g).textContent=n.ic;
+  el('text',{x:n.x+12,y:n.y-2,'text-anchor':'middle',class:'nm'},g).textContent=n.p;
+  el('text',{x:n.x+10,y:n.y+15,'text-anchor':'middle',class:'tt'},g).textContent=n.t;
+  nodeEls[id]=g;
+}
+// token
+const token = el('g',{id:'token',opacity:0});
+el('circle',{class:'glow',r:15},token);
+el('circle',{class:'coin',r:9},token);
+el('text',{class:'sym',y:4},token).textContent='¤';
+const tokenBadge = el('text',{id:'tokenbadge',x:0,y:-16,'text-anchor':'middle'});
+token.appendChild(tokenBadge);
+
+// ---------- filters ----------
+const fbox=document.getElementById('filters');
+const active=new Set(Object.keys(GROUPS));
+for(const [g,cfg] of Object.entries(GROUPS)){
+  const lab=document.createElement('label');
+  lab.innerHTML=`<span class="dotk" style="background:${cfg.c}"></span>${cfg.n}`;
+  lab.onclick=()=>{active.has(g)?active.delete(g):active.add(g);lab.classList.toggle('off',!active.has(g));applyFilters();};
+  fbox.appendChild(lab);
+}
+function applyFilters(){EDGES.forEach(e=>{ if(!edgeEls[e.id].classList.contains('travel')) edgeEls[e.id].classList.toggle('hidden',!active.has(e.g)); });}
+
+// ---------- color-by: rule layers vs actors ----------
+let colorMode='layer';
+function recolor(){
+  EDGES.forEach(e=>{
+    const p=edgeEls[e.id].querySelector('path');
+    if(colorMode==='layer'){ p.setAttribute('stroke',GROUPS[e.g].c); p.setAttribute('marker-end',`url(#m_${e.g})`); }
+    else { const a=WHO[e.id]; p.setAttribute('stroke',ACTORS[a].c); p.setAttribute('marker-end',`url(#ma_${a})`); }
+  });
+  document.getElementById('actorlegend').classList.toggle('show',colorMode==='actor');
+}
+const aleg=document.getElementById('actorlegend');
+for(const a of Object.values(ACTORS)){
+  const s=document.createElement('span');
+  s.innerHTML=`<span class="dotk" style="background:${a.c}"></span>${a.ic} ${a.n}`;
+  aleg.appendChild(s);
+}
+document.getElementById('cbLayer').onclick=function(){colorMode='layer';this.classList.add('on');document.getElementById('cbActor').classList.remove('on');recolor();};
+document.getElementById('cbActor').onclick=function(){colorMode='actor';this.classList.add('on');document.getElementById('cbLayer').classList.remove('on');recolor();};
+
+// ---------- rule inspector ----------
+function inspect(id,scroll){
+  const e=EDGES.find(x=>x.id===id);
+  EDGES.forEach(x=>edgeEls[x.id].classList.toggle('sel',x.id===id));
+  document.querySelectorAll('#tbl tbody tr').forEach(tr=>tr.classList.toggle('sel',tr.dataset.e===id));
+  const a=ACTORS[WHO[e.id]];
+  document.getElementById('panel').innerHTML=`<h3>Rule inspector</h3>
+    <div style="font-weight:700;margin-bottom:6px">${e.t}</div>
+    <div class="row"><span class="k">who</span><span style="color:${a.c};font-weight:700">${a.ic} ${a.n}</span>${WHO_NOTE[e.id]?`</div><div class="row"><span class="k"></span><span style="font-size:12px;color:var(--ink3)">${WHO_NOTE[e.id]}</span>`:''}</div>
+    <div class="row"><span class="k">when</span><span>${WHEN[e.id]}</span></div>
+    <div class="row"><span class="k">delta</span><span><code>${e.delta}</code></span></div>
+    <div class="row"><span class="k">money</span><span>${e.money}</span></div>
+    <div class="row"><span class="k">guard</span><span>${e.guard}</span></div>
+    <div class="row"><span class="k">ref</span><span><code>${e.ref}</code></span></div>
+    <div class="plain">${e.plain}</div>`;
+  if(scroll) document.getElementById('panel').scrollIntoView({behavior:reduced?'auto':'smooth',block:'nearest'});
+}
+const tb=document.querySelector('#tbl tbody');
+EDGES.forEach(e=>{
+  const tr=document.createElement('tr');tr.dataset.e=e.id;
+  tr.innerHTML=`<td><span class="dotk" style="background:${GROUPS[e.g].c};margin-right:6px"></span>${GROUPS[e.g].n}</td><td>${e.t}</td><td><code>${e.delta}</code></td><td>${e.money}</td><td><code>${e.ref}</code></td>`;
+  tr.onclick=()=>{inspect(e.id,false);document.querySelector('.mapbox').scrollIntoView({behavior:reduced?'auto':'smooth'});};
+  tb.appendChild(tr);
+});
+
+// ---------- story engine ----------
+let story=STORIES[0], idx=-1, playing=false, playTimer=null, animBusy=false;
+const $=id=>document.getElementById(id);
+function nodeOf(step){ return step.at || EDGES.find(x=>x.id===step.e).to; }
+function tupleOf(step){ return step.d || TUP[step.e]; }
+function placeToken(nodeId){
+  const n=NODES[nodeId];
+  token.setAttribute('transform',`translate(${n.x},${n.y-n.h/2-14})`);
+  token.setAttribute('opacity',1);
+}
+function travel(edgeId,done){
+  const grp=edgeEls[edgeId];
+  grp.classList.remove('hidden');
+  grp.classList.add('travel');
+  const path=grp.querySelector('path');
+  const len=path.getTotalLength();
+  token.setAttribute('opacity',1);
+  if(reduced){const pt=path.getPointAtLength(len);token.setAttribute('transform',`translate(${pt.x},${pt.y})`);grp.classList.remove('travel');done();return;}
+  const t0=performance.now(),dur=Math.min(1100,500+len*1.4);
+  (function frame(t){
+    let k=Math.min(1,(t-t0)/dur); k=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    const pt=path.getPointAtLength(len*k);
+    token.setAttribute('transform',`translate(${pt.x},${pt.y})`);
+    if(k<1) requestAnimationFrame(frame); else {grp.classList.remove('travel');applyFilters();done();}
+  })(performance.now());
+}
+function burst(nodeId,color){
+  if(reduced) return;
+  const n=NODES[nodeId];
+  for(let i=0;i<14;i++){
+    const a=Math.PI*2*i/14+Math.random()*.4, sp=40+Math.random()*46;
+    const c=el('circle',{cx:n.x,cy:n.y,r:2.6+Math.random()*2,fill:color,opacity:.95});
+    const t0=performance.now(),dur=650+Math.random()*250;
+    (function f(t){const k=Math.min(1,(t-t0)/dur);
+      c.setAttribute('cx',n.x+Math.cos(a)*sp*k);
+      c.setAttribute('cy',n.y+Math.sin(a)*sp*k+18*k*k);
+      c.setAttribute('opacity',String(.95*(1-k)));
+      if(k<1)requestAnimationFrame(f);else c.remove();})(t0);
+  }
+}
+function setMoney(m){
+  if(!m)return;
+  const max=Math.max(150,m[0],m[1],m[2]);
+  ['b0','b1','b2'].forEach((id,i)=>{$(id).style.width=(m[i]/max*100)+'%';$('v'+i).textContent=m[i];});
+}
+let lastMoney=[0,0,0], lastTuple=null, cumSec=0;
+function stepSec(i){ return (SECS[story.id]&&SECS[story.id][i]!=null)?SECS[story.id][i]:2; }
+function showStep(){
+  const s=story.steps[idx];
+  const node=nodeOf(s);
+  Object.values(nodeEls).forEach(n=>n.classList.remove('here'));
+  nodeEls[node].classList.add('here');
+  $('stepn').textContent=`${idx+1}/${story.steps.length}`;
+  const e=s.e?EDGES.find(x=>x.id===s.e):null;
+  $('ev').textContent=s.ev||(e?e.t:'');
+  $('narr').textContent=s.n||(e?e.plain:'');
+  const aKey=s.who||(s.e?WHO[s.e]:'ck'), a=ACTORS[aKey];
+  $('who').innerHTML=`${a.ic} ${a.n}`;
+  $('who').style.color=a.c; $('who').style.borderColor=a.c;
+  const ds=stepSec(idx);
+  $('clock').innerHTML=(ds>0?`+${fmtDur(ds)} · `:'')+`<b>T+${fmtDur(cumSec)}</b>`;
+  $('dwell').innerHTML=`⏳ <b>How long can it sit here?</b> ${DWELL[node]}`;
+  const tup=tupleOf(s), names=['stage','stage_state','submission','outcome'];
+  $('dims').innerHTML=tup.map((v,i)=>`<span class="dim${lastTuple&&lastTuple[i]!==v?' chg':''}"><b>${names[i]}</b><span>${v}</span></span>`).join('');
+  lastTuple=tup;
+  $('meta').innerHTML=`${s.m||(e?e.money:'—')}<span class="ref">${s.r||(e?e.ref:'')}</span>`;
+  if(s.money){lastMoney=s.money;} setMoney(lastMoney);
+  if(s.badge){$('badge').textContent=s.badge;tokenBadge.textContent=s.badge.split('·')[1]?s.badge.split('·')[1].trim():s.badge;}
+  $('dots').innerHTML=story.steps.map((_,i)=>`<i class="${i<idx?'done':i===idx?'on':''}"></i>`).join('');
+  $('bPrev').disabled=idx<=0; $('bNext').disabled=idx>=story.steps.length-1;
+  if(idx>=story.steps.length-1&&playing) stopPlay();
+  if(s.fx==='win') burst(node,'var(--ok)'.startsWith('var')?getComputedStyle(document.body).getPropertyValue('--ok'):'#2E7D4F');
+  if(s.fx==='alert') burst(node,getComputedStyle(document.body).getPropertyValue('--bad'));
+  if(e) inspect(e.id,false);
+}
+function advance(dir){
+  if(animBusy) return;
+  const ni=idx+dir;
+  if(ni<0||ni>=story.steps.length) return;
+  if(dir<0){ idx=ni; lastTuple=null; // rebuild money + clock by replay
+    lastMoney=[0,0,0]; cumSec=0;
+    for(let i=0;i<=idx;i++){ if(story.steps[i].money) lastMoney=story.steps[i].money; cumSec+=stepSec(i); }
+    placeToken(nodeOf(story.steps[idx])); showStep(); return; }
+  idx=ni;
+  cumSec+=stepSec(idx);
+  const s=story.steps[idx];
+  if(s.fx==='new'&&!reduced){ token.setAttribute('opacity',0); setTimeout(()=>{},0); }
+  if(s.e){
+    animBusy=true;
+    travel(s.e,()=>{animBusy=false;showStep();if(playing)queueNext();});
+    // narration updates immediately for responsiveness
+    $('ev').textContent=s.ev||EDGES.find(x=>x.id===s.e).t;
+  } else { placeToken(nodeOf(s)); showStep(); if(playing)queueNext(); }
+}
+function queueNext(){ clearTimeout(playTimer); if(idx<story.steps.length-1) playTimer=setTimeout(()=>advance(1),1700); else stopPlay(); }
+function stopPlay(){ playing=false; clearTimeout(playTimer); $('bPlay').textContent='▶ Play'; }
+$('bPlay').onclick=()=>{ if(playing){stopPlay();return;} playing=true; $('bPlay').textContent='⏸ Pause'; if(idx>=story.steps.length-1){startStory(story);} if(!animBusy) queueNext(); };
+$('bNext').onclick=()=>{stopPlay();advance(1);};
+$('bPrev').onclick=()=>{stopPlay();advance(-1);};
+function startStory(s){
+  story=s; idx=-1; lastMoney=[0,0,0]; lastTuple=null; animBusy=false; cumSec=0;
+  $('badge').textContent=''; tokenBadge.textContent='';
+  token.setAttribute('opacity',0);
+  Object.values(nodeEls).forEach(n=>n.classList.remove('here'));
+  setMoney([0,0,0]);
+  advance(1);
+}
+const scenBox=$('scen');
+STORIES.forEach((s,i)=>{
+  const b=document.createElement('button');b.textContent=s.n;
+  b.onclick=()=>{stopPlay();scenBox.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');startStory(s);};
+  if(i===0)b.classList.add('on');
+  scenBox.appendChild(b);
+});
+$('mPlain').onclick=function(){document.body.classList.remove('tech');this.classList.add('on');$('mTech').classList.remove('on');};
+$('mTech').onclick=function(){document.body.classList.add('tech');this.classList.add('on');$('mPlain').classList.remove('on');};
+startStory(STORIES[0]);
+</script>
