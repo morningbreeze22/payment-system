@@ -104,7 +104,7 @@
 <div class="hero"><div class="wrap">
   <p class="eyebrow">payment orchestration · open decisions &amp; asks</p>
   <h1>Forty-three questions stand between this design and go-live</h1>
-  <p class="lede">Every open question about the payment system, grouped by who has to answer it. Each card is self-contained — click it for what's being asked, why it matters, and what breaks if it stays unanswered; no prior reading required. The small references at the bottom of each card point into the requirements document (<b>requirment-v4.md</b>) for anyone who wants the full detail. Each question offers its realistic answer choices — pick one (or choose “Other” and write your own), add context in the comment box, and <b>Submit</b>. Answers are saved in your browser. When the round is done, hit <b>Export answers</b> for a markdown brief of every question and decision — ready to hand straight back to the agent or paste into a ticket.</p>
+  <p class="lede">Every open question about the payment system, grouped by who has to answer it. Each card is self-contained — click it for what's being asked, why it matters, and what breaks if it stays unanswered; no prior reading required. The small references at the bottom of each card point into the requirements document (<b>requirment-v4.md</b>) for anyone who wants the full detail. Each question offers its realistic answer choices — pick one (or choose “Other” and write your own), add context in the comment box, and <b>Submit</b>. Answers are saved in your browser. When the round is done, hit <b>Export answers</b> for a markdown brief of every question and decision — ready to hand straight back to the agent or paste into a ticket. Didn't finish? <b>Import answers</b> loads a previous export (paste or file) and merges it, so a question round can span as many meetings — and browsers — as it needs.</p>
 </div></div>
 
 <div class="wrap">
@@ -116,6 +116,7 @@
     <button id="xAll">Expand all</button>
     <button id="cAll">Collapse all</button>
     <button id="bExport" style="border-color:var(--ok);color:var(--ok);font-weight:700">⇪ Export answers</button>
+    <button id="bImport" style="border-color:var(--acc);color:var(--acc);font-weight:700">⇩ Import answers</button>
     <span class="note">answers are saved locally in this browser</span>
   </div>
   <div id="board"></div>
@@ -129,6 +130,20 @@
       <button id="exCopy">Copy to clipboard</button>
       <button id="exDl">Download .md</button>
       <button id="exClose" style="margin-left:auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="exportov" id="imov">
+  <div class="exbox">
+    <h3 style="margin:0 0 8px;font-size:15px">Import answers — resume a previous session</h3>
+    <p style="margin:0 0 8px;font-size:12.5px;color:var(--ink3)">Paste a previous export below (or load the .md file). Imported answers are merged: they overwrite that question's answer, other questions keep theirs.</p>
+    <textarea id="imtext" spellcheck="false" placeholder="Paste the exported markdown here…"></textarea>
+    <div class="arow" style="margin-top:10px">
+      <button id="imGo" style="background:var(--acc);border-color:var(--acc);color:var(--surface)">Import</button>
+      <label class="arow" style="margin:0"><input type="file" id="imFile" accept=".md,.txt,.json" style="display:none"><button onclick="document.getElementById('imFile').click();return false;">Load file…</button></label>
+      <span id="imStatus" style="font-size:12.5px;color:var(--ink2)"></span>
+      <button id="imClose" style="margin-left:auto">Close</button>
     </div>
   </div>
 </div>
@@ -498,6 +513,7 @@ function exportText(){
       L.push(`Question: ${q.ask}`,`Ref: ${q.ref}`,'');
     });
   }
+  L.push('---','## Machine-readable state (do not edit — used by Import)','','```json',JSON.stringify(ans),'```','');
   return L.join('\n');
 }
 const exov=document.getElementById('exov'), extext=document.getElementById('extext');
@@ -517,6 +533,61 @@ document.getElementById('exDl').onclick=()=>{
   a.download='open-questions-answers.md';
   a.click();
   URL.revokeObjectURL(a.href);
+};
+
+// ---------- import ----------
+const KNOWN=new Set(QS.map(q=>q.id));
+function parseImport(text){
+  // Preferred path: the machine-readable JSON block embedded in every export.
+  const jm=[...text.matchAll(/```json\s*([\s\S]*?)```/g)];
+  if(jm.length){
+    try{
+      const obj=JSON.parse(jm[jm.length-1][1]);
+      const out={};
+      for(const [id,a] of Object.entries(obj)) if(KNOWN.has(id)&&a&&typeof a==='object') out[id]=a;
+      return out;
+    }catch(e){/* fall through to markdown parsing */}
+  }
+  // Raw-JSON paste (e.g. someone saved just the state object).
+  try{ const obj=JSON.parse(text); const out={};
+    for(const [id,a] of Object.entries(obj)) if(KNOWN.has(id)&&a&&typeof a==='object') out[id]=a;
+    if(Object.keys(out).length) return out;
+  }catch(e){}
+  // Fallback: parse the human-readable blocks (survives hand-edited exports).
+  const out={};
+  for(const m of text.matchAll(/^### (\w\d+) —[^\n]*\n([\s\S]*?)(?=^### |^## |\n---|$(?![\s\S]))/gm)){
+    const id=m[1], body=m[2];
+    if(!KNOWN.has(id)) continue;
+    if(!/^Status: ANSWERED/m.test(body)) continue;
+    const ansLine=(body.match(/^Answer: (.*)$/m)||[])[1]||null;
+    const cmt=(body.match(/^Comment: (.*)$/m)||[])[1]||'';
+    const at=(body.match(/^Recorded: (.*)$/m)||[])[1]||'imported';
+    let o=null;
+    if(ansLine){ const i=(OPTS[id]||[]).indexOf(ansLine); o=i>=0?i:-1; }
+    out[id]={o,c:ansLine,m:cmt,at};
+  }
+  return out;
+}
+const imov=document.getElementById('imov'), imtext=document.getElementById('imtext'), imStatus=document.getElementById('imStatus');
+document.getElementById('bImport').onclick=()=>{imtext.value='';imStatus.textContent='';imov.classList.add('show');};
+document.getElementById('imClose').onclick=()=>imov.classList.remove('show');
+imov.addEventListener('click',e=>{if(e.target===imov)imov.classList.remove('show');});
+document.getElementById('imFile').addEventListener('change',function(){
+  const f=this.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{imtext.value=r.result;imStatus.textContent=`loaded ${f.name} — press Import`;};
+  r.readAsText(f);
+  this.value='';
+});
+document.getElementById('imGo').onclick=()=>{
+  const text=imtext.value.trim();
+  if(!text){imStatus.textContent='paste an export (or load the file) first';return;}
+  const found=parseImport(text);
+  const n=Object.keys(found).length;
+  if(!n){imStatus.textContent='no answers recognized — is this a board export?';return;}
+  Object.assign(ans,found);
+  save();build();refresh();
+  imStatus.textContent=`imported ${n} answer${n>1?'s':''} ✓ (merged; existing answers for other questions kept)`;
 };
 build();refresh();
 </script>
