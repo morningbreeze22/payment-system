@@ -1,0 +1,522 @@
+<title>Open Questions Board — payment system</title>
+<style>
+  :root{
+    --bg:#F3F5F8; --surface:#FFF; --ink:#1B2532; --ink2:#4A5866; --ink3:#7A8794;
+    --line:#D8DEE5; --acc:#4A5BB5; --accbg:#EAEDF9;
+    --blk:#B23A32; --blkbg:#FBEAE8; --po:#3B7DC4; --pobg:#E7F0F9;
+    --tl:#4A5BB5; --tlbg:#EAEDF9; --up:#0E6E64; --upbg:#E2EFED;
+    --ops:#9A6A00; --opsbg:#FBF3DF; --ok:#2E7D4F; --okbg:#E4F1E9;
+    --mono:ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --bg:#12161D; --surface:#1B222C; --ink:#E4E9EE; --ink2:#A9B4BF; --ink3:#77828E;
+    --line:#313B48; --acc:#93A2E8; --accbg:#242B45;
+    --blk:#E58077; --blkbg:#3A1F1C; --po:#7FB2E8; --pobg:#1D2C3C;
+    --tl:#93A2E8; --tlbg:#242B45; --up:#4BB8AC; --upbg:#1C3230;
+    --ops:#E0B457; --opsbg:#33290F; --ok:#6FBE8F; --okbg:#1B2F23;}}
+  :root[data-theme="dark"]{
+    --bg:#12161D; --surface:#1B222C; --ink:#E4E9EE; --ink2:#A9B4BF; --ink3:#77828E;
+    --line:#313B48; --acc:#93A2E8; --accbg:#242B45;
+    --blk:#E58077; --blkbg:#3A1F1C; --po:#7FB2E8; --pobg:#1D2C3C;
+    --tl:#93A2E8; --tlbg:#242B45; --up:#4BB8AC; --upbg:#1C3230;
+    --ops:#E0B457; --opsbg:#33290F; --ok:#6FBE8F; --okbg:#1B2F23;}
+  :root[data-theme="light"]{
+    --bg:#F3F5F8; --surface:#FFF; --ink:#1B2532; --ink2:#4A5866; --ink3:#7A8794;
+    --line:#D8DEE5; --acc:#4A5BB5; --accbg:#EAEDF9;
+    --blk:#B23A32; --blkbg:#FBEAE8; --po:#3B7DC4; --pobg:#E7F0F9;
+    --tl:#4A5BB5; --tlbg:#EAEDF9; --up:#0E6E64; --upbg:#E2EFED;
+    --ops:#9A6A00; --opsbg:#FBF3DF; --ok:#2E7D4F; --okbg:#E4F1E9;}
+
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;padding:0 0 90px}
+  .hero{padding:36px 22px 24px;background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 9%,var(--bg)),var(--bg))}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 18px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);margin:0 0 8px}
+  h1{font-size:28px;margin:0 0 8px;letter-spacing:-.015em;text-wrap:balance}
+  .lede{color:var(--ink2);max-width:74ch;margin:0}
+
+  .dash{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 6px}
+  .stat{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;cursor:pointer;transition:border-color .15s}
+  .stat:hover{border-color:var(--acc)}
+  .stat.on{outline:2px solid var(--acc);outline-offset:-1px}
+  .stat .t{font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px}
+  .stat .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin:2px 0 6px}
+  .stat .n small{font-size:12px;color:var(--ink3);font-weight:600}
+  .stat .pb{height:5px;border-radius:3px;background:var(--bg);overflow:hidden;border:1px solid var(--line)}
+  .stat .pf{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.2,.8,.3,1)}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 4px}
+  .toolbar button{font:600 12.5px/1 inherit;padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink2);cursor:pointer}
+  .toolbar button.on{background:var(--acc);border-color:var(--acc);color:var(--surface)}
+  .toolbar .note{font-size:12px;color:var(--ink3);margin-left:auto}
+
+  h2.sec{font-size:17px;margin:26px 0 4px;display:flex;align-items:center;gap:9px}
+  h2.sec .cnt{font-family:var(--mono);font-size:12px;color:var(--ink3);font-weight:600}
+  p.secsub{margin:0 0 12px;font-size:13px;color:var(--ink3);max-width:78ch}
+  .cards{display:grid;gap:8px}
+
+  .q{background:var(--surface);border:1px solid var(--line);border-left-width:4px;border-radius:10px;overflow:hidden;transition:opacity .2s}
+  .q.hide{display:none}
+  .q.done{opacity:.55}
+  .q.done .title{text-decoration:line-through;text-decoration-thickness:1.5px;text-decoration-color:var(--ink3)}
+  .qhead{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none}
+  .qid{font-family:var(--mono);font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}
+  .title{font-size:14px;font-weight:650;flex:1;min-width:0}
+  .caret{color:var(--ink3);font-size:11px;transition:transform .2s}
+  .q.open .caret{transform:rotate(90deg)}
+  .chk{width:19px;height:19px;accent-color:var(--ok);cursor:pointer;flex-shrink:0}
+  .qbody{display:none;padding:2px 16px 14px 16px;border-top:1px dashed var(--line)}
+  .q.open .qbody{display:block}
+  .qbody .row{display:grid;grid-template-columns:96px 1fr;gap:10px;margin:9px 0;font-size:13.5px}
+  .qbody .k{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);padding-top:2px}
+  .qbody .v{color:var(--ink);max-width:75ch}
+  .qbody .v.stake{color:var(--ink2)}
+  .qbody .sug{background:var(--accbg);border-radius:7px;padding:7px 11px;font-size:13px}
+  .links{display:flex;gap:6px;flex-wrap:wrap}
+  .lk{font-family:var(--mono);font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:10px;padding:2px 9px;cursor:pointer;background:var(--bg);color:var(--ink2)}
+  .lk:hover{border-color:var(--acc);color:var(--acc)}
+  .ref{font-family:var(--mono);font-size:12px;color:var(--ink3)}
+  .pill2{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:10px;border:1px solid var(--line);color:var(--ink3);white-space:nowrap}
+  .q.answered .pill2{color:var(--ok);border-color:var(--ok);background:var(--okbg)}
+  .answer{border-top:1px dashed var(--line);margin-top:11px;padding-top:11px}
+  .answer .k2{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);margin-bottom:7px}
+  .opts{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}
+  .opt{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink);cursor:pointer;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);transition:border-color .15s}
+  .opt:hover{border-color:var(--acc)}
+  .opt:has(input:checked){border-color:var(--acc);background:var(--accbg);font-weight:600}
+  .opt input{margin-top:2px;accent-color:var(--acc);flex-shrink:0}
+  .answer textarea{width:100%;box-sizing:border-box;min-height:54px;font:13px/1.5 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical}
+  .answer textarea:focus{outline:none;border-color:var(--acc)}
+  .arow{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+  .arow button{font:600 12.5px/1 inherit;padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer}
+  .arow .submitb{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+  .arow button:hover{filter:brightness(1.06)}
+  .savedat{font-size:12px;color:var(--ok);font-family:var(--mono);margin-left:auto}
+  .exportov{position:fixed;inset:0;background:rgba(10,14,20,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .exportov.show{display:flex}
+  .exbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;max-width:780px;width:100%;max-height:82vh;display:flex;flex-direction:column;padding:16px 18px}
+  .exbox textarea{flex:1;min-height:320px;font:12px/1.5 var(--mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;resize:none;white-space:pre}
+  .flash{animation:fl 1.2s}
+  @keyframes fl{0%,60%{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 55%,transparent)}100%{box-shadow:none}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+  @media(max-width:600px){.qbody .row{grid-template-columns:1fr;gap:2px}}
+</style>
+
+<div class="hero"><div class="wrap">
+  <p class="eyebrow">payment orchestration · open decisions &amp; asks</p>
+  <h1>Forty-three questions stand between this design and go-live</h1>
+  <p class="lede">Every open question about the payment system, grouped by who has to answer it. Each card is self-contained — click it for what's being asked, why it matters, and what breaks if it stays unanswered; no prior reading required. The small references at the bottom of each card point into the requirements document (<b>requirment-v4.md</b>) for anyone who wants the full detail. Each question offers its realistic answer choices — pick one (or choose “Other” and write your own), add context in the comment box, and <b>Submit</b>. Answers are saved in your browser. When the round is done, hit <b>Export answers</b> for a markdown brief of every question and decision — ready to hand straight back to the agent or paste into a ticket.</p>
+</div></div>
+
+<div class="wrap">
+  <div class="dash" id="dash"></div>
+  <div class="toolbar">
+    <button id="fAll" class="on">All</button>
+    <button id="fOpen">Open only</button>
+    <button id="fDone">Answered only</button>
+    <button id="xAll">Expand all</button>
+    <button id="cAll">Collapse all</button>
+    <button id="bExport" style="border-color:var(--ok);color:var(--ok);font-weight:700">⇪ Export answers</button>
+    <span class="note">answers are saved locally in this browser</span>
+  </div>
+  <div id="board"></div>
+</div>
+
+<div class="exportov" id="exov">
+  <div class="exbox">
+    <h3 style="margin:0 0 8px;font-size:15px">Answers export — hand this to the agent</h3>
+    <textarea id="extext" readonly spellcheck="false"></textarea>
+    <div class="arow" style="margin-top:10px">
+      <button id="exCopy">Copy to clipboard</button>
+      <button id="exDl">Download .md</button>
+      <button id="exClose" style="margin-left:auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SECS = {
+  B:{n:'🚦 BLOCKING — gates go-live itself',c:'var(--blk)',bg:'var(--blkbg)',
+     sub:'Not opinions — proofs and artifacts that must EXIST before the system may handle real money. Everything else on this page can be answered late; these cannot.'},
+  P:{n:'👤 PO decisions',c:'var(--po)',bg:'var(--pobg)',
+     sub:'Business judgment calls: waiting times, display choices, recovery policies. Each has a working default the build proceeds on — the ask is to confirm or override it.'},
+  T:{n:'🔧 Tech lead review',c:'var(--tl)',bg:'var(--tlbg)',
+     sub:'Contracts and numbers to obtain from neighboring teams (the payment engine, the platform SDK, infrastructure). Two of these (T4, T6) can only be closed by the B1 sandbox test — a written “yes” does not count.'},
+  U:{n:'📨 Upstream contract asks',c:'var(--up)',bg:'var(--upbg)',
+     sub:'Guarantees requested from the system that sends us trade messages. The design defends against their absence today; each confirmation lets a defensive guard relax.'},
+  O:{n:'🛠️ Manual operations — PO discussion, future build',c:'var(--ops)',bg:'var(--opsbg)',
+     sub:'The design produces situations only a human can resolve — and today the operations team has no tool for them. The launch version ships with exactly ONE required procedure (an audited, two-person action that closes a stuck payment using the payment platform’s own records); everything else here needs a decision and, eventually, an ops console.'}
+};
+const QS = [
+// ---- BLOCKING ----
+{id:'B0',s:'B',t:'The snapshot identity contract — three open edges',
+ ask:'Background (settled, recorded as a contract fact): one trade can carry multiple payments; each message from the upstream system is a full-trade SNAPSHOT — the complete current truth of the trade, listing all of its payments; a newer snapshot overwrites the older one entirely. Within one snapshot, the combination (payment type + debit account + currency) is unique per payment; a matching combination in a later snapshot means the SAME payment (that is how amendments are recognized). The data model fits this as-is. What remains open before build freeze: (1) get the snapshot format and the uniqueness guarantee from upstream IN WRITING (see U5); (2) implement the intake check that rejects a snapshot carrying two payments with the same combination; (3) answer P9 (what does a payment’s ABSENCE from a newer snapshot mean?) and T16 (the ordering-watermark rule) — both shape how the message consumer is built.',
+ stake:'What these edges guard against: if two DIFFERENT payments ever shared that field combination, the second one’s message would look like an amount change to the first — silently replacing its amount, so one payment’s worth of money vanishes. Within one snapshot we can detect this at intake and stop; across snapshots the system fundamentally cannot tell “new payment, same fields” from “amendment to the existing payment” — which is why the cross-snapshot half must be guaranteed in writing, not assumed.',
+ links:['U5','P9','T16'], ref:'§18-B0 · §1 · §2.1 · §6.0 · §6.1 · §12'},
+{id:'B1',s:'B',t:'How the engine treats repeated sends — PROVEN by test, not by asking',
+ ask:'Background: every payment we send carries an idempotency key — a unique fingerprint that lets the payment engine recognize “I have seen this exact payment before.” Before go-live (and again on every engine release), prove in a sandbox how the engine actually behaves in four cases: (a) re-send the same key with identical content → must be deduplicated, never paid twice; (b) same key, DIFFERENT content → must be rejected without executing, with an error code we can tell apart from a plain duplicate; (c) the engine states in writing how long it remembers keys, and (a)/(b) are re-tested at that memory’s edge; (d) re-send of a key the engine had earlier rejected → does it execute fresh or replay the old rejection? Either is fine — but it must be KNOWN.',
+ stake:'Every safe re-send in the design rides on this behavior, and the system deliberately carries NO runtime check for it — this test IS the proof. If (b) fails, the design’s habit of rebuilding each payment from the freshest data before re-sending becomes a double-payment path, and it must switch to freezing the payment content instead. This one test also closes questions T4 and T6 below.',
+ links:['T4','T6'], ref:'§18-B1 · §1 · §5.1 · §7.0'},
+{id:'B2',s:'B',t:'The payment cutoff calendar — source, owner, semantics',
+ ask:'Banks stop accepting payments at a daily cutoff time, which differs per currency and market. We need: which system provides that calendar, who owns it, how holidays and timezones are represented, how often it refreshes — and what the system should do when the calendar is stale or missing (recommendation: stop payments of the affected type rather than guess).',
+ stake:'The cutoff is checked before every send and every retry, and it limits how long automatic recovery may keep trying. A wrong calendar either blocks a whole currency an hour early — or sends payments after the bank has closed.',
+ links:['P4'], ref:'§18-B2 · §16.4'},
+{id:'B3',s:'B',t:'A guaranteed exit for permanently-stuck payments',
+ ask:'Some payments can end in a permanent “we sent it, but never learned what happened” state: re-sending is no longer allowed (the amount changed, or the cutoff passed), and the engine’s query API has forgotten the key. There must be a guaranteed way out: an audited, two-person database procedure that closes such a payment using the payment platform’s own records as evidence. It must exist AND have been rehearsed before go-live. (Alternative: questions T10 and T5’s long lookback are both answered yes.)',
+ stake:'Money for an in-flight payment is internally reserved and may not be freed while the outcome is unknown — freeing money that may have moved is how double payments happen. Without this exit, a stuck payment holds its reservation FOREVER: the trade can never complete, and the one-active-payment-at-a-time rule blocks any replacement payment for that trade.',
+ links:['T5','T10'], ref:'§18-B3 · §9.3 · §16.6-8'},
+// ---- PO ----
+{id:'P1',s:'P',t:'Approve the “ask, never re-send blindly” recovery model',
+ ask:'When the system sends a payment and gets no answer (timeout, crash), it never just sends again. It first ASKS the engine “what happened to this payment?” through a status-query API, and acts on the answer. Approve this as the recovery model.',
+ stake:'Blindly re-sending after a timeout is the classic way systems pay people twice — a timeout often means the payment went through and only the reply was lost.',
+ ref:'§18-P1 · §9'},
+{id:'P2',s:'P',t:'How often to ask the engine about unknown outcomes',
+ ask:'The system periodically queries the engine about every payment whose outcome is unknown. How often should this run?',
+ sug:'Suggested: every 2 minutes.',
+ stake:'Faster means quicker resolution but more calls against the engine’s query quota (see T13). Pure tuning — no safety impact either way.',
+ links:['T13'], ref:'§18-P2 · §9.5'},
+{id:'P3',s:'P',t:'How old may an “unknown” get before a human is paged?',
+ ask:'A payment can sit in “sent, outcome unknown” while the system keeps asking the engine. After some age, it should stop waiting quietly and page a human. How long is too long?',
+ sug:'Suggested: 30 minutes — and it must leave time before the daily payment cutoff.',
+ stake:'Too short: the operations team gets paged for payments the automatic queries would have resolved alone. Too long: little time left to act before the banking day closes.',
+ ref:'§18-P3 · §9.3'},
+{id:'P4',s:'P',t:'The cutoff passes while a payment is still “unknown” — then what?',
+ ask:'The daily bank cutoff can pass while a payment is still in “sent, outcome unknown.” At that point it can no longer be re-sent today — but it may in fact have gone through. Define the business response for this situation.',
+ stake:'This is the one case where waiting costs real business time, and engineering cannot answer it: roll to the next value date once the outcome is known? Contact the customer proactively? It needs a policy.',
+ links:['B2'], ref:'§18-P4'},
+{id:'P5',s:'P',t:'A cancelled trade whose payment already finished — display “completed”?',
+ ask:'A trade was cancelled after its payment step had already started; the step currently displays “completed.” Is that acceptable?',
+ stake:'Display-only — but operations and users will see it daily. Relevant agreed fact: the upstream system cannot cancel a payment once it exists; undoing an executed payment is a funds-recall on the payment platform’s side, not something this system can do.',
+ ref:'§18-P5 · §1.1-BA2'},
+{id:'P6',s:'P',t:'Amount raised mid-flight: the extra follows once the first attempt’s fate is known — ok?',
+ ask:'When a payment’s amount is raised while an attempt is already on the way, the system pays the difference with a SECOND attempt — created only when the first attempt’s fate is KNOWN (settled, rejected, or cancelled), never in parallel. Be precise about what the wait is: it is bound to the OUTCOME, not to a timer. Happy path: the first attempt resolves within its normal round-trip, and the extra follows immediately — it is created inside the very database transaction that records the first outcome, so there is no scheduler that could fail to fire, and the follow-up amount is recomputed from live state at that moment (if the stuck 100 turns out REJECTED, the fresh attempt is automatically the full 150, not a remembered 50). Tail: if the first attempt gets stuck in “sent, outcome unknown,” the extra inherits that wait — bounded first by the recurring status query (P2), then by the escalation clock that pages a human (P3), then by the ops resolution paths. And it is per payment: one payment’s wait never delays the trade’s other payments. The question: is this latency profile — minutes normally, unknown-resolution time in the worst case — acceptable?',
+ stake:'This looks like timer tuning but is actually a sign-off on a load-bearing design rule: at most ONE attempt per payment may be alive at any moment, enforced physically by a database constraint. What that rule buys. (1) A backstop for the day code discipline breaks. In a correctly working system every attempt-creation decision runs under a per-payment lock, so no race can double-create — the rule guards against FUTURE code: a repair script, migration, or ops “pay now” action added years later that computes “50 missing” without taking the lock, or an engineer’s manual SQL during an incident. With the rule, that bug dies as a loud constraint violation, ideally in testing; without it, the same bug pays 100 → 250 silently, found by reconciliation weeks later. (2) Simplicity that is load-bearing everywhere: the money-consistency checks literally reference “the single active attempt,” and the recovery queries, the card display, automatic cancellation, and escalation logic all assume it. (3) Correct recovery arithmetic for free: because the follow-up is recomputed from state rather than queued as a remembered number, every stuck-payment resolution path automatically produces the right successor.',
+ trade:'Saying YES costs: the raise-delta latency described above — and note its tail is tuned by existing config questions (P2 query cadence, P3 escalation age, T8 confirmation sweep), not by design change; the worst-case pile-up (cutoff passes while the first attempt is still unknown) is exactly question P4. Saying NO costs: allowing parallel attempts rewrites the money math (sums replace “the single active attempt”), the attempt-creation policy (can deltas stack? is there a cap?), amount-decrease handling (which of several live attempts to cancel?), the card’s display aggregation, and the re-send safety gate — and it DELETES the physical backstop, because a database index can enforce “at most one” but cannot enforce “at most N”: you would not get a weaker wall, you would get none. If the business goal is genuinely parallel money, two cheaper paths exist: (a) upstream models the urgent top-up as its OWN payment in the trade snapshot — different payments of one trade already run fully in parallel today, zero design change, and the intent is expressed explicitly by the business system rather than inferred; (b) if it must be internal, a bounded relaxation — allow the parallel delta only once the first attempt is bank-ACKNOWLEDGED, i.e. no longer unknown — shrinks the risk window but still triggers most of the rewrite above. Recommended decision: accept the deferral; where parallel money is truly needed, use (a).',
+ links:['P2','P3','T8','P4','B0'], ref:'§18-P6 · §6.8 · §2.2-I6 · §3 · §9 · §11'},
+{id:'P7',s:'P',t:'May ops retry a payment the bank definitively rejected?',
+ ask:'After the engine definitively rejects a payment, may an operations user — together with a second approver — authorize a fresh attempt WITHOUT waiting for corrected data from the upstream system? This asks for approval of the concept; building it is future work.',
+ stake:'Some rejections are caused by temporary conditions on the bank side (e.g. the beneficiary’s account was briefly blocked) that re-sending identical data from upstream cannot fix. Until this is approved and built, such payments wait for upstream — or for the single automatic retry the system allows when a newer upstream message arrives.',
+ links:['O9'], ref:'§18-P7 · §19.3'},
+{id:'P8',s:'P',t:'Corrections take effect only if the original never arrived — accepted?',
+ ask:'The system re-fetches payment details (e.g. the agent bank) fresh before every send attempt. Consequence: if details are corrected after a send whose outcome is unknown, the correction takes effect only if the original payment truly never reached the engine. If it HAD executed, it paid with the details valid at execution time — and fixing that is a funds-recall on the platform side, like for any executed payment. Confirm the business accepts this.',
+ stake:'This is the physical reality of payments, not a design choice. The alternative — freezing the payment content at first send — was considered and rejected, because it would knowingly pay with stale details whenever the original never arrived.',
+ ref:'§18-P8 · §7.0 · §19.2'},
+{id:'P9',s:'P',t:'A payment missing from a newer snapshot — does absence mean “cancelled”?',
+ ask:'Background: each message from upstream is a full snapshot of the trade, listing all of its payments; a newer snapshot overwrites the older one (see B0). So what does it mean when a payment that exists in our system is ABSENT from the newer snapshot? Option A — “the payment no longer exists”: treat it as its amount dropping to zero, which safely auto-cancels it if it provably was never sent, and parks it for review if it might have been sent. Option B — “no statement about it”: leave it untouched. Overwrite semantics argue for A; but an existing agreed business fact says “the upstream system cannot cancel a payment — no cancellation signal exists,” and option A would create exactly such a signal. Amending that agreement is the product owner’s call alone — which is why this question is yours.',
+ stake:'The risk cuts both ways. Choose “cancelled” and a producer bug — a payment accidentally dropped from one snapshot — cancels a real, wanted payment (only unsent ones, so no money moves wrongly, but the payment silently stops). Choose “unchanged” and a genuinely removed payment keeps trying to pay. Until answered, the build treats absence as UNCHANGED (the existing no-cancellation agreement stands). Decide together with T16 — the two interact.',
+ links:['B0','T16'], ref:'§18-P9 · §6.1 · §1.1-BA2 · §6.4'},
+// ---- TECH LEAD ----
+{id:'T1',s:'T',t:'Does the status feed carry a stable, unique event id?',
+ ask:'The payment platform notifies us of payment outcomes via a message stream (“the status feed”). Does every message carry a stable, unique event id? If not, we must build one ourselves (a hash of the content, or the message’s position in the stream) — and accept the duplicate messages each strategy can fail to catch.',
+ stake:'The event id powers the cheap first-line duplicate filter. Money stays safe regardless — a second, evidence-based layer protects it — this answer only determines how much duplicate noise reaches that layer.',
+ ref:'§18-T1 · §8 · §2.3'},
+{id:'T2',s:'T',t:'Read contract for the UI card',
+ ask:'The UI shows payment state on a card, read-only. Decide: does the card read via a query API or a database replica? Which fields does it get (step started/finished times; retry progress like “attempt 3 of 5, next at 14:20”)? How fresh must it be, how is it authenticated, and what read volume is expected? NEW under the multi-payment model (see B0): a trade lookup returns ALL of its payments — so the contract must also decide step granularity: does the UI show one step per payment, or one rolled-up step per trade (“completed” only when every payment completes, exception shown when any has one)?',
+ stake:'At launch this card is the ONLY window the operations team has into the system — its field list decides what a human can diagnose without database access.',
+ links:['B0'], ref:'§18-T2 · §12'},
+{id:'T3',s:'T',t:'Database recovery objectives + who owns the restore procedure',
+ ask:'Get the database recovery numbers signed off — how much data loss (RPO) and downtime (RTO) is acceptable after a disaster — and name an owner for the documented recovery procedure that runs after a database restore.',
+ stake:'The design already guarantees payments can be re-matched with the engine after a restore (identifiers are derivable, not random). How urgent the full recovery procedure is depends entirely on these numbers.',
+ ref:'§18-T3 · §5.2'},
+{id:'T4',s:'T',t:'LOAD-BEARING: same key + different content must NEVER execute',
+ ask:'A guarantee needed from the engine team: when a payment is re-sent under an already-known idempotency key (the unique fingerprint from B1) but with DIFFERENT content, the engine must never execute it as a new payment — it must reject it (with an error code distinguishable from a plain duplicate) or deduplicate it.',
+ stake:'The system re-fetches payment details fresh before every re-send, so content CAN legitimately differ between two attempts of the same payment. If the engine treated key+content together as the identity, every such re-send would be a potential double payment — and the design would have to freeze payment content instead. Only the B1 sandbox test closes this question; a written “yes” does not.',
+ links:['B1'], ref:'§18-T4 · §5.1 · §7.0 · §7.2'},
+{id:'T5',s:'T',t:'Query visibility lag + how far back queries can look',
+ ask:'Two numbers about the engine’s status-query API. (1) After the engine accepts a payment, how long until that payment becomes visible to queries — as a distribution (typical / 99th percentile / max), because this sets how long we must DISTRUST a “never saw it” answer. (2) How far back can queries look? That window must cover the LONGEST a payment can stay open in our system — including days parked waiting for a human — not just the automatic-processing period.',
+ stake:'If the distrust window is too short, we re-send too early (the B1 contract makes that safe, but noisy). If the lookback is too short, a payment parked for days can outlive it — after that, “not found” can never be trusted again, the evidence-based closing procedure can never succeed, and the payment’s reserved money is held forever (see B3).',
+ links:['B3'], ref:'§18-T5 · §9.2 · §9.5'},
+{id:'T6',s:'T',t:'Re-send after a definitive rejection: fresh attempt, or replayed “no”?',
+ ask:'When the engine synchronously rejects a payment (e.g. insufficient funds) and we later re-send the SAME key: does the engine execute a fresh attempt — or replay its remembered rejection?',
+ stake:'The working assumption is: it executes fresh. If it actually replays the rejection, then all retries of that error class are silent no-ops, and the retry design must switch to creating a new payment attempt under a new key instead. Only B1’s test case (d) settles this.',
+ links:['B1'], ref:'§18-T6 · §7.1'},
+{id:'T7',s:'T',t:'Simplification: anchor message processing on the message key alone',
+ ask:'A recommended improvement, unlocked by upstream ask U2: once upstream contractually guarantees that the trade id is the Kafka message key (the routing field on their message stream), schedule the change that anchors message processing on that key alone.',
+ stake:'Simplifies the handling of invalid messages that arrive before any payment record exists. Blocked on U2.',
+ links:['U2'], ref:'§18-T7 · §6.6'},
+{id:'T8',s:'T',t:'How long to wait for a settlement confirmation before chasing it',
+ ask:'A payment the engine accepted should eventually be confirmed by the settlement feed. How long do we wait for that confirmation before proactively querying the engine about it — and who owns that number?',
+ stake:'This sweep is what catches confirmations the feed lost. Too aggressive burns the query quota (T13); too lazy delays noticing a lost confirmation.',
+ links:['T13'], ref:'§18-T8 · §9.5 · §16.6'},
+{id:'T9',s:'T',t:'Owners for the three code-mapping tables',
+ ask:'Three mapping tables need named owners: the engine error-code table (which codes mean “retry,” “definitive failure,” “unknown”), the status vocabulary of the feed, and the mapping of query responses.',
+ stake:'These tables ARE the system’s decision behavior. Any code missing from them parks the payment on the safe side and pages someone — every unowned table is future 3am noise.',
+ ref:'§18-T9 · §16.6'},
+{id:'T10',s:'T',t:'Can the platform formally REJECT a pending payment on request?',
+ ask:'An ask to the payment platform: can it formally reject a pending or never-received payment when we request it — identified by the payment’s banking-network tracking id, or by our idempotency key for payments that never received one — so that the rejection flows back to us through the normal feed and query channels as authoritative evidence?',
+ stake:'This would be the cleanest exit for payments stuck in “sent, outcome unknown”: the negative answer arrives through the same trusted machinery as any real rejection, with no human carrying evidence by hand. It is also one of the two alternative ways to satisfy blocking question B3.',
+ links:['B3'], ref:'§18-T10 · §9.2 · §9.3'},
+{id:'T11',s:'T',t:'Three facts about the platform SDK',
+ ask:'We send payments through the platform’s SDK, which generates the payment’s banking-network tracking id (UETR) during the send. Confirm: (a) the SDK’s response RETURNS that tracking id — and in which field — so we can store it to match feed messages later; (b) the SDK accepts OUR caller-supplied idempotency key; (c) above all: the engine’s duplicate detection keys on that idempotency key, NOT on the tracking id.',
+ stake:'(c) is blocking-grade: every re-send of the same payment carries a FRESH SDK-generated tracking id. If the engine deduplicated by tracking id instead of our key, every legitimate re-send would execute as a brand-new payment — a systematic double-payment machine.',
+ links:['B1'], ref:'§18-T11 · §5.1'},
+{id:'T12',s:'T',t:'The provider reference: how unique is it, and for how long?',
+ ask:'Feed messages carry a provider reference. Is it unique globally? Per day? Per batch or payment rail? For how long?',
+ stake:'Until confirmed globally unique, the system refuses to match feed messages by it except under strict fail-safe conditions. Confirmation would let those extra guards be relaxed — by explicit decision, not by accident.',
+ ref:'§18-T12 · §8'},
+{id:'T13',s:'T',t:'Rate limit / quota of the status-query API',
+ ask:'What rate limit or daily quota applies to the engine’s status-query API?',
+ stake:'As load-bearing as any contract number: the query cadence (P2), the lost-confirmation sweep (T8), and how fast a backlog of unknowns can be worked off all divide this one quota.',
+ links:['P2','T8'], ref:'§18-T13 · §9.5'},
+{id:'T14',s:'T',t:'Archival of finished payments — designed WITH the money checks',
+ ask:'Finished payment rows will eventually be archived. Design that archival together with the money-consistency checks: at archival, each trade record keeps a rollup of already-confirmed amounts; the consistency checks then combine that rollup with the still-live rows; and the time window used by disaster-recovery queries must survive archival.',
+ stake:'Archival designed without the money math would silently break the nightly reconciliation checks that verify no money is lost or duplicated.',
+ ref:'§18-T14 · §3 · §2.2 · §5.2'},
+{id:'T15',s:'T',t:'Measure in production: how often does “never saw it” really happen?',
+ ask:'For the first quarter after launch, measure how often a payment reaches the state where the engine kept answering “never saw it” past the distrust window — i.e., how often the automatic same-key re-send would actually fire.',
+ stake:'Cheap data that settles a real design argument with evidence: should that re-send stay automatic, or become an action a human triggers?',
+ ref:'§18-T15 · §9.2'},
+{id:'T16',s:'T',t:'Snapshot applied — do we stamp the payments it DOESN’T mention?',
+ ask:'Background: messages are full-trade snapshots (see B0), and each of the trade’s payments keeps a watermark — the ordering value of the newest message that touched it — so that a late-arriving OLD message can be recognized as stale and dropped. The question: when a snapshot is applied, should the watermark advance on ALL of the trade’s payments, INCLUDING ones the snapshot no longer mentions? If not, an absent payment’s watermark goes stale — and a DELAYED older snapshot that still contains that payment would pass its staleness check and apply outdated amounts to it. Options: (a) stamp absent payments too (one extra no-op write per absent payment per snapshot); (b) keep a second, trade-level watermark checked alongside the per-payment one; (c) argue the delayed-older-snapshot case is physically impossible because the message stream preserves order per trade (see U1/U2) — but that claim must be verified, not assumed.',
+ stake:'This is a correctness hole with a quiet failure mode: no error, just a payment silently reverting to an old amount. It interacts with P9 — if absence means “cancelled,” absent payments become closed rows and the vulnerable window shrinks. Decide both together, before the message consumer is built.',
+ links:['B0','P9','U1','U2'], ref:'§18-T16 · §6.1 · §6.7'},
+// ---- UPSTREAM ----
+{id:'U1',s:'U',t:'Strictly increasing ordering value per trade',
+ ask:'Trade messages carry an ordering value; the system applies messages newest-wins based on it. Ask upstream to guarantee, by contract, that this value strictly increases for each trade (until a real sequence-number field is added).',
+ stake:'Today two DIFFERENT messages could arrive carrying the SAME ordering value. The system detects that tie and parks the trade with an alert rather than guessing which is newer — the guarantee would remove the case entirely.',
+ ref:'§18-U1 · §6.7'},
+{id:'U2',s:'U',t:'Trade id as the Kafka message key — by contract',
+ ask:'Ask upstream to guarantee, contractually and not just by convention, that the trade id is the Kafka message key — the routing field that determines which partition of the message stream a message lands on.',
+ stake:'Same key = same partition = arrival order preserved per trade, physically. It is also the prerequisite for the T7 simplification.',
+ links:['T7'], ref:'§18-U2 · §6.0'},
+{id:'U3',s:'U',t:'Formalize the message schema',
+ ask:'Ask upstream to formalize the trade-message schema: exact field names (including the ordering field), types, the correlation id used to trace a message across systems — and the structure of the payment-block list, since each message is a full-trade snapshot carrying one block per payment (see B0).',
+ stake:'Today the schema is agreed verbally/by document. A formal contract turns silent field drift into a caught contract violation instead of a production surprise.',
+ links:['B0'], ref:'§18-U3 · §6.0'},
+{id:'U4',s:'U',t:'Emit only on real changes — no blind re-sends of identical data',
+ ask:'Confirm the upstream system emits a new trade message ONLY when a business field actually changed — never a blind re-emission of an identical snapshot.',
+ stake:'This bounds a nasty loop: if a trade with invalid data were re-emitted unchanged again and again, each re-emission would re-trigger a create-payment-then-reject cycle. Under the snapshot model it matters even more: if P9 is answered “absence means cancelled,” an accidental re-emission missing one payment block would cancel a real unsent payment.',
+ links:['P9'], ref:'§18-U4 · §6.0 · §2.1'},
+{id:'U5',s:'U',t:'The uniqueness guarantee IN WRITING',
+ ask:'Ask upstream to guarantee, in writing: (a) within one snapshot, no two payment blocks share the combination (payment type + debit account + currency); and (b) the same combination appearing in a later snapshot always denotes the SAME payment, never a new one that happens to reuse the fields.',
+ stake:'This is the identity contract the whole multi-payment model stands on (see B0). Half (a) we can verify at intake and reject violations; half (b) is fundamentally unverifiable at runtime — a violating message is indistinguishable from a normal amendment — so it rests entirely on this written guarantee. “Usually unique” is not an answer.',
+ links:['B0'], ref:'§18-U5 · §1 · §6.0'},
+// ---- OPS ----
+{id:'O1',s:'O',t:'Parked payments: who decides, and with what tool?',
+ ask:'Payments can park in a “needs a human” state, each with a reason label (retries exhausted, cutoff passed, contradictory evidence…). For each reason: who decides between retry / reject / close — and what tool executes that decision? Every one of these is a database change with money effects: reject or close releases the payment’s reserved money.',
+ stake:'At launch these run as controlled manual database procedures; safety triggers in the database make a wrong write fail loudly instead of silently releasing money. But the real answer is a proper tool with roles and audit.',
+ ref:'§20-1 · §10.1'},
+{id:'O2',s:'O',t:'Releasing a stuck payment’s money is a REQUIRED feature',
+ ask:'Confirm and build the release operation: a supersede/close action for a payment that can neither proceed nor resolve.',
+ stake:'Not a convenience — the money model requires it. A stuck payment holds its reserved money; while held, the one-active-payment rule blocks any replacement, and the trade can never complete. This is the strongest item in this section.',
+ ref:'§20-2 · §3'},
+{id:'O3',s:'O',t:'May ops trigger the status query on demand?',
+ ask:'For a payment that has sat in “sent, outcome unknown” for a while: may an operations user trigger the ask-the-engine query NOW, ahead of its schedule?',
+ stake:'Read-only, zero money risk, high operator comfort — the obvious first ops capability to build.',
+ ref:'§20-3 · §9'},
+{id:'O4',s:'O',t:'Over-settled trades: does ops acknowledge the flag?',
+ ask:'When more money has settled than the trade now requires (its amount was lowered after settlement), the system flags the trade and by design ignores it forever — it is a human problem. Does ops need a way to acknowledge or annotate that flag on the card?',
+ stake:'Without an acknowledgment step, every such case stays an eternal red flag on someone’s dashboard.',
+ ref:'§20-4 · §13'},
+{id:'O5',s:'O',t:'Returned-funds adjustment',
+ ask:'Adjusting the records when a bank later returns funds — FUTURE, blocked on the returned-funds design.',
+ stake:'Parking lot: acknowledged and sequenced, not actionable now.',
+ ref:'§20-5 · §19.2'},
+{id:'O6',s:'O',t:'A proper surface for the emergency stop',
+ ask:'The system has an emergency stop: a switch that freezes all outgoing payments (stored outside the payment database, so a database restore can never accidentally un-freeze). This item asks for a dedicated, audited surface for flipping it — capturing reason, operator, and ticket.',
+ stake:'Fact: authorized personnel can already flip the switch today through existing access control. This is about a nicer, audited surface — the capability itself is not blocked.',
+ ref:'§20-6 · §16.1'},
+{id:'O7',s:'O',t:'Authorization model: who may view, who may act',
+ ask:'Which roles may view payment state vs act on it? Is a second approver (4-eyes) required for any action that moves amounts or releases reserved money?',
+ stake:'The one required launch procedure (see B3) already demands two people by design; this generalizes the rule for everything that comes after.',
+ links:['B3'], ref:'§20-7'},
+{id:'O8',s:'O',t:'Every manual action needs an external ticket reference',
+ ask:'The system keeps no local audit journal. Every manual action must therefore log the operator’s identity AND a mandatory reference to an external ticket.',
+ stake:'The ticket trail is the ONLY record of manual actions that would survive a database restore.',
+ ref:'§20-8 · §14 · §5.2'},
+{id:'O9',s:'O',t:'Build the retry-after-rejection operation',
+ ask:'The two-person operation that clears the “bank rejected this” flag on a trade, so the system creates a fresh payment attempt. Pending the concept approval in P7.',
+ stake:'Implementation twin of P7: approve the concept there, build the operation here.',
+ links:['P7'], ref:'§20-9 · §19.3'}
+];
+
+// Tailored answer choices per question. "Other + comment" is always offered in addition.
+const OPTS = {
+ B0:['All three edges closed (written confirmation + intake validation + P9/T16 answered)','Partially closed — which edges, in the comment','Not started'],
+ B1:['Test executed — all four cases PASSED (evidence in comment)','Sandbox access secured — test scheduled','Blocked — no sandbox access yet','Not started'],
+ B2:['Source system + named owner identified — details in comment','Candidate source under evaluation','No source exists — calendar must be built','Not started'],
+ B3:['Procedure specced AND drilled','Procedure specced — drill pending','Alternative chosen: T10 + T5 lookback both affirmed in writing','Not started'],
+ P1:['Approved as designed','Approved with conditions — in comment','Rejected — propose alternative in comment'],
+ P2:['Every 2 minutes (suggested)','Every 1 minute','Every 5 minutes'],
+ P3:['30 minutes (suggested; must clear the cutoff)','15 minutes','60 minutes'],
+ P4:['Roll to next value date once the outcome is known','Proactive customer contact, case-by-case','Escalate to ops immediately when cutoff passes while unknown'],
+ P5:['Acceptable as-is (display “completed”)','Change the label — suggestion in comment','Needs a UI-team discussion first'],
+ P6:['Accept the deferral (recommended)','Accept + adopt the own-payment route for urgent top-ups','Want the bounded relaxation (parallel delta only after bank acknowledgment) — start impact review','Reject — require parallel attempts (full redesign review)'],
+ P7:['Approve the concept — build later (as proposed)','Approve AND pull the build into MVP','Reject — recovery stays upstream-correction only','Defer the decision'],
+ P8:['Accepted — it is the physical reality','Accepted, with a communication plan to the business','Not accepted — revisit, reasoning in comment'],
+ P9:['Absence = CANCELLED (amend the no-cancellation agreement; provably-unsent payments only)','Absence = UNCHANGED (keep the agreement as-is)','Neither: ask upstream for an explicit removal flag instead','Need more analysis before deciding'],
+ T1:['Confirmed: stable unique event id exists — field name in comment','No — synthesize from payload hash (accept its blind spots)','No — synthesize from topic+partition+offset (accept its blind spots)','Asked — awaiting answer'],
+ T2:['Query API · one step per payment','Query API · one rolled-up step per trade','Read replica · one step per payment','Read replica · rolled-up step per trade'],
+ T3:['RPO/RTO signed AND runbook owner named — in comment','Numbers exist — owner still unassigned','Not started'],
+ T4:['Guaranteed in writing — pending the B1 sandbox proof','Engine CANNOT guarantee it — switch to payload freeze','Asked — awaiting answer'],
+ T5:['Both obtained: lag distribution + lookback window — values in comment','Lag obtained; lookback pending','Lookback obtained; lag pending','Neither yet'],
+ T6:['Re-executes (working assumption) — to be proven by B1 case (d)','Replays the cached rejection — switch retry policy to new-key successor','Awaiting the B1 test'],
+ T7:['U2 confirmed — schedule the implementation','Defer post-MVP','Drop the improvement'],
+ T8:['Owner + value agreed — in comment','Owner named; value pending','Unassigned'],
+ T9:['All three tables have named owners — in comment','Partially assigned — in comment','Unassigned'],
+ T10:['Platform supports it — mechanism in comment','Platform cannot do it','Asked — awaiting answer','Not yet asked'],
+ T11:['All three confirmed (returns UETR / accepts our key / dedup on key)','Partially confirmed — details in comment','CONFLICT found — details in comment (blocking!)','Awaiting answer'],
+ T12:['Globally unique — relax the extra guards by explicit decision','Scoped uniqueness (scope in comment) — keep the fail-closed rule','Unknown — keep the fail-closed rule'],
+ T13:['Quota obtained — value in comment','No contractual limit — size the sweep conservatively','Awaiting answer'],
+ T14:['Co-design session scheduled with named owners','Deferred post-MVP with the constraints recorded','Not started'],
+ T15:['Metric + dashboard planned for the first quarter','Will add after launch','Not planned — accept the gap'],
+ T16:['Option (a): stamp the watermark on absent payments too','Option (b): add a trade-level watermark alongside the per-payment one','Option (c): rely on ordering guarantees — AFTER verifying delayed-older delivery is impossible','Analyze together with P9 first'],
+ U1:['Guaranteed by contract','Verbally agreed — written contract pending','Upstream cannot guarantee — keep the tie machinery','Not yet asked'],
+ U2:['Guaranteed by contract','Convention only today — contract pending','Not yet asked'],
+ U3:['Formal schema published — link in comment','Draft circulating','Not started'],
+ U4:['Confirmed by contract','Verbally agreed only','Upstream cannot guarantee — assess the impact','Not yet asked'],
+ U5:['Both halves guaranteed in writing','Within-snapshot half only so far','Verbal only','Not yet asked'],
+ O1:['Decision matrix agreed (who decides per reason) — in comment','Interim accepted: DB procedures + on-call approval','Needs a workshop'],
+ O2:['Confirmed required — schedule the build','Interim manual procedure accepted for MVP','Disputed — reasoning in comment'],
+ O3:['Yes — build the on-demand trigger','No — scheduled sweep only','Revisit later'],
+ O4:['Yes — acknowledgment field on the card','No — alert-only is sufficient','Bundle with the returned-funds work'],
+ O5:['Acknowledged — stays parked on the returned-funds design','Priority raised — why, in comment'],
+ O6:['Build the dedicated audited surface','Existing role-controlled toggle suffices for now','Revisit later'],
+ O7:['Second approver for ALL money-moving or releasing actions','Second approver only for release / verified-outcome actions','Role model needs a workshop'],
+ O8:['Agreed — operator identity + mandatory ticket reference','Agreed with exceptions — in comment','Needs a tooling discussion first'],
+ O9:['Build after P7 concept approval','Bundle into the ops-console phase','Rejected together with P7']
+};
+
+const LS='pq_answers_v1';
+let ans={}; try{ans=JSON.parse(localStorage.getItem(LS))||{}}catch(e){}
+function save(){try{localStorage.setItem(LS,JSON.stringify(ans))}catch(e){}}
+let filter='all', secFilter=null;
+
+const board=document.getElementById('board');
+function build(){
+  board.innerHTML='';
+  for(const [sk,sec] of Object.entries(SECS)){
+    const qs=QS.filter(q=>q.s===sk);
+    const h=document.createElement('h2');h.className='sec';h.style.color=sec.c;
+    h.innerHTML=`${sec.n} <span class="cnt" id="cnt_${sk}"></span>`;
+    const sub=document.createElement('p');sub.className='secsub';sub.textContent=sec.sub;
+    const grid=document.createElement('div');grid.className='cards';grid.id='grid_'+sk;
+    qs.forEach(q=>{
+      const card=document.createElement('div');
+      card.className='q';card.id='q_'+q.id;card.style.borderLeftColor=sec.c;
+      card.innerHTML=`
+        <div class="qhead">
+          <span class="qid" style="color:${sec.c};background:${sec.bg}">${q.id}</span>
+          <span class="title">${q.t}</span>
+          <span class="caret">▶</span>
+          <span class="pill2">OPEN</span>
+        </div>
+        <div class="qbody">
+          <div class="row"><span class="k">the ask</span><span class="v">${q.ask}</span></div>
+          <div class="row"><span class="k">why it matters</span><span class="v stake">${q.stake}</span></div>
+          ${q.trade?`<div class="row"><span class="k">trade-off</span><span class="v stake">${q.trade}</span></div>`:''}
+          ${q.sug?`<div class="row"><span class="k">suggested</span><span class="v"><span class="sug">${q.sug}</span></span></div>`:''}
+          ${q.links?`<div class="row"><span class="k">linked</span><span class="v links">${q.links.map(l=>`<span class="lk" data-l="${l}">${l}</span>`).join('')}</span></div>`:''}
+          <div class="row"><span class="k">ref</span><span class="v ref">${q.ref}</span></div>
+          <div class="answer">
+            <div class="k2">Your answer</div>
+            <div class="opts">
+              ${(OPTS[q.id]||[]).map((o,i)=>`<label class="opt"><input type="radio" name="r_${q.id}" value="${i}"><span>${o}</span></label>`).join('')}
+              <label class="opt"><input type="radio" name="r_${q.id}" value="-1"><span>Other / a different choice — explain in the comment</span></label>
+            </div>
+            <textarea class="cmt" placeholder="Comment, context, owner, values — or your own answer…"></textarea>
+            <div class="arow">
+              <button class="submitb">Submit answer</button>
+              <button class="clearb">Clear</button>
+              <span class="savedat"></span>
+            </div>
+          </div>
+        </div>`;
+      card.querySelector('.qhead').addEventListener('click',()=>card.classList.toggle('open'));
+      const a0=ans[q.id];
+      if(a0){
+        if(a0.o!=null){const r=card.querySelector(`input[name="r_${q.id}"][value="${a0.o}"]`);if(r)r.checked=true;}
+        card.querySelector('.cmt').value=a0.m||'';
+      }
+      card.querySelector('.submitb').addEventListener('click',()=>{
+        const r=card.querySelector(`input[name="r_${q.id}"]:checked`);
+        const m=card.querySelector('.cmt').value.trim();
+        if(!r&&!m){card.querySelector('.savedat').textContent='pick a choice or write a comment first';return;}
+        const oi=r?+r.value:null;
+        ans[q.id]={o:oi,c:oi==null?null:(oi===-1?'Other (see comment)':OPTS[q.id][oi]),m,at:new Date().toISOString().slice(0,16).replace('T',' ')};
+        save();refresh();
+      });
+      card.querySelector('.clearb').addEventListener('click',()=>{
+        delete ans[q.id];
+        card.querySelectorAll(`input[name="r_${q.id}"]`).forEach(r=>r.checked=false);
+        card.querySelector('.cmt').value='';
+        save();refresh();
+      });
+      grid.appendChild(card);
+    });
+    board.appendChild(h);board.appendChild(sub);board.appendChild(grid);
+  }
+  board.querySelectorAll('.lk').forEach(lk=>lk.addEventListener('click',()=>{
+    const t=document.getElementById('q_'+lk.dataset.l);
+    if(!t)return;
+    t.classList.add('open','flash');
+    t.scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(()=>t.classList.remove('flash'),1300);
+  }));
+}
+function refresh(){
+  QS.forEach(q=>{
+    const card=document.getElementById('q_'+q.id);
+    const a=ans[q.id], isDone=!!a;
+    card.classList.toggle('answered',isDone);
+    card.querySelector('.pill2').textContent=isDone?'ANSWERED':'OPEN';
+    card.querySelector('.savedat').textContent=isDone?`saved ${a.at}`:'';
+    const hideBySec=secFilter&&q.s!==secFilter;
+    const hideByF=(filter==='open'&&isDone)||(filter==='done'&&!isDone);
+    card.classList.toggle('hide',hideBySec||hideByF);
+  });
+  const dash=document.getElementById('dash');dash.innerHTML='';
+  for(const [sk,sec] of Object.entries(SECS)){
+    const qs=QS.filter(q=>q.s===sk), d=qs.filter(q=>ans[q.id]).length;
+    document.getElementById('cnt_'+sk).textContent=`${d}/${qs.length} answered`;
+    const st=document.createElement('div');st.className='stat'+(secFilter===sk?' on':'');
+    st.innerHTML=`<div class="t" style="color:${sec.c}">${sec.n.split('—')[0]}</div>
+      <div class="n">${d}<small> / ${qs.length}</small></div>
+      <div class="pb"><div class="pf" style="width:${qs.length?d/qs.length*100:0}%;background:${sec.c}"></div></div>`;
+    st.onclick=()=>{secFilter=secFilter===sk?null:sk;refresh();};
+    dash.appendChild(st);
+  }
+}
+document.getElementById('fAll').onclick=function(){filter='all';setF(this)};
+document.getElementById('fOpen').onclick=function(){filter='open';setF(this)};
+document.getElementById('fDone').onclick=function(){filter='done';setF(this)};
+function setF(b){document.querySelectorAll('.toolbar button').forEach(x=>{if(['fAll','fOpen','fDone'].includes(x.id))x.classList.remove('on')});b.classList.add('on');refresh();}
+document.getElementById('xAll').onclick=()=>document.querySelectorAll('.q').forEach(c=>c.classList.add('open'));
+document.getElementById('cAll').onclick=()=>document.querySelectorAll('.q').forEach(c=>c.classList.remove('open'));
+
+// ---------- export ----------
+function exportText(){
+  const total=QS.length, na=QS.filter(q=>ans[q.id]).length;
+  const L=['# Payment system — open questions: answers export',
+    `Exported: ${new Date().toISOString().slice(0,16).replace('T',' ')} · answered ${na}/${total}`,
+    'Source: requirment-v4.md §18 + §20 · stable ids (B/P/T/U/O) · one block per question',''];
+  for(const [sk,sec] of Object.entries(SECS)){
+    L.push(`## ${sec.n}`,'');
+    QS.filter(q=>q.s===sk).forEach(q=>{
+      const a=ans[q.id];
+      L.push(`### ${q.id} — ${q.t}`,`Status: ${a?'ANSWERED':'OPEN'}`);
+      if(a){ if(a.c)L.push(`Answer: ${a.c}`); if(a.m)L.push(`Comment: ${a.m}`); L.push(`Recorded: ${a.at}`); }
+      L.push(`Question: ${q.ask}`,`Ref: ${q.ref}`,'');
+    });
+  }
+  return L.join('\n');
+}
+const exov=document.getElementById('exov'), extext=document.getElementById('extext');
+document.getElementById('bExport').onclick=()=>{extext.value=exportText();exov.classList.add('show');};
+document.getElementById('exClose').onclick=()=>exov.classList.remove('show');
+exov.addEventListener('click',e=>{if(e.target===exov)exov.classList.remove('show');});
+document.getElementById('exCopy').onclick=function(){
+  extext.select();
+  const done=()=>{this.textContent='Copied ✓';setTimeout(()=>this.textContent='Copy to clipboard',1600);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(extext.value).then(done,()=>{document.execCommand('copy');done();});}
+  else{document.execCommand('copy');done();}
+};
+document.getElementById('exDl').onclick=()=>{
+  const blob=new Blob([extext.value],{type:'text/markdown'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='open-questions-answers.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+build();refresh();
+</script>
