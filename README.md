@@ -4,10 +4,14 @@ This repository contains the implementation baseline and supporting design mater
 
 ## Start here
 
-- [`requirment-v4.md`](requirment-v4.md) — canonical requirements baseline.
-- [`payment-system-explained.html`](payment-system-explained.html) — interactive system guide.
-- [`ops-console-proposal.md`](ops-console-proposal.md) — operations-console proposal.
-- [`ops-console-mockup.html`](ops-console-mockup.html) — operations-console mockup.
+- [`requirment-v4.md`](requirment-v4.md) — canonical requirements baseline (all other documents are derived views).
+- [`payment-state-playground.html`](payment-state-playground.html) — animated state-model map: every state and legal transition, playable scenario stories, rule inspector.
+- [`open-questions-board.html`](open-questions-board.html) — interactive tracker for all open questions (§18 + §20) with answer capture and import/export; run locally in any browser.
+- [`payment-system-explained.html`](payment-system-explained.html) — interactive system guide (architecture, money model, simulator).
+- [`implementation-playbook.md`](implementation-playbook.md) — implementation plan: phases, task cards, gates.
+- [`portable-implementation-playbook/`](portable-implementation-playbook/) — the playbook split into transferable per-phase files.
+- [`ops-console-proposal.md`](ops-console-proposal.md) — operations-console proposal (future work; `ops-console-proposal.html` is a superseded rendering kept for layout, `ops-console-mockup.html` is the visual mockup).
+- [`docs/superpowers/specs/`](docs/superpowers/specs/) — session design specs.
 
 ## Review provenance
 

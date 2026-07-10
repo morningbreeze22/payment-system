@@ -125,7 +125,11 @@ first** (§2.2); stuck reservations by age; MAYBE_SUBMITTED by
 maybe_since age (with cutoff proximity); overpay latches. Each row:
 scope key, business_id, amount, age (episode-anchor clocks, §15),
 last error, §10.4 label chip, deep-link to S2. This is the screen the
-§15 alerts link to. (Parked-events queue removed.)
+§15 alerts link to. (Parked-events queue removed.) Multi-payment note
+(§1 contract facts): a business_id can map to SEVERAL obligations —
+queues stay keyed per obligation, and S1/S2 offer a business_id
+filter/grouping so an operator can see a whole trade's payments
+together (§12).
 
 **S2 — Payment detail.** The full story of one obligation: header
 (scope key, required/committed/confirmed, derived step status, active

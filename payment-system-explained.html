@@ -216,7 +216,7 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
 
 <h2>Money — play with it, in pipeline order</h2>
 <div class="card" id="moneyw">
- <p class="sub">The system's order is always: <b>Kafka message → obligation → request creation → enrichment → payment call → Kafka notification</b>. The strip shows where you are. <code>committed</code> = money spoken for (the active request's reservation) · <code>confirmed</code> = money settled · shortfall = required − committed. Buttons refuse when a rule forbids the move — the refusal message IS the lesson.</p>
+ <p class="sub">The system's order is always: <b>Kafka message → obligation → request creation → enrichment → payment call → Kafka notification</b>. The strip shows where you are. <code>committed</code> = money spoken for (the active request's reservation) · <code>confirmed</code> = money settled · shortfall = required − committed. Buttons refuse when a rule forbids the move — the refusal message IS the lesson. Scope note (§1): each message is a FULL-TRADE SNAPSHOT that can carry several payments; this widget follows a one-payment trade — a multi-payment trade runs one of these per payment (see the playground's "Two payments, one trade").</p>
  <div class="mwgrid">
  <div class="mwleft">
  <div class="pipe" id="pipe"></div>
@@ -484,7 +484,7 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
  <tr><td>Engine settles ALL-OR-NOTHING (confirmed)</td><td>any amount mismatch = defect evidence → CRITICAL park, money never moves</td></tr>
  <tr><td>Collision contract ASSUMED true (sandbox-proven before go-live)</td><td>a known key can never execute twice — every re-POST safety rides on this</td></tr>
  <tr><td>BA-1: scope-field change ⇒ NEW obligation on purpose</td><td>not a duplicate; no cross-scope detector</td></tr>
- <tr><td>BA-2: upstream cannot cancel</td><td>a cancelled trade still pays; recovery is a platform-side recall</td></tr>
+ <tr><td>BA-2: upstream cannot cancel</td><td>a cancelled trade still pays; recovery is a platform-side recall (open PO-9: whether a payment ABSENT from a newer snapshot cancels its unsent attempts — a deliberate BA-2 amendment question)</td></tr>
  <tr><td>BA-3: message ordering is upstream's problem</td><td>a skew-misordered amendment dropping as stale is by design</td></tr>
  </table>
 </div>

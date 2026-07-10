@@ -3116,7 +3116,11 @@ payment platform
    list (candidates: step started/completed
    timestamps; retry progress "next attempt at / attempt N of M" for
    retryable exceptions), freshness, authentication, volume
-   (§12).
+   (§12). Also (multi-payment, §12): step granularity — one step per
+   PAYMENT, or one rolled-up step per TRADE ("completed" only when
+   all the trade's payments complete)? The §4 derivations are per
+   obligation; a rollup is a display aggregation this contract must
+   define.
 3. RPO/RTO sign-off for the database, and ownership of the
    post-restore runbook (§5.2). The deterministic-key rule stands
    regardless; the runbook's urgency depends on these numbers.
