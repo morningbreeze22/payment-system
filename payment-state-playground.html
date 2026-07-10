@@ -27,17 +27,20 @@
     --token:#C7811F;}
 
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;padding:0 0 90px}
-  .hero{padding:38px 22px 26px;background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 9%,var(--bg)),var(--bg))}
-  .wrap{max-width:1280px;margin:0 auto;padding:0 18px}
-  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);margin:0 0 8px}
-  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.015em;text-wrap:balance}
-  .lede{color:var(--ink2);max-width:74ch;margin:0}
+  .hero{padding:14px 22px 10px;background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 9%,var(--bg)),var(--bg))}
+  .wrap{max-width:1860px;margin:0 auto;padding:0 18px}
+  .herorow{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);margin:0 0 3px}
+  h1{font-size:21px;margin:0 0 3px;letter-spacing:-.015em;text-wrap:balance}
+  .ledebox{margin:0}
+  .ledebox summary{cursor:pointer;font-size:12.5px;color:var(--acc);font-weight:600;user-select:none}
+  .lede{color:var(--ink2);max-width:94ch;margin:6px 0 0;font-size:13.5px}
   .lede b{color:var(--ink)}
 
-  .stage{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:16px;align-items:start;margin-top:18px}
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;margin-top:10px}
   @media(max-width:980px){.stage{grid-template-columns:1fr}}
-  .mapbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-  svg{display:block;min-width:920px;width:100%;height:auto}
+  .mapbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  svg{display:block;min-width:920px;width:100%;height:auto;max-height:calc(100vh - 150px)}
   svg text{font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
 
   .node rect{fill:var(--bg);stroke:var(--line);stroke-width:1.5}
@@ -72,15 +75,16 @@
   #token .glow{transform-box:fill-box;transform-origin:center}
   #tokenbadge{font-family:var(--mono);font-size:9.5px;font-weight:700;fill:var(--ink2)}
 
-  .side{display:flex;flex-direction:column;gap:12px}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-  .card h3{margin:0 0 8px;font-size:13px;font-family:var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);font-weight:600}
-  .scen{display:flex;flex-wrap:wrap;gap:6px}
-  .scen button{font:500 12.5px/1.25 inherit;padding:5px 11px;border:1px solid var(--line);border-radius:15px;background:var(--bg);color:var(--ink2);cursor:pointer;transition:all .15s}
-  .scen button:hover{border-color:var(--acc);color:var(--acc)}
-  .scen button.on{border-color:var(--acc);color:var(--acc);background:var(--accbg);font-weight:700}
+  .side{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .card h3{margin:0 0 6px;font-size:12px;font-family:var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+  .scenrow{display:flex;gap:6px;align-items:center}
+  .scensel{flex:1;min-width:0;font:600 13.5px/1.3 inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer}
+  .scensel:focus{outline:none;border-color:var(--acc)}
+  .snav{font:700 14px/1 inherit;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink2);cursor:pointer;flex-shrink:0}
+  .snav:hover{border-color:var(--acc);color:var(--acc)}
 
-  .narr{min-height:5.2em}
+  .narr{min-height:3.4em}
   .narr .ev{font-size:15.5px;font-weight:700;margin:0 0 5px;display:flex;gap:8px;align-items:baseline}
   .narr .ev .stepn{font-family:var(--mono);font-size:11px;color:var(--ink3);font-weight:600;white-space:nowrap}
   .narr p{margin:0;color:var(--ink2);font-size:14px}
@@ -152,19 +156,28 @@
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 
-<div class="hero"><div class="wrap">
-  <p class="eyebrow">payment orchestration · request state model §10</p>
-  <h1>Every state. Every rule. One playable map.</h1>
-  <p class="lede">This is the complete territory a payment can travel — all twelve states, every legal move from the spec's flow table. <b>Pick a story</b> and watch the coin make the journey, told in plain words. Flip on <b>Plain&nbsp;+&nbsp;Tech</b> for the exact state tuple, money moves, and § references at every step. Click <b>any arrow</b> — story or not — to interrogate its rule. One scoping fact before you play: this machine runs <b>per payment</b>, and a trade can carry several payments — a three-payment trade runs three of these maps in parallel, coupled only by the trade's snapshot messages (the stories <i>“Two payments, one trade”</i> and <i>“A trade-mate poisons the snapshot”</i> show exactly that coupling).</p>
+<div class="hero"><div class="wrap herorow">
+  <div style="min-width:0">
+    <p class="eyebrow">payment orchestration · request state model §10</p>
+    <h1>Every state. Every rule. One playable map.</h1>
+    <details class="ledebox"><summary>What is this &amp; how to use ▾</summary>
+      <p class="lede">This is the complete territory a payment can travel — all twelve states, every legal move from the spec's flow table. <b>Pick a story</b> and watch the coin make the journey, told in plain words. Flip on <b>Plain&nbsp;+&nbsp;Tech</b> for the exact state tuple, money moves, and § references at every step. Click <b>any arrow</b> — story or not — to interrogate its rule. One scoping fact before you play: this machine runs <b>per payment</b>, and a trade can carry several payments — a three-payment trade runs three of these maps in parallel, coupled only by the trade's snapshot messages (the stories <i>“Two payments, one trade”</i> and <i>“A trade-mate poisons the snapshot”</i> show exactly that coupling).</p>
+    </details>
+  </div>
+  <div class="modes"><button id="mPlain" class="on">Plain</button><button id="mTech">Plain + Tech</button></div>
 </div></div>
 
 <div class="wrap">
-  <div class="modes" style="margin-top:14px"><button id="mPlain" class="on">Plain</button><button id="mTech">Plain + Tech</button></div>
-
   <div class="stage">
     <div class="mapbox"><svg id="map" viewBox="0 0 1160 600" aria-label="complete payment state map"></svg></div>
     <div class="side">
-      <div class="card"><h3>Pick a story</h3><div class="scen" id="scen"></div></div>
+      <div class="card"><h3>Pick a story</h3>
+        <div class="scenrow">
+          <button class="snav" id="sPrev" title="previous story">‹</button>
+          <select id="scen" class="scensel"></select>
+          <button class="snav" id="sNext" title="next story">›</button>
+        </div>
+      </div>
       <div class="card narrcard">
         <div class="narr">
           <div class="ev"><span class="stepn" id="stepn"></span><span id="ev"></span></div>
@@ -737,13 +750,17 @@ function startStory(s){
   setMoney([0,0,0]);
   advance(1);
 }
-const scenBox=$('scen');
-STORIES.forEach((s,i)=>{
-  const b=document.createElement('button');b.textContent=s.n;
-  b.onclick=()=>{stopPlay();scenBox.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');startStory(s);};
-  if(i===0)b.classList.add('on');
-  scenBox.appendChild(b);
-});
+const scenSel=$('scen');
+STORIES.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.n;scenSel.appendChild(o);});
+scenSel.onchange=()=>{stopPlay();startStory(STORIES.find(x=>x.id===scenSel.value));};
+function stepStory(d){
+  let i=STORIES.findIndex(x=>x.id===story.id)+d;
+  i=(i+STORIES.length)%STORIES.length;
+  scenSel.value=STORIES[i].id;
+  stopPlay();startStory(STORIES[i]);
+}
+$('sPrev').onclick=()=>stepStory(-1);
+$('sNext').onclick=()=>stepStory(1);
 $('mPlain').onclick=function(){document.body.classList.remove('tech');this.classList.add('on');$('mTech').classList.remove('on');};
 $('mTech').onclick=function(){document.body.classList.add('tech');this.classList.add('on');$('mPlain').classList.remove('on');};
 startStory(STORIES[0]);
