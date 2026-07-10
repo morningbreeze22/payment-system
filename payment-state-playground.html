@@ -398,6 +398,7 @@ const SECS = {
  timeout2:[0,2,2,1,30,600,21600,60,3,7200],
  stuck:[0,2,2,1,30,3600,172800,14400],
  amendup:[0,2,2,1,5,3,7200,1],
+ amendmaybe:[0,2,2,1,30,3600,600,1],
  cancel:[0,3600,1],
  exhaust:[0,2,2,1,2,14400,7200,60,3,7200],
  collision:[0,2,2,1,30,21600,60,3,600],
@@ -477,6 +478,14 @@ const STORIES = [
  {e:'accept',ev:'The 100 is accepted'},
  {e:'settle',ev:'The 100 settles',money:[150,100,100]},
  {e:'create',ev:'The standing rule creates the 50-payment',n:'The moment the first attempt resolved, re-evaluation saw shortfall 50 and created the successor. One creation point — a deferral can never be lost or doubled.',money:[150,150,100],fx:'new',badge:'attempt 2 · 50 · new key'}]},
+{id:'amendmaybe',n:'Raised while unknown',steps:[
+ {e:'create',ev:'Pay 100',money:[100,100,0]},
+ {e:'claim',ev:'Details…'},{e:'enrichok',ev:'…ok'},
+ {e:'postclaim',ev:'Sending…'},
+ {e:'ambig',ev:'The call times out — outcome unknown',n:'Did the bank get the 100? Unknown. The resolver starts asking on its schedule.'},
+ {at:'UNKNOWN',who:'up',ev:'Amendment: the payment is raised to 150',n:'The extra 50 is DEFERRED — and here is the honest part of that promise: the deferral waits on the OUTCOME, not on a timer. As long as the 100 is unknown, the 50 inherits that wait. It is bounded by the query cadence, then the escalation clock that pages a human. Note what does NOT happen: no parallel 50-attempt while the 100’s fate is unknown.',d:['CONFIRM','READY','MAYBE','∅'],m:'required := 150 · successor deferred (waits on outcome)',r:'§6.8 · §6.3'},
+ {e:'qexec',ev:'Resolver: the 100 EXECUTED',n:'The engine answers. The settlement is applied — and the SAME transaction that records the outcome re-evaluates the trade: shortfall 50, no active attempt, no blockers. The successor is born in that instant; there was never a scheduler that could forget it.',money:[150,100,100]},
+ {e:'create',ev:'The 50-attempt starts immediately',n:'Had the answer been REJECTED instead, the reservation would have been released and the fresh attempt would be the full 150 — the follow-up amount is recomputed from live state, never remembered.',money:[150,150,100],fx:'new',badge:'attempt 2 · 50 · new key'}]},
 {id:'cancel',n:'Trade cancelled in time',steps:[
  {e:'create',ev:'Pay 100',money:[100,100,0]},
  {at:'CREATED',who:'up',ev:'Amendment: the trade drops to 0',n:'Nothing has been sent yet — and that is provable (NOT_SUBMITTED).',d:['ENRICH','READY','NOT_SUB','∅'],m:'required := 0',r:'§6.3',money:[0,100,0]},
