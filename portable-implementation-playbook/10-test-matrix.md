@@ -469,18 +469,20 @@ Implemented by: OB-02, IN-07.
 ```text
 Section: §12, §4.1, §4.2, §10.4   Type: INTEGRATION   Blocking: YES
 Purpose: the card never lies: no false completion, correct exception
-         precedence, defensive lookup.
+         precedence, correct multi-obligation lookup.
 Setup:   scopes at each §4-derivable state incl. anchors, MAYBE rows,
-         latched overpay, reopened steps; a seeded duplicate
-         business_id pair.
+         latched overpay, reopened steps; a multi-payment trade
+         (several obligations under one business_id).
 Action:  read through the card path.
 Expect:  NOT_STARTED = absence; anchors show DATA_VALIDATION_FAILED;
          MAYBE shows PAYMENT_OUTCOME_UNKNOWN (rank 1, never
-         SYSTEM_UNAVAILABLE); labels per §10.4; >1 obligation → error
-         state + alert; unavailable ≠ stale-as-authoritative.
-Failure: false completion (the predicate's whole point) or a silent
-         pick between duplicate scopes.
-Implemented by: RG-08/09, ST-04, OB-02.
+         SYSTEM_UNAVAILABLE); labels per §10.4; the multi-payment
+         trade returns ALL its obligations, one entry per payment —
+         result count is never an error or alert (§12);
+         unavailable ≠ stale-as-authoritative.
+Failure: false completion (the predicate's whole point) or a
+         multi-payment trade surfacing as an error or partial result.
+Implemented by: RG-08/09, ST-04.
 ```
 
 ### T-32 — Observability / alerting

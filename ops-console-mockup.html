@@ -5,144 +5,179 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Payment Operations — Ops Console Mockup</title>
 <style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 14px; color: #1c2430; background: #fff; line-height: 1.45;
+  :root{
+    --paper:#f6f4ee; --panel:#fcfbf7; --ink:#1a2420; --muted:#616b60;
+    --line:#d8d4c8; --line-soft:#e7e4da;
+    --ledger:#1e5b43; --ledger-soft:#e4ece6; --ledger-ink:#194a38;
+    --seal:#a52a1f; --seal-soft:#f4e4e1;
+    --amber:#92660b; --amber-soft:#f3ecd7;
+    --violet:#5e4a8a; --violet-soft:#ebe6f3;
+    --stamp-tilt:-4deg;
+    --sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+    --serif:Charter,"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --mono:"Cascadia Mono",Consolas,"SF Mono",monospace;
   }
-  .wrap { max-width: 1440px; min-width: 880px; margin: 0 auto; padding: 0 20px 40px; }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#171b18; --panel:#1e231f; --ink:#e7e9e3; --muted:#9aa398;
+      --line:#39413a; --line-soft:#2b322c;
+      --ledger:#5cbc94; --ledger-soft:#20362c; --ledger-ink:#7cccaa;
+      --seal:#e0776b; --seal-soft:#3a2523;
+      --amber:#d8ab4a; --amber-soft:#37301c;
+      --violet:#b09fd8; --violet-soft:#2d2839;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font:14px/1.5 var(--sans);color:var(--ink);background:var(--paper)}
+  .wrap{max-width:1440px;margin:0 auto;padding:0 22px 48px}
+  a{color:var(--ledger-ink)}
+  :focus-visible{outline:2px solid var(--ledger);outline-offset:1px}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 
   /* mock banner */
-  #mockBanner {
-    background: #fff7e0; border-bottom: 1px solid #e0cf9a; color: #5c4a10;
-    font-size: 12px; padding: 4px 20px; display: flex; align-items: center; gap: 8px;
-  }
-  #mockBanner code { background: transparent; }
-  #mockBanner button {
-    margin-left: auto; border: none; background: none; cursor: pointer;
-    font-size: 14px; color: #5c4a10; padding: 0 4px;
-  }
+  #mockBanner{background:var(--amber-soft);border-bottom:1px solid var(--line);color:var(--ink);
+    font-size:12px;padding:5px 22px;display:flex;align-items:baseline;gap:8px}
+  #mockBanner code{font-family:var(--mono);font-size:11px}
+  #mockBanner button{margin-left:auto;border:none;background:none;cursor:pointer;font-size:14px;color:var(--muted);padding:0 4px;flex:none}
 
-  .crumb { color: #6b7686; font-size: 12px; margin: 14px 0 2px; }
-  .titlebar { display: flex; align-items: baseline; gap: 16px; border-bottom: 2px solid #d6dbe2; padding-bottom: 8px; margin-bottom: 14px; }
-  .titlebar h1 { font-size: 20px; font-weight: 600; margin: 0; }
-  .titlebar .sub { color: #6b7686; font-size: 12px; }
-  .rolebox { margin-left: auto; font-size: 13px; color: #3b4657; display: flex; align-items: center; gap: 6px; }
-  .rolebox select { font: inherit; padding: 2px 4px; border: 1px solid #b9c1cc; border-radius: 3px; background: #fff; }
+  /* masthead — the one serif moment */
+  .crumb{color:var(--muted);font-size:12px;margin:16px 0 2px}
+  .masthead{display:flex;align-items:baseline;gap:16px;border-bottom:3px double var(--line);padding-bottom:10px;margin-bottom:16px;flex-wrap:wrap}
+  .masthead h1{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:.01em;margin:0}
+  .masthead .sub{color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+  .rolebox{margin-left:auto;font-size:13px;display:flex;align-items:center;gap:6px}
+  .rolebox select{font:inherit;padding:2px 6px;border:1px solid var(--line);border-radius:3px;background:var(--panel);color:var(--ink)}
 
-  h2 { font-size: 16px; font-weight: 600; margin: 18px 0 8px; }
-  h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+  h2{font-size:16px;font-weight:600;margin:18px 0 8px}
+  h3{font-size:13px;font-weight:600;margin:18px 0 6px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 
-  a { color: #14538f; }
-  a:hover { color: #0d3a66; }
+  /* tie-conflict alert strip — ties have no queue; the alert IS the entry (proposal S1 note) */
+  .tiestrip{display:flex;align-items:center;gap:12px;border:1px solid var(--amber);border-left:5px solid var(--amber);
+    background:var(--amber-soft);border-radius:3px;padding:8px 12px;margin:0 0 14px;flex-wrap:wrap}
+  .tiestrip .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--amber);flex:none}
+  .tiestrip .what{font-size:12.5px;flex:1 1 320px}
+  .tiestrip .what code{font-family:var(--mono);font-size:11.5px}
+  .tiestrip button{flex:none}
 
-  /* layout: queues + approvals side panel */
-  .s1cols { display: flex; gap: 20px; align-items: flex-start; }
-  .s1main { flex: 1 1 auto; min-width: 0; }
-  .s1side { flex: 0 0 300px; }
+  /* layout */
+  .s1cols{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .s1main{flex:1 1 640px;min-width:0}
+  .s1side{flex:1 1 280px;max-width:340px}
 
-  /* tabs */
-  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #b9c1cc; margin-bottom: 0; }
-  .tab {
-    font: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer;
-    border: 1px solid #b9c1cc; border-bottom: none; border-radius: 3px 3px 0 0;
-    background: #eef1f5; color: #3b4657;
-  }
-  .tab:hover { background: #e2e7ee; }
-  .tab[aria-selected="true"] { background: #fff; color: #14538f; font-weight: 600; position: relative; top: 1px; }
-  .badge {
-    display: inline-block; min-width: 18px; text-align: center; margin-left: 5px;
-    background: #cdd5df; color: #2a3342; border-radius: 9px; font-size: 11px; padding: 0 5px; font-weight: 600;
-  }
-  .tab[aria-selected="true"] .badge { background: #14538f; color: #fff; }
+  /* queue tabs */
+  .tabs{display:flex;gap:2px;border-bottom:2px solid var(--ledger);flex-wrap:wrap}
+  .tab{font:inherit;font-size:13px;padding:6px 13px;cursor:pointer;border:1px solid var(--line);border-bottom:none;
+    border-radius:3px 3px 0 0;background:var(--paper);color:var(--muted)}
+  .tab:hover{color:var(--ink)}
+  .tab[aria-selected="true"]{background:var(--ledger);border-color:var(--ledger);color:#fff;font-weight:600}
+  @media (prefers-color-scheme: dark){ .tab[aria-selected="true"]{color:#10201a} }
+  .badge{display:inline-block;min-width:18px;text-align:center;margin-left:6px;background:var(--line-soft);
+    color:var(--ink);border-radius:9px;font-size:11px;padding:0 5px;font-weight:600;font-family:var(--mono)}
+  .tab[aria-selected="true"] .badge{background:rgba(255,255,255,.28);color:inherit}
+  .panel{border:1px solid var(--line);border-top:none;padding:12px 14px;background:var(--panel);border-radius:0 0 3px 3px}
 
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { border: 1px solid #d6dbe2; padding: 5px 8px; text-align: left; vertical-align: top; }
-  th { background: #f1f3f6; font-weight: 600; color: #3b4657; white-space: nowrap; }
-  tbody tr:hover { background: #f6f8fa; }
-  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
-  .muted { color: #6b7686; }
-  .small { font-size: 12px; }
-  .panel { border: 1px solid #d6dbe2; border-top: none; padding: 12px; }
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border-bottom:1px solid var(--line-soft);padding:6px 9px;text-align:left;vertical-align:top}
+  th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--line)}
+  tbody tr:hover{background:var(--line-soft)}
+  td.num{text-align:right;white-space:nowrap;font-family:var(--mono);font-size:12.5px}
+  .mono{font-family:var(--mono);font-size:12px}
+  .muted{color:var(--muted)}
+  .small{font-size:12px}
 
   /* chips */
-  .chip {
-    display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px;
-    border-radius: 3px; border: 1px solid; white-space: nowrap;
-  }
-  .chip.status  { background: #e7f0fa; border-color: #a9c7e4; color: #14538f; }
-  .chip.crit    { background: #fbe9e7; border-color: #e2a49b; color: #a02818; }
-  .chip.warn    { background: #fff3d6; border-color: #e0c27a; color: #7a5c00; }
-  .chip.pend    { background: #f3e8fb; border-color: #c8a5e6; color: #5e2d8a; }
-  .chip.ok      { background: #e3f2e5; border-color: #9fcaa5; color: #1e6b2a; }
-  .chip.neutral { background: #eef1f5; border-color: #c3cad4; color: #3b4657; }
+  .chip{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:3px;border:1px solid;white-space:nowrap;font-family:var(--mono)}
+  .chip.status{background:var(--ledger-soft);border-color:var(--ledger);color:var(--ledger-ink)}
+  .chip.crit{background:var(--seal-soft);border-color:var(--seal);color:var(--seal)}
+  .chip.warn{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+  .chip.pend{background:var(--violet-soft);border-color:var(--violet);color:var(--violet)}
+  .chip.ok{background:var(--ledger-soft);border-color:var(--ledger);color:var(--ledger-ink)}
+  .chip.neutral{background:var(--line-soft);border-color:var(--line);color:var(--muted)}
 
-  /* buttons */
-  button.act, button.appr, .btn {
-    font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer;
-    border: 1px solid #9aa5b3; border-radius: 3px; background: #fff; color: #1c2430;
-  }
-  button.act:hover:not(:disabled), button.appr:hover:not(:disabled), .btn:hover:not(:disabled) { background: #eef1f5; }
-  button:disabled { opacity: 0.45; cursor: not-allowed; }
-  .btn.primary { background: #14538f; border-color: #14538f; color: #fff; }
-  .btn.primary:hover:not(:disabled) { background: #0d3a66; }
-  .guard { font-size: 10px; color: #6b7686; border: 1px solid #c3cad4; border-radius: 3px; padding: 0 4px; margin-left: 2px; vertical-align: 1px; white-space: nowrap; }
-  .actcell { white-space: nowrap; }
-  .actcell button { margin-right: 2px; }
+  /* buttons + guard tags */
+  button.act,button.appr,.btn{font:inherit;font-size:12px;padding:3px 11px;cursor:pointer;border:1px solid var(--line);
+    border-radius:3px;background:var(--panel);color:var(--ink)}
+  button.act:hover:not(:disabled),button.appr:hover:not(:disabled),.btn:hover:not(:disabled){border-color:var(--ledger);color:var(--ledger-ink)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:var(--ledger);border-color:var(--ledger);color:#fff}
+  @media (prefers-color-scheme: dark){ .btn.primary{color:#10201a} }
+  .btn.primary:hover:not(:disabled){filter:brightness(1.1);color:#fff}
+  @media (prefers-color-scheme: dark){ .btn.primary:hover:not(:disabled){color:#10201a} }
+  .guard{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);border:1px solid var(--line);
+    border-radius:2px;padding:0 4px;margin:0 6px 0 3px;vertical-align:1px;white-space:nowrap;text-transform:uppercase}
+  .guard.dual{border-color:var(--seal);color:var(--seal)}
+  .guard.eyes{border-color:var(--violet);color:var(--violet)}
+  .actcell{white-space:nowrap}
 
-  /* approvals side panel */
-  .approvals { border: 1px solid #d6dbe2; background: #fafbfc; padding: 10px 12px; }
-  .approvals h2 { margin: 0 0 8px; font-size: 13px; }
-  .approvals .entry { border-top: 1px solid #e2e6eb; padding: 8px 0; font-size: 12px; }
-  .approvals .entry .mono { word-break: break-all; }
-  .toast {
-    margin-top: 8px; border: 1px solid #9fcaa5; background: #e3f2e5; color: #1e6b2a;
-    font-size: 12px; padding: 6px 8px; border-radius: 3px;
-  }
-  .toast.err { border-color: #e2a49b; background: #fbe9e7; color: #a02818; }
+  /* stamps — angled, ledger-style */
+  .stamp{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;
+    border:2px solid var(--ledger);color:var(--ledger-ink);border-radius:3px;padding:1px 7px;
+    transform:rotate(var(--stamp-tilt));text-transform:uppercase}
+  .stamp.red{border-color:var(--seal);color:var(--seal)}
+  .stamp.pend{border-color:var(--violet);color:var(--violet);border-style:dashed;transform:none}
+
+  /* approvals: the countersignature ledger */
+  .approvals{border:1px solid var(--line);background:var(--panel);padding:12px 14px;border-radius:3px}
+  .approvals h2{margin:0 0 2px;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+  .approvals .rule{font-size:11.5px;color:var(--muted);margin:0 0 8px}
+  .approvals .entry{border-top:1px solid var(--line-soft);padding:10px 0;font-size:12px}
+  .approvals .entry .mono{word-break:break-all}
+  .sigline{display:flex;gap:12px;margin:8px 0 6px}
+  .sigbox{flex:1;max-width:130px}
+  .sigpad{height:30px;border-bottom:2px solid var(--ink);display:flex;align-items:flex-end;padding:0 4px 1px;
+    font-family:var(--serif);font-style:italic;font-size:15px}
+  .sigbox.empty .sigpad{border-bottom:2px dashed var(--line);color:var(--muted);font-size:11px;font-style:normal;font-family:var(--sans)}
+  .sigbox .siglabel{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .toast{margin-top:8px;border:1px solid var(--ledger);background:var(--ledger-soft);color:var(--ledger-ink);
+    font-size:12px;padding:6px 8px;border-radius:3px}
+  .toast.err{border-color:var(--seal);background:var(--seal-soft);color:var(--seal)}
 
   /* detail */
-  .hdrgrid { border: 1px solid #d6dbe2; background: #fafbfc; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 24px; }
-  .hdrgrid dl { margin: 0; }
-  .hdrgrid dt { font-size: 11px; color: #6b7686; text-transform: uppercase; letter-spacing: .03em; }
-  .hdrgrid dd { margin: 1px 0 0; font-size: 14px; font-variant-numeric: tabular-nums; }
-  .timeline { list-style: none; margin: 4px 0 0; padding: 0; border-left: 3px solid #d6dbe2; }
-  .timeline li { padding: 3px 0 3px 12px; font-size: 12.5px; }
-  .timeline .ts { color: #6b7686; font-family: Consolas, "Courier New", monospace; font-size: 11.5px; margin-right: 8px; }
+  .hdrgrid{border:1px solid var(--line);background:var(--panel);padding:12px 16px;display:flex;flex-wrap:wrap;gap:26px;border-radius:3px}
+  .hdrgrid dl{margin:0}
+  .hdrgrid dt{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .hdrgrid dd{margin:2px 0 0;font-size:14px;font-family:var(--mono)}
+  .timeline{list-style:none;margin:4px 0 0;padding:0;border-left:3px solid var(--ledger);border-radius:1px}
+  .timeline li{padding:3px 0 3px 12px;font-size:12.5px}
+  .timeline .ts{color:var(--muted);font-family:var(--mono);font-size:11px;margin-right:8px}
 
-  /* modal */
-  #overlay[hidden] { display: none; }
-  #overlay { position: fixed; inset: 0; background: rgba(20,30,45,.45); display: flex; align-items: flex-start; justify-content: center; padding-top: 8vh; z-index: 10; }
-  #modal { background: #fff; border: 1px solid #9aa5b3; border-radius: 4px; width: 520px; max-width: 92vw; padding: 16px 18px; box-shadow: 0 4px 18px rgba(0,0,0,.2); }
-  #modal h3 { margin: 0 0 2px; }
-  #modal .ctx { font-size: 12px; color: #6b7686; margin-bottom: 10px; }
-  #modal label { display: block; font-size: 12px; font-weight: 600; color: #3b4657; margin: 10px 0 3px; }
-  #modal textarea, #modal input[type=text] {
-    width: 100%; font: inherit; font-size: 13px; padding: 5px 7px;
-    border: 1px solid #b9c1cc; border-radius: 3px; background: #fff;
-  }
-  #modal textarea { height: 64px; resize: vertical; }
-  .effect { border: 1px solid #c9a86a; background: #fdf6e8; padding: 8px 10px; font-size: 12.5px; margin-top: 12px; }
-  .effect b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #7a5c00; margin-bottom: 3px; }
-  .mbtns { margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end; }
-  .req { color: #a02818; }
-  .ferr { color: #a02818; font-size: 12px; margin-top: 8px; display: none; }
+  /* modal — the action slip */
+  #overlay[hidden]{display:none}
+  #overlay{position:fixed;inset:0;background:rgba(18,26,22,.5);display:flex;align-items:flex-start;justify-content:center;
+    padding:7vh 16px 16px;z-index:10;overflow:auto}
+  #modal{background:var(--panel);border:1px solid var(--ink);border-radius:4px;width:600px;max-width:100%;
+    padding:16px 20px;box-shadow:0 6px 22px rgba(0,0,0,.28)}
+  #modal h3{margin:0;font-family:var(--serif);font-size:17px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}
+  #modal .ctx{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:2px 0 10px}
+  #modal label{display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:10px 0 3px}
+  #modal textarea,#modal input[type=text]{width:100%;font:13px/1.4 var(--sans);padding:5px 8px;border:1px solid var(--line);
+    border-radius:3px;background:var(--paper);color:var(--ink)}
+  #modal input[readonly]{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  #modal textarea{height:60px;resize:vertical}
+  .effect{border:1px dashed var(--amber);background:var(--amber-soft);padding:9px 11px;font-size:12.5px;margin-top:12px;border-radius:3px}
+  .effect b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:3px}
+  .effect table{margin-top:6px;font-size:12px}
+  .effect th,.effect td{padding:3px 7px;border-bottom:1px solid var(--line-soft)}
+  .mbtns{margin-top:14px;display:flex;gap:8px;justify-content:flex-end}
+  .req{color:var(--seal)}
+  .ferr{color:var(--seal);font-size:12px;margin-top:8px;display:none}
+
+  @media (max-width:760px){ .s1side{max-width:none} .masthead .sub{display:none} }
 </style>
 </head>
 <body>
 
 <div id="mockBanner">
-  <span><strong>MOCKUP</strong> — sample data only, no backend. Companion: <code>ops-console-proposal.md</code>. Aligned to <code>requirment-v4.md</code>: parked-event queue removed (no parked-event store, §2.3); statuses shown are §10.4 display labels over the four dimension columns; release actions obey the §10.1 release guard.</span>
+  <span><strong>MOCKUP</strong> — sample data only, no backend. Companion: <code>ops-console-proposal.md</code> (rev 2026-07-10: O12 tied-amendment + §3.1 coverage matrix vs <code>failure-recovery-walkthrough.md</code>). Statuses are §10.4 display labels over the four dimension columns; release actions obey the §10.1 release guard; tie conflicts have no queue — the alert record is the entry (S1 note).</span>
   <button type="button" aria-label="Dismiss banner" onclick="document.getElementById('mockBanner').remove()">✕</button>
 </div>
 
 <div class="wrap">
   <nav class="crumb" aria-label="Breadcrumb">Workflow UI &rsaquo; Payments &rsaquo; Operations</nav>
-  <div class="titlebar">
+  <div class="masthead">
     <h1>Payment Operations</h1>
-    <span class="sub">manual operations console (proposal P0–P2 surface)</span>
+    <span class="sub">manual interventions ledger · proposal surface P0–P2 · no lone hands on money</span>
     <div class="rolebox">
       <label for="roleSel">Role</label>
       <select id="roleSel">
@@ -155,17 +190,25 @@
 
   <!-- ============== S1 : QUEUES DASHBOARD ============== -->
   <section id="s1" aria-label="Queues dashboard">
+
+    <div class="tiestrip" role="alert">
+      <span class="tag">AMENDMENT_TIE_CONFLICT</span>
+      <span class="what"><code>TRD-88360</code> — two snapshots tie at ordering <code>2026-07-09T14:02:11Z</code> with differing payloads; the guard cannot pick a winner and a resend ties forever (§6.7). No queue row exists — this alert record (<code>TIE-0709-88360</code>, payload preserved per the §6.7 executability requirement) is the work item.</span>
+      <button type="button" class="act" data-guard="4eyes" data-action="APPLY_TIED" data-item="TIE-0709-88360" data-detail="__tie">Apply chosen snapshot</button><span class="guard eyes">4-eyes · O12</span>
+      <span class="slot" data-slot="TIE-0709-88360"></span>
+    </div>
+
     <div class="s1cols">
       <div class="s1main">
         <div class="tabs" role="tablist" aria-label="Dead-end state queues">
           <button class="tab" role="tab" aria-selected="true"  data-panel="p-nr">NEEDS_REVIEW <span class="badge">3</span></button>
           <button class="tab" role="tab" aria-selected="false" data-panel="p-stuck">Stuck reservations <span class="badge">2</span></button>
-          <button class="tab" role="tab" aria-selected="false" data-panel="p-unk">Aged MAYBE (UNKNOWN) <span class="badge">1</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-panel="p-unk">Aged MAYBE (UNKNOWN) <span class="badge">2</span></button>
           <button class="tab" role="tab" aria-selected="false" data-panel="p-over">Overpay <span class="badge">1</span></button>
         </div>
 
         <div id="p-nr" class="panel" role="tabpanel">
-          <p class="small muted" style="margin:2px 0 8px">Requests with <span class="mono">stage_state = BLOCKED</span> (§10.4 label <span class="mono">NEEDS_REVIEW</span>), grouped by <span class="mono">blocked_reason</span> (display/routing only — no action keys on it, §10.1). ESCALATED ranks first (money-critical class, §2.2). Release actions appear ONLY for <span class="mono">NOT_SUBMITTED</span> rows (§10.1 release guard); MAYBE/SUBMITTED rows get the §9.3 action set. Oldest first.</p>
+          <p class="small muted" style="margin:2px 0 8px">Requests with <span class="mono">stage_state = BLOCKED</span> (§10.4 label <span class="mono">NEEDS_REVIEW</span>), grouped by <span class="mono">blocked_reason</span> (display/routing only — no action keys on it, §10.1). ESCALATED ranks first (money-critical class, §2.2). Release actions appear ONLY for <span class="mono">NOT_SUBMITTED</span> rows; MAYBE/SUBMITTED rows get the §9.3 action set. Oldest first.</p>
           <table>
             <thead><tr><th>Scope key</th><th>Business ID</th><th>Amount</th><th>Age</th><th>Last error</th><th></th></tr></thead>
             <tbody>
@@ -188,11 +231,12 @@
         </div>
 
         <div id="p-unk" class="panel" role="tabpanel" hidden>
-          <p class="small muted" style="margin:2px 0 8px"><span class="mono">MAYBE_SUBMITTED</span> past its age threshold on the <span class="mono">maybe_since</span> clock (§9.3) — <span class="mono">PAYMENT_OUTCOME_UNKNOWN</span> (rank 1). Escalates once per episode to <span class="mono">BLOCKED(ESCALATED)</span>. Resolution is the §9.3 action set — never a plain release. Oldest first.</p>
+          <p class="small muted" style="margin:2px 0 8px"><span class="mono">MAYBE_SUBMITTED</span> past its age threshold on the <span class="mono">maybe_since</span> clock (§9.3) — <span class="mono">PAYMENT_OUTCOME_UNKNOWN</span> (rank 1). Resolution is the §9.3 action set — never a plain release. Oldest first; cutoff proximity shown.</p>
           <table>
             <thead><tr><th>Scope key</th><th>Business ID</th><th>Amount</th><th>Age</th><th>Last error</th><th></th></tr></thead>
             <tbody>
               <tr><td class="mono">TRD-88350 · SETTLEMENT · ****9077 · USD</td><td>TRD-88350</td><td class="num">50,000.00 USD</td><td>26h</td><td class="mono small">PAYMENT_OUTCOME_UNKNOWN (claim expired)</td><td><a href="#" data-view="tr88350">View</a> <span class="slot" data-slot="REQ-102255"></span></td></tr>
+              <tr><td class="mono">TRD-88367 · SETTLEMENT · ****2209 · USD</td><td>TRD-88367</td><td class="num">75,000.00 USD</td><td>2d 3h</td><td class="mono small">AMENDMENT_PARKED (required 75,000 → 60,000 while MAYBE — §6.4 wait-then-decide)</td><td><a href="#" data-view="tr88367">View</a> <span class="slot" data-slot="REQ-102281"></span></td></tr>
             </tbody>
           </table>
         </div>
@@ -210,8 +254,9 @@
 
       <aside class="s1side">
         <div class="approvals" aria-label="Pending approvals">
-          <h2>Pending approvals (<span id="apprCount">0</span>)</h2>
-          <div id="apprList"><p class="small muted" style="margin:0">No actions awaiting approval.</p></div>
+          <h2>Countersignatures (<span id="apprCount">0</span>)</h2>
+          <p class="rule">Money-touching actions execute on the second signature, never the first.</p>
+          <div id="apprList"><p class="small muted" style="margin:0">No actions awaiting countersignature.</p></div>
           <div id="toastBox"></div>
           <p class="small muted" style="margin:8px 0 0">Approvals expire after 24h. Execution re-runs the CAS check; row&nbsp;count&nbsp;0 = state moved, action rejected.</p>
         </div>
@@ -226,17 +271,18 @@
   </section>
 </div>
 
-<!-- ============== S3 : ACTION FLOW MODAL ============== -->
+<!-- ============== S3 : ACTION SLIP ============== -->
 <div id="overlay" hidden>
   <div id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
     <h3 id="mTitle">Action</h3>
     <div class="ctx" id="mCtx"></div>
     <form id="mForm" novalidate>
+      <div id="mExtraField"></div>
       <label for="mReason">Reason <span class="req">*</span></label>
       <textarea id="mReason" required></textarea>
       <label for="mTicket">Ticket reference <span class="req">*</span></label>
       <input type="text" id="mTicket" placeholder="OPS-12345" required>
-      <div class="effect"><b>Effect preview (computed read-only under the obligation lock)</b><span id="mEffect"></span></div>
+      <div class="effect"><b>Effect preview (computed read-only under the obligation lock)</b><span id="mEffect"></span><div id="mEffectTable"></div></div>
       <p class="ferr" id="mErr">Reason and ticket reference are both mandatory.</p>
       <div class="mbtns">
         <button type="button" class="btn" id="mCancel">Cancel</button>
@@ -264,8 +310,7 @@ var DETAILS = {
       ["2026-07-02 06:58:12Z", "ENRICHING → READY_TO_POST (trigger: ORCHESTRATOR)"],
       ["2026-07-02 06:58:14Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
       ["2026-07-02 06:58:20Z", "POSTING → NEEDS_REVIEW (trigger: PROVIDER_RESPONSE, error: UNMAPPED_CODE:AC99)"]
-    ],
-    parked: []
+    ]
   },
   tr88395: {
     scope: "TRD-88395 · FEE · ****7810 · USD", biz: "TRD-88395",
@@ -280,8 +325,7 @@ var DETAILS = {
       ["2026-07-03 08:31:44Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
       ["2026-07-03 08:31:52Z", "POSTING → COMMITTED_WAITING_CONFIRMATION (trigger: PROVIDER_RESPONSE, accepted)"],
       ["2026-07-03 10:02:15Z", "COMMITTED_WAITING_CONFIRMATION → NEEDS_REVIEW (trigger: FEED_SETTLEMENT, amount 1,250.00 ≠ 1,250.50 → BLOCKED(AMOUNT_MISMATCH), SUB=SUBMITTED; confirmed_amount NOT moved — §8)"]
-    ],
-    parked: []
+    ]
   },
   tr88430: {
     scope: "TRD-88430 · SETTLEMENT · ****4321 · JPY", biz: "TRD-88430",
@@ -296,8 +340,7 @@ var DETAILS = {
       ["2026-07-04 21:12:09Z", "POSTING → POST_FAILED_RETRYABLE (trigger: PROVIDER_RESPONSE, error: INSUFFICIENT_ACCOUNT_BALANCE)"],
       ["2026-07-05 05:40:31Z", "POST_FAILED_RETRYABLE → POSTING (trigger: RETRY_SCHEDULER, attempt 5)"],
       ["2026-07-05 05:40:38Z", "POSTING → NEEDS_REVIEW (trigger: RETRY_EXHAUSTION)"]
-    ],
-    parked: []
+    ]
   },
   tr88377: {
     scope: "TRD-88377 · SETTLEMENT · ****2209 · EUR", biz: "TRD-88377",
@@ -311,8 +354,7 @@ var DETAILS = {
       ["2026-06-29 07:03:55Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
       ["2026-06-29 07:04:01Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
       ["2026-06-29 07:04:01Z", "reservation committed 20.00 EUR (obligation lock)"]
-    ],
-    parked: []
+    ]
   },
   tr88401: {
     scope: "TRD-88401 · FEE · ****4321 · EUR", biz: "TRD-88401",
@@ -326,8 +368,7 @@ var DETAILS = {
       ["2026-07-03 04:44:10Z", "CREATED → ENRICHING (trigger: ORCHESTRATOR)"],
       ["2026-07-03 04:44:18Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
       ["2026-07-03 04:44:19Z", "provider ACK received; awaiting outcome event"]
-    ],
-    parked: []
+    ]
   },
   tr88350: {
     scope: "TRD-88350 · SETTLEMENT · ****9077 · USD", biz: "TRD-88350",
@@ -343,8 +384,22 @@ var DETAILS = {
       ["2026-07-04 09:15:10Z", "POSTING → UNKNOWN (trigger: CLAIM_EXPIRY)"],
       ["2026-07-04 21:15:10Z", "status query cycle 1: provider returned NOT_FOUND (before trust-age = INDETERMINATE, §9.2) (trigger: UNKNOWN_RESOLVER)"],
       ["2026-07-05 09:15:11Z", "status query cycle 2: provider timeout (trigger: UNKNOWN_RESOLVER)"]
+    ]
+  },
+  tr88367: {
+    scope: "TRD-88367 · SETTLEMENT · ****2209 · USD", biz: "TRD-88367",
+    required: "60,000.00 USD", committed: "75,000.00 USD", confirmed: "0.00 USD",
+    step: "IN_PROGRESS",
+    exc: { text: "PAYMENT_OUTCOME_UNKNOWN · RANK 1 · CRITICAL (AMENDMENT_PARKED — request amount 75,000 stale vs required 60,000)", cls: "crit" },
+    requests: [
+      { id: "REQ-102281", amount: "75,000.00 USD", status: "NEEDS_REVIEW", sub: "MAYBE_SUBMITTED", staleAmount: true, attempts: 1, next: "resolver keeps querying (§9.5)", uetr: "c47d90b1-8e26-4f5a-9c03-6b1e82d47f29" }
     ],
-    parked: []
+    log: [
+      ["2026-07-06 09:20:33Z", "READY_TO_POST → POSTING (trigger: ORCHESTRATOR)"],
+      ["2026-07-06 09:21:40Z", "POSTING → UNKNOWN (trigger: READ_TIMEOUT — MAYBE_SUBMITTED)"],
+      ["2026-07-06 11:02:05Z", "amendment applied: required 75,000.00 → 60,000.00 (ordering newer, §6.7)"],
+      ["2026-07-06 11:02:05Z", "UNKNOWN → NEEDS_REVIEW (trigger: AMENDMENT — BLOCKED(AMENDMENT_PARKED), §6.4: release forbidden on MAYBE; wait-then-decide)"]
+    ]
   },
   tr88322: {
     scope: "TRD-88322 · SETTLEMENT · ****4321 · EUR", biz: "TRD-88322",
@@ -357,26 +412,45 @@ var DETAILS = {
     log: [
       ["2026-06-23 10:02:44Z", "POSTING → POSTED (trigger: PROVIDER_OUTCOME, confirmed 10,000.00 EUR)"],
       ["2026-06-23 14:31:08Z", "feed event confirmed +20.00 EUR; overpay_blocked latch SET (confirmed > required)"]
-    ],
-    parked: []
+    ]
   }
 };
-/* Note (v4): there is NO parked-event store (§2.3). Unmatched feed
-   events are logged, counted, and acked; real missed outcomes are
-   recovered by the §9 status-query sweep, keyed by persisted identity. */
 
-/* action catalog — gated on DIMENSION columns (§10.1: labels and
-   blocked_reason are display-only; release actions only where
-   submission_state = NOT_SUBMITTED; MAYBE/SUBMITTED rows get the
-   §9.3 action set). guard: operator | 4eyes | dual */
-var ACTION_GUARDS = { RETRY: "4eyes", REJECT: "4eyes", SUPERSEDE: "4eyes", RESOLVE_NOW: "operator", DOWNGRADE_REPOST: "4eyes", APPLY_VERIFIED: "dual", ACK_OVERPAY: "operator" };
+/* O12 tie record — the preserved payload IS the input (never free-typed amounts) */
+var TIE = {
+  ref: "TIE-0709-88360", biz: "TRD-88360", ordering: "2026-07-09T14:02:11Z",
+  blocks: [
+    { tuple: "SETTLEMENT · ****5501 · EUR", stored: "200,000.00", tied: "215,000.00", effect: "amend +15,000.00; shortfall +15,000.00 → successor WILL be created (§6.8)" },
+    { tuple: "FEE · ****5501 · EUR",        stored: "950.00",     tied: "950.00",     effect: "identical — no-op" }
+  ]
+};
+
+/* action catalog — gated on DIMENSION columns (§10.1). guard: operator | 4eyes | dual */
+var ACTION_GUARDS = { RETRY:"4eyes", REJECT:"4eyes", SUPERSEDE:"4eyes", RESOLVE_NOW:"operator",
+  DOWNGRADE_REPOST:"4eyes", STALE_REPOST:"dual", PLATFORM_REJECT_ASK:"operator",
+  APPLY_VERIFIED:"dual", APPLY_TIED:"4eyes", ACK_OVERPAY:"operator" };
+
+/* returns [label, ACTION, guard, disabledTitle?] */
 function actionsFor(r) {
   if (r.status === "OVERPAY_LATCH") return [["Annotate", "ACK_OVERPAY", "operator"]];
-  if (r.status === "POSTING") return []; /* POST·CLAIMED — a live claim owns its row (§6.4/§11); lease expiry → MAYBE is the only exit */
+  if (r.status === "POSTING") return []; /* POST·CLAIMED — a live claim owns its row (§11) */
   if (r.status === "COMMITTED_WAITING_CONFIRMATION") return [["Resolve now", "RESOLVE_NOW", "operator"]];
-  if (r.status === "UNKNOWN" || (r.status === "NEEDS_REVIEW" && r.sub !== "NOT_SUBMITTED"))
+  if (r.status === "UNKNOWN" || (r.status === "NEEDS_REVIEW" && r.sub !== "NOT_SUBMITTED")) {
     /* §9.3 action set — release actions FORBIDDEN on MAYBE/SUBMITTED (§10.1) */
-    return [["Resolve now", "RESOLVE_NOW", "operator"], ["Downgrade re-POST", "DOWNGRADE_REPOST", "4eyes"], ["Apply platform-verified outcome", "APPLY_VERIFIED", "dual"]];
+    var a = [["Resolve now", "RESOLVE_NOW", "operator"]];
+    if (r.staleAmount) {
+      a.push(["Downgrade re-POST", "DOWNGRADE_REPOST", "4eyes",
+        "repost_permitted FAILS (stale amount, §7.0) — the downgrade never un-parks a row for an action the gate forbids (§9.2)"]);
+      a.push(["Stale-amount re-POST", "STALE_REPOST", "dual"]);
+    } else {
+      a.push(["Downgrade re-POST", "DOWNGRADE_REPOST", "4eyes"]);
+      a.push(["Stale-amount re-POST", "STALE_REPOST", "dual",
+        "enabled only when repost_permitted fails SOLELY on the amount-staleness term (§7.0 — the single overridable term)"]);
+    }
+    a.push(["Request platform reject", "PLATFORM_REJECT_ASK", "operator"]);
+    a.push(["Apply platform-verified outcome", "APPLY_VERIFIED", "dual"]);
+    return a;
+  }
   if (r.status === "NEEDS_REVIEW") /* NOT_SUBMITTED: release guard passes */
     return [["Retry", "RETRY", "4eyes"], ["Reject", "REJECT", "4eyes"], ["Supersede", "SUPERSEDE", "4eyes"]];
   return [];
@@ -389,8 +463,11 @@ function effectText(action, item, d) {
     case "REJECT":      return "REJECT sets " + item.id + " → outcome REJECTED (release guard: NOT_SUBMITTED only, §10.1; the §10.3 trigger backstop refuses otherwise). Exactly one marker set (L9). Releases " + amt + " reservation; shortfall becomes " + amt + "; step re-derived.";
     case "SUPERSEDE":   return "SUPERSEDE sets " + item.id + " → SUPERSEDED (release guard: NOT_SUBMITTED only, §10.1). Releases " + amt + " reservation; §6.8 may create a right-sized successor; step remains IN_PROGRESS.";
     case "RESOLVE_NOW": return "Triggers one status-query cycle for " + item.id + " via the §9.5 ops-triggered mode; outcome applied through the normal evidence path (§9.1/§9.4). No direct state mutation by the console.";
-    case "DOWNGRADE_REPOST": return "Ops-triggered §9.2 downgrade: " + item.id + " → POST·RETRY_WAIT (submission_state stays MAYBE_SUBMITTED); same idempotency key, instruction assembled fresh (§7.0). Fires ONLY where repost_permitted passes — divergent payload, passed cutoff, or a stale amount block it (stale amount has the separate dual-control override, §7.0).";
+    case "DOWNGRADE_REPOST": return "Ops-triggered §9.2 downgrade: " + item.id + " → POST·RETRY_WAIT (submission_state stays MAYBE_SUBMITTED); same idempotency key, instruction assembled fresh (§7.0). Fires ONLY where repost_permitted passes — divergent payload, passed cutoff, or a stale amount block it.";
+    case "STALE_REPOST": return "Dual-control override of the ONE overridable repost_permitted term (§7.0 — amount staleness): " + item.id + " → POST·RETRY_WAIT · MAYBE. Knowing re-POST of the request's own IMMUTABLE amount " + amt + " against required " + d.required + " — if the original also executed, the overpay latch is the designed catch. Cutoff, divergent payload, and terminal outcomes are NEVER overridable.";
+    case "PLATFORM_REJECT_ASK": return "Records a TL-10 ask (O9): request the payment platform to formally REJECT " + item.id + " by UETR/idempotency key. If granted, the negative flows back through the normal feed/query evidence path (§9.4) — the CLEAN exit; the console mutates nothing.";
     case "APPLY_VERIFIED": return "Invokes the §9.3 apply-platform-verified-outcome AUDITED STORED PROCEDURE (exists at MVP, §18-3) for " + item.id + ": verified EXECUTED (+confirmed under amount equality, SUB=SUBMITTED) or REJECTED (provider_rejected marker, reservation released). Dual control + ticket ENFORCED BY THE PROCEDURE; evidence session flag set legitimately; refuses CLAIMED/terminal/mismatch; every use raises a §15 alert.";
+    case "APPLY_TIED":  return "O12 (§20-10): TRADE-level application of the chosen tied snapshot for " + TIE.biz + " from tie record " + TIE.ref + " (payload from the record, never typed). Re-runs the §6.1 fan-out with strictly-newer relaxed to ≥ for exactly ordering " + TIE.ordering + ". Every money guard applies unchanged (§6.4 retry-guard, §6.5 latch, §6.8 markers, I6) — this adjudicates ORDERING only. Per-block effect:";
     case "ACK_OVERPAY": return "Writes ops_annotation (§2.1) — display only, NO state change (§13 one-way latch; never cleared). Overpay latch on " + d.scope + " remains set; acknowledgement recorded with ticket reference.";
     default:            return "";
   }
@@ -398,31 +475,34 @@ function effectText(action, item, d) {
 
 /* ---------- state ---------- */
 var role = "operator";
-var pendings = [];           // {apprId, action, itemId, detailKey, ticket, guardLabel}
-var pendingByItem = {};      // itemId -> pending
-var executedByItem = {};     // itemId -> action
+var OPERATOR_SIG = "R. Okafor", APPROVER_SIG = "M. Lindqvist";
+var pendings = [];           // {apprId, action, itemId, detailKey, ticket}
+var pendingByItem = {};
+var executedByItem = {};
 var apprSeq = 4711;
 var currentDetail = null;
 var modalCtx = null;
 var lastFocus = null;
 
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function scopeFor(key) { return key === "__tie" ? (TIE.biz + " (tied snapshot " + TIE.ordering + ")") : DETAILS[key].scope; }
 
 /* ---------- role gating ---------- */
 function gateTitle(guard) {
   if (role === "viewer") return "requires operator role";
-  if (role === "approver") return (guard === "4eyes" || guard === "dual") ? "approver cannot initiate approval-gated actions" : "requires operator role";
+  if (role === "approver") return (guard === "4eyes" || guard === "dual") ? "approver cannot initiate what they countersign" : "requires operator role";
   return "";
 }
 function guardLabel(g) { return g === "4eyes" ? "4-eyes" : g === "dual" ? "dual-control (procedure-enforced)" : "operator"; }
 function applyRole() {
   document.querySelectorAll("button.act").forEach(function (b) {
-    var t = gateTitle(b.dataset.guard);
+    var pre = b.dataset.blocked || "";           /* precondition gate (repost_permitted etc.) wins over role */
+    var t = pre || gateTitle(b.dataset.guard);
     b.disabled = !!t; b.title = t || "";
   });
   document.querySelectorAll("button.appr").forEach(function (b) {
     b.disabled = role !== "approver";
-    b.title = role !== "approver" ? "requires approver role" : "";
+    b.title = role !== "approver" ? "countersignature requires approver role" : "";
   });
 }
 document.getElementById("roleSel").addEventListener("change", function () {
@@ -450,12 +530,14 @@ document.getElementById("backLink").addEventListener("click", function (e) {
 });
 
 function actionCellHtml(itemId, detailKey, actions) {
-  if (executedByItem[itemId]) return '<span class="chip ok">Executed · ' + esc(executedByItem[itemId]) + "</span>";
-  if (pendingByItem[itemId]) return '<span class="chip pend">Pending approval · ' + esc(pendingByItem[itemId].action) + "</span>";
+  if (executedByItem[itemId]) return '<span class="stamp">Executed · CAS=1</span>';
+  if (pendingByItem[itemId]) return '<span class="stamp pend">awaiting countersign · ' + esc(pendingByItem[itemId].action) + "</span>";
   return actions.map(function (a) {
+    var gcls = a[2] === "dual" ? "dual" : a[2] === "4eyes" ? "eyes" : "";
     return '<button type="button" class="act" data-guard="' + a[2] + '" data-action="' + a[1] +
-      '" data-item="' + itemId + '" data-detail="' + detailKey + '">' + a[0] + "</button>" +
-      '<span class="guard">' + guardLabel(a[2]) + "</span> ";
+      '" data-item="' + itemId + '" data-detail="' + detailKey + '"' +
+      (a[3] ? ' data-blocked="' + esc(a[3]) + '"' : "") + ">" + a[0] + "</button>" +
+      '<span class="guard ' + gcls + '">' + guardLabel(a[2]).replace(" (procedure-enforced)", "") + "</span> ";
   }).join("");
 }
 
@@ -465,7 +547,7 @@ function showDetail(key) {
   var h = "";
   h += "<h2>Payment detail — <span class='mono'>" + esc(d.scope) + "</span></h2>";
   h += "<div class='hdrgrid'>";
-  h += "<dl><dt>Scope key</dt><dd class='mono'>" + esc(d.scope) + "</dd></dl>";
+  h += "<dl><dt>Scope key</dt><dd>" + esc(d.scope) + "</dd></dl>";
   h += "<dl><dt>Required</dt><dd>" + esc(d.required) + "</dd></dl>";
   h += "<dl><dt>Committed (reserved)</dt><dd>" + esc(d.committed) + "</dd></dl>";
   h += "<dl><dt>Confirmed</dt><dd>" + esc(d.confirmed) + "</dd></dl>";
@@ -486,12 +568,12 @@ function showDetail(key) {
         "</td><td class='actcell'>" + (acts.length ? actionCellHtml(r.id, key, acts) : "<span class='muted small'>none for this state" + (r.status === "POSTING" ? " — live claim owns the row (§11); lease expiry → MAYBE is the only exit" : "") + "</span>") + "</td></tr>";
     });
     h += "</tbody></table>";
-    h += "<p class='small muted'>Labels are §10.4 display projections of the dimension tuple; actions are gated on the DIMENSIONS (never on labels or blocked_reason, §10.1). Release actions (Reject/Supersede) appear only for NOT_SUBMITTED rows; MAYBE/SUBMITTED rows get the §9.3 action set. Mutations run the same CAS UPDATE + obligation-lock flow as the orchestrator; row count 0 = state moved, re-fetch. The §10.3 trigger backstop refuses any guard-violating write regardless of this UI.</p>";
+    h += "<p class='small muted'>Labels are §10.4 display projections of the dimension tuple; actions are gated on the DIMENSIONS (never on labels or blocked_reason, §10.1). Release actions (Reject/Supersede) appear only for NOT_SUBMITTED rows; MAYBE/SUBMITTED rows get the §9.3 action set (incl. O8 stale re-POST — enabled only where repost_permitted fails solely on staleness — and the O9 TL-10 ask). Mutations run the same CAS + obligation-lock flow as the orchestrator; row count 0 = state moved, re-fetch. The §10.3 trigger backstop refuses any guard-violating write regardless of this UI.</p>";
   } else {
     h += "<p class='small muted'>No payment requests for this scope.</p>";
   }
 
-  h += "<h3>Transition history <span class='muted small' style='font-weight:400'>(read from the log store, keyed by request_id — the console keeps no journal)</span></h3>";
+  h += "<h3>Transition history <span class='muted' style='font-weight:400;text-transform:none;letter-spacing:0'>(read from the log store, keyed by request_id — the console keeps no journal)</span></h3>";
   h += "<ul class='timeline'>";
   d.log.forEach(function (l) { h += "<li><span class='ts'>" + esc(l[0]) + "</span>" + esc(l[1]) + "</li>"; });
   h += "</ul>";
@@ -502,7 +584,7 @@ function showDetail(key) {
   applyRole();
 }
 
-/* delegate clicks on action buttons (detail body is re-rendered) */
+/* delegate clicks on action buttons */
 document.addEventListener("click", function (e) {
   var b = e.target.closest ? e.target.closest("button.act") : null;
   if (b && !b.disabled) openModal(b.dataset.action, b.dataset.item, b.dataset.detail);
@@ -511,22 +593,34 @@ document.addEventListener("click", function (e) {
 /* ---------- S3 modal ---------- */
 var overlay = document.getElementById("overlay");
 function findItem(d, itemId) {
-  var i;
-  for (i = 0; i < d.requests.length; i++) if (d.requests[i].id === itemId) return d.requests[i];
+  if (!d) return { id: itemId, amount: "" };
+  for (var i = 0; i < d.requests.length; i++) if (d.requests[i].id === itemId) return d.requests[i];
   return { id: itemId, amount: "" };
 }
 function openModal(action, itemId, detailKey) {
-  var d = DETAILS[detailKey], item = findItem(d, itemId);
+  var d = detailKey === "__tie" ? null : DETAILS[detailKey];
+  var item = findItem(d, itemId);
   var guard = ACTION_GUARDS[action] || "operator";
   modalCtx = { action: action, itemId: itemId, detailKey: detailKey, guard: guard };
   lastFocus = document.activeElement;
   document.getElementById("mTitle").textContent = action.replace(/_/g, " ") + " (" + guardLabel(guard) + ")";
-  document.getElementById("mCtx").textContent = itemId + " · " + d.scope;
-  document.getElementById("mEffect").textContent = effectText(action, item, d);
+  document.getElementById("mCtx").textContent = itemId + " · " + scopeFor(detailKey);
+  document.getElementById("mEffect").textContent = effectText(action, item, d || { scope: TIE.biz, required: "" });
+
+  /* per-block preview + read-only source ref for O12 */
+  var et = document.getElementById("mEffectTable"), xf = document.getElementById("mExtraField");
+  if (action === "APPLY_TIED") {
+    et.innerHTML = "<table><thead><tr><th>Payment block</th><th>Stored</th><th>Tied snapshot</th><th>Effect</th></tr></thead><tbody>" +
+      TIE.blocks.map(function (b) {
+        return "<tr><td class='mono'>" + esc(b.tuple) + "</td><td class='num'>" + esc(b.stored) + "</td><td class='num'>" + esc(b.tied) + "</td><td>" + esc(b.effect) + "</td></tr>";
+      }).join("") + "</tbody></table>";
+    xf.innerHTML = "<label for='mTieRef'>Tie record (payload source — read-only)</label><input type='text' id='mTieRef' readonly value='" + esc(TIE.ref) + " · ordering " + esc(TIE.ordering) + "'>";
+  } else { et.innerHTML = ""; xf.innerHTML = ""; }
+
   document.getElementById("mReason").value = "";
   document.getElementById("mTicket").value = "";
   document.getElementById("mErr").style.display = "none";
-  document.getElementById("mSubmit").textContent = guard === "dual" ? "Submit for dual-control approval" : guard === "4eyes" ? "Submit for approval" : "Execute (operator)";
+  document.getElementById("mSubmit").textContent = guard === "dual" ? "Submit for dual-control countersignature" : guard === "4eyes" ? "Submit for countersignature" : "Execute (operator)";
   overlay.hidden = false;
   document.getElementById("mReason").focus();
 }
@@ -547,31 +641,34 @@ document.getElementById("mForm").addEventListener("submit", function (e) {
   if (c.guard === "4eyes" || c.guard === "dual") {
     var p = { apprId: "APR-" + (apprSeq++), action: c.action, itemId: c.itemId, detailKey: c.detailKey, ticket: ticket };
     pendings.push(p); pendingByItem[c.itemId] = p;
-    setSlot(c.itemId, '<span class="chip pend">Pending approval</span>');
+    setSlot(c.itemId, '<span class="stamp pend">awaiting countersign</span>');
     renderApprovals();
-    toast("Submitted for approval — " + p.apprId + " (" + c.action + " on " + c.itemId + ", " + ticket + ").", false);
+    toast("Signed and submitted — " + p.apprId + " (" + c.action + " on " + c.itemId + ", " + ticket + "). Executes on the countersignature.", false);
   } else {
     executedByItem[c.itemId] = c.action;
-    setSlot(c.itemId, '<span class="chip ok">Executed</span>');
+    setSlot(c.itemId, '<span class="stamp">Executed · CAS=1</span>');
     toast("Action executed — CAS row count 1 (" + c.action + " on " + c.itemId + ", " + ticket + ").", false);
   }
   closeModal();
   if (currentDetail) showDetail(currentDetail);
 });
 
-/* ---------- approvals panel ---------- */
+/* ---------- countersignature panel ---------- */
 function setSlot(itemId, html) {
   document.querySelectorAll('.slot[data-slot="' + itemId + '"]').forEach(function (s) { s.innerHTML = html; });
 }
 function renderApprovals() {
   document.getElementById("apprCount").textContent = pendings.length;
   var box = document.getElementById("apprList");
-  if (!pendings.length) { box.innerHTML = '<p class="small muted" style="margin:0">No actions awaiting approval.</p>'; return; }
+  if (!pendings.length) { box.innerHTML = '<p class="small muted" style="margin:0">No actions awaiting countersignature.</p>'; return; }
   box.innerHTML = pendings.map(function (p) {
     return '<div class="entry"><div><strong>' + esc(p.action) + "</strong> · <span class='mono'>" + esc(p.itemId) +
-      "</span></div><div class='mono muted'>" + esc(DETAILS[p.detailKey].scope) + "</div><div class='muted'>ticket " + esc(p.ticket) +
-      ' · expires in 24h</div><div style="margin-top:4px"><button type="button" class="appr" data-ok="1" data-id="' + p.apprId +
-      '">Approve</button> <button type="button" class="appr" data-ok="0" data-id="' + p.apprId + '">Reject</button></div></div>';
+      "</span></div><div class='mono muted'>" + esc(scopeFor(p.detailKey)) + "</div><div class='muted'>ticket " + esc(p.ticket) + " · expires in 24h</div>" +
+      '<div class="sigline">' +
+        '<div class="sigbox"><div class="sigpad">' + esc(OPERATOR_SIG) + '</div><div class="siglabel">initiated · operator</div></div>' +
+        '<div class="sigbox empty"><div class="sigpad">awaiting countersign</div><div class="siglabel">approver — cannot be the initiator</div></div>' +
+      "</div>" +
+      '<div><button type="button" class="appr" data-ok="1" data-id="' + p.apprId + '">Countersign &amp; execute</button> <button type="button" class="appr" data-ok="0" data-id="' + p.apprId + '">Refuse</button></div></div>';
   }).join("");
   applyRole();
 }
@@ -584,11 +681,11 @@ document.getElementById("apprList").addEventListener("click", function (e) {
   delete pendingByItem[p.itemId];
   if (b.dataset.ok === "1") {
     executedByItem[p.itemId] = p.action;
-    setSlot(p.itemId, '<span class="chip ok">Executed</span>');
-    toast("Action executed — CAS row count 1 (" + p.action + " on " + p.itemId + ").", false);
+    setSlot(p.itemId, '<span class="stamp">Executed · CAS=1</span>');
+    toast("Countersigned by " + APPROVER_SIG + " — executed, CAS row count 1 (" + p.action + " on " + p.itemId + ").", false);
   } else {
     setSlot(p.itemId, "");
-    toast("Approval rejected — " + p.action + " on " + p.itemId + " discarded; no state change.", true);
+    toast("Countersignature refused — " + p.action + " on " + p.itemId + " discarded; no state change.", true);
   }
   renderApprovals();
   if (currentDetail) showDetail(currentDetail);

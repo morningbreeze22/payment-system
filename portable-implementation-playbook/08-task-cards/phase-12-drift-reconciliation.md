@@ -34,16 +34,16 @@
 ### OB-02 — Reconciliation tripwires
 
 - **Task ID:** OB-02
-- **Title:** Wire the anomaly tripwires: evidence-for-terminal CRITICAL, per-obligation request-count sanity, card multi-row alert
+- **Title:** Wire the anomaly tripwires: evidence-for-terminal CRITICAL, per-obligation request-count sanity
 - **Classification:** MVP normative implementation
 - **Purpose:** §8's anomaly disambiguation + §15's tripwire entries; the §5.2 replay-divergence tripwire is the same alert (post-MVP runbook consumes it).
-- **Prerequisites:** IN-07 (zero-row CAS detection point), RG-08/§12 read path.
-- **Requirement sections / concepts to read:** §8 (anomaly rules), §15 (entries), §12 (defensive rule).
-- **Placeholder components involved:** [Payment Status Feed Consumer], [Metrics / Alerting Layer], card read path.
+- **Prerequisites:** IN-07 (zero-row CAS detection point).
+- **Requirement sections / concepts to read:** §8 (anomaly rules), §15 (entries).
+- **Placeholder components involved:** [Payment Status Feed Consumer], [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** IN-07 in place.
-- **Local code areas to discover:** card lookup site.
-- **How to locate:** read-surface mapping (TL-2-adjacent; local).
-- **Implementation instructions:** evidence-for-terminal: NEW event_id + zero-row CAS against a TERMINAL row → CRITICAL (already hooked in IN-07 — verify + alert-route here); per-obligation request count over sanity threshold → ticket (§15); card lookup returning >1 obligation → error state + alert (§12 defensive rule — never silently pick one).
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** evidence-for-terminal: NEW event_id + zero-row CAS against a TERMINAL row → CRITICAL (already hooked in IN-07 — verify + alert-route here); per-obligation request count over sanity threshold → ticket (§15). (Card lookups returning multiple obligations are the NORMAL case per §12 — result count is never a health signal; no card tripwire exists.)
 - **Do not change:** benign-redelivery silent skip (KNOWN event_id — §8).
 - **Tests to add:** each tripwire fires on its seeded condition; benign redelivery does NOT fire.
 - **Edge cases:** provider-side-count vs local EXECUTED comparison (Section N lists it) requires engine-side data — mark MUST_VERIFY_LOCALLY whether any engine report/API supports it; if not, record as unavailable (the §15 list does not mandate it; Section N flags it as conditional).
@@ -60,7 +60,7 @@
 
 ## Phase handoff summary (P12 → P13)
 
-- **Phase outputs:** I1/I2 drift scan (snapshot + locked re-check, PAGE on confirmed mismatch, L9 verification); terminal-evidence CRITICAL tripwire routed; per-obligation count sanity; card >1-row defensive alert.
+- **Phase outputs:** I1/I2 drift scan (snapshot + locked re-check, PAGE on confirmed mismatch, L9 verification); terminal-evidence CRITICAL tripwire routed; per-obligation count sanity.
 - **Blockers to carry forward:** engine-side count comparison remains CONDITIONAL on a provider report/API (see 14-observability-reconciliation-runbooks.md N.1 note).
 - **Local mapping rows expected filled:** [Reconciliation / Drift Scanner] CONFIRMED incl. the SCN/flashback strategy.
 - **Tests expected to exist:** T-29 (seeded drift pages, skew does not), T-30 (tripwire fires, benign silent).

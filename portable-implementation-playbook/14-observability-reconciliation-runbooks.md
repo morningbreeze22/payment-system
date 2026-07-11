@@ -44,9 +44,9 @@ root-cause incident.
 - stale-marker-write volume (§6.9)     → alert on volume
 - unmatched feed events (§8)           → metric; alert on volume
 - drift scanner mismatches (I1/I2, L9) → PAGE
-- UI/card false-completion prevention: card >1-obligation lookups
-  (§12), completion-predicate anomalies (COMPLETED with active
-  request — should be impossible; presence = defect)  → alert
+- UI/card false-completion prevention: completion-predicate
+  anomalies (COMPLETED with active request — should be impossible;
+  presence = defect)                    → alert
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)

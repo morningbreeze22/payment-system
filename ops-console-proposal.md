@@ -3,7 +3,7 @@
 **Status:** PROPOSAL — FUTURE implementation, pending PO discussion (`requirment-v4.md` §20).
 **PO DECISION (recorded in §20):** the MVP ships WITHOUT an ops execution surface. Interim: dead-end states are exited via controlled manual database procedures under the §10.1 release guard and §10.3 trigger backstops. Exactly ONE procedure is REQUIRED at MVP — the §9.3 **apply-platform-verified-outcome** audited stored procedure (§18 BLOCKING item 3). It exists independently of this console; the console would only ever be a nicer, audited surface over the same machinery.
 **Baseline:** `requirment-v4.md` (v4, factored state model). This revision supersedes the v2-era draft: O4/O5 (replay/discard parked event) are **OBSOLETE** — no parked-event store exists (§2.3); unmatched feed events are log/metric/ack and outcomes recover via the §9 status-query sweep. All state displays use the §10.4 labels; all action preconditions are expressed on the dimension columns (stage, stage_state, submission_state, outcome) — never on labels and never on blocked_reason (§10.1).
-**Updated:** 2026-07-06. **Context:** Payment Orchestration System. Stack: Java (Spring Boot), Oracle, Kafka, Hazelcast.
+**Updated:** 2026-07-10 — revised against `failure-recovery-walkthrough.md`: added **O12 apply-tied-amendment** (the walkthrough's U-9 found §6.7's "manual application" had no operation anywhere), added the §3.1 coverage matrix proving the catalog covers every T3 (ops-action) scenario, and recorded which recoveries deliberately live OUTSIDE this console. **Context:** Payment Orchestration System. Stack: Java (Spring Boot), Oracle, Kafka, Hazelcast.
 
 ---
 
@@ -20,6 +20,7 @@ only guarded manual procedures can execute one:
 | Stuck reservation | active request not progressing (§3 / §15 stuck-reservation alert) | supersede/close — §3 makes this a *required* capability (guarded procedure at MVP, §20-2) |
 | Aged `MAYBE_SUBMITTED` (label UNKNOWN; escalates once per episode to BLOCKED(ESCALATED) on the maybe_since clock, §9.3) | ambiguous POST outcomes, lease expiry, DUPLICATE_REQUEST answers | the §9.3 action set (see O6–O10 below) — **never** a plain release: terminal-negatives on MAYBE/SUBMITTED rows are forbidden unless evidence-driven (§10.1/§9.4) |
 | Overpay latch (`overpay_blocked`, §13) | confirmed > required | today: scope ignored forever (§13 one-way door); ops annotates via the `ops_annotation` field (§2.1, §20-4) — **no state change, no clearing** (clearing is FUTURE, tied to §19.2) |
+| Amendment tie (AMENDMENT_TIE_CONFLICT, §6.7) | two snapshots share an ordering value with DIFFERING payloads — the guard cannot pick a winner, and an upstream resend ties again forever | manual application of the chosen snapshot (O12, NEW). Unlike the rows above this is **not a DB state**: the incoming snapshot was acked and dropped, so the work item is the tie-conflict record itself (alert + §14 log line carrying the canonicalized payload — §6.7 executability requirement / §20-10) |
 
 ~~Parked feed event~~ — **removed**: no parked-event store exists (§2.3); recovery is query-based (§9).
 
@@ -76,14 +77,52 @@ audited UI, not about adding capability.
 | O9 | Request platform-side formal rejection (TL-10) | BLOCKED/aged MAYBE row | external ask to the platform; the negative flows back as authoritative feed/query evidence — the CLEAN exit | operator (records the ask) |
 | O10 | Apply platform-verified outcome | active ∧ MAYBE/SUBMITTED; refuses CLAIMED and terminal rows and amount mismatch | invokes the **existing MVP audited stored procedure** (§9.3, §16.6-8): verified EXECUTED (+confirmed, SUB=SUBMITTED, amount equality) or REJECTED (marker + release); evidence flag set legitimately; every use alerts (§15) | dual-control ENFORCED BY THE PROCEDURE; ticket mandatory |
 | O11 | Retry-after-provider-reject (clear marker) | provider_rejected marker live (≥2 = ops-only clear) | records decision, clears the marker, §6.8 creates a FRESH successor (new key) | **FUTURE** — pending PO approval (§19.3, §18 PO-7) |
+| O12 | Apply tied amendment (**NEW** — closes walkthrough U-9) | a recorded AMENDMENT_TIE_CONFLICT for the trade (§6.7); input = the tie-conflict record's preserved canonicalized snapshot payload, NEVER free-typed amounts | **TRADE-level** (a tie is a whole-snapshot verdict — §6.7 snapshot note: all blocks resolve together): re-runs the §6.1 fan-out for the chosen snapshot with the strictly-newer ordering check relaxed to ≥ for exactly the recorded tied ordering value; per block, under that obligation's lock: apply amounts → set upstream_ordering to the tied value (idempotent) → §6.8 re-evaluation. Blocks whose payload already matches no-op; §6.4/§6.8 guards (retry-guard, latch, markers, I6) apply unchanged — this op adjudicates ORDERING only, it bypasses no money guard | 4-eyes (can initiate money movement via §6.8) |
 | — | Overpay acknowledge/annotate | latch set | writes `ops_annotation` (§2.1) — display only, **no state change**, latch never cleared (§13) | operator |
 | — | Returned-funds adjustment | — | **FUTURE** — blocked on §19.2 | — |
 | — | Posting-freeze flip (kill switch) | — | role-controlled Hazelcast toggle EXISTS today (§16.1); a dedicated audited surface is §20-6 — capability is not blocked on this console | out of console scope |
 
-O1–O3, O7, O8 change money-relevant state or initiate wire attempts →
-4-eyes. O6/O9/annotation push events through existing idempotent paths
-→ single operator. O10's dual control lives in the procedure itself —
-the console only collects the two authenticated approvals.
+O1–O3, O7, O8, O12 change money-relevant state or initiate wire
+attempts → 4-eyes. O6/O9/annotation push events through existing
+idempotent paths → single operator. O10's dual control lives in the
+procedure itself — the console only collects the two authenticated
+approvals.
+
+### 3.1 Coverage matrix — every ops-action scenario in the failure walkthrough
+
+Derived from `failure-recovery-walkthrough.md` (2026-07-10): every
+scenario whose recovery reaches T3 (ops action) maps to a catalog
+operation or a deliberately-external surface. This is the check that
+the catalog is COMPLETE — re-run it whenever the walkthrough changes.
+
+```text
+O1  retry             E-2, E-4 (re-enrich); P-7, P-11, B-6 (re-POST,
+                      repost_permitted-gated, next window)
+O2  reject            P-11 (give-up branch), M-6 (scope abandoned)
+O3  supersede/close   M-5 stuck reservation, M-6 (the §3 required op)
+O6  resolve-now       R-1, R-3 triage, U-12, B-1 investigation, §5.2
+                      ops-triggered key-set mode (post-MVP DR)
+O7  downgrade re-POST P-2 tail, R-2 (after trust-age, gate passes)
+O8  stale re-POST     U-12 amendment-parked MAYBE (the one override)
+O9  TL-10 ask         R-3, U-12 — the clean external negative
+O10 verified outcome  R-3, P-6, H-2/H-3 — the guaranteed un-wedge
+                      (§18 BLOCKING item 3; exists at MVP regardless)
+O11 clear reject      P-10, M-8, B-4 — FUTURE, pending PO-7
+O12 tied amendment    U-9 — was uncovered before this revision
+ann annotation        M-2, M-3, M-4 overpay acknowledgement
+
+OUTSIDE this console, by design:
+freeze flip           P-15, H-6 — role-controlled Hazelcast toggle
+                      exists today (§16.1); §20-6 is only a nicer surface
+DLT replay            U-5, U-18 — Kafka platform tooling (§16.2),
+                      keys preserved
+platform recon        C-6, C-7, M-1, B-5 — money-truth divergence
+                      reconciles in the payment platform (§19.2 policy);
+                      the future manual-adjustment op is the eventual
+                      endpoint, deliberately absent at MVP
+corrected message     U-3, U-6, E-3, P-9, M-7 — upstream is the fix;
+                      no console op can or should substitute for it
+```
 
 ## 4. Architecture
 
@@ -125,7 +164,11 @@ first** (§2.2); stuck reservations by age; MAYBE_SUBMITTED by
 maybe_since age (with cutoff proximity); overpay latches. Each row:
 scope key, business_id, amount, age (episode-anchor clocks, §15),
 last error, §10.4 label chip, deep-link to S2. This is the screen the
-§15 alerts link to. (Parked-events queue removed.) Multi-payment note
+§15 alerts link to. (Parked-events queue removed.) Tie-conflict note
+(O12): ties have NO queue table — there is no DB state to derive one
+from (the snapshot was acked and dropped); the AMENDMENT_TIE_CONFLICT
+alert deep-links straight to the S3 flow for O12, carrying the
+tie-conflict record reference. Multi-payment note
 (§1 contract facts): a business_id can map to SEVERAL obligations —
 queues stay keyed per obligation, and S1/S2 offer a business_id
 filter/grouping so an operator can see a whole trade's payments
@@ -148,7 +191,11 @@ reference (mandatory, validated), a **preview of effect** computed
 read-only under the obligation lock ("SUPERSEDE releases 20.00 EUR;
 shortfall becomes 20.00; step remains IN_PROGRESS"), then submit →
 pending approval. O10 additionally captures the platform-records
-evidence reference and the second approver.
+evidence reference and the second approver. O12's preview is
+per-block ("block (T1, ACC-1, EUR): required 100 → 120, shortfall
++20, successor WILL be created; block (T2, ACC-2, EUR): identical —
+no-op") so the approver sees exactly which payments the tied snapshot
+would move.
 
 ## 6. API sketch
 
@@ -161,6 +208,9 @@ POST /requests/{id}/resolve-now              {reason, ticketRef}                
 POST /requests/{id}/downgrade-repost         {reason, ticketRef}                  (O7; repost_permitted-gated)
 POST /requests/{id}/stale-amount-repost      {reason, ticketRef, secondApprover}  (O8; staleness override only)
 POST /requests/{id}/platform-verified-outcome {outcome: EXECUTED|REJECTED, evidenceRef, ticketRef, approvers[2]} (O10 → §9.3 procedure)
+POST /trades/{businessId}/apply-tied-amendment {tieRecordRef, reason, ticketRef}     (O12; trade-level — payload comes
+                                                                                     from the tie-conflict record, never
+                                                                                     from the request body)
 POST /approvals/{id}/approve | /reject
 ```
 
@@ -175,7 +225,7 @@ surfaces the CAS row count. (Parked-event endpoints removed.)
 | — | **Already at MVP, outside this console:** the §9.3 apply-platform-verified-outcome stored procedure + drill (§18 BLOCKING item 3); guarded manual procedures for O1–O3-equivalents; role-controlled posting-freeze toggle (§16.1) | the guaranteed MAYBE-row terminal exit exists before any console ships |
 | P0 | S1 + S2 read-only (queues, detail, log timeline) | kills "where do I even look"; no approval machinery; can ship first |
 | P1 | O6 resolve-now, O9 TL-10 ask capture, overpay annotation (`ops_annotation`) | non-monetary, single-operator |
-| P2 | O1–O3 with 4-eyes; O7/O8 downgrade lane; O10 as a UI wrapper over the existing procedure | the money-touching operations; requires the PO decisions below |
+| P2 | O1–O3 with 4-eyes; O7/O8 downgrade lane; O10 as a UI wrapper over the existing procedure; O12 tied-amendment application | the money-touching operations; requires the PO decisions below |
 | P3 | O11 retry-after-provider-reject (needs §18 PO-7 approval); returned-funds adjustment (blocked on §19.2) | future money-policy operations |
 
 ## 8. Open questions for the PO discussion (aligned to §20)
@@ -199,3 +249,9 @@ surfaces the CAS row count. (Parked-event endpoints removed.)
 7. §20-3: may ops trigger the resolver ahead of schedule (O6) freely,
    or rate-limited (the §9.5 sweep budget shares the engine's
    query-API quota, TL-13)?
+8. O12 (tie application, §20-10): confirm the interim form — until
+   the console ships, is the controlled manual procedure acceptable
+   for what §6.7 expects to be a rare event (ties disappear entirely
+   once upstream ask 1's explicit sequence field arrives)? And who
+   adjudicates WHICH tied snapshot is the business truth — ops alone,
+   or ops + upstream confirmation?

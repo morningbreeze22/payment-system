@@ -320,7 +320,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C40 | §9.5 | Resolver scope keyed on submission_state+outcome ONLY; bounded prioritized sweep; per-row backoff; never-overlap; SUBMITTED damping | MVP | RC-05 | TL-13 (rate limit) | yes | yes | yes |
 | C41 | §10.1–10.5 | Factored state model: global rules, per-dimension transitions, legality matrix L1–L9, display labels (no rule keys on label or blocked_reason) | MVP | ST-01..08, S-05..06 | S-xx | yes | yes | no |
 | C42 | §11 | Two-tier concurrency (obligation lock + request CAS); lock ordering; claims as leases; posting-claim persistence; ambiguous claim-commit; lease-expiry recovery; graceful shutdown | MVP | ST-02, ST-09..11 | S-xx | yes | yes | no |
-| C43 | §12 | Card read model: business_id-only lookup, >1 row = error+alert, NOT_STARTED = absence, unavailable ≠ stale, freshness/lag indicator | MVP + QUESTION (TL-2 read contract) | RG-08..09, OB-04 | B-01 | no | yes | yes |
+| C43 | §12 | Card read model: business_id-only lookup returning ALL of the trade's obligations (one entry per payment; multiple results = NORMAL, never a health signal), NOT_STARTED = absence, unavailable ≠ stale, freshness/lag indicator | MVP + QUESTION (TL-2 read contract) | RG-08..09, OB-04 | B-01 | no | yes | yes |
 | C44 | §13 | Exception categories/severities; overpay latch = one-way door, ignore-forward, alert on set | MVP | RG-04, RG-09 | — | no | yes | no |
 | C45 | §14 | No journal; structured CAS log line (key+seq+dimensions before→after); posting-claim line carries sent hash; 90-day retention floor | MVP | ST-08 | — | no | yes | no |
 | C46 | §15 | Monitoring list (drift page, MAYBE ages, BLOCKED queue, marker alerts, freeze-effective page, watchdogs); clock discipline (episode anchors); alert rollup | MVP | OB-03..05 | P6–P12 | yes | yes | no |
@@ -4083,16 +4083,16 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 ### OB-02 — Reconciliation tripwires
 
 - **Task ID:** OB-02
-- **Title:** Wire the anomaly tripwires: evidence-for-terminal CRITICAL, per-obligation request-count sanity, card multi-row alert
+- **Title:** Wire the anomaly tripwires: evidence-for-terminal CRITICAL, per-obligation request-count sanity
 - **Classification:** MVP normative implementation
 - **Purpose:** §8's anomaly disambiguation + §15's tripwire entries; the §5.2 replay-divergence tripwire is the same alert (post-MVP runbook consumes it).
-- **Prerequisites:** IN-07 (zero-row CAS detection point), RG-08/§12 read path.
-- **Requirement sections / concepts to read:** §8 (anomaly rules), §15 (entries), §12 (defensive rule).
-- **Placeholder components involved:** [Payment Status Feed Consumer], [Metrics / Alerting Layer], card read path.
+- **Prerequisites:** IN-07 (zero-row CAS detection point).
+- **Requirement sections / concepts to read:** §8 (anomaly rules), §15 (entries).
+- **Placeholder components involved:** [Payment Status Feed Consumer], [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** IN-07 in place.
-- **Local code areas to discover:** card lookup site.
-- **How to locate:** read-surface mapping (TL-2-adjacent; local).
-- **Implementation instructions:** evidence-for-terminal: NEW event_id + zero-row CAS against a TERMINAL row → CRITICAL (already hooked in IN-07 — verify + alert-route here); per-obligation request count over sanity threshold → ticket (§15); card lookup returning >1 obligation → error state + alert (§12 defensive rule — never silently pick one).
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** evidence-for-terminal: NEW event_id + zero-row CAS against a TERMINAL row → CRITICAL (already hooked in IN-07 — verify + alert-route here); per-obligation request count over sanity threshold → ticket (§15). (Card lookups returning multiple obligations are the NORMAL case per §12 — result count is never a health signal; no card tripwire exists.)
 - **Do not change:** benign-redelivery silent skip (KNOWN event_id — §8).
 - **Tests to add:** each tripwire fires on its seeded condition; benign redelivery does NOT fire.
 - **Edge cases:** provider-side-count vs local EXECUTED comparison (Section N lists it) requires engine-side data — mark MUST_VERIFY_LOCALLY whether any engine report/API supports it; if not, record as unavailable (the §15 list does not mandate it; Section N flags it as conditional).
@@ -4133,7 +4133,7 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 ### OB-04 — Queue/flow/stuck alert set
 
 - **Task ID:** OB-04
-- **Title:** Implement the flow-health alerts: unmatched events, stale messages/marker-writes, DLT depth, consumer lag, scanner heartbeats, stuck-state, sweep overrun, watchdogs, card >1, deadlocks
+- **Title:** Implement the flow-health alerts: unmatched events, stale messages/marker-writes, DLT depth, consumer lag, scanner heartbeats, stuck-state, sweep overrun, watchdogs, deadlocks
 - **Classification:** MVP normative implementation
 - **Purpose:** the flow-facing half of §15 incl. the observed-lag watchdog (ingest-lag config wrong) and generic stuck-state split rule.
 - **Prerequisites:** IN-05/06 (unmatched metric), IN-02 (stale counter), IN-09 (DLT/lag), RC-05 (overrun metric), RC-07 (watchdog data).
@@ -4142,7 +4142,7 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 - **Local placeholder mappings required before starting:** metric sources wired by prior tasks.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** unmatched feed events (volume alert); stale upstream messages volume; stale-marker-writes volume; Kafka DLT depth > 0 → page; consumer lag per flow → page over SLA + drive the §12 card data-as-of/lag indicator; scanner heartbeat (silent 3× interval → page); generic stuck-state per (stage,stage_state) max ages — split per §15: retry states on retry_deadline_at passed without exhaustion; non-churning states on state_changed_at; resolver sweep overrun (repeat → alert); observed-lag watchdog (feed-confirmed payment that was NOT_FOUND past trust-age → alert); card >1 obligation (OB-02 cross-ref); ORA-00060 deadlock count → ticket; inbox growth vs purge → health metric; metric ABSENCE = bad (dead-gauge alerting per §15 practices).
+- **Implementation instructions:** unmatched feed events (volume alert); stale upstream messages volume; stale-marker-writes volume; Kafka DLT depth > 0 → page; consumer lag per flow → page over SLA + drive the §12 card data-as-of/lag indicator; scanner heartbeat (silent 3× interval → page); generic stuck-state per (stage,stage_state) max ages — split per §15: retry states on retry_deadline_at passed without exhaustion; non-churning states on state_changed_at; resolver sweep overrun (repeat → alert); observed-lag watchdog (feed-confirmed payment that was NOT_FOUND past trust-age → alert); ORA-00060 deadlock count → ticket; inbox growth vs purge → health metric; metric ABSENCE = bad (dead-gauge alerting per §15 practices).
 - **Do not change:** SLA values without owners (config §16.6).
 - **Tests to add:** seeded per alert where testable; dead-gauge behavior verified for at least the drift gauge.
 - **Edge cases:** duplicate-skip spikes during replays must read healthy on dashboards (§15 practice — dashboard note, not an alert change).
@@ -5111,9 +5111,9 @@ Tests: seeded I1/I2 violations page; read-skew non-page; L9 detection. Stop: mer
 
 ```text
 [OB-02] Reconciliation tripwires
-Read: §8 (anomaly) §15 §12 (defensive rule). Invariant: NEW event_id + zero-row CAS on a TERMINAL row = CRITICAL; benign redelivery (known event_id) = silent skip.
-Placeholders: [Payment Status Feed Consumer] [Metrics / Alerting Layer], card read path. Mappings: IN-07.
-Objective: terminal-evidence CRITICAL routed; per-obligation count sanity ticket; card >1-row error+alert.
+Read: §8 (anomaly) §15. Invariant: NEW event_id + zero-row CAS on a TERMINAL row = CRITICAL; benign redelivery (known event_id) = silent skip.
+Placeholders: [Payment Status Feed Consumer] [Metrics / Alerting Layer]. Mappings: IN-07.
+Objective: terminal-evidence CRITICAL routed; per-obligation count sanity ticket.
 Tests: each fires; benign doesn't. Stop: merged.
 ```
 
@@ -5663,18 +5663,20 @@ Implemented by: OB-02, IN-07.
 ```text
 Section: §12, §4.1, §4.2, §10.4   Type: INTEGRATION   Blocking: YES
 Purpose: the card never lies: no false completion, correct exception
-         precedence, defensive lookup.
+         precedence, correct multi-obligation lookup.
 Setup:   scopes at each §4-derivable state incl. anchors, MAYBE rows,
-         latched overpay, reopened steps; a seeded duplicate
-         business_id pair.
+         latched overpay, reopened steps; a multi-payment trade
+         (several obligations under one business_id).
 Action:  read through the card path.
 Expect:  NOT_STARTED = absence; anchors show DATA_VALIDATION_FAILED;
          MAYBE shows PAYMENT_OUTCOME_UNKNOWN (rank 1, never
-         SYSTEM_UNAVAILABLE); labels per §10.4; >1 obligation → error
-         state + alert; unavailable ≠ stale-as-authoritative.
-Failure: false completion (the predicate's whole point) or a silent
-         pick between duplicate scopes.
-Implemented by: RG-08/09, ST-04, OB-02.
+         SYSTEM_UNAVAILABLE); labels per §10.4; the multi-payment
+         trade returns ALL its obligations, one entry per payment —
+         result count is never an error or alert (§12);
+         unavailable ≠ stale-as-authoritative.
+Failure: false completion (the predicate's whole point) or a
+         multi-payment trade surfacing as an error or partial result.
+Implemented by: RG-08/09, ST-04.
 ```
 
 ### T-32 — Observability / alerting
@@ -5724,6 +5726,7 @@ tests.
 | Q-18 | MEDIUM | Provider | TL-1: does the status feed carry a stable, unique event_id per event? If not: choose synthesis (payload hash vs topic+partition+offset) and accept its dedup blind spots. | CA-2, IN-05 |
 | Q-19 | MEDIUM | Tech lead / UI team | TL-2: card read contract — query API vs replica/view, field list (step timestamps; retry progress "next attempt at / attempt N of M"), freshness SLA incl. replica lag, authentication, volume. And PO-5: step display for a trade cancelled after the step started (currently "completed" — acceptable?). | §12 read surface, OB-04 lag indicator |
 | Q-20 | MEDIUM | PO / tech lead | Remaining §18 sign-offs: PO-1 ask-then-retry approval; PO-2 query cadence (suggest 2m); PO-3 escalation age (suggest 30m, must clear cutoff); PO-4 cutoff-passes-while-MAYBE behavior; PO-6 deferred-successor latency acceptance; PO-8 fresh-assembly consequence acceptance; TL-3 RPO/RTO + §5.2 runbook ownership (post-MVP); TL-8 confirmation-age owner+value; TL-9 artifact owners; TL-14 terminal-row archival co-design; TL-15 first-quarter NOT_FOUND-after-trust-age measurement. §19.3/PO-7 (retry-after-reject) = FUTURE. | OB-07 config owners; Section Q risk register |
+| Q-21 | HIGH | Upstream | Upstream asks 6–7 (from the failure-recovery walkthrough): (6) scope-key provenance IN WRITING — payment_type/debit_account/currency are message-carried stable identifiers, never derived by this system via a pre-intake lookup (the §2.1 scope key and §5.1 deterministic key are computed from message fields only); (7) emission monitoring — upstream confirms emit-failure detection (or provides a periodic trade-count recon signal), because a never-emitted message is the one lost-payment class with no local detector. | IN-01/02, §5.1 identity, failure-recovery-walkthrough.md GAP-1/GAP-2 |
 
 ---
 
@@ -6107,9 +6110,9 @@ root-cause incident.
 - stale-marker-write volume (§6.9)     → alert on volume
 - unmatched feed events (§8)           → metric; alert on volume
 - drift scanner mismatches (I1/I2, L9) → PAGE
-- UI/card false-completion prevention: card >1-obligation lookups
-  (§12), completion-predicate anomalies (COMPLETED with active
-  request — should be impossible; presence = defect)  → alert
+- UI/card false-completion prevention: completion-predicate
+  anomalies (COMPLETED with active request — should be impossible;
+  presence = defect)                    → alert
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)
@@ -6476,7 +6479,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 | Q15 | apply-platform-verified-outcome test suite + drill report on file | T-24, OP-02/03 | | |
 | Q16 | Reservation release / confirmation correctness green (I1–I6, redelivery safety, overpay latch) | T-26/27, RG-01..04 | | |
 | Q17 | Evidence session flag / release guard validated (code + trigger layers; pool non-leakage) | T-25, S-06, RG-05 | | |
-| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity, card >1) | T-30, OB-02 | | |
+| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity) | T-30, OB-02 | | |
 | Q19 | Drift scanner live, paging, read-skew-safe | T-29, OB-01 | | |
 | Q20 | Observability dashboards + alerts live per §15 with runbook links; rollup verified; config ordering validation active | T-32, OB-03..07 | | |
 | Q21 | Runbook stubs published (CA-8) incl. the aged-MAYBE runbook | CA-8, OB-06 | | |
@@ -6484,7 +6487,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 | Q23 | Migration/rollout/rollback plan approved; rollback rehearsed; point of no return documented | GO-01/05, Section M | | |
 | Q24 | Shadow validation soak report clean | GO-02 | | |
 | Q25 | Tech-lead / provider / PO question register (Section K) current: all BLOCKING answered; HIGH answered or risk-owned; §16.6 config values have owners | Section K, OB-07 | | |
-| Q26 | UI/card correctness tests green (no false completion; §12 defensive rule) | T-31 | | |
+| Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
 

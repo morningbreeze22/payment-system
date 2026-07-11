@@ -34,7 +34,7 @@
 ### OB-04 — Queue/flow/stuck alert set
 
 - **Task ID:** OB-04
-- **Title:** Implement the flow-health alerts: unmatched events, stale messages/marker-writes, DLT depth, consumer lag, scanner heartbeats, stuck-state, sweep overrun, watchdogs, card >1, deadlocks
+- **Title:** Implement the flow-health alerts: unmatched events, stale messages/marker-writes, DLT depth, consumer lag, scanner heartbeats, stuck-state, sweep overrun, watchdogs, deadlocks
 - **Classification:** MVP normative implementation
 - **Purpose:** the flow-facing half of §15 incl. the observed-lag watchdog (ingest-lag config wrong) and generic stuck-state split rule.
 - **Prerequisites:** IN-05/06 (unmatched metric), IN-02 (stale counter), IN-09 (DLT/lag), RC-05 (overrun metric), RC-07 (watchdog data).
@@ -43,7 +43,7 @@
 - **Local placeholder mappings required before starting:** metric sources wired by prior tasks.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** unmatched feed events (volume alert); stale upstream messages volume; stale-marker-writes volume; Kafka DLT depth > 0 → page; consumer lag per flow → page over SLA + drive the §12 card data-as-of/lag indicator; scanner heartbeat (silent 3× interval → page); generic stuck-state per (stage,stage_state) max ages — split per §15: retry states on retry_deadline_at passed without exhaustion; non-churning states on state_changed_at; resolver sweep overrun (repeat → alert); observed-lag watchdog (feed-confirmed payment that was NOT_FOUND past trust-age → alert); card >1 obligation (OB-02 cross-ref); ORA-00060 deadlock count → ticket; inbox growth vs purge → health metric; metric ABSENCE = bad (dead-gauge alerting per §15 practices).
+- **Implementation instructions:** unmatched feed events (volume alert); stale upstream messages volume; stale-marker-writes volume; Kafka DLT depth > 0 → page; consumer lag per flow → page over SLA + drive the §12 card data-as-of/lag indicator; scanner heartbeat (silent 3× interval → page); generic stuck-state per (stage,stage_state) max ages — split per §15: retry states on retry_deadline_at passed without exhaustion; non-churning states on state_changed_at; resolver sweep overrun (repeat → alert); observed-lag watchdog (feed-confirmed payment that was NOT_FOUND past trust-age → alert); ORA-00060 deadlock count → ticket; inbox growth vs purge → health metric; metric ABSENCE = bad (dead-gauge alerting per §15 practices).
 - **Do not change:** SLA values without owners (config §16.6).
 - **Tests to add:** seeded per alert where testable; dead-gauge behavior verified for at least the drift gauge.
 - **Edge cases:** duplicate-skip spikes during replays must read healthy on dashboards (§15 practice — dashboard note, not an alert change).

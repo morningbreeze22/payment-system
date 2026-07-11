@@ -17,9 +17,9 @@ Tests: seeded I1/I2 violations page; read-skew non-page; L9 detection. Stop: mer
 
 ```text
 [OB-02] Reconciliation tripwires
-Read: §8 (anomaly) §15 §12 (defensive rule). Invariant: NEW event_id + zero-row CAS on a TERMINAL row = CRITICAL; benign redelivery (known event_id) = silent skip.
-Placeholders: [Payment Status Feed Consumer] [Metrics / Alerting Layer], card read path. Mappings: IN-07.
-Objective: terminal-evidence CRITICAL routed; per-obligation count sanity ticket; card >1-row error+alert.
+Read: §8 (anomaly) §15. Invariant: NEW event_id + zero-row CAS on a TERMINAL row = CRITICAL; benign redelivery (known event_id) = silent skip.
+Placeholders: [Payment Status Feed Consumer] [Metrics / Alerting Layer]. Mappings: IN-07.
+Objective: terminal-evidence CRITICAL routed; per-obligation count sanity ticket.
 Tests: each fires; benign doesn't. Stop: merged.
 ```
 

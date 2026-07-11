@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Failure &amp; Recovery Map — Payment Orchestration</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1d2430; --muted:#5b6472;
+    --line:#dfe3e9; --chip:#eef1f5;
+    --t0:#5b6b8c; --t1:#1e8e5a; --t2:#b07d10; --t3:#c2571b; --t4:#8a4bb8;
+    --t0bg:#eceff5; --t1bg:#e6f5ee; --t2bg:#faf3e0; --t3bg:#fbeee4; --t4bg:#f3eafb;
+    --accent:#2458c5; --crit:#b3261e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12151b; --panel:#1a1f28; --ink:#e6e9ee; --muted:#98a1ae;
+      --line:#2b323e; --chip:#232a36;
+      --t0:#8ea2c9; --t1:#4cc38a; --t2:#e0b04c; --t3:#ec8b52; --t4:#c08ae6;
+      --t0bg:#1d2432; --t1bg:#15281f; --t2bg:#2b2415; --t3bg:#2e1f15; --t4bg:#271b31;
+      --accent:#7ba3f0; --crit:#f28b82;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+  h1{font-size:1.45rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:.92rem}
+  .sub code{background:var(--chip);padding:1px 5px;border-radius:4px;font-size:.85em}
+
+  /* ladder */
+  .ladder{display:flex;gap:0;margin:18px 0 6px;border:1px solid var(--line);
+          border-radius:10px;overflow:hidden;flex-wrap:wrap}
+  .rung{flex:1 1 180px;padding:12px 14px;border-right:1px solid var(--line);min-width:170px}
+  .rung:last-child{border-right:none}
+  .rung h3{margin:0 0 4px;font-size:.85rem;display:flex;align-items:center;gap:7px}
+  .rung p{margin:0;font-size:.78rem;color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+  .arrowline{display:flex;justify-content:space-between;color:var(--muted);
+             font-size:.75rem;margin:4px 4px 22px;letter-spacing:.03em}
+
+  /* summary bar */
+  .distbar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:2px 0 6px;border:1px solid var(--line)}
+  .distbar div{height:100%}
+  .distlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-bottom:22px}
+  .distlegend b{color:var(--ink)}
+
+  /* filters */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;
+           position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5}
+  .fbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+        border-radius:16px;padding:4px 12px;font-size:.8rem;cursor:pointer}
+  .fbtn.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+  .search{flex:1 1 200px;min-width:160px;border:1px solid var(--line);background:var(--panel);
+          color:var(--ink);border-radius:16px;padding:5px 14px;font-size:.85rem;outline:none}
+  .count{font-size:.8rem;color:var(--muted);white-space:nowrap}
+
+  /* domains + cards */
+  .domain{margin:26px 0 8px}
+  .domain>h2{font-size:1.02rem;margin:0 0 2px}
+  .domain>.dsub{color:var(--muted);font-size:.8rem;margin:0 0 10px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        padding:10px 12px;cursor:pointer;transition:border-color .12s}
+  .card:hover{border-color:var(--accent)}
+  .card .top{display:flex;align-items:baseline;gap:8px}
+  .cid{font:600 .72rem/1 ui-monospace,Consolas,monospace;color:var(--muted);flex:none;padding-top:2px}
+  .ctitle{font-size:.86rem;font-weight:600;flex:1}
+  .tier{flex:none;font:700 .68rem/1 ui-monospace,Consolas,monospace;border-radius:5px;
+        padding:4px 7px;letter-spacing:.02em}
+  .gapmark{flex:none;font-size:.65rem;font-weight:700;color:var(--crit);
+           border:1px solid var(--crit);border-radius:5px;padding:3px 6px}
+  .detail{display:none;margin-top:10px;border-top:1px dashed var(--line);padding-top:9px;
+          font-size:.8rem;cursor:auto}
+  .card.open .detail{display:block}
+  .detail dt{font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;
+             color:var(--muted);margin-top:7px}
+  .detail dd{margin:2px 0 0}
+  .refs{margin-top:8px;font-size:.72rem;color:var(--muted)}
+  .refs span{background:var(--chip);border-radius:4px;padding:1px 6px;margin-right:5px;
+             font-family:ui-monospace,Consolas,monospace}
+  .hidden{display:none!important}
+
+  .foot{margin-top:36px;padding-top:14px;border-top:1px solid var(--line);
+        color:var(--muted);font-size:.78rem}
+  .gapbox{border:1px solid var(--crit);border-radius:10px;padding:12px 16px;margin:24px 0 4px;
+          background:var(--panel)}
+  .gapbox h2{font-size:.95rem;margin:0 0 6px;color:var(--crit)}
+  .gapbox p{margin:5px 0;font-size:.83rem}
+  .gapbox b{font-family:ui-monospace,Consolas,monospace;font-size:.9em}
+  @media (max-width:640px){ .grid{grid-template-columns:1fr} .rung{flex-basis:100%;border-right:none;border-bottom:1px solid var(--line)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Failure &amp; Recovery Map</h1>
+  <p class="sub">Every failure scenario in the payment orchestration process and how it recovers.
+     Companion to <code>failure-recovery-walkthrough.md</code>; normative source is <code>requirment-v4.md</code>.
+     Click a card for the full recovery chain.</p>
+
+  <div class="ladder" id="ladder"></div>
+  <div class="arrowline"><span>◀ system heals itself</span><span>humans &amp; other systems take over ▶</span></div>
+
+  <div class="distbar" id="distbar"></div>
+  <div class="distlegend" id="distlegend"></div>
+
+  <div class="filters" id="filters">
+    <input class="search" id="search" type="search" placeholder="search scenarios… (e.g. MAYBE, cutoff, restore)">
+    <span class="count" id="count"></span>
+  </div>
+
+  <div id="board"></div>
+
+  <div class="gapbox">
+    <h2>Gaps found by this walkthrough (folded into §18)</h2>
+    <p><b>GAP-1 → upstream ask 6:</b> scope-key provenance in writing — payment_type / debit_account / currency
+       are message-carried stable identifiers, never derived via a pre-intake lookup. The scope key (§2.1) and the
+       deterministic idempotency key (§5.1) depend on it.</p>
+    <p><b>GAP-2 → upstream ask 7:</b> a never-emitted upstream message is the one lost-payment class with no local
+       detector — upstream must confirm emit-failure monitoring or provide a count-recon signal.</p>
+    <p><b>GAP-3 → §20-10 + console O12:</b> §6.7's "manual application" of a tied amendment had no operation anywhere,
+       and nothing guaranteed the dropped snapshot's payload survived to be applied. Folded: the tie-conflict record
+       now carries the canonicalized payload (§6.7 executability requirement), §20 item 10 defines the trade-level
+       4-eyes operation, and the ops-console catalog gains O12 + a coverage matrix over this map's T3 scenarios.</p>
+    <p style="color:var(--muted)">Everything else resolves to an existing designed path, a tracked §18 open item, or a
+       PO-accepted limitation — see the walkthrough §10 verdict.</p>
+  </div>
+
+  <p class="foot">Tier of a card = the highest tier its recovery can require (many scenarios start at T1 and only
+     reach T3 if automation cannot resolve them). GAP badges mark scenarios whose closure was added this round.
+     Generated 2026-07-10 from the failure-recovery walkthrough; regenerate when the walkthrough changes.</p>
+</div>
+
+<script>
+const TIERS = {
+  0:{k:"T0",name:"Prevented",desc:"Unrepresentable: constraints, write-once outcome, evidence-guarded CAS, deterministic identity.",c:"var(--t0)",bg:"var(--t0bg)"},
+  1:{k:"T1",name:"Self-healing",desc:"Automatic: durable retries, resolver queries, redelivery convergence, breakers.",c:"var(--t1)",bg:"var(--t1bg)"},
+  2:{k:"T2",name:"Self-healing, alerted",desc:"System still resolves alone; a human is informed (volume alerts, watchdogs, pages).",c:"var(--t2)",bg:"var(--t2bg)"},
+  3:{k:"T3",name:"Ops action",desc:"Sanctioned manual action: procedures, marker clears, dual-control re-POST, freeze flip. MVP = DB procedures; future = ops console.",c:"var(--t3)",bg:"var(--t3bg)"},
+  4:{k:"T4",name:"External reconciliation",desc:"Corrected upstream message, platform recall / formal reject, client or treasury action.",c:"var(--t4)",bg:"var(--t4bg)"}
+};
+
+const DOMAINS = [
+  ["U","Upstream & intake","Kafka trade-snapshot messages: missing, malformed, stale, tied, amended, absent"],
+  ["E","Enrichment","The account/details API — the PO's original concern lives here"],
+  ["P","Posting","The engine POST: timeouts, rejects, collisions, outages, freezes"],
+  ["C","Confirmation & feed","Status-feed events: lost, unmatched, mismatched, contradictory"],
+  ["R","Resolver & status query","The ask-then-retry machinery for ambiguous outcomes"],
+  ["M","Money truth & invariants","Drift, overpay, stuck reservations, marker loops"],
+  ["I","Infrastructure","Crashes, DB down/restore, Hazelcast, Kafka, config, deploys, clocks"],
+  ["H","Human & ops error","Fat fingers, wrong procedures, forgotten freezes"],
+  ["B","Business & client","Lost-payment claims, cancellations, returns, cutoffs"]
+];
+
+/* t = [minTier, maxTier]; gap = closed-this-round */
+const S = [
+["U-1","Upstream never emits the message",[4,4],"Producer bug or trade stuck before the payment step — no message is ever produced.","We cannot notice locally: no row exists; the card shows NOT_STARTED (§12), indistinguishable from not-yet-due.","Upstream monitoring / business chase. Closed this round as upstream ask 7 (§18): emit-failure monitoring or a count-recon signal.","§12, §18 ask 7",true],
+["U-2","Kafka delivery delayed / broker outage",[1,2],"Message emitted but stuck in transit.","Consumer-lag alert per flow (§15); card shows data-as-of / lag indicator (§12).","At-least-once delivery resumes; ordering guard absorbs any replay.","§15, §12, §16.2",false],
+["U-3","Malformed message, scope extractable",[4,4],"Validation fails before any request exists.","Anchor obligation: IN_PROGRESS + DATA_VALIDATION_FAILED on the card; marker-age alert (§15).","Corrected upstream message creates the first request (§6.8); marker clears by ordering.","§6.6, §6.8",false],
+["U-4","Body unparseable, Kafka key readable",[3,4],"Poison-pill body with a readable business_id key.","Key-only trade-level anchor + DLT page (TL-7 tiered handling).","Corrected message; the placeholder anchor is deleted when the first valid snapshot applies.","§6.6, §16.2",false],
+["U-5","Message unreadable including the key",[3,3],"Key corruption — the accepted DLT blind spot.","DLT depth > 0 pages (§16.2).","Manual DLT triage and replay (keys preserved) after the producer fix.","§6.6, §16.2",false],
+["U-6","Snapshot violates within-snapshot uniqueness",[4,4],"Two payment blocks share (type+account+currency) — applying would merge two payments.","Whole-snapshot validation failure: anchors + markers on ALL the trade's scopes; alert.","Corrected snapshot clears markers; in-flight requests untouched (blast radius is NEW work only).","§6.0, §6.6",false],
+["U-7","Duplicate redelivery (identical snapshot)",[0,1],"At-least-once delivery re-sends the same document.","Nothing — second apply sees shortfall 0 / ordering not newer.","Converges silently.","§6.1, §6.7",false],
+["U-8","Out-of-order delivery (older after newer)",[1,2],"A delayed older snapshot arrives late.","Stale-message metric; alert on volume.","Watermark drops it — BY DESIGN under BA-3 (upstream owns ordering correctness).","§6.7, §1.1 BA-3",false],
+["U-9","Ordering tie with differing payloads",[3,3],"Two genuine amendments share a business timestamp.","AMENDMENT_TIE_CONFLICT alert — never a silent drop; the tie-conflict record preserves the canonicalized payload (§6.7 executability requirement).","Manual application by ops from that record — trade-level 4-eyes operation §20-10 / console O12 (GAP-3, closed this round); a resend cannot fix a tie. The class disappears once upstream ask 1's sequence field arrives.","§6.7, §20-10, O12",true],
+["U-10","Consumer crashes mid-fan-out",[1,1],"Multi-payment snapshot partially applied.","Invisible — redelivered snapshot re-applies.","Applied blocks drop as stale; unapplied blocks apply; per-block transactions converge.","§6.1",false],
+["U-11","Amendment lowers amount, request un-posted",[1,1],"required_amount drops while nothing was sent.","—","Auto-cancel (NOT_SUBMITTED is provably safe) + right-sized successor via §6.8.","§6.4, §6.8",false],
+["U-12","Amendment lowers amount, request MAYBE",[1,3],"Money may already have moved for the old amount.","AMENDMENT_PARKED + alert; rank-1 exception.","Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation gives ops four exits.","§6.4, §9.2, §9.3",false],
+["U-13","Amendment raises amount, request in flight",[1,1],"Delta owed while I6 allows one active request.","—","Deferred successor: §6.8 creates it when the active request resolves (PO-6 latency accepted). Never lost.","§6.3, §6.8",false],
+["U-14","Scope-key field changes",[4,4],"payment_type / debit_account / currency changes upstream.","New obligation appears; card shows both.","BA-1 settled: a NEW obligation paid under new info — agreed business behavior, not a duplicate.","§1.1 BA-1, §2.1",false],
+["U-15","Payment absent from a newer snapshot",[4,4],"Is absence a cancellation?","Nothing (interim).","OPEN — PO-9: interim absence = NO-OP (BA-2 stands); PO decision pending.","§6.1, §18 PO-9",false],
+["U-16","Delayed older snapshot vs absent obligation",[4,4],"Stale watermark window on obligations missing from newer snapshots.","Stale-amount application risk.","OPEN — TL-16 watermark rule; decide together with PO-9.","§6.1, §18 TL-16",false],
+["U-17","Upstream data wrong but valid",[4,4],"Wrong amount/account that passes all validation — garbage in.","Not detectable locally: the message IS the contract truth.","Corrected message via amendment machinery; if already executed, platform-side recall.","§6.3–§6.8, §19.2",false],
+["U-18","Poison pill breaks deserialization",[3,3],"A message that throws inside poll.","ErrorHandlingDeserializer prevents the infinite loop; DLT page.","Fix producer; replay DLT preserving original keys.","§16.2",false],
+
+["E-1","Account/enrichment API transient failure",[1,1],"Timeout, 5xx, connect failure on the lookup call — the PO's scenario.","Retry metrics; breaker state.","Request row + reservation already exist (§6.8) — ENRICH·RETRY_WAIT, durable retry per policy; breaker gates scanners; deadlines suspended during outage. No upstream resend needed.","§7.3, §7.4, §16.1",false],
+["E-2","Enrichment retries exhausted",[3,3],"The API stays down past the retry budget.","BLOCKED(RETRY_EXHAUSTED) → ops queue + stuck alert.","Ops retry re-enriches in place (L7 — never skips to POST with unresolved data).","§7.3, §20-1",false],
+["E-3","Definitive invalid-data result",[4,4],"The lookup says the trade's data cannot resolve.","REJECTED + validation_failed marker; exception on card.","Corrected upstream message → §6.8 successor (release was legal: NOT_SUBMITTED).","§7.3, §6.8",false],
+["E-4","Unmapped enrichment result",[3,3],"A result code the classifier doesn't know.","BLOCKED(UNMAPPED_CODE) + alert — fail closed, never assume retryable.","Ops classifies; error-code artifact updated; ops retry.","§7.3, §16.6 art.1",false],
+["E-5","Enrichment returns wrong-but-valid data",[1,4],"Bad reference data resolves to the wrong account details.","Not detectable locally.","Un-executed: next attempt re-resolves fresh (§7.0). Executed: platform recall — it paid what was current at execution.","§7.0, §19.2",false],
+["E-6","Trade store down during re-POST assembly",[1,1],"Fresh assembly fails on a §9.2 downgrade attempt.","Retry metrics.","Nothing was sent — row returns to RETRY_WAIT; submission_state unchanged.","§7.0, §9.2",false],
+["E-7","Worker dies holding ENRICH claim",[1,1],"Lease abandoned mid-lookup.","Lease expiry.","Re-claimable in place: enrichment is read-only, no external effect exists.","§11, §6.4",false],
+
+["P-1","Connect timeout — request never left",[1,1],"TCP-level failure before the engine saw anything.","last_error_code; retry metrics.","NOT_SUBMITTED → POST·RETRY_WAIT; durable retry.","§7.2, §7.4",false],
+["P-2","Read timeout / crash mid-call",[1,3],"The engine may have received and executed.","MAYBE_SUBMITTED; rank-1 PAYMENT_OUTCOME_UNKNOWN; MAYBE-age alerts.","Resolver owns it: query by key → trust-age rule → same-key re-POST if truly never received → §9.3 escalation as the bounded hand-off. No MAYBE row is ever permanently wedged at MVP.","§7.2, §9, §9.3",false],
+["P-3","Worker crashes between claim and response",[1,1],"In-flight POST with a dead owner.","Lease expiry; last_sent_hash + last_post_attempt_at persisted BEFORE the call are the record.","Lease-expiry recovery → MAYBE path → resolver.","§11, §2.2",false],
+["P-4","DUPLICATE_REQUEST on first known attempt",[1,1],"A lost earlier attempt got through.","Classified per §7.2.","MAYBE → CONFIRM·READY + status query; the dead UETR is never persisted.","§7.2, §5",false],
+["P-5","Key collision, divergence expected",[1,1],"Re-assembled newer details hit a key the engine holds.","divergence_expected flag recorded at claim time.","Evidence the original arrived: stay MAYBE, query resolves; divergent_payload_at forecloses further re-POSTs.","§7.0, §7.2",false],
+["P-6","Key collision, ANOMALOUS",[3,3],"DR-replay mismatch or the engine disputes an unchanged payload.","BLOCKED(ENGINE_INCONSISTENCY) + CRITICAL.","Ops investigation; resolver keeps querying; §9.3 exits.","§7.2, §5.1",false],
+["P-7","Unmapped engine error code",[3,3],"A response code outside the classification table.","MAYBE → BLOCKED(UNMAPPED_CODE) + alert.","Fail closed; ops + artifact-1 update. A new code fails the build first (§16.5 contract tests).","§7.2, §16.5",false],
+["P-8","Insufficient balance",[1,4],"Business reject — the debit account lacks funds.","Rank-3 exception, retryable per policy.","Policy retry; if it persists: OPS_PARKED, and ultimately the client/treasury funds the account.","§7.2, §13",false],
+["P-9","Invalid-data sync reject",[4,4],"The engine refuses the data.","REJECTED + validation_failed marker.","Corrected upstream message → §6.8 successor.","§7.2, §6.8",false],
+["P-10","Definitive sync reject (other)",[3,4],"The engine refuses the payment.","REJECTED + provider_rejected marker + alert.","One newer valid message may retry; from the SECOND reject the marker is ops-only — stops reject/re-pay loops.","§7.2, §2.1, §19.3",false],
+["P-11","Retry exhaustion / cutoff passed",[3,3],"Budget spent or market closed.","BLOCKED(RETRY_EXHAUSTED / CUTOFF_EXPIRED).","Ops decision: retry next window (repost_permitted-gated), reject, or supersede.","§7.4, §20-1",false],
+["P-12","Engine total outage",[1,2],"Every POST fails.","Breaker OPEN → ticket, page at 30m; ONE rolled-up incident, not thousands of pages.","Scanners gate quietly; attempt/deadline budgets SUSPENDED — no BLOCKED flood at recovery; automatic resume.","§16.1, §15",false],
+["P-13","Engine ingest lag — mass NOT_FOUND",[1,2],"Accepted payments not yet visible to the query store.","Observed-lag watchdog (§15).","Trust-age rule holds NOT_FOUND as INDETERMINATE until safe; auto-downgrade self-heals the population.","§9.2, §15",false],
+["P-14","Hazelcast grid unreachable",[2,2],"The posting-freeze toggle cannot be read.","Freeze-effective-without-ticket PAGE.","Fail-safe: posting DISABLED (PO signed off); feed, resolver, card continue; infra restore un-freezes.","§16.1",false],
+["P-15","Freeze flipped / left on without ticket",[3,3],"Deliberate freeze forgotten, or infra failure mimicking one.","The same §15 page — the freeze is silent by design; this alert is the only signal.","Ops acknowledges or flips back (role-controlled toggle exists today).","§16.1, §15",false],
+
+["C-1","Feed event lost / never emitted",[1,1],"The confirmation never arrives.","Unconfirmed SUBMITTED row ages past confirmation age.","§9.5 sweep queries by key — the feed is a latency optimization; the query API is the durable source.","§9.5, §8",false],
+["C-2","Feed beats the executor's commit",[1,2],"Event arrives before the row is visible.","Unmatched-event metric.","Log + count + ack; the sweep recovers at cadence latency (accepted trade-off).","§8",false],
+["C-3","Unknown UETR (foreign/orphan event)",[2,4],"An event this system cannot match.","Unmatched volume alert.","Investigated in the payment platform — it holds the authoritative record; no local parked-event table by design.","§8, §2.3",false],
+["C-4","Feed redelivery (same event_id)",[0,0],"Identical event delivered twice.","—","Inbox table drops it before any lock is taken.","§2.3, §8",false],
+["C-5","Re-keyed duplicate (new event_id, same meaning)",[0,0],"A duplicate that passes the inbox.","—","Dies on the evidence-guarded CAS row count — the correctness layer.","§8, §4.4",false],
+["C-6","Settlement amount ≠ request amount",[3,4],"All-or-nothing violated — defect evidence, ours or the engine's.","BLOCKED(AMOUNT_MISMATCH) + CRITICAL; confirmed_amount does not move.","Corrected engine event completes normally, or the dispute concludes platform-side; local counters only via the future manual adjustment.","§8, §16.4, §19.2",false],
+["C-7","Settlement for a TERMINAL row",[3,4],"Money moved for a request the DB says is rejected/cancelled.","CRITICAL anomaly: new event_id + zero-row CAS — also the DR replay-divergence tripwire.","Money-truth divergence policy: CRITICAL incident, reconciled in the platform.","§8, §5.2, §19.2",false],
+["C-8","Reject event under a dead UETR",[0,0],"A reject emitted under a duplicate/collision submission's UETR could release a live reservation.","—","FORECLOSED: reject/collision UETRs are never persisted, so the event cannot match.","§5, §7.2",false],
+["C-9","Return/refund event for an EXECUTED request",[4,4],"Money flowing back — this system has no return model.","Log + CRITICAL + ack; no state change.","§19.2 future workstream; reconciliation lives platform-side.","§8, §19.2",false],
+["C-10","Feed outage / consumer lag",[1,2],"Confirmations delayed en masse.","Lag page; card freshness indicator.","Sweep continues independently; SUBMITTED-branch damping prevents false ENGINE_INCONSISTENCY parks.","§9.5, §12, §15",false],
+["C-11","Contradictory / stale evidence",[0,0],"Reject after settle, older status after newer.","Stale evidence affects zero rows.","Outcome write-once + evidence monotonicity; genuine anomalies page per C-7.","§4.4, §10.1",false],
+["C-12","provider_reference reuse / collision",[0,1],"Engine references unique only per day/batch/rail.","UNIQUE index makes silent reuse loud.","Fail-closed fallback: single-active-match + amount + recency required; otherwise the sweep recovers by key. TL-12 tracks confirmation.","§8, §18 TL-12",false],
+
+["R-1","Status-query API down",[1,3],"The resolver's only tool is unavailable.","INDETERMINATE + backoff; escalation clocks KEEP RUNNING.","Fail toward a human: if the outage outlives the escalation age, ops is paged with rows parked. Never silence.","§9.1, §9.3",false],
+["R-2","NOT_FOUND ambiguity",[1,2],"Never-received vs ingest lag vs lookback expiry — indistinguishable answers.","Trust-age rule keyed on submission_state.","Before trust-age: wait. After: MAYBE → same-key re-POST (safe by the collision contract); SUBMITTED → reversible ENGINE_INCONSISTENCY park.","§9.2",false],
+["R-3","Key aged past the query lookback",[3,3],"NOT_FOUND becomes unfalsifiable; resolve-via-query can never succeed.","Escalated row that query cannot resolve.","TL-5 ask (lookback ≥ max row lifetime); terminal exit = APPLY-PLATFORM-VERIFIED-OUTCOME with platform-records verification.","§9.3, §18-3, TL-5",false],
+["R-4","Engine can't find a payment it acknowledged",[2,3],"Integrity question on the engine side.","CRITICAL ENGINE_INCONSISTENCY (SUBMITTED branch).","Never re-POST an acknowledged payment; resolver keeps querying; provider ticket per runbook.","§9.2, §16.6 art.7",false],
+["R-5","Post-outage MAYBE flood vs rate limits",[1,1],"Thousands of rows to query against a recovering engine.","Sweep-overrun metric.","Bounded prioritized batches (cutoff first), per-row backoff, budget from the engine's rate limit.","§9.5",false],
+["R-6","Resolver scheduler dies",[2,2],"The sweep silently stops.","Scanner-heartbeat page — any scanner silent 3× its interval.","Restart; nothing lost — all state is in tables.","§15",false],
+
+["M-1","Counter drift (I1/I2 mismatch)",[3,3],"A row-corruption or money-math bug.","Drift scanner PAGES (snapshot-read + locked re-check; read skew never pages).","Investigate from §14 log lines; correct via platform-verified truth. The stored counter exists precisely as this tripwire.","§3, §14",false],
+["M-2","Overpay latched",[3,4],"confirmed_amount exceeded required_amount.","Latch SET alert; rank-1 OVERPAY_DETECTED.","One-way door: automation never resumes on this trade; recall/refund proceeds platform-side; ops annotates the card.","§13, §19.2, §20-4",false],
+["M-3","Amendment on a latched scope",[3,3],"New business truth arrives after the latch.","AMENDMENT_ON_LATCHED_SCOPE alert.","Manual handling — post-latch local amounts may be fiction (invisible refund window).","§6.5, §13",false],
+["M-4","Latched scope UNDERPAID vs latest truth",[3,4],"The cross-stream race: settle lands between two amendments.","Latch alerting; documented trace.","Accepted permanent manual state; ops resolves with the platform's books.","§13",false],
+["M-5","Stuck reservation",[3,3],"An active request holds money without progressing.","Stuck-reservation age alert; per-(stage,state) max-age tickets.","Ops: retry or supersede/close — release FORBIDDEN while MAYBE/SUBMITTED without an engine negative.","§3, §10.1, §20-2",false],
+["M-6","Live marker, no active request, aging",[3,4],"The correction that would clear the marker never arrives.","Live-marker-no-request alert (keyed on validation_failed_first_at).","Chase upstream for the corrected message; ops may supersede the scope.","§15, §2.1",false],
+["M-7","Repeat validation-reject loop",[4,4],"Upstream keeps sending bad data.","validation_reject_count ≥ 3 alert — deliberately NO gate: a corrected message IS the recovery.","Escalate to the upstream team.","§2.1",false],
+["M-8","Repeat provider-reject loop",[3,3],"Reject → new message → reject, upstream-paced.","provider_reject_count ≥ 2 alert; auto-successors STOP.","From the second reject the marker is ops-only: root-cause with the provider before re-enabling.","§2.1, §19.3",false],
+
+["I-1","Service crash / pod eviction",[1,1],"Any worker dies at any point.","Scanner heartbeats; lease expiry.","Leases expire → ENRICH re-claims; POST pre-call re-claims, post-call → MAYBE → resolver. State lives in tables; restart is stateless.","§11",false],
+["I-2","Stale worker resumes after lease expiry",[0,0],"GC pause / network partition zombie.","—","CAS version fencing: its writes hit row count 0.","§11",false],
+["I-3","Database down",[1,2],"Everything halts.","Dead-gauge rule: metric ABSENCE alerts — a DB outage never reads as green.","Kafka unacked (at-least-once); on recovery, consumers and scanners resume; guards absorb the replay.","§15, §16.2",false],
+["I-4","Database RESTORED to an earlier point",[3,4],"RPO > 0: the DB is internally consistent and wrong — rows for executed payments may be gone.","Post-restore divergence surfaces via unmatched feed events (CRITICAL during replay) and the key-space enumeration.","Deterministic keys make re-creations collide at the engine instead of double-paying. §5.2 runbook is POST-MVP (PO decision); interim: major incident + manual engine-side reconciliation.","§5.1, §5.2",false],
+["I-5","Hazelcast outage",[2,2],"Freeze toggle unreachable.","Freeze page.","Posting halts fail-safe (PO signed off); everything else continues.","§16.1",false],
+["I-6","Kafka retention shortened externally",[2,3],"Another team's config change breaks the replay-window chain.","Scheduled retention check alerts (named owner).","Fix retention before the inbox/replay guarantee is violated.","§16.2",false],
+["I-7","Consumer-group reset replays history",[1,1],"Redeployment or offset reset.","Duplicate-skip counters spike — dashboards show this as HEALTHY.","auto-offset-reset=earliest is deliberate; inbox + evidence + ordering guards make replay a no-op.","§16.2, §15",false],
+["I-8","Inconsistent config set",[0,0],"e.g. trust-age ≥ escalation age would silently send everything to ops.","Loader REJECTS the set at startup.","Fix config; nothing degrades silently.","§16.6",false],
+["I-9","Rolling deploy: two versions concurrent",[0,1],"Schema/enum mid-migration.","—","Expand/contract migrations; defensive enum reads (UNKNOWN sentinel); claim compatibility across one release.","§16.5",false],
+["I-10","Clock skew between nodes",[0,0],"App-node clocks disagree.","—","Due-time comparisons use DATABASE time only; cutoffs are tz-aware calendar values.","§16.4",false],
+["I-11","Log platform outage",[2,2],"The forensic record and the DR enumeration bound depend on logs.","Ops observability degraded.","Money path unaffected; §5.2 step-5b falls back to the recorded K-heuristic.","§14, §5.2",false],
+["I-12","Card read surface down",[2,3],"At launch the card is ops' ONLY window.","Card shows 'unavailable' — never stale-as-authoritative.","§15 alerting is independent; direct DB reads remain; read-path bulkhead isolates it from posting.","§12, §16.1",false],
+["I-13","Hot scope / single-obligation flood",[2,3],"One pathological trade hammers one lock.","Per-obligation request-count ticket; ~10 tx/s sanity line.","Capacity review; the obligation lock keeps correctness while throughput degrades.","§15, §16.5",false],
+["I-14","Hung external call holds Kafka partitions",[0,1],"One stuck HTTP call triggers rebalance storms.","—","Per-dependency timeouts everywhere; breaker isolates the dependency.","§16.1",false],
+
+["H-1","Fat-finger direct DB write",[0,0],"An illegal state written by hand.","CHECK constraints + L1-freeze / release-guard TRIGGERS reject it loudly.","Nothing to recover — the write fails.","§10.3",false],
+["H-2","Ops releases money that may have moved",[0,3],"Terminal-negative on a MAYBE/SUBMITTED row — the one double-pay path.","§10.1 release guard + trigger backstop forbid it.","Sanctioned exit only: the §9.3 procedure — platform-verified, dual-control, audited.","§10.1, §9.3",false],
+["H-3","Wrong outcome fed to the §9.3 procedure",[3,3],"Human error inside the sanctioned exit.","Dual control, mandatory ticket, refusal conditions (CLAIMED/terminal/mismatch), every-use alert.","Residual risk accepted: platform-records verification is the evidence; ticket + §14 log is the audit trail.","§9.3, §20-8",false],
+["H-4","Ops retries a row that must not re-POST",[0,0],"Un-parking a divergent-payload or stale-amount row.","repost_permitted checked at BOTH ends — the un-parking writer AND the posting claim.","The gate, not the operator, is the safety; divergent_payload and terminal are never overridable.","§7.0",false],
+["H-5","Premature marker clear",[3,3],"Clearing provider_rejected before root cause.","Clear is ops-ONLY from the second reject; §19.3 records operator/reason/ticket; 4-eyes.","Audit + alert on reject-count increment.","§2.1, §19.3",false],
+["H-6","Deliberate freeze forgotten",[3,3],"Payments halted with nobody watching.","Freeze-effective-without-acknowledged-ticket PAGE.","Flip back (role-controlled).","§16.1, §15",false],
+["H-7","Manual action without a ticket trail",[0,3],"An audit hole that a DB restore would erase.","Procedures REQUIRE the external ticket reference — the only restore-surviving record.","Process rule enforced by the procedure signature.","§20-8, §14",false],
+
+["B-1","Client: “my payment is lost”",[3,3],"The catch-all investigation entry point.","Card lookup by business_id (one entry per payment; NOT_STARTED = no message yet); correlation_id greps the whole story.","Triage: card → request labels → engine status query by key → platform audit trail. Every state in the walkthrough has a named owner.","§12, §14, §10.4",false],
+["B-2","Trade cancelled after the payment step started",[4,4],"Business wants to stop a payment in flight.","—","BA-2 settled: no cancellation signal exists; the trade still pays; recovery is a platform-side recall. PO-5 tracks only the display question.","§1.1 BA-2, §19.2",false],
+["B-3","Duplicate-payment suspicion",[4,4],"Client or recon claims double pay.","—","Deterministic identity chain: one key per logical attempt; engine dedup proven by the §18-1 sandbox gate. Evidence exists by construction.","§5, §18-1",false],
+["B-4","Business wants to pay despite an engine reject",[3,4],"Transient beneficiary-side condition; upstream has nothing to correct.","provider_rejected marker + alert.","Today: one newer upstream message, or wait. FUTURE: §19.3 ops retry-after-reject (4-eyes), pending PO-7.","§19.3, §18 PO-7",false],
+["B-5","Funds returned to our account",[4,4],"Post-settlement return — no return model exists here by design.","CRITICAL log-only event.","§19.2 future workstream (detection, RETURNED outcome, decrement op all deliberately absent); platform owns the truth.","§19.2, §8",false],
+["B-6","Cutoff passes while unresolved",[3,3],"Market closes on an open question.","CUTOFF_EXPIRED; escalation is SIZED to land before cutoff (config ordering validation).","Ops decision next window; PO-4 tracks the policy.","§7.4, §9.3, §16.6",false]
+];
+
+/* ---------- render ---------- */
+const ladder = document.getElementById('ladder');
+Object.values(TIERS).forEach(t=>{
+  ladder.insertAdjacentHTML('beforeend',
+    `<div class="rung"><h3><span class="dot" style="background:${t.c}"></span>${t.k} · ${t.name}</h3><p>${t.desc}</p></div>`);
+});
+
+const maxTier = s => s[2][1];
+const counts = [0,0,0,0,0];
+S.forEach(s=>counts[maxTier(s)]++);
+const distbar = document.getElementById('distbar');
+const distlegend = document.getElementById('distlegend');
+counts.forEach((n,i)=>{
+  if(!n) return;
+  distbar.insertAdjacentHTML('beforeend',`<div style="width:${(n/S.length*100).toFixed(1)}%;background:${TIERS[i].c}" title="${TIERS[i].k}: ${n}"></div>`);
+  distlegend.insertAdjacentHTML('beforeend',`<span><b>${n}</b> resolve at ${TIERS[i].k} ${TIERS[i].name}</span>`);
+});
+distlegend.insertAdjacentHTML('beforeend',`<span><b>${S.length}</b> scenarios total</span>`);
+
+const filters = document.getElementById('filters');
+let activeTier = null, activeDom = null;
+Object.values(TIERS).forEach((t,i)=>{
+  const b=document.createElement('button');
+  b.className='fbtn'; b.textContent=t.k; b.style.color=t.c;
+  b.onclick=()=>{activeTier = activeTier===i?null:i; syncBtns(); render();};
+  b.dataset.tier=i; filters.insertBefore(b, document.getElementById('count'));
+});
+DOMAINS.forEach(d=>{
+  const b=document.createElement('button');
+  b.className='fbtn'; b.textContent=d[0];
+  b.title=d[1];
+  b.onclick=()=>{activeDom = activeDom===d[0]?null:d[0]; syncBtns(); render();};
+  b.dataset.dom=d[0]; filters.insertBefore(b, document.getElementById('count'));
+});
+function syncBtns(){
+  document.querySelectorAll('.fbtn').forEach(b=>{
+    if(b.dataset.tier!==undefined) b.classList.toggle('on', activeTier!==null && +b.dataset.tier===activeTier);
+    if(b.dataset.dom!==undefined) b.classList.toggle('on', b.dataset.dom===activeDom);
+  });
+}
+document.getElementById('search').addEventListener('input', render);
+
+const board = document.getElementById('board');
+function tierBadge(s){
+  const [lo,hi]=s[2];
+  const t=TIERS[hi];
+  const label = lo===hi ? t.k : TIERS[lo].k+"→"+t.k;
+  return `<span class="tier" style="color:${t.c};background:${t.bg}">${label}</span>`;
+}
+function render(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  board.innerHTML='';
+  let shown=0;
+  DOMAINS.forEach(d=>{
+    if(activeDom && activeDom!==d[0]) return;
+    const items = S.filter(s=>{
+      if(!s[0].startsWith(d[0]+"-")) return false;
+      if(activeTier!==null && !(s[2][0]<=activeTier && activeTier<=s[2][1]) && maxTier(s)!==activeTier) return false;
+      if(q && !(s[0]+" "+s[1]+" "+s[3]+" "+s[4]+" "+s[5]+" "+s[6]).toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if(!items.length) return;
+    shown+=items.length;
+    const sec=document.createElement('section'); sec.className='domain';
+    sec.innerHTML=`<h2>${d[0]} · ${d[1]}</h2><p class="dsub">${d[2]}</p>`;
+    const grid=document.createElement('div'); grid.className='grid';
+    items.forEach(s=>{
+      const card=document.createElement('article'); card.className='card';
+      card.innerHTML=`
+        <div class="top">
+          <span class="cid">${s[0]}</span>
+          <span class="ctitle">${s[1]}</span>
+          ${s[7]?'<span class="gapmark">GAP · CLOSED</span>':''}
+          ${tierBadge(s)}
+        </div>
+        <dl class="detail">
+          <dt>What breaks</dt><dd>${s[3]}</dd>
+          <dt>How we notice</dt><dd>${s[4]}</dd>
+          <dt>Recovery</dt><dd>${s[5]}</dd>
+          <div class="refs">${s[6].split(',').map(r=>'<span>'+r.trim()+'</span>').join('')}</div>
+        </dl>`;
+      card.onclick=e=>{ if(!window.getSelection().toString()) card.classList.toggle('open'); };
+      grid.appendChild(card);
+    });
+    sec.appendChild(grid); board.appendChild(sec);
+  });
+  document.getElementById('count').textContent = shown+" / "+S.length+" shown";
+}
+render();
+</script>
+</body>
+</html>

@@ -1233,6 +1233,20 @@ Guard:
     therefore raise the tie-conflict for the snapshot as a whole —
     deliberately conservative; manual application resolves all
     blocks together.
+    Executability requirement (manual application must be possible
+    from our own records): the tie-conflict record — the alert and
+    its §14 log line — SHALL carry the incoming snapshot's
+    CANONICALIZED business-field payload (the §6.0 equality subset).
+    The dropped message was acked; no parked-message store exists
+    (§2.3); and an upstream resend cannot help (it carries the same
+    ordering value and ties forever) — so this record is the ONLY
+    source the applying operation can work from. The operation
+    itself is §20-10 (interim: controlled manual procedure; console
+    surface: ops-console-proposal.md O12): trade-level, applies the
+    chosen snapshot through the normal §6.1 fan-out with the
+    strictly-newer check relaxed to ≥ for exactly the recorded tied
+    ordering value; every money guard (§6.4 retry-guard, §6.5
+    latch, §6.8 marker conditions, I6) applies unchanged.
 - Regressing required_amount remains the non-recoverable direction;
   everything above fails toward alerts and manual application.
 ```
@@ -2588,8 +2602,6 @@ never on blocked_reason as a rule input (§10.1).
                                                  regression tripwire)
 - Per-obligation request count                 → ticket over sanity
                                                  threshold
-- Card lookup returns >1 obligation (§12)      → alert (upstream
-                                                 guarantee violated)
 - Posting freeze EFFECTIVE (toggle set OR
   Hazelcast unreachable) without an
   acknowledged freeze ticket (§16.1)      → page (the freeze is
@@ -3244,6 +3256,30 @@ payment platform
    the within-snapshot half at intake (§6.0); the cross-snapshot
    half is unverifiable at runtime and rests on this written
    contract alone.
+6. Scope-key provenance IN WRITING: payment_type, debit_account,
+   and currency are carried IN the message as stable identifiers
+   (§6.0) — none of them is derived by this system via any external
+   lookup before intake. The §2.1 scope key and the §5.1
+   deterministic idempotency key are computed from message fields
+   only; enrichment (§7.0/§7.3) resolves settlement DETAILS from
+   them on a durable request row, never the identity itself. If any
+   scope field required a failable pre-intake lookup, obligation
+   creation — and with it every table-driven retry — would inherit
+   that call's availability, and key determinism across a restore
+   (§5.1) would break. One written sentence forecloses the whole
+   failure class (raised by the PO's account-resolution question;
+   see failure-recovery-walkthrough.md GAP-1).
+7. Emission monitoring: a trade that reaches the payment step but
+   whose message is never PRODUCED or never DELIVERED is invisible
+   to this system — no row, no anchor, no alert; the card's
+   NOT_STARTED is indistinguishable from "not yet due" (§12). This
+   is the single lost-payment class with no local detector
+   (failure-recovery-walkthrough.md GAP-2). Ask upstream to confirm
+   emit-failure monitoring on their side (emitted-vs-acked, DLQ
+   alerts on the producer path) — or, failing that, to provide a
+   periodic trade-count signal this system's reconciliation can
+   check. No local machinery is proposed: the detector belongs
+   where the data is.
 ```
 
 ### Resolved: workflow advancement
@@ -3395,4 +3431,14 @@ are obsolete, and its state displays should use the §10.4 labels):
 9. Retry-after-provider-reject (§19.3): 4-eyes operation clearing the
    provider_rejected marker so §6.8 creates a fresh successor.
    Pending PO approval (§18 item 7).
+10. Tie application (§6.7): AMENDMENT_TIE_CONFLICT is resolved by
+    manually applying the chosen tied snapshot — a TRADE-level
+    operation (all payment blocks together, §6.7 snapshot note)
+    working from the tie-conflict record's preserved payload (§6.7
+    executability requirement), never from free-typed amounts.
+    4-eyes: it can initiate money movement via §6.8. Interim:
+    controlled manual procedure; console operation O12
+    (ops-console-proposal.md). Rare by construction, and the whole
+    class disappears when upstream ask 1's explicit sequence field
+    arrives.
 ```

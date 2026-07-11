@@ -30,7 +30,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 | Q15 | apply-platform-verified-outcome test suite + drill report on file | T-24, OP-02/03 | | |
 | Q16 | Reservation release / confirmation correctness green (I1–I6, redelivery safety, overpay latch) | T-26/27, RG-01..04 | | |
 | Q17 | Evidence session flag / release guard validated (code + trigger layers; pool non-leakage) | T-25, S-06, RG-05 | | |
-| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity, card >1) | T-30, OB-02 | | |
+| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity) | T-30, OB-02 | | |
 | Q19 | Drift scanner live, paging, read-skew-safe | T-29, OB-01 | | |
 | Q20 | Observability dashboards + alerts live per §15 with runbook links; rollup verified; config ordering validation active | T-32, OB-03..07 | | |
 | Q21 | Runbook stubs published (CA-8) incl. the aged-MAYBE runbook | CA-8, OB-06 | | |
@@ -38,7 +38,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 | Q23 | Migration/rollout/rollback plan approved; rollback rehearsed; point of no return documented | GO-01/05, Section M | | |
 | Q24 | Shadow validation soak report clean | GO-02 | | |
 | Q25 | Tech-lead / provider / PO question register (Section K) current: all BLOCKING answered; HIGH answered or risk-owned; §16.6 config values have owners | Section K, OB-07 | | |
-| Q26 | UI/card correctness tests green (no false completion; §12 defensive rule) | T-31 | | |
+| Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
 
