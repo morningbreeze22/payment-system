@@ -171,7 +171,7 @@ placeholder to real code exists only on the work laptop.
 
 ---
 
-## Small-context executor kit (files 20–23)
+## Small-context executor kit (files 20–25)
 
 Added for weak, low-context executors (validated against a 200K-token
 window):
@@ -182,10 +182,13 @@ window):
 | 21-progress-tracker-template.md | durable cross-session memory; copy locally, update after every task (filled copy stays local) |
 | 22-requirement-section-map.md | § citation → exact requirment-v4.md heading text, so sections are found by search, never by scrolling |
 | 23-task-kickoff-prompt.md | copy-paste per-task bootstrap prompt enforcing the minimal reading set |
+| 24-implementation-mechanics.md | the concrete HOW: transaction/CAS/lock/claim/scanner/consumer recipes (M1–M6), Spring/Oracle traps (M7), binding per-shape edge-case checklists (M8) — mandatory for every implementation card (rules 17–18) |
+| 25-golive-verification-procedures.md | per-Q go-live verification: the check to run, the evidence artifact, the sign-off role; evidence-pack layout + GO-04 meeting script |
 
 **Context budget (200K-token window):** the complete per-task reading
 set (this file + index + glossary entries + one phase card file + one
-packet + the cited spec sections) is ≈ 25–35K tokens, leaving well
+packet + the cited spec sections + the 24-implementation-mechanics
+recipes for the card's shape) is ≈ 30–40K tokens, leaving well
 over 150K for local code. Never load the whole package or the whole
 repository for one task; the kickoff prompt enforces this. The whole
 `requirment-v4.md` is ≈ 40K tokens — loading it entirely is allowed

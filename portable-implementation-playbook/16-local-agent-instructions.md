@@ -1,4 +1,4 @@
-> **Purpose:** Binding instructions for the local coding agent: 16 rules + the per-task loop (original Section P).
+> **Purpose:** Binding instructions for the local coding agent: 18 rules + the per-task loop (original Section P).
 > **When to use this file:** ALWAYS - read before every working session; re-read when tempted to broaden scope.
 > **Depends on:** 00-README.md; 01-playbook-index.md.
 > **Used by:** Every task execution; the README files of 08-task-cards/ and 09-minimal-context-packets/ repeat its core rules.
@@ -63,18 +63,33 @@ the sections that govern it.
     implement them.
 16. When the spec and this playbook seem to disagree, the spec
     (`requirment-v4.md`) wins — report the discrepancy.
+17. Before ANY implementation card (every card except discovery and
+    pure-document B/CA cards), read
+    24-implementation-mechanics.md. Where a card says "the CAS",
+    "under the lock", "the claim", or "the scanner", it means the
+    M1–M6 recipes in that file — do not improvise transaction
+    boundaries, lock order, or ack ordering.
+18. Before declaring a card done, tick the matching SHAPE
+    checklist(s) from 24-implementation-mechanics.md M8 (CAS / SCAN /
+    CONSUME / PROC / READ) and record the result in the Section R
+    report. An unticked line is either fixed or reported as a named
+    exception — never silently skipped. Tasks feeding a go-live
+    checklist item also file their evidence per
+    25-golive-verification-procedures.md at completion time, not at
+    GO-04.
 ```
 
 **Per-task loop:**
 
 ```text
-read card + packet + cited §s
+read card + packet + cited §s (+ mechanics file per rule 17)
   → verify prerequisites + mappings
   → write/adjust tests (red where applicable)
-  → implement the card's instructions only
+  → implement the card's instructions only (M1–M6 recipes)
   → run card tests + surrounding suite
   → manual validation step from the card
-  → fill Section R report
+  → tick the SHAPE checklist(s) (rule 18)
+  → fill Section R report (incl. SHAPE result + evidence filed)
   → STOP
 ```
 

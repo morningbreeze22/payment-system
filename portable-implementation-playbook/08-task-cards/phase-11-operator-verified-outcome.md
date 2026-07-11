@@ -1,4 +1,4 @@
-> **Purpose:** Task cards OP-01..OP-03 (apply-platform-verified-outcome audited procedure — §18-3) (original Section H, phase P11).
+> **Purpose:** Task cards OP-01..OP-04 (apply-platform-verified-outcome audited procedure — §18-3 — plus the §20 interim ops surface) (original Section H, phase P11).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P11.
@@ -77,6 +77,30 @@
 - **Common mistakes:** skipping the ticket-reference realism (the ticket trail is the restore-surviving record — §20-8).
 - **Completion criteria:** signed drill report.
 - **Stop condition:** report filed; §18-3 marked satisfiable in Section Q.
+- **Next task:** OP-04.
+
+### OP-04 — Guarded interim ops procedures + ops queue views
+
+- **Task ID:** OP-04
+- **Title:** Implement the §20 interim ops surface: ops_retry / ops_reject / ops_annotate / ops_apply_tied_amendment procedures + the four ops queue views
+- **Classification:** MVP normative implementation (the §20 interim procedure set; complements RG-05's supersede/close and OP-01's verified-outcome procedure)
+- **Purpose:** §20's accepted interim model presumes a controlled exit for every dead-end state — without them fail-blocked degrades to fail-forever (failure-recovery-walkthrough: E-2/E-4/P-11 retry, M-6 reject, M-2 annotate, U-9 tie) and the §15 queues page humans who have no lever.
+- **Prerequisites:** OP-01/OP-02 (procedure area, restricted role, evidence-flag mechanics proven on real Oracle); RG-05 (release guard + the supersede/close pattern to copy); RG-06 (§6.8 evaluation callable); IN-02 — VERIFY the tie-conflict record carries the canonicalized snapshot payload (§6.7 executability requirement); if it does not, reopen IN-02 BEFORE this card (nothing later can recover an unpreserved payload).
+- **Requirement sections / concepts to read:** §20 (interim procedure set + items 1, 4, 8, 10), §6.7 (tie handling incl. executability requirement), §10.1, §10.5 (ops rows), §14, §15 (queue metrics), §12 (read semantics).
+- **Placeholder components involved:** [Operator Admin Procedure Area], [Stored Procedure / Trigger Area], [Obligation Repository], [Metrics / Alerting Layer].
+- **Local placeholder mappings required before starting:** OP-01's role/approver mechanics; view deployment target.
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** (a) three request-level procedures routed through the SAME shared CAS/money helpers (never a private UPDATE path): `ops_retry_blocked` → SAME-stage RETRY_WAIT per L7 (WHERE outcome IS NULL ∧ BLOCKED ∧ NOT_SUBMITTED ∧ divergent_payload_at IS NULL; POST-stage exits re-check the remaining repost_permitted terms in code); `ops_reject_blocked` → outcome=REJECTED + L9 marker + release via the RG-02 path (release guard: NOT_SUBMITTED only); `ops_annotate` → ops_annotation write (display-only, no state change). (b) `ops_apply_tied_amendment(business_id, tie_record_ref, …)`: per payment block of the RECORDED snapshot, sorted tuple order (§6.1): obligation lock → apply amounts with the §6.7 ordering guard relaxed to ≥ for EXACTLY the recorded tied ordering value → set upstream_ordering to it (idempotent) → normal §6.4/§6.5/§6.8 consequences; the payload comes from the tie record, NEVER from a parameter. (c) Every procedure enforces IN ITS SIGNATURE: operator id, reason, external ticket ref (§20-8), plus a second DISTINCT approver where 4-eyes applies (retry, reject, tie-apply — they move or release money via §6.8); restricted role only; §14 line with trigger_source=MANUAL_OPS:<operator>. (d) Four read-only queue views on the artifact-4 ACTIVE-row-bounded indexes: BLOCKED by reason (ESCALATED ranked first), stuck reservations by age, aged MAYBE by maybe_since + cutoff proximity, overpay latches; §15 alert definitions link to them. Execution-semantics reference: ops-console-proposal.md §6.1; mechanics: 24-implementation-mechanics.md M1/M8 (SHAPE-PROC + SHAPE-READ).
+- **Do not change:** RG-05's supersede/close (already delivered); OP-01's procedure; the §10.3 triggers; the §6.7 guard for NON-tied orderings (the ≥ relaxation applies to exactly one recorded value).
+- **Tests to add:** T-33.
+- **Edge cases:** reject attempted on a MAYBE row → refused at BOTH layers (code guard AND trigger — reuse OP-02's raw-SQL demo pattern); tie-apply re-run → every block no-ops (idempotent); tie-apply onto a latched scope → amount applies, NO request created, AMENDMENT_ON_LATCHED_SCOPE fires (§6.5 latch guard unchanged); queue views on a multi-payment trade list one row per obligation — count is never an error (§12).
+- **Manual validation:** run each procedure against seeded rows in the OP-02 lane; compare view output against the seeded queue states; attempt each procedure with a non-restricted role (must fail).
+- **Expected outcome:** every §20 dead-end state has a working, audited, findable exit before go-live.
+- **Failure signs:** any procedure with its own UPDATE path instead of the shared helpers; tie-apply accepting amounts as parameters; a view keyed on display labels.
+- **Common mistakes:** relaxing the ordering guard for ALL messages instead of exactly the recorded tied value; making ticket/approver optional "for now"; granting EXECUTE beyond the restricted role.
+- **Completion criteria:** T-33 green on real Oracle; grants audited.
+- **Stop condition:** merged; SHAPE-PROC + SHAPE-READ ticked in the report; Q29 evidence filed.
 - **Next task:** OB-01.
 
 
@@ -84,8 +108,8 @@
 
 ## Phase handoff summary (P11 → P12)
 
-- **Phase outputs:** the CA-9 procedure implemented (dual control, evidence flag, refusals, audit + every-use alert), tested on real Oracle, and DRILLED by real operators (signed report) — §18-3's default path satisfied.
-- **Blockers to carry forward:** none new; §18-3 marked satisfiable in the go-live checklist (Q4, Q15).
+- **Phase outputs:** the CA-9 procedure implemented (dual control, evidence flag, refusals, audit + every-use alert), tested on real Oracle, and DRILLED by real operators (signed report) — §18-3's default path satisfied; PLUS the §20 interim ops surface (retry/reject/annotate/tie-apply procedures + four queue views, OP-04).
+- **Blockers to carry forward:** none new; §18-3 marked satisfiable in the go-live checklist (Q4, Q15); Q29 evidence filed with OP-04.
 - **Local mapping rows expected filled:** [Operator Admin Procedure Area] CONFIRMED incl. the restricted-role/approver-identity mechanics.
-- **Tests expected to exist:** T-24 suite (outcomes, refusals, guard interplay, raw-SQL-fails demo), T-28 wedge-prevention chain.
-- **Next phase entry condition:** OP-03 drill report signed.
+- **Tests expected to exist:** T-24 suite (outcomes, refusals, guard interplay, raw-SQL-fails demo), T-28 wedge-prevention chain, T-33 interim-surface suite.
+- **Next phase entry condition:** OP-03 drill report signed; OP-04 merged.

@@ -1,4 +1,4 @@
-> **Purpose:** Go-live readiness checklist Q1-Q28 with PASS/FAIL/BLOCKED and evidence columns; the four §18 BLOCKING items (Q1-Q4, Q28) are non-waivable (original Section Q).
+> **Purpose:** Go-live readiness checklist Q1-Q29 with PASS/FAIL/BLOCKED and evidence columns; the four §18 BLOCKING items (Q1-Q4, Q28) are non-waivable (original Section Q).
 > **When to use this file:** Executed at GO-04; tracked continuously from Phase P8 onward.
 > **Depends on:** All phase outputs; 10-test-matrix.md; 11-provider-techlead-po-questions.md.
 > **Used by:** GO-04 go/no-go decision.
@@ -10,6 +10,11 @@
 Execute at GO-04. Every PASS carries linked evidence (test run,
 report, signed document). §18 BLOCKING items are non-waivable; other
 FAILs need a named owner and dated plan to proceed as risks.
+**HOW to verify each row — the concrete check, the required evidence
+artifact, and who signs — is 25-golive-verification-procedures.md
+(V.1); the evidence-pack layout is V.2 and the GO-04 meeting script
+is V.3. Evidence is filed per task at completion time (rule 18), not
+collected retroactively at GO-04.**
 
 | # | Item | Source | PASS/FAIL/BLOCKED | Evidence |
 |---|------|--------|-------------------|----------|
@@ -41,4 +46,5 @@ FAILs need a named owner and dated plan to proceed as risks.
 | Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
+| Q29 | §20 interim ops surface live: guarded procedures (retry / reject / supersede / annotate / tie-apply) + four queue views deployed with restricted-role grants and exercised on real Oracle | §20, RG-05, OP-04, T-33 | | |
 

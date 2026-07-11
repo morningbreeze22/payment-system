@@ -308,8 +308,11 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
 - PO-7 / §19.3: ops retry-after-provider-reject (B-4) — FUTURE.
 - §19.2: returned-funds visibility (B-5, C-9) — FUTURE workstream.
 - §20 console: the entire T3 tier gets an API/UI surface post-MVP;
-  at MVP it is controlled DB procedures + the §9.3 stored procedure
-  (the one REQUIRED-at-MVP piece) + role-controlled toggles.
+  at MVP it is the §20 interim procedure set (supersede/close, retry,
+  reject, annotate, tie-apply — now enumerated in §20 and delivered
+  by playbook RG-05 + OP-04, gated by checklist Q29) + the §9.3
+  stored procedure (the one REQUIRED-at-MVP piece) + the four ops
+  queue views + role-controlled toggles.
 - §5.2 DR runbook: post-MVP by PO decision; interim = major incident
   (I-4). Deterministic keys keep the restore recoverable regardless.
 ```

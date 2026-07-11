@@ -500,3 +500,28 @@ Failure: silent alert gaps discovered during a real incident instead.
 Implemented by: OB-03..07.
 ```
 
+### T-33 — Interim ops surface (procedures + queue views)
+
+```text
+Section: §20, §6.7, §10.1   Type: INTEGRATION   Blocking: YES
+Purpose: every dead-end state has an audited exit before go-live —
+         the §20 interim model actually works, not just exists.
+Setup:   seeded rows per dead-end class (BLOCKED·NOT_SUBMITTED,
+         BLOCKED·MAYBE, stalled ENRICH, overpay latch); a recorded
+         tie-conflict whose snapshot has one changed and one
+         identical block; Oracle lane with the REAL triggers.
+Action:  run each OP-04 procedure (+ RG-05 supersede/close) with
+         valid and invalid inputs; query the four views.
+Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
+         reject releases + sets the L9 marker, NOT_SUBMITTED only —
+         a MAYBE row is refused at the code layer AND the trigger
+         layer (raw-SQL demo); tie-apply amends exactly the changed
+         block, no-ops on re-run, and respects the §6.5 latch;
+         missing ticket / identical approvers / unauthorized role
+         all refused; every call writes the §14 MANUAL_OPS line;
+         views rank ESCALATED first and list one row per obligation.
+Failure: any dead-end exit that works only via raw SQL, or a
+         procedure whose audit inputs are optional in practice.
+Implemented by: OP-04, RG-05.
+```
+

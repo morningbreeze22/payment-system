@@ -218,11 +218,75 @@ All mutating endpoints: idempotency via the approval-row id;
 optimistic `If-Match` on the request `version`; every response
 surfaces the CAS row count. (Parked-event endpoints removed.)
 
+### 6.1 Execution semantics per operation
+
+Every mutation is the §11 two-tier shape — obligation lock FIRST,
+then a conditional CAS whose WHERE carries the dimension
+preconditions; row count 0 = state moved (surface 409, zero side
+effects); row count 1 → money movement per §3 + §6.8 re-evaluation +
+§4 re-derivation + the §14 log line, all in ONE transaction. The
+canonical skeleton, claim mechanics, and trap list live in the
+playbook's `24-implementation-mechanics.md` (M1–M7); this section
+pins each operation's specifics:
+
+```text
+O1  SET stage_state=RETRY_WAIT, blocked_reason=NULL, next_retry_at
+    per the ops-retry policy class (L7)
+    WHERE outcome IS NULL ∧ stage_state='BLOCKED'
+      ∧ submission_state='NOT_SUBMITTED' ∧ divergent_payload_at IS NULL.
+    POST-stage rows: remaining repost_permitted terms (§7.0 —
+    cutoff, freeze) checked in code; stage NEVER changes (an
+    ENRICH-blocked row re-enriches, §10.5). No money movement.
+O2  SET outcome='REJECTED' WHERE outcome IS NULL ∧ stage_state=
+    'BLOCKED' ∧ submission_state='NOT_SUBMITTED' (§10.1). Same
+    transaction: −committed_amount; provider_rejected marker +
+    count (L9 totality); §6.8 (the live marker correctly blocks an
+    automatic successor).
+O3  SET outcome='SUPERSEDED' WHERE outcome IS NULL ∧
+    submission_state='NOT_SUBMITTED' ∧ stage_state<>'CLAIMED'.
+    −committed_amount; §6.8 may create the right-sized successor.
+O6  No payment-table mutation: hands the key set to the resolver's
+    §9.5 ops-triggered mode; answers apply via the normal
+    evidence-guarded CAS. Shares the TL-13 query budget.
+O7  SET stage='POST', stage_state='RETRY_WAIT', blocked_reason=NULL,
+    next_retry_at=now, attempt_count=0 (the §9.2 downgrade class)
+    WHERE outcome IS NULL ∧ submission_state='MAYBE_SUBMITTED'
+      ∧ stage_state<>'CLAIMED' ∧ divergent_payload_at IS NULL.
+    Code, under the obligation lock: past trust-age + FULL
+    repost_permitted incl. amount-vs-shortfall.
+O8  Same target write as O7; permitted iff repost_permitted fails
+    SOLELY on the amount-staleness term (verified under the lock);
+    strict dual control. Cutoff/divergence/terminal never override.
+O9  No payment-table mutation: records the TL-10 ask (console audit
+    row + §14 line); the negative, if granted, arrives as normal
+    feed/query evidence.
+O10 CALL the §9.3 stored procedure (spec = §16.6 artifact 8 / CA-9).
+    The console collects inputs only — it NEVER reimplements.
+O11 (FUTURE, PO-7) Obligation-level under the lock: clear the
+    provider_rejected fields + reset the count; §6.8 then creates a
+    FRESH successor (new deterministic key — correct after a
+    definitive reject).
+O12 Per payment block of the recorded snapshot, in sorted tuple
+    order: obligation lock → apply amounts with the §6.7 ordering
+    guard relaxed to ≥ for EXACTLY the recorded tied ordering value
+    → set upstream_ordering to it (idempotent) → normal §6.4/§6.5/
+    §6.8 consequences. Payload always from the tie record, never a
+    request parameter.
+ann Single UPDATE of payment_obligation.ops_annotation (read-model
+    field; no derivation input, no state change).
+```
+
+Reads (queues/detail) are lock-free MVCC queries; the canonical
+queue-view SQL ships with playbook card OP-04 (the §20 interim
+surface — these views exist BEFORE this console). The S3 effect
+preview runs read-only but takes the obligation lock briefly so its
+numbers match what execution would compute.
+
 ## 7. Phasing
 
 | Phase | Scope | Value |
 |---|---|---|
-| — | **Already at MVP, outside this console:** the §9.3 apply-platform-verified-outcome stored procedure + drill (§18 BLOCKING item 3); guarded manual procedures for O1–O3-equivalents; role-controlled posting-freeze toggle (§16.1) | the guaranteed MAYBE-row terminal exit exists before any console ships |
+| — | **Already at MVP, outside this console:** the §9.3 apply-platform-verified-outcome stored procedure + drill (§18 BLOCKING item 3); the §20 interim procedure set — supersede/close, ops retry, ops reject, overpay annotation, tie application (playbook RG-05 + OP-04) — plus the four ops queue views; role-controlled posting-freeze toggle (§16.1) | every dead-end state has an audited exit and a findable queue before any console ships |
 | P0 | S1 + S2 read-only (queues, detail, log timeline) | kills "where do I even look"; no approval machinery; can ship first |
 | P1 | O6 resolve-now, O9 TL-10 ask capture, overpay annotation (`ops_annotation`) | non-monetary, single-operator |
 | P2 | O1–O3 with 4-eyes; O7/O8 downgrade lane; O10 as a UI wrapper over the existing procedure; O12 tied-amendment application | the money-touching operations; requires the PO decisions below |

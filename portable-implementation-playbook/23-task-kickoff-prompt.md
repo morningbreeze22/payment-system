@@ -16,7 +16,7 @@ portable-implementation-playbook/08-task-cards/<PHASE-FILE>.
 
 Load ONLY, in this order:
 1. portable-implementation-playbook/16-local-agent-instructions.md
-   (binding rules — obey all 16).
+   (binding rules — obey all 18).
 2. portable-implementation-playbook/20-execution-sequence-and-decision-defaults.md
    (gates and defaults) AND your LOCAL progress tracker copy of
    21-progress-tracker-template.md (confirm <TASK-ID> is the next
@@ -35,6 +35,11 @@ Load ONLY, in this order:
 6. From the LOCAL mapping file: ONLY the rows for those placeholders.
    If a required row is not CONFIRMED, the task is locally BLOCKED —
    report and stop.
+7. If <TASK-ID> is an implementation card (writes code):
+   portable-implementation-playbook/24-implementation-mechanics.md —
+   the M1–M6 recipe(s) the card's shape needs plus the matching M8
+   SHAPE checklist(s). "The CAS", "under the lock", "the claim",
+   "the scanner" in the card MEAN those recipes.
 
 Then execute the card's implementation instructions. Do not read the
 whole repository. Do not touch anything the card's "Do not change"
@@ -45,6 +50,11 @@ Do not create new tables (report SPEC_CONFLICT and stop).
 Finish by:
 - running the card's "Tests to add" and the surrounding suite,
 - performing the card's "Manual validation",
+- ticking the matching M8 SHAPE checklist(s) from
+  24-implementation-mechanics.md (fix or report-by-name any unticked
+  line),
+- filing go-live evidence per 25-golive-verification-procedures.md if
+  the card feeds a checklist Q item,
 - filling the execution report
   (19-local-task-execution-report-template.md format),
 - updating the LOCAL progress tracker row for <TASK-ID>,

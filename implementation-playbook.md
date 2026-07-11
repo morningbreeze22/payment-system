@@ -4052,6 +4052,30 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 - **Common mistakes:** skipping the ticket-reference realism (the ticket trail is the restore-surviving record — §20-8).
 - **Completion criteria:** signed drill report.
 - **Stop condition:** report filed; §18-3 marked satisfiable in Section Q.
+- **Next task:** OP-04.
+
+### OP-04 — Guarded interim ops procedures + ops queue views
+
+- **Task ID:** OP-04
+- **Title:** Implement the §20 interim ops surface: ops_retry / ops_reject / ops_annotate / ops_apply_tied_amendment procedures + the four ops queue views
+- **Classification:** MVP normative implementation (the §20 interim procedure set; complements RG-05's supersede/close and OP-01's verified-outcome procedure)
+- **Purpose:** §20's accepted interim model presumes a controlled exit for every dead-end state — without them fail-blocked degrades to fail-forever (failure-recovery-walkthrough: E-2/E-4/P-11 retry, M-6 reject, M-2 annotate, U-9 tie) and the §15 queues page humans who have no lever.
+- **Prerequisites:** OP-01/OP-02 (procedure area, restricted role, evidence-flag mechanics proven on real Oracle); RG-05 (release guard + the supersede/close pattern to copy); RG-06 (§6.8 evaluation callable); IN-02 — VERIFY the tie-conflict record carries the canonicalized snapshot payload (§6.7 executability requirement); if it does not, reopen IN-02 BEFORE this card (nothing later can recover an unpreserved payload).
+- **Requirement sections / concepts to read:** §20 (interim procedure set + items 1, 4, 8, 10), §6.7 (tie handling incl. executability requirement), §10.1, §10.5 (ops rows), §14, §15 (queue metrics), §12 (read semantics).
+- **Placeholder components involved:** [Operator Admin Procedure Area], [Stored Procedure / Trigger Area], [Obligation Repository], [Metrics / Alerting Layer].
+- **Local placeholder mappings required before starting:** OP-01's role/approver mechanics; view deployment target.
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** (a) three request-level procedures routed through the SAME shared CAS/money helpers (never a private UPDATE path): `ops_retry_blocked` → SAME-stage RETRY_WAIT per L7 (WHERE outcome IS NULL ∧ BLOCKED ∧ NOT_SUBMITTED ∧ divergent_payload_at IS NULL; POST-stage exits re-check the remaining repost_permitted terms in code); `ops_reject_blocked` → outcome=REJECTED + L9 marker + release via the RG-02 path (release guard: NOT_SUBMITTED only); `ops_annotate` → ops_annotation write (display-only, no state change). (b) `ops_apply_tied_amendment(business_id, tie_record_ref, …)`: per payment block of the RECORDED snapshot, sorted tuple order (§6.1): obligation lock → apply amounts with the §6.7 ordering guard relaxed to ≥ for EXACTLY the recorded tied ordering value → set upstream_ordering to it (idempotent) → normal §6.4/§6.5/§6.8 consequences; the payload comes from the tie record, NEVER from a parameter. (c) Every procedure enforces IN ITS SIGNATURE: operator id, reason, external ticket ref (§20-8), plus a second DISTINCT approver where 4-eyes applies (retry, reject, tie-apply — they move or release money via §6.8); restricted role only; §14 line with trigger_source=MANUAL_OPS:<operator>. (d) Four read-only queue views on the artifact-4 ACTIVE-row-bounded indexes: BLOCKED by reason (ESCALATED ranked first), stuck reservations by age, aged MAYBE by maybe_since + cutoff proximity, overpay latches; §15 alert definitions link to them. Execution-semantics reference: ops-console-proposal.md §6.1; mechanics: portable 24-implementation-mechanics.md M1/M8 (SHAPE-PROC + SHAPE-READ).
+- **Do not change:** RG-05's supersede/close (already delivered); OP-01's procedure; the §10.3 triggers; the §6.7 guard for NON-tied orderings (the ≥ relaxation applies to exactly one recorded value).
+- **Tests to add:** T-33.
+- **Edge cases:** reject attempted on a MAYBE row → refused at BOTH layers (code guard AND trigger — reuse OP-02's raw-SQL demo pattern); tie-apply re-run → every block no-ops (idempotent); tie-apply onto a latched scope → amount applies, NO request created, AMENDMENT_ON_LATCHED_SCOPE fires (§6.5 latch guard unchanged); queue views on a multi-payment trade list one row per obligation — count is never an error (§12).
+- **Manual validation:** run each procedure against seeded rows in the OP-02 lane; compare view output against the seeded queue states; attempt each procedure with a non-restricted role (must fail).
+- **Expected outcome:** every §20 dead-end state has a working, audited, findable exit before go-live.
+- **Failure signs:** any procedure with its own UPDATE path instead of the shared helpers; tie-apply accepting amounts as parameters; a view keyed on display labels.
+- **Common mistakes:** relaxing the ordering guard for ALL messages instead of exactly the recorded tied value; making ticket/approver optional "for now"; granting EXECUTE beyond the restricted role.
+- **Completion criteria:** T-33 green on real Oracle; grants audited.
+- **Stop condition:** merged; SHAPE-PROC + SHAPE-READ ticked in the report; Q29 evidence filed.
 - **Next task:** OB-01.
 
 ## H-Phase 12 — Drift, reconciliation (P12)
@@ -5102,6 +5126,14 @@ Tests: none (drill). Stop: signed report; §18-3 satisfiable in Section Q.
 ```
 
 ```text
+[OP-04] Interim ops surface (§20 procedure set + queue views)
+Read: §20 (interim set + items 1/4/8/10) §6.7 (tie + executability) §10.1; ops-console-proposal §6.1; portable mechanics M1/M8. Invariant: shared CAS/money helpers only; signature ENFORCES operator+reason+ticket (+2nd approver on retry/reject/tie-apply); tie payload from the RECORD, never a parameter; ≥ relaxation for exactly the recorded tied ordering.
+Placeholders: [Operator Admin Procedure Area] [Stored Procedure / Trigger Area] [Obligation Repository] [Metrics / Alerting Layer]. Mappings: OP-01 role mechanics; IN-02 tie record carries the payload (else reopen IN-02 first).
+Objective: ops_retry_blocked (L7, same stage) / ops_reject_blocked (NOT_SUBMITTED only, L9 marker, release) / ops_annotate / ops_apply_tied_amendment (sorted per-block fan-out, §6.4/§6.5/§6.8 guards unchanged); four queue views (BLOCKED-by-reason ESCALATED-first, stuck, aged-MAYBE, overpay) on artifact-4 indexes; §15 alerts link to them.
+Tests: T-33 incl. MAYBE-reject refused at code AND trigger layer; tie-apply idempotent + latch-respecting. Stop: merged; SHAPE-PROC+READ ticked; Q29 evidence filed.
+```
+
+```text
 [OB-01] Drift scanner
 Read: §3 (drift + invariants) §10.3 (L9) §15. Invariant: snapshot read + locked re-check BEFORE paging; read skew never pages; mismatch PAGES (not logs).
 Placeholders: [Reconciliation / Drift Scanner] [Metrics / Alerting Layer]. Mappings: SCN/flashback availability (else UNCLEAR → DBA).
@@ -5692,6 +5724,31 @@ Expect:  every alert fires on its anchor clock with its runbook link;
          alerts; config loader rejects the bad ordering at startup.
 Failure: silent alert gaps discovered during a real incident instead.
 Implemented by: OB-03..07.
+```
+
+### T-33 — Interim ops surface (procedures + queue views)
+
+```text
+Section: §20, §6.7, §10.1   Type: INTEGRATION   Blocking: YES
+Purpose: every dead-end state has an audited exit before go-live —
+         the §20 interim model actually works, not just exists.
+Setup:   seeded rows per dead-end class (BLOCKED·NOT_SUBMITTED,
+         BLOCKED·MAYBE, stalled ENRICH, overpay latch); a recorded
+         tie-conflict whose snapshot has one changed and one
+         identical block; Oracle lane with the REAL triggers.
+Action:  run each OP-04 procedure (+ RG-05 supersede/close) with
+         valid and invalid inputs; query the four views.
+Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
+         reject releases + sets the L9 marker, NOT_SUBMITTED only —
+         a MAYBE row is refused at the code layer AND the trigger
+         layer (raw-SQL demo); tie-apply amends exactly the changed
+         block, no-ops on re-run, and respects the §6.5 latch;
+         missing ticket / identical approvers / unauthorized role
+         all refused; every call writes the §14 MANUAL_OPS line;
+         views rank ESCALATED first and list one row per obligation.
+Failure: any dead-end exit that works only via raw SQL, or a
+         procedure whose audit inputs are optional in practice.
+Implemented by: OP-04, RG-05.
 ```
 
 ---
@@ -6381,6 +6438,16 @@ BLOCKED.
 
 # P. Instructions for the local coding agent on the work laptop
 
+> **EXECUTION NOTE (2026-07-11):** the portable package
+> (`portable-implementation-playbook/`) is the execution vehicle and
+> carries two BINDING companions this monolith does not duplicate:
+> `24-implementation-mechanics.md` (transaction/CAS/lock/claim/
+> scanner/consumer recipes + per-shape edge-case checklists — rules
+> 17–18 there make it mandatory for every implementation card) and
+> `25-golive-verification-procedures.md` (per-Q verification
+> procedure + evidence pack for Section Q / GO-04). Agents execute
+> from the portable package, not from this file.
+
 You are executing a portable implementation playbook against a
 codebase the playbook's author has never seen. The playbook is
 authoritative about WHAT and WHY; you resolve WHERE locally. The
@@ -6490,6 +6557,7 @@ FAILs need a named owner and dated plan to proceed as risks.
 | Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
+| Q29 | §20 interim ops surface live: guarded procedures (retry / reject / supersede / annotate / tie-apply) + four queue views deployed with restricted-role grants and exercised on real Oracle | §20, RG-05, OP-04, T-33 | | |
 
 ---
 

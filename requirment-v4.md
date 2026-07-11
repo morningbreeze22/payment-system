@@ -3396,6 +3396,22 @@ the §9.3 apply-platform-verified-outcome stored procedure (§18
 BLOCKING item 3) — it is the guaranteed terminal exit for
 otherwise-unresolvable MAYBE rows; everything else stays future.
 
+The interim PROCEDURE SET — the concrete form of "controlled manual
+database procedures" above, consolidating obligations this section,
+§3, and §6.7 already state (enumerated 2026-07-11; it amends no
+decision): supersede/close (the §3 REQUIRED operation), ops retry of
+a BLOCKED request (item 1, L7 semantics), ops reject of a BLOCKED
+request (item 1; release guard + L9 marker), overpay annotation
+(item 4), and tie application (item 10, §6.7). Every procedure
+requires operator identity, reason, and the external ticket
+reference in its SIGNATURE (item 8), plus a second distinct approver
+where the action moves or releases money; all run the same guarded
+CAS + obligation-lock flow as the orchestrator. Alongside them,
+read-only QUEUE VIEWS over the §15 ops-queue metrics (BLOCKED by
+reason with ESCALATED first, stuck reservations, aged MAYBE,
+overpay latches) make the dead-end states findable — the card (§12)
+is a user surface keyed by business_id and does not serve this.
+
 The design, however, produces states that REQUIRE a database mutation
 to leave — and today no tool can execute them. These questions need a
 PO discussion and, eventually, an implementation (a proposed ops

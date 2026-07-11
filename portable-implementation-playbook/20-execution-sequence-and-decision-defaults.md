@@ -54,6 +54,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 91 | OP-01 | AGENT | CA-9; S-06 | phase-11-operator-verified-outcome.md |
 | 92 | OP-02 | AGENT | OP-01 | phase-11 |
 | 93 | OP-03 | HUMAN | OP-02 green; real operators | phase-11 |
+| 93a | OP-04 | AGENT | OP-02 green; RG-05; IN-02 tie record verified | phase-11 |
 | 94 | OB-01 | AGENT | RG money paths live | phase-12-drift-reconciliation.md |
 | 95 | OB-02 | AGENT | IN-07 | phase-12 |
 | 96–100 | OB-03 → OB-07 | AGENT | metric sources from P6–P12 | phase-13-observability-and-runbooks.md |
