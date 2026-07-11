@@ -447,10 +447,10 @@ Goal:            Implement CA-9's spec: the audited verified-outcome
                  application endpoint calling the shared transition
                  service (execution boundary decided 2026-07-11;
                  §10.3 triggers stay as the DB backstop); inputs =
-                 request_id, verified outcome (EXECUTED|REJECTED),
-                 mandatory ticket/evidence reference, TWO distinct
-                 enterprise-authenticated approver identities (dual
-                 control enforced BY the operation);
+                 the §9.3 approval_id ONLY (round 4 — a prior
+                 two-step approval bound the action; identities
+                 derived from the record; APPROVED→CONSUMED CAS
+                 atomic with the transition);
                  sets the §10.3 evidence session flag legitimately;
                  applies through the SAME evidence-guarded CAS as feed
                  evidence; refuses CLAIMED rows, terminal rows, amount

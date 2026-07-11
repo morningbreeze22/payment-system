@@ -238,7 +238,7 @@ major-incident procedure with the engine's records as truth.
 |---|-------------|---------------|----------|------|
 | H-1 | Fat-finger direct DB write (illegal state) | CHECK constraints + L1-freeze/release-guard TRIGGERS reject it loudly (§10.3) | Nothing to recover — the write fails | T0 |
 | H-2 | Ops releases a reservation whose money may have moved | §10.1 release guard: terminal-negative FORBIDDEN while MAYBE/SUBMITTED without engine negative; trigger backstop | Sanctioned exits only: §9.3 operation (platform-verified, dual-control) | T0 → T3 |
-| H-3 | Wrong outcome fed to APPLY-PLATFORM-VERIFIED-OUTCOME | Dual control (two authenticated approvers), mandatory ticket ref, refuses CLAIMED/terminal/amount-mismatch rows, every use raises a §15 alert | Residual risk accepted: the operation demands platform-records verification; audit trail = ticket + §14 log (trigger_source=OPS_PLATFORM_VERIFIED) | T3 |
+| H-3 | Wrong outcome fed to APPLY-PLATFORM-VERIFIED-OUTCOME | The §9.3 two-step approval workflow (approval_id-bound execution, approver ≠ initiator, atomic single-use consumption), mandatory ticket ref, refuses CLAIMED/terminal/amount-mismatch rows, every use raises a §15 alert | Residual risk accepted: the operation demands platform-records verification; audit trail = ticket + §14 log (trigger_source=OPS_PLATFORM_VERIFIED) | T3 |
 | H-4 | Ops retries a BLOCKED row that must not repost | repost_permitted checked at BOTH ends — un-parking writer AND posting claim (§7.0); divergent_payload / terminal never overridable | The gate, not the operator, is the safety | T0 |
 | H-5 | Ops clears a marker prematurely (2nd+ provider reject) | Clear is ops-ONLY by design from the 2nd reject; §19.3 records operator/reason/ticket; 4-eyes for money movement | Audit + alert on reject-count increment | T3 |
 | H-6 | Deliberate freeze forgotten | Freeze-effective-without-acknowledged-ticket PAGE (§15) | Flip back (role-controlled) | T3 |
@@ -312,15 +312,17 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
 - TL-10 / Q-12: platform formal reject — the cleanest parked-MAYBE exit.
 - PO-7 / §19.3: ops retry-after-provider-reject (B-4) — FUTURE.
 - §19.2: returned-funds visibility (B-5, C-9) — FUTURE workstream.
-- §20 console: the entire T3 tier gets a UI post-MVP; at MVP it is
-  the §20 interim operation set (supersede/close, retry, reject,
-  annotate, reprocess-snapshot — authorized application endpoints
-  per the 2026-07-11 execution boundary, delivered by playbook
-  RG-05 + OP-04, gated by checklist Q29 as ordinary MVP scope) +
-  the §9.3 audited operation (the one NON-WAIVABLE piece) + the
-  four ops queue views + role-controlled toggles. "Exit" may be a
-  terminal give-up (§20 exit-honesty note): re-pay paths for
-  repeat-reject and latched scopes stay future by design.
+- §20 console: the entire T3 tier gets a UI post-MVP; at MVP the
+  NON-WAIVABLE minimal exit set is verified-outcome (§9.3, also
+  §18-3), supersede/close, and reprocess-snapshot; retry, reject,
+  annotation, and the four queue views are Q29-waivable ergonomics
+  (authorized application endpoints, RG-05 + OP-04). Round-4 exit
+  honesty: the exit guarantee covers exactly three classes —
+  MAYBE/SUBMITTED rows, provably-unsent ACTIVE requests, ties;
+  marker-only scopes (repeat-reject, no active request) and
+  latched scopes are documented STOP STATES waiting on a newer
+  message / future §19.3 / §19.2 — visible via §15 marker-age and
+  latch alerts, deliberately without a local exit.
 - §5.2 DR runbook: post-MVP by PO decision; interim = major incident
   (I-4). Deterministic keys keep the restore recoverable regardless.
 ```

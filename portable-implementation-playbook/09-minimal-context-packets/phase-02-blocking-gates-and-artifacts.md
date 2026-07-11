@@ -105,7 +105,7 @@ Tests: none. Stop: stubs published.
 
 ```text
 [CA-9] apply-platform-verified-outcome spec
-Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8 §16.6 artifact 8 §18-3. Invariant: dual control enforced BY the operation (two-step approval workflow / signed assertion per CA-9); guard passed legitimately, never disabled.
+Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8 §16.6 artifact 8 §18-3. Invariant: execution input = approval_id (identities derived from the record — round 4); the two-step workflow IS the MVP protocol (signed assertion = gated alternative, not offered to implementers); APPROVED→CONSUMED CAS atomic with the transition; guard passed legitimately, never disabled.
 Placeholders: [Operator Admin Procedure Area]. Mappings: none.
 Objective: spec signature (request_id, EXECUTED|REJECTED, ticket ref, two approvers), evidence-flag mechanics, refusals (CLAIMED/terminal/amount mismatch), money effects, audit fields, alert, restricted role, drill script.
 Tests: none (OP-02). Stop: published; OP-01 unblocked.

@@ -15,7 +15,7 @@ tests.
 
 | ID | Priority | To | Question | Consumed by |
 |----|----------|----|----------|-------------|
-| Q-01 | BLOCKING | Upstream + UI teams + PO | §18-0 residue (model = §1 contract fact: multiple payments per trade; snapshot messages, newer overwrites older; tuple unique within snapshot — no discriminator): written confirmation of snapshot schema + uniqueness (upstream ask 5); PO-9 absence semantics (BA-2 amendment); TL-16 ordering-watermark rule; TL-2 step-granularity clause (§12). | B-01 → IN-02 (schema/identity tasks not gated) |
+| Q-01 | BLOCKING | Upstream + UI teams + PO | §18-0 residue (model = §1 contract fact: multiple payments per trade; snapshot messages, newer overwrites older; tuple unique within snapshot — no discriminator): written confirmation of snapshot schema + uniqueness (upstream ask 5); PO-9 absence semantics (BA-2 amendment); TL-16 ordering-watermark rule; TL-2 step-granularity clause (§12); upstream ask 8 IN WRITING (round 4 — §18-0(d): fetch-by-id sanctioned, stable versioned ids, consistent reads, IMMUTABILITY, retention ≥ ops/tie SLA). | B-01 → IN-02 (schema/identity tasks not gated) |
 | Q-02 | BLOCKING | Provider (by sandbox test) | §18-1(a): can a known idempotency key + IDENTICAL payload ever execute twice? | CT-02 |
 | Q-03 | BLOCKING | Provider (by sandbox test) | §18-1(b)/TL-4: can a known key + DIVERGENT payload execute? Is the rejection code distinguishable from plain DUPLICATE_REQUEST? | CT-03, CA-1, §7.2 branch |
 | Q-04 | BLOCKING | Provider | §18-1(c): key-retention TTL IN WRITING; is TTL ≥ max row lifetime incl. ops-queue SLA, weekends, holidays, incidents, cutoff constraints? Verified at the retention edge? | CT-04; repost_permitted TTL term if short |

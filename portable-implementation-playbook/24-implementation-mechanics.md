@@ -376,9 +376,15 @@ procedure cannot reuse the shared helpers, check the freeze, emit
 triggers stay as the DB backstop:**
 ```text
 [ ] mandatory inputs enforced IN the operation contract: operator
-    id, reason, ticket ref; + two DISTINCT enterprise-authenticated
-    approver identities where the catalog says 4-eyes/dual (refuse
-    identical pair; free-text strings non-compliant — §9.3)
+    id, reason, ticket ref; where the catalog says 4-eyes/dual the
+    execution input is the §9.3 approval_id ONLY — identities are
+    DERIVED from the approval record (round 4: never approver-
+    identity parameters, never free-text strings)
+[ ] approval consumption is ATOMIC with the transition: the
+    APPROVED→CONSUMED CAS (row count 1) and the payment CAS commit
+    in ONE transaction/session; refusal or exception rolls back
+    BOTH (test: concurrent double-execution — exactly one wins;
+    mid-transaction failure — approval survives unconsumed)
 [ ] endpoint authorization: restricted to the enterprise ops role;
     unauthorized-role attempt refused (and tested)
 [ ] release guard honored: terminal-negative only on NOT_SUBMITTED or

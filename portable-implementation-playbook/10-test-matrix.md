@@ -521,13 +521,19 @@ Action:  run each OP-04 endpoint (+ RG-05 supersede/close) with
 Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          reject releases + sets the L9 marker, NOT_SUBMITTED only —
          a MAYBE row is refused at the code layer AND the trigger
-         layer (raw-SQL demo); reprocess-snapshot fetches the XML
-         by id, RE-VERIFIES the tie server-side (a non-tying or
-         wrong-business_id document is refused — no relaxation),
-         amends exactly the changed block, no-ops on re-run,
+         layer (raw-SQL demo); reprocess-snapshot executes by
+         approval_id, re-fetches and HARD-REFUSES on digest
+         mismatch BEFORE any lock (content-changed-behind-id →
+         alert fired — round 4), RE-VERIFIES the tie server-side
+         PER BLOCK (§20-10 algorithm; a non-tying or
+         wrong-business_id document is refused — no relaxation;
+         run the artifact-6(d) mixed-snapshot set), amends exactly
+         the changed block, no-ops on re-run,
          respects the §6.5 latch, and cleanly REFUSES a purged xml
-         id (no partial apply); missing ticket / identical
-         approvers / unauthorized role all refused; every call
+         id (no partial apply); approval-workflow negatives refused
+         (expired / replayed-consumed / identical identities /
+         concurrent double-execution — one CONSUMED CAS wins);
+         missing ticket / unauthorized role refused; every call
          writes the §14 MANUAL_OPS line; views rank ESCALATED first
          and list one row per obligation.
 Failure: any dead-end exit that works only via raw SQL, or an

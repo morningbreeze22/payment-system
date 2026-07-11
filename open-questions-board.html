@@ -159,7 +159,7 @@ const SECS = {
   U:{n:'📨 Upstream contract asks',c:'var(--up)',bg:'var(--upbg)',
      sub:'Guarantees requested from the system that sends us trade messages. The design defends against their absence today; each confirmation lets a defensive guard relax.'},
   O:{n:'🛠️ Manual operations — PO discussion, future build',c:'var(--ops)',bg:'var(--opsbg)',
-     sub:'The design produces situations only a human can resolve — and today the operations team has no tool for them. The launch version ships with exactly ONE required procedure (an audited, two-person action that closes a stuck payment using the payment platform’s own records); everything else here needs a decision and, eventually, an ops console.'}
+     sub:'The design produces situations only a human can resolve — and today the operations team has no tool for them. The launch version ships with a NON-WAIVABLE minimal exit set of three operations — the audited two-person verified-outcome action (closes a stuck payment using the payment platform’s own records), supersede/close, and reprocess-snapshot; the remaining convenience operations are waivable, and everything else here needs a decision and, eventually, an ops console.'}
 };
 const QS = [
 // ---- BLOCKING ----

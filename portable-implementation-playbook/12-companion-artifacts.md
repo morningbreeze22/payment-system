@@ -169,9 +169,12 @@ Failure if omitted: 03:00 alerts without actions; operators improvise
 Section: §16.6 artifact 8; §9.3, §18-3, §20-8.
 Owner type: TEAM + DBA + OPS.
 Purpose: the implementable spec for OP-01 and the §18-3 drill.
-Required contents: signature (request_id, EXECUTED|REJECTED, mandatory
-  ticket/evidence ref, two distinct authenticated approvers); dual-
-  control enforcement IN the operation (two-step approval workflow / signed assertion — §9.3); evidence-flag mechanics;
+Required contents: execution signature = approval_id ONLY (round 4 —
+  identities derived from the approval record, never parameters);
+  approval-record schema + PENDING→APPROVED→CONSUMED state machine
+  (version/nonce uniqueness; binding fields incl. the reprocess
+  content digest); ATOMIC consumption (CONSUMED CAS + payment
+  transition in ONE transaction — §9.3); evidence-flag mechanics;
   application through the same evidence-guarded CAS; money effects
   per outcome; refusal conditions (CLAIMED, terminal, amount
   mismatch); §15 every-use alert; §14 audit line

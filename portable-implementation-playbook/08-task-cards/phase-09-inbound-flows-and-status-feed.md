@@ -37,7 +37,7 @@
 - **Title:** Snapshot fan-out; locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
 - **Classification:** MVP normative implementation
 - **Purpose:** §6.1/§6.7: a message is a FULL-TRADE SNAPSHOT fanning out to one application per payment block; a redelivered older message must never regress required_amount; ties are payload-aware; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
-- **Prerequisites:** IN-01; S-02; B-01 RESIDUE (upstream ask 5 in writing; PO-9 absence semantics; TL-16 watermark rule — the fan-out cannot freeze while these are open).
+- **Prerequisites:** IN-01; S-02; B-01 RESIDUE (upstream ask 5 in writing; PO-9 absence semantics; TL-16 watermark rule; upstream ask 8 store contract in writing — §18-0(d), the intake fetch-by-id path depends on it — the fan-out cannot freeze while these are open).
 - **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §6.0 (snapshot shape + within-snapshot uniqueness validation), §6.1 (fan-out + convergence + the two OPEN markers), §6.7 (whole), §6.9 (required_amount row).
 - **Placeholder components involved:** [Obligation Repository].
 - **Local placeholder mappings required before starting:** obligation upsert path.
