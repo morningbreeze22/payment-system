@@ -225,7 +225,8 @@ Tests required:  per-transition legality tests (each L rule); CAS
 Edge cases:      dual-run window where old app version still writes
                  legacy status (expand/contract: dual-write, derived
                  label view); concurrent CAS races (two scanners —
-                 SKIP LOCKED + lease).
+                 the §11 claim protocol: lock-free selection,
+                 obligation-first claim CAS + lease).
 Common mistakes: ORM dirty-checking on these tables; keying any rule
                  on the display label or blocked_reason; re-claiming
                  an expired POST claim; writing dimensions without the

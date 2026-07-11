@@ -1,5 +1,18 @@
 # Payment Orchestration — Portable Implementation Playbook
 
+> ## ⚠ ARCHIVED SNAPSHOT — DO NOT USE FOR EXECUTION
+> Frozen 2026-07-11 (decision A6 of the external-review response).
+> This single-file playbook is **no longer maintained**; the only
+> maintained form is `portable-implementation-playbook/` (which also
+> carries the binding executor files 20–25 that were never mirrored
+> here). Content below reflects the state as of commit 04ad64d and
+> WILL drift from the corrected baseline — in particular the
+> 2026-07-11 corrections (provider_reference index decision, §11
+> claim protocol, retry-bounds simplification, dual-control identity
+> mechanism, B-01 gating normalization) exist ONLY in the portable
+> package and requirment-v4.md. Kept solely for one-file human
+> reading.
+
 **Baseline spec:** `requirment-v4.md` (Requirements v4, Factored State Model, 2026-07-05 — BASELINE, hardened through fourteen review rounds).
 **Date:** 2026-07-06
 **Transfer rule:** this document is one-way portable. It contains NO local source-code names, NO proprietary logic, NO confidential details. All local components are placeholders (Section G) mapped on the work laptop only (Section O). Nothing from the work laptop flows back.

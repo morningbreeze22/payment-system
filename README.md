@@ -10,14 +10,14 @@ This repository contains the implementation baseline and supporting design mater
 - [`payment-system-explained.html`](payment-system-explained.html) — interactive system guide (architecture, money model, simulator).
 - [`failure-recovery-walkthrough.md`](failure-recovery-walkthrough.md) — every failure scenario with its recovery path, tiered T0 (prevented) → T4 (external reconciliation); the gap review artifact.
 - [`failure-recovery-map.html`](failure-recovery-map.html) — interactive visualization of the failure/recovery catalog: filter by domain and tier, expand each scenario's recovery chain.
-- [`implementation-playbook.md`](implementation-playbook.md) — implementation plan: phases, task cards, gates.
-- [`portable-implementation-playbook/`](portable-implementation-playbook/) — the playbook split into transferable per-phase files.
+- [`portable-implementation-playbook/`](portable-implementation-playbook/) — **the maintained implementation playbook**: per-phase task cards, minimal-context packets, execution sequence, mechanics reference, go-live verification. This is what implementing agents load.
+- [`implementation-playbook.md`](implementation-playbook.md) — ARCHIVED single-file snapshot of the playbook (frozen 2026-07-11; no longer updated — the portable package is the only maintained form; kept for one-file human reading).
 - [`ops-console-proposal.md`](ops-console-proposal.md) — operations-console proposal (future work; `ops-console-proposal.html` is a superseded rendering kept for layout, `ops-console-mockup.html` is the visual mockup).
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — session design specs.
 
 ## Review provenance
 
-`requirment-v4-annotated.md` preserves review annotations. The `design-review*.md` documents contain the review rounds that produced the baseline; review v2 is retained as HTML because no Markdown source exists.
+The annotated requirement (`requirment-v4-annotated.md`) and the `design-review-v1…v14` round documents are **maintained locally by the design owner and intentionally excluded from this repository** (see `.gitignore`); they are available on request. The baseline's Status header in `requirment-v4.md` summarizes what those rounds hardened.
 
 ## Repository scope
 

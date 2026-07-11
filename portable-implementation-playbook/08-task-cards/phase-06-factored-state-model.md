@@ -202,7 +202,7 @@
 ### ST-09 — Claims as leases
 
 - **Task ID:** ST-09
-- **Title:** Claim = CAS to CLAIMED + claimed_by + claim_expires_at (L6); scanners use FOR UPDATE SKIP LOCKED, DB time, per-item transactions
+- **Title:** Claim = CAS to CLAIMED + claimed_by + claim_expires_at (L6); scanners use the §11 claim protocol (lock-free selection → per-item obligation-first claim CAS), DB time, per-item transactions
 - **Classification:** MVP normative implementation
 - **Purpose:** §11: second scanner cannot re-claim mid-processing; stale workers are fenced by CAS row counts.
 - **Prerequisites:** ST-02; D-08 job inventory.
@@ -211,7 +211,7 @@
 - **Local placeholder mappings required before starting:** claim-column reality from D-08 (exists? semantics?).
 - **Local code areas to discover:** current claim/pick-up logic in each worker/scanner.
 - **How to locate:** D-08 inventory.
-- **Implementation instructions:** standard claim CAS: READY/RETRY_WAIT(due) → CLAIMED + claimed_by + claim_expires_at, WHERE carries prior state + outcome IS NULL; work; completion CAS moves onward and NULLs claim fields (L6); scanners: SKIP LOCKED selection, next_retry_at compared against DB time, one transaction per item; lease durations per stage from config (§16.6).
+- **Implementation instructions:** standard claim CAS: READY/RETRY_WAIT(due) → CLAIMED + claimed_by + claim_expires_at, WHERE carries prior state + outcome IS NULL; work; completion CAS moves onward and NULLs claim fields (L6); scanners follow the §11 claim protocol (decided 2026-07-11, mechanics M5): candidate SELECT takes NO locks (no FOR UPDATE / SKIP LOCKED); per candidate a NEW transaction locks the OBLIGATION first, then runs the claim CAS — rowCount 0 = lost race, skip; claim/unclaim triggers no §4 re-derivation; next_retry_at compared against DB time; one transaction per item; lease durations per stage from config (§16.6).
 - **Do not change:** what the workers DO with claimed rows.
 - **Tests to add:** double-claim race (two scanners, one wins); stale-worker fence (expired worker's completion CAS → row-count 0); L6 both directions.
 - **Edge cases:** worker completing exactly at expiry — CAS precondition includes claimed_by = self, so a re-claimed row fences the old worker regardless.

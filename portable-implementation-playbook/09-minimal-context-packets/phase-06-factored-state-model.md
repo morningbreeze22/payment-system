@@ -73,7 +73,7 @@ Tests: log-capture per transition family; masking. Stop: merged.
 
 ```text
 [ST-09] Claims as leases
-Read: §11 (claims + scanner rules) §2.2 L6. Invariant: claim = CAS to CLAIMED + claimed_by + claim_expires_at; SKIP LOCKED; DB time; per-item transactions.
+Read: §11 (claims + claim protocol) §2.2 L6; mechanics M4/M5. Invariant: claim = CAS to CLAIMED + claimed_by + claim_expires_at; candidate selection takes NO locks; per-item tx locks the OBLIGATION first, then the claim CAS (rowCount 0 = lost race); DB time; no re-derivation on claim/unclaim.
 Placeholders: [Retry Resolver Job] + stage workers, [Request Status Persistence Layer]. Mappings: D-08 claim reality.
 Objective: standard claim/complete CASs with L6 both directions; lease durations from config.
 Tests: double-claim race; stale-worker fence; L6. Stop: merged.

@@ -17,7 +17,7 @@ Tests: seeded condition per alert. Stop: merged.
 
 ```text
 [OB-04] Flow/stuck alerts
-Read: §15 (entries + stuck-state split) §12 (freshness) §16.2 (lag). Invariant: stuck-state split — retry states on retry_deadline_at, non-churning on state_changed_at; metric absence = bad.
+Read: §15 (entries + stuck-state split) §12 (freshness) §16.2 (lag). Invariant: stuck-state split — retry states on next_retry_at OVERDUE (2026-07-11 re-key), non-churning on state_changed_at; metric absence = bad.
 Placeholders: [Metrics / Alerting Layer], card read path. Mappings: metric sources from IN/RC tasks.
 Objective: unmatched volume, stale message/marker-write volumes, DLT page, consumer-lag page + card lag indicator, scanner heartbeats, stuck-state, sweep overrun, observed-lag watchdog, deadlock ticket, inbox growth, dead-gauge alerting.
 Tests: seeded per alert; dead-gauge check. Stop: merged.

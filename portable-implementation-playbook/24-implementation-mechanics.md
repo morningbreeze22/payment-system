@@ -167,13 +167,22 @@ carries its old expectations → rowCount 0.
 ## M5. Scanner recipe (retry scanner, resolver sweep, escalation, drift)
 
 ```sql
--- selection: bounded batch, skip contested rows, DB time only
+-- STEP A · candidate selection: bounded batch, DB time, NO LOCKS
+-- (plain read — the claim CAS below is the contention resolution;
+--  FOR UPDATE SKIP LOCKED is NOT used: locking request rows before
+--  the obligation lock would invert the §11 global lock order)
 SELECT id FROM payment_request
  WHERE outcome IS NULL
    AND <scope predicate — dimension columns / episode anchors ONLY>
  ORDER BY <the scope's ordering rule>
- FETCH FIRST :batch_size ROWS ONLY
-   FOR UPDATE SKIP LOCKED;
+ FETCH FIRST :batch_size ROWS ONLY;
+
+-- STEP B · per candidate, a NEW transaction (the §11 claim protocol):
+--   1. obligation lock FIRST (SELECT ... FOR UPDATE on the parent)
+--   2. claim CAS (M4) whose WHERE carries the full expected state
+--   3. rowCount 0 → lost race: skip silently, next candidate
+-- Claim/unclaim transitions are CLAIM MECHANICS (§11): they run
+-- under this obligation lock but trigger NO §4 re-derivation.
 ```
 
 - Gate on the dependency's circuit breaker BEFORE claiming a batch
@@ -189,9 +198,12 @@ SELECT id FROM payment_request
   (submission_state='SUBMITTED' AND submitted_at < :now - :confirmation_age))`
   — ANY stage, ANY stage_state, including BLOCKED. Never scope by
   stage or by how a row got somewhere (§9.5).
-- While frozen / breaker OPEN: attempt and deadline budgets are
-  SUSPENDED (§16.1) — wall-clock during an outage must not consume
-  retry budget. Cutoff checks still apply at attempt time.
+- Retry bounds are max attempts + payment cutoff ONLY (§7.4,
+  2026-07-11 decision) — retry_deadline_at is reserved/unused; wire
+  no rule to it. While frozen / breaker OPEN, gated scanners make
+  zero attempts, so the attempt budget is structurally safe — there
+  is no suspension mechanism to implement. Cutoff checks still
+  apply at attempt time (never suspend).
 - Every scanner exports a heartbeat (§15: silent 3× interval → page).
 - Expected indexes: the §16.6 artifact-4 ACTIVE-row-bounded function
   indexes (expressions NULL for terminal rows). If a scanner query
@@ -299,10 +311,14 @@ named exceptions) in the report (19). Rule 18 makes this mandatory.
 ```text
 [ ] scope predicate on dimensions/anchors only — never stage-history,
     never labels, never blocked_reason
-[ ] FOR UPDATE SKIP LOCKED + bounded batch + per-item transactions
+[ ] lock-free candidate selection (NO FOR UPDATE / SKIP LOCKED) +
+    per-item transactions: obligation lock FIRST, then the claim CAS;
+    rowCount 0 = lost race, skipped silently (§11 claim protocol)
 [ ] breaker-gated before claiming; jittered backoff
 [ ] DB time everywhere; AGE rules on set-once anchors
-[ ] freeze/breaker suspension of attempt+deadline budgets honored
+[ ] freeze/breaker windows: zero attempts made (attempt budget
+    structurally safe); cutoff checked at attempt time, never
+    suspended; nothing wired to retry_deadline_at
 [ ] poison-row cap → BLOCKED + alert (no infinite loop)
 [ ] heartbeat metric exported; overrun behavior defined (no overlap)
 [ ] plan check: query rides an ACTIVE-row-bounded index

@@ -13,6 +13,16 @@ The cards' own prerequisites still apply; if a row's prerequisite is
 not met, the row is BLOCKED — stop and report, never skip ahead past a
 money-affecting dependency.
 
+**Phase-boundary gate (rule 19, adopted 2026-07-11):** cards commit to
+the PHASE INTEGRATION BRANCH; the branch merges to main only when the
+phase's last row is done AND (a) an integration review passed, (b) the
+phase's cross-path tests are green, (c) the local mapping rows the
+NEXT phase needs were refreshed (re-run that phase's discovery
+searches — stale rows re-BLOCK their tasks), and (d) every
+intentionally-unwired safety path recorded in this phase's reports
+has a NAMED closing gate. Roughly 14 integration merges instead of
+one per card.
+
 Ownership tags:
 
 ```text

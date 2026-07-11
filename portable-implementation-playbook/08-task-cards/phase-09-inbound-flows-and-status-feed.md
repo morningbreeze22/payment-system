@@ -61,7 +61,7 @@
 - **Title:** Create anchor obligations for failed-validation messages with extractable scope; DLT for unidentifiable ones
 - **Classification:** MVP normative implementation
 - **Purpose:** §6.6: the durable anchor readers query; failing ordering recorded on the marker but upstream_ordering NOT advanced; card shows the problem.
-- **Prerequisites:** IN-02; IN-04 marker helper (or implement marker write here first — coordinate, single helper).
+- **Prerequisites:** IN-02. Marker-write helper: implement it HERE as the single shared helper (DECIDED 2026-07-11 — this is not a coordination point); IN-04 then EXTENDS it with monotonic re-tag coverage and counters. Do not wait for IN-04.
 - **Requirement sections / concepts to read:** §6.6 (normal anchor path; key-only anchoring is NOT in scope — TL-7 future), §2.1 (validation_failed fields), §4.1 (anchor completion impossibility).
 - **Placeholder components involved:** [Obligation Repository], DLT wiring.
 - **Local placeholder mappings required before starting:** upstream consumer + DLT (D-07).
@@ -229,7 +229,7 @@
 ## Phase handoff summary (P9 → P10)
 
 - **Phase outputs:** §6.0 contract-guarded intake (scale validation, payload equality); §6.7 ordering guard + tie handling; §6.6 anchors + DLT; §6.9 monotonic markers + counters; §8 feed skeleton (inbox-first, ack-after-commit); fail-closed provider_reference fallback; shared evidence-application helper (§4.4/§10.1); amount-mismatch park; §16.2-compliant consumers.
-- **Blockers to carry forward:** §18 items unchanged; upstream asks 1–4 (Q-16) may still be open — comparator stays pluggable, tie alert stays live.
+- **Blockers to carry forward:** §18 items unchanged; upstream asks 1–7 may still be open (asks 1–4 = Q-16; ask 5 = Q-01; asks 6–7 = Q-21) — comparator stays pluggable, tie alert stays live.
 - **Local mapping rows expected filled:** [Payment Status Feed Consumer], [Inbox / Processed Event Repository], upstream consumer rows complete with the §16.2 checklist all-compliant.
 - **Tests expected to exist:** ordering/tie tests, anchor lifecycle, marker truth-table, inbox concurrency (T-18 part), evidence rules + races (T-19), mismatch park, poison/DLT/offset tests.
 - **Next phase entry condition:** IN-09 checklist compliant; phase report filed.

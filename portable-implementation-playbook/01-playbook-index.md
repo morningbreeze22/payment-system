@@ -134,8 +134,8 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 | Phase | Tasks | Prerequisites | Blockers (§18 / other) | Output artifact | Next phase |
 |---|---|---|---|---|---|
 | P1 Discovery | D-01..D-12 | none | none (read-only) | filled local mapping + D-12 report | P2 (after human review) |
-| P2 Gates + artifacts | B-01..B-04, CA-1..CA-9 | D-12 report | §18-0..3 are THE work here | recorded answers + CA-1..9 published | P3 (needs B-01 + CA-4) |
-| P3 Schema | S-01..S-09 | B-01 answered; CA-4 | §18-0 gates freeze | schema at target + S-09 proof | P4 |
+| P2 Gates + artifacts | B-01..B-04, CA-1..CA-9 | D-12 report | §18-0..3 are THE work here | recorded answers + CA-1..9 published | P3 (needs CA-4; B-01 residue does NOT gate — see BLOCKED list above) |
+| P3 Schema | S-01..S-09 | CA-4 published (scope model settled as a §1 contract fact — B-01 residue NOT required; it gates the §6 consumer freeze IN-02, not schema) | §18-0 gates IN-02, not this phase | schema at target + S-09 proof | P4 |
 | P4 Identity | K-01..K-06 | S-09; CA-5 | §18-0 (via CA-5) | deterministic identity + golden vectors | P5 (P8 may start) |
 | P5 UETR | U-01..U-03 | S-03; P4 claim path | TL-11(a) if unclear | acceptance-only UETR rules | P6 |
 | P6 State model | ST-01..ST-11 | P3; S-08 backfill | none new | factored model + CAS + leases | P7 |

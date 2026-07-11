@@ -4,7 +4,7 @@
 **Date:** 2026-07-05
 **Stack:** Java (Spring Boot), Oracle DB, Spring Kafka, Hazelcast.
 **Services:** `PaymentOrchestrationService`, `PaymentEnrichmentService`, `PaymentExecutionService`, `PaymentNotificationConsumerService`.
-**Status:** BASELINE — hardened through fourteen review rounds (internal + external adversarial); every finding resolved in place or tracked as an open item. Implementation is gated on the §18 BLOCKING items (0–3). Settled ground a reviewer must not re-challenge: the §1 contract facts (confirmed and assumed) and the §1.1 Basic Agreements. Full review provenance: `requirment-v4-annotated.md` and the design-review-v1…v14 series.
+**Status:** BASELINE — hardened through fourteen review rounds (internal + external adversarial); every finding resolved in place or tracked as an open item. Implementation is gated on the §18 BLOCKING items (0–3). Settled ground a reviewer must not re-challenge: the §1 contract facts (confirmed and assumed) and the §1.1 Basic Agreements. Full review provenance: `requirment-v4-annotated.md` and the design-review-v1…v14 series (maintained locally by the design owner; intentionally excluded from the shared repository — available on request).
 
 What changed from v3: the 13-value request `status` enum entangled
 four orthogonal facts — lifecycle position, money truth, who acts
@@ -321,8 +321,10 @@ uetr                — SDK/engine-assigned, persisted from the
                       see §5
 version             — CAS counter
 claim fields        — claimed_by, claim_expires_at
-retry fields        — attempt_count, next_retry_at, retry_deadline_at,
-                      last_error_code
+retry fields        — attempt_count, next_retry_at, last_error_code
+                      (retry_deadline_at exists but is RESERVED/
+                      unused — the 2026-07-11 bounds decision, §7.4:
+                      attempts + cutoff are the retry limits)
 resolver fields     — next_query_at (per-row query backoff, §9.5). NO consecutive-answer counter exists
                       (a column whose only job is answer
                       validation was rejected as over-design — the
@@ -788,7 +790,10 @@ duplicate. With deterministic keys, the re-creation regenerates the
 SAME key → the engine rejects with DUPLICATE_REQUEST → §7 routes it
 to ambiguous-outcome handling → the status query recovers the lost
 outcome. One derivation rule converts a restore from "money at risk"
-into a reconciliation chore.
+into a recoverable reconciliation problem — fully operationalized
+only by the §5.2 runbook (post-MVP); until that exists, a restore
+is handled as a major incident with manual engine-side
+reconciliation (§5.2 PO decision).
 
 The amount is deliberately NOT part of the key: hashing it in would
 regenerate a fresh key whenever a post-restore replay recreates a
@@ -1154,6 +1159,20 @@ valid snapshot clears the markers by ordering. One corrupt
 trade-mate delays its siblings' NEW work — never their in-flight
 work. Partial application of a document that violated its own
 contract would be worse.
+
+Consistency semantics of the trade-wide gate (clarified 2026-07-11
+after external review): the gate is EVENTUALLY CONSISTENT per block,
+not atomic — markers are applied per obligation in per-block
+transactions (§6.1), and a crash mid-fan-out leaves siblings
+unmarked until redelivery re-applies. This window is ACCEPTED and
+harmless by construction: a request created on a not-yet-marked
+sibling is created from the LAST VALID APPLIED state — exactly what
+would have happened had the corrupt snapshot simply arrived later —
+and the corrupt snapshot itself carries no applicable truth
+(validation failure advances nothing). Monotonic ordering-tagged
+marker writes (§6.9) make re-application and interleaving with a
+newer valid snapshot converge. No trade-level lock or gate exists,
+BY DECISION: the atomicity it would buy protects nothing money-real.
 
 If the message is too malformed to identify the scope, route it to the
 dead-letter/ops-alert path. This blind spot is accepted and monitored.
@@ -1571,16 +1590,26 @@ so terminal-negative outcomes are unrestricted here (§10.1).
 
 ### 7.4 Retry policy
 
-Retry exhaustion: when a retryable failure hits its max attempts or
-retry deadline, the request goes stage_state = BLOCKED
-(RETRY_EXHAUSTED); the derived exception becomes non-retryable with
-`manual_action_required = true`. Deadline/cutoff checks run BEFORE
-each attempt; cutoff violation blocks with reason CUTOFF_EXPIRED.
+Retry exhaustion (bounds decided 2026-07-11 — max attempts + the
+payment cutoff are THE retry limits; the independent wall-clock
+retry deadline is REMOVED from the rules because its §16.1
+suspension requirement had no durable implementation — instance-local
+breakers, absolute timestamps, no outage-history storage): when a
+retryable failure hits its max attempts, the request goes
+stage_state = BLOCKED (RETRY_EXHAUSTED); the derived exception
+becomes non-retryable with `manual_action_required = true`. The
+cutoff check runs BEFORE each attempt; cutoff violation blocks with
+reason CUTOFF_EXPIRED. This makes suspension STRUCTURAL: a gated or
+frozen scanner makes zero attempts, so the attempt budget cannot
+burn during an outage, and the cutoff deliberately never suspends
+(external business truth).
 
 Retry policy is explicit per error class (base interval, multiplier,
 max attempts, cutoff), lives in externalized config (§16.6); retry
-*state* (`attempt_count`, `next_retry_at`, `retry_deadline_at`,
-`last_error_code`) lives on the request row. Exactly one retry owner
+*state* (`attempt_count`, `next_retry_at`, `last_error_code`) lives
+on the request row (`retry_deadline_at` remains as a RESERVED,
+unused column — kept to avoid schema churn after the 2026-07-11
+bounds decision). Exactly one retry owner
 per (operation, error class) — the DB scanner; no stacked in-process
 retries on the payment POST (§16.1).
 
@@ -1589,7 +1618,8 @@ The trust-age downgrade (§9.2) has its OWN policy class:
 `attempt_count` RESETS on downgrade — a downgrade starts a new
 episode under a new error class, the old counter belonged to the
 original failure class; small max attempts (suggest 2–3, config
-§16.6); `retry_deadline_at` bounded by the payment cutoff. Exhaustion
+§16.6); bounded by the payment cutoff via the pre-attempt check
+(§7.4 — no wall-clock deadline exists). Exhaustion
 → BLOCKED (RETRY_EXHAUSTED) with submission_state still
 MAYBE_SUBMITTED: the row stays in resolver scope (§9.5) and the
 maybe_since escalation clock (§9.3) keeps running, so exhaustion
@@ -1646,8 +1676,16 @@ Rules:
   §9 sweep recovers the truth by key). Rationale: a mis-matched
   settlement completes a scope that was never paid, whose real
   payment then re-pays via §6.8 — a double-pay; and a mis-matched
-  REJECT has no amount guard at all. A UNIQUE index on
-  provider_reference makes silent reuse loud.
+  REJECT has no amount guard at all. Index decision (2026-07-11, PO
+  review — supersedes the earlier UNIQUE-index sentence): the field
+  carries a NON-UNIQUE lookup index until TL-12 confirms the
+  uniqueness scope in writing; reuse is made loud by a METRIC (the
+  fallback lookup finding >1 candidate → counted + alerted), never
+  by a constraint — a UNIQUE index would fail OUR response-persistence
+  transaction on a legitimate reuse AFTER the engine already accepted
+  the payment, converting acceptances into manufactured MAYBE rows.
+  A UNIQUE (or compound-scoped unique) index may be added only after
+  written TL-12 confirmation, by explicit decision.
 - The evidence rules shall never be weakened because the inbox
   exists; a re-keyed duplicate passes the inbox and must die on the
   CAS row count.
@@ -1869,7 +1907,13 @@ AFTER the money.
   with: request_id, the verified outcome (EXECUTED or REJECTED), a
   mandatory ticket/evidence reference (§20-8), and TWO distinct
   authenticated approver identities (dual control enforced by the
-  procedure, not by convention). The procedure sets the §10.3
+  procedure, not by convention). Identity mechanism (decided
+  2026-07-11): the approver identities are supplied and
+  authenticated by the ENTERPRISE ACCESS-MANAGEMENT TOOLING — each
+  operator has a unique, non-bypassable identity — and the
+  procedure verifies distinctness and records both. Two free-text
+  identity strings do NOT satisfy dual control; discovery confirms
+  how the authenticated identities reach the procedure. The procedure sets the §10.3
   evidence session flag — the release-guard trigger is passed
   LEGITIMATELY, never disabled — and applies the outcome through
   the SAME evidence-guarded CAS as feed evidence (§4.4):
@@ -2346,8 +2390,27 @@ Rules:
   provably-durable identity and hash before the wire.
   Treat the claim as lost; lease expiry takes the row to MAYBE and
   the resolver owns it. (Test-catalog entry, §16.6 artifact 6.)
-- Scanners use `FOR UPDATE SKIP LOCKED`, DB time (never app time) in
-  `next_retry_at` comparisons, and per-item transaction boundaries.
+- Scanner claim protocol (NORMATIVE — decided 2026-07-11; replaces
+  the earlier `FOR UPDATE SKIP LOCKED` guidance, which could invert
+  the global lock order):
+  1. Candidate selection takes NO row locks: a plain bounded read
+     (dimension/anchor predicates, DB time, deterministic order).
+  2. Per candidate, a NEW transaction: obligation lock FIRST (the
+     global order), then the claim CAS whose WHERE carries the full
+     expected state. Row count 0 = lost race — skip, never retry.
+  3. Per-item transaction boundaries; one failed item never poisons
+     the batch.
+  The CAS is the contention-resolution mechanism; SKIP LOCKED is
+  unnecessary and shall not be used in any step that could precede
+  an obligation lock in the same transaction.
+- Claim-transition classification (decided 2026-07-11): READY →
+  CLAIMED, the expired-lease takeover, and unclaim are CLAIM
+  MECHANICS — they run under the obligation lock (acquired first by
+  the per-item transaction above) but do NOT trigger §4
+  re-derivation: no derived column reads CLAIMED. The
+  skip-the-obligation-lock exemption below is thereby NARROWED to
+  pure counter/lease-field updates that change no dimension
+  (attempt_count, next_retry_at, claim_expires_at extension).
 
 Claim-expiry recovery:
 
@@ -2594,9 +2657,11 @@ never on blocked_reason as a rule input (§10.1).
 - Engine circuit breaker OPEN                  → ticket; page at 30m
 - Generic stuck-state age (any active request
   older than its per-(stage,stage_state) max)  → ticket
-  (split: retry states alert on retry_deadline_at passed without
-   exhaustion handling — claim/retry churn resets state_changed_at;
-   non-retry states, which do not churn, alert on state_changed_at)
+  (split: retry states alert on next_retry_at OVERDUE beyond a
+   threshold — a due row nobody claimed is a scanner problem, and
+   claim/retry churn resets state_changed_at so it cannot serve
+   here; non-retry states, which do not churn, alert on
+   state_changed_at)
 - Stale upstream messages (§6.7)               → alert on volume
 - ORA-00060 deadlock count                     → ticket (lock-order
                                                  regression tripwire)
@@ -2699,20 +2764,17 @@ so one id greps the whole story.
   consumption, §9 status queries, and card reads always continue:
   the post-restore runbook (§5.2) depends on the resolver running
   while posting is frozen, and consumption must never be stopped.
-- Freeze clock semantics: while posting is frozen, cutoff checks
-  still apply at attempt time (the cutoff is external business
-  truth), but attempt-based retry deadlines are SUSPENDED — frozen
-  time does not consume attempts or deadline budget, preventing a
-  mass BLOCKED escalation mid-runbook. An in-flight POST call at
-  flip time completes (drain semantics, §11). The SAME suspension
-  applies while the engine's circuit breaker is OPEN: scanners
-  are gated and make zero attempts, so wall-clock must not consume
-  attempt/deadline budget — otherwise a 6-hour engine outage
-  converts the entire RETRY_WAIT population to BLOCKED
-  (RETRY_EXHAUSTED/CUTOFF_EXPIRED) at recovery: an ops-queue flood
-  for payments that needed nothing but a working engine. Cutoff
+- Freeze/outage clock semantics (simplified by the 2026-07-11 retry
+  bounds decision, §7.4): retry limits are max attempts + the
+  payment cutoff — there is NO wall-clock retry deadline, so there
+  is nothing to "suspend" and no outage bookkeeping to persist.
+  While posting is frozen or a breaker is OPEN, gated scanners make
+  zero attempts, so the attempt budget structurally cannot burn —
+  a 6-hour engine outage leaves the RETRY_WAIT population exactly
+  where it was, ready at recovery, with no BLOCKED flood. Cutoff
   checks still apply at attempt time in both cases — the cutoff is
-  external business truth.
+  external business truth and never suspends. An in-flight POST
+  call at flip time completes (drain semantics, §11).
 - In-process micro-retries are permitted ONLY for idempotent reads on
   provably-unsubmitted failures (e.g. enrichment lookups) — never on
   the payment POST. Durable retries (§7.4) are the single retry owner
@@ -2930,15 +2992,27 @@ tests point at them):
 6. Test catalog aligned to this document (seed from
    design-review-v3 §3 + the v5/v7 interleavings). Includes:
    a §9.2 downgrade re-POST answered DUPLICATE_REQUEST leaves the
-   prior `uetr` value (or NULL) intact.
+   prior `uetr` value (or NULL) intact. MANDATORY additions
+   (2026-07-11 external-review fold): (a) crash-point tests at
+   every commit/external-call boundary — before claim commit;
+   unknown claim commit; after claim commit before POST; during
+   POST; after engine acceptance before response persistence;
+   after DB commit before Kafka ack; during snapshot fan-out;
+   during validation-marker fan-out; (b) a property-based sweep of
+   the §10.3 legality matrix (every illegal tuple write refused);
+   (c) the §11 claim-protocol concurrency/deadlock test on real
+   Oracle (scanner vs feed vs auto-cancel interleavings — no
+   lock-order inversion, no ORA-00060).
 7. Runbook stubs, one per §15 alert; the §5.2 restore runbook; the
    unqueryable aged MAYBE row (past the engine lookback — §9.3): platform-side lookup → TL-10 rejection or the
    apply-platform-verified-outcome procedure.
 8. The apply-platform-verified-outcome stored procedure spec
    (§9.3 — §18 BLOCKING item 3): signature, dual-control
-   enforcement, evidence-flag mechanics, refusal conditions
-   (CLAIMED, terminal, amount mismatch), audit fields, and the
-   ops drill script.
+   enforcement (identities authenticated by the enterprise
+   access-management tooling — §9.3 decision 2026-07-11; free-text
+   identity strings are non-compliant), evidence-flag mechanics,
+   refusal conditions (CLAIMED, terminal, amount mismatch), audit
+   fields, and the ops drill script.
 ```
 
 ------
@@ -2970,8 +3044,10 @@ alert), never pay-twice, never fail silently
 Identity
 =
 deterministic to the byte, persisted before POST; retries reuse it;
-no fresh keys, ever — a database restore becomes a reconciliation
-chore
+no fresh keys, ever — deterministic identity keeps a restore
+RECOVERABLE (re-creations collide at the engine instead of paying
+twice); FULL restore recovery is the §5.2 runbook, post-MVP — until
+it exists, a restore is a major incident (PO decision, §5.2)
 
 Request creation
 =
@@ -3050,8 +3126,8 @@ payment platform
    owner, per-currency/market semantics including holidays,
    timezone-aware representation (§16.4), refresh cadence, and the
    stale/missing-calendar fail direction (recommend: fail-blocked
-   per payment_type). Consumed by repost_permitted (§7.0), §7.4
-   retry deadlines, §9.2's lookback guard, and escalation sizing —
+   per payment_type). Consumed by repost_permitted (§7.0), the §7.4
+   retry bounds (attempts + cutoff), §9.2's lookback guard, and escalation sizing —
    a wrong calendar blocks a whole currency an hour early or
    re-POSTs after bank close.
 3. MVP MAYBE-row terminal exit: the §9.3

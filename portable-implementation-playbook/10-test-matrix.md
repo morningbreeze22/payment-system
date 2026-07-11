@@ -264,8 +264,10 @@ Implemented by: K-06, S-05, RG-06.
 
 ```text
 Section: §11          Type: CONCURRENCY    Blocking: YES
-Purpose: claims, CAS row counts, and SKIP LOCKED make concurrent
-         scanners safe.
+Purpose: claims, CAS row counts, and the §11 claim protocol
+         (lock-free selection, obligation-first per-item claim)
+         make concurrent scanners safe. (T-34 covers lock-order/
+         deadlock freedom under interleaving.)
 Setup:   two scanner instances; seeded READY/RETRY_WAIT rows; two
          concurrent feed duplicates (rebalance case).
 Action:  run concurrently.
@@ -523,5 +525,29 @@ Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
 Failure: any dead-end exit that works only via raw SQL, or a
          procedure whose audit inputs are optional in practice.
 Implemented by: OP-04, RG-05.
+```
+
+### T-34 — Claim protocol: lock order, lost races, deadlock freedom
+
+```text
+Section: §11 (claim protocol, decided 2026-07-11)   Type: INTEGRATION
+Blocking: YES
+Purpose: the scanner claim protocol cannot invert the global lock
+         order or double-claim; real Oracle, real contention.
+Setup:   one obligation with a claimable request; concurrent actors
+         on real Oracle: retry scanner, feed consumer applying
+         evidence, auto-cancel amendment, second scanner instance.
+Action:  run interleaved rounds (scanner vs feed vs cancel vs
+         scanner-2) under load; instrument lock acquisition order.
+Expect:  every both-table transaction locks the obligation FIRST
+         (candidate selection takes NO row locks); exactly one actor
+         wins each claim (CAS rowCount 1), losers see 0 rows and
+         skip silently; zero ORA-00060 across the run; claim/unclaim
+         triggers no §4 re-derivation.
+Failure: any FOR UPDATE on payment_request before the obligation
+         lock in the same transaction, or a deadlock under
+         interleaving.
+Implemented by: ST-09..11, RC-04/RC-05 (protocol per §11 + mechanics
+M5), OB-xx dashboards unaffected.
 ```
 

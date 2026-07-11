@@ -91,9 +91,9 @@
 - **Local placeholder mappings required before starting:** job infra; S-07 index expressions (queries must match).
 - **Local code areas to discover:** in-process retry wrappers on the POST path (from D-05 — REMOVE them here, the single-owner rule).
 - **How to locate:** D-05/D-08 inventories.
-- **Implementation instructions:** scanner: breaker-gated batch claim (SKIP LOCKED, bounded, jittered backoff); per row: cutoff + deadline pre-checks (violation → BLOCKED(CUTOFF_EXPIRED)); repost_permitted for POST-stage rows (retry-guard branch per RG-07); execute stage work; failure → policy: next_retry_at per class config (base/multiplier/max/cutoff), attempt_count++; exhaustion → BLOCKED(RETRY_EXHAUSTED) (+ MAYBE rows keep submission_state — stay in resolver scope, maybe_since keeps running — §7.4); downgrade policy class: next_retry_at=now, attempt_count RESET, small max (config 2–3), deadline ≤ cutoff; suspension: while freeze effective or breaker OPEN → zero attempts AND attempt/deadline budget frozen (cutoff checks still apply at attempt time); poison-row cap → BLOCKED + alert; remove stacked in-process retries on the POST.
+- **Implementation instructions:** scanner: breaker-gated, §11 claim protocol (lock-free bounded candidate selection, jittered backoff; per candidate a NEW transaction locks the OBLIGATION first then runs the claim CAS — mechanics M5); per row: cutoff pre-check (violation → BLOCKED(CUTOFF_EXPIRED); retry bounds are attempts + cutoff ONLY — §7.4 2026-07-11, nothing wired to retry_deadline_at); repost_permitted for POST-stage rows (retry-guard branch per RG-07); execute stage work; failure → policy: next_retry_at per class config (base/multiplier/max/cutoff), attempt_count++; exhaustion → BLOCKED(RETRY_EXHAUSTED) (+ MAYBE rows keep submission_state — stay in resolver scope, maybe_since keeps running — §7.4); downgrade policy class: next_retry_at=now, attempt_count RESET, small max (config 2–3), bounded by the cutoff pre-check; while freeze effective or breaker OPEN → zero attempts (structural safety — no budget mechanism exists to build; cutoff checks still apply at attempt time); poison-row cap → BLOCKED + alert; remove stacked in-process retries on the POST.
 - **Do not change:** enrichment micro-retries for idempotent reads (§16.1 permits those).
-- **Tests to add:** policy schedule math; exhaustion → BLOCKED with MAYBE preserved; cutoff pre-check; suspension (6-hour simulated outage consumes no budget — the §16.1 scenario); poison cap; single-owner (no nested retry on POST — structural assert/test where feasible).
+- **Tests to add:** policy schedule math; exhaustion → BLOCKED with MAYBE preserved; cutoff pre-check; 6-hour simulated outage → zero attempts made, attempt_count unchanged, zero BLOCKED conversions (the §16.1 scenario, structural); poison cap; single-owner (no nested retry on POST — structural assert/test where feasible).
 - **Edge cases:** downgrade-class rows re-posting immediately (next_retry_at=now) — L7 satisfied by the explicit write (§9.2).
 - **Manual validation:** seeded RETRY_WAIT population through a scripted breaker-OPEN window.
 - **Expected outcome:** one disciplined retry owner.
@@ -226,19 +226,19 @@
 ### RC-10 — Breaker + budget-suspension integration
 
 - **Task ID:** RC-10
-- **Title:** Circuit breaker per dependency (business rejects = successes); scanner gating; freeze/breaker suspension of attempt/deadline budgets wired end to end
+- **Title:** Circuit breaker per dependency (business rejects = successes); scanner gating; structural attempt-budget safety across freeze/breaker windows
 - **Classification:** MVP normative implementation
-- **Purpose:** §16.1: an outage becomes quiet waiting; a 6-hour engine outage must not flood the ops queue at recovery.
-- **Prerequisites:** RC-04 (suspension hooks), RC-09 (freeze state).
-- **Requirement sections / concepts to read:** §16.1 (breaker + suspension + bulkheads + timeouts), §16.6 (thresholds config).
+- **Purpose:** §16.1: an outage becomes quiet waiting; a 6-hour engine outage must not flood the ops queue at recovery. SIMPLIFIED by the 2026-07-11 retry-bounds decision (§7.4): retry limits are max attempts + cutoff — there is NO wall-clock deadline, so there is NO suspension mechanism to build; suspension is structural (gated scanners make zero attempts).
+- **Prerequisites:** RC-04 (retry scanner), RC-09 (freeze state).
+- **Requirement sections / concepts to read:** §16.1 (breaker + clock semantics + bulkheads + timeouts), §7.4 (bounds decision), §16.6 (thresholds config).
 - **Placeholder components involved:** [Provider POST Client], [Retry Resolver Job], [Status Query Resolver], [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** breaker library/conventions (D-10).
 - **Local code areas to discover:** existing breaker/timeouts per dependency.
 - **How to locate:** D-05/D-10.
-- **Implementation instructions:** per-dependency breakers (enrichment, account service, engine POST, status-query API) with explicit timeout budgets (config §16.6); business rejects recorded as successes; scanners gate on breaker state pre-claim; suspension: freeze-effective OR breaker-OPEN windows do not consume attempt/deadline budget (RC-04's mechanism — verify end to end here); bulkhead check: posting, enrichment, card-read pools separate (record local reality; if shared, this is a change task — bounded queues, DB as the real queue).
-- **Do not change:** breaker library choice (local convention).
-- **Tests to add:** breaker opens on transport failures only; scanner claims zero while OPEN; budget frozen across an OPEN window (extends RC-04's test through the real breaker); query-API breaker → INDETERMINATE handling (RC-06) not NOT_FOUND.
-- **Edge cases:** breaker half-open probes are attempts (consume budget normally — only OPEN suspends).
+- **Implementation instructions:** per-dependency breakers (enrichment, account service, engine POST, status-query API) with explicit timeout budgets (config §16.6); business rejects recorded as successes; scanners gate on breaker state pre-claim; VERIFY structurally (no mechanism to build): while frozen or OPEN, scanners claim nothing, attempt_count does not move, and no row transitions to BLOCKED for time-based reasons; cutoff check still applies at attempt time (never suspends); bulkhead check: posting, enrichment, card-read pools separate (record local reality; if shared, this is a change task — bounded queues, DB as the real queue).
+- **Do not change:** breaker library choice (local convention); retry_deadline_at stays reserved/unused (§2.2 — do not wire it into any rule).
+- **Tests to add:** breaker opens on transport failures only; scanner claims zero while OPEN; attempt_count unchanged across a simulated 6-hour OPEN window and the RETRY_WAIT population intact at recovery (zero BLOCKED conversions); query-API breaker → INDETERMINATE handling (RC-06) not NOT_FOUND.
+- **Edge cases:** breaker half-open probes are attempts (consume attempt budget normally — only OPEN windows make zero attempts).
 - **Manual validation:** scripted outage rehearsal.
 - **Expected outcome:** outage-shaped behavior per spec.
 - **Failure signs:** RETRY_WAIT population converting to BLOCKED during a simulated outage.

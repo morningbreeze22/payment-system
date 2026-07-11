@@ -131,11 +131,13 @@ Mode:         MODIFIED.
 Meaning:      the scheduled scanner claiming due RETRY_WAIT rows and
               re-driving stage work (the "retry scanner" of §7.4).
 Identify:     F.9, F.19.
-Responsibilities: SKIP LOCKED claims, DB-time due comparisons,
-              per-item transactions (§11); per-class retry policy;
+Responsibilities: §11 claim protocol (lock-free candidate selection,
+              obligation-first per-item claim CAS), DB-time due
+              comparisons, per-item transactions; per-class retry
+              policy (bounds = attempts + cutoff, §7.4 2026-07-11);
               repost_permitted before POST-bound work (§7.0);
-              exhaustion/cutoff → BLOCKED; breaker/freeze gating +
-              deadline suspension (§16.1).
+              exhaustion/cutoff → BLOCKED; breaker/freeze gating
+              (zero attempts while gated — §16.1).
 Do not change: scheduling infrastructure conventions.
 Tests:        seeded-row scanner tests; suspension tests.
 Mode:         MODIFIED/NEW.

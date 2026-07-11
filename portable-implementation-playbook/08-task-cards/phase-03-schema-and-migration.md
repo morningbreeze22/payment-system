@@ -13,7 +13,7 @@
 - **Title:** Freeze the migration plan: ordered migration list from the D-02 gap inventory + CA-4 spec
 - **Classification:** MVP normative implementation
 - **Purpose:** one ordered, expand/contract-safe migration sequence before any DDL is written.
-- **Prerequisites:** B-01 answered; CA-4 published; D-02 done.
+- **Prerequisites:** CA-4 published; D-02 done. (B-01 residue NOT required — the scope model is a settled §1 contract fact; B-01 gates the §6 consumer freeze IN-02, not schema. Normalized 2026-07-11.)
 - **Requirement sections / concepts to read:** §16.5 (expand/contract), CA-4, D-02 gap inventory (local).
 - **Placeholder components involved:** [DB Migration Directory].
 - **Local placeholder mappings required before starting:** [DB Migration Directory] Confirmed.
@@ -37,7 +37,7 @@
 - **Title:** Add/align payment_obligation columns per §2.1
 - **Classification:** MVP normative implementation
 - **Purpose:** land the §2.1 fields: amounts, overpay_blocked, next_request_seq, upstream_ordering, correlation_id, ordering-tagged markers (validation_failed_at/_ordering, provider_rejected_at/code/_ordering), provider_reject_count, validation_reject_count, validation_failed_first_at, reopened_at, read-model fields (ui_step_status, active_exception_*, ops_annotation, ui_process_instance_id, ui_step_instance_id) — all additive, nullable-with-default first.
-- **Prerequisites:** S-01; B-01 (scope key final).
+- **Prerequisites:** S-01. (Scope key is FINAL per the §1 snapshot model — settled contract fact, no discriminator; B-01's open residue does not touch it. Normalized 2026-07-11.)
 - **Requirement sections / concepts to read:** §2.1 (whole), §16.5.
 - **Placeholder components involved:** [DB Migration Directory], [Obligation Repository] (entity mapping only).
 - **Local placeholder mappings required before starting:** [DB Migration Directory], [Obligation Repository].

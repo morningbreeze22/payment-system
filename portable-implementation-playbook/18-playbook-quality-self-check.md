@@ -55,6 +55,16 @@
     classified future/PO discussion (C72; RG-05's supersede/close is
     delivered only as the §20-sanctioned guarded interim procedure
     that §3 REQUIRES, subject to the release guard).
+[x] Drift lint (added 2026-07-11 after the external review): after
+    ANY package modification, grep-verify at minimum — (a) no
+    "card >1 obligation = error/alert" phrasing anywhere; (b) no
+    UNIQUE-index claim on provider_reference while TL-12 is open;
+    (c) no FOR UPDATE SKIP LOCKED in scanner guidance; (d) no rule
+    wired to retry_deadline_at; (e) the task inventory in file 20
+    matches the cards on disk (IDs and count); (f) every §18
+    ask/item appears in the K register. The monolithic
+    implementation-playbook.md is an ARCHIVED SNAPSHOT and is
+    exempt (never edited, never loaded for execution).
 ```
 
 Companion-artifact "can implementation start before the artifact

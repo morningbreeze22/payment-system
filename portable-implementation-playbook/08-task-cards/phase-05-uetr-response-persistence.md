@@ -36,17 +36,17 @@
 - **Task ID:** U-02
 - **Title:** Persist any other engine-assigned reference as provider_reference — a distinct field, never merged with uetr
 - **Classification:** MVP normative implementation
-- **Purpose:** §2.2: secondary feed-matching key (§8) with fail-closed fallback semantics; UNIQUE index makes silent reuse loud.
+- **Purpose:** §2.2: secondary feed-matching key (§8) with fail-closed fallback semantics; reuse made loud by METRIC, never by constraint (§8 index decision 2026-07-11).
 - **Prerequisites:** S-03; U-01.
-- **Requirement sections / concepts to read:** §2.2 (provider_reference), §8 (fallback rule), §5 ("any OTHER engine-assigned reference").
+- **Requirement sections / concepts to read:** §2.2 (provider_reference), §8 (fallback rule + index decision), §5 ("any OTHER engine-assigned reference").
 - **Placeholder components involved:** [Provider Response Parser], [Request Status Persistence Layer].
 - **Local placeholder mappings required before starting:** parser mapped.
 - **Local code areas to discover:** which response field(s) carry a non-UETR reference (MUST_VERIFY_LOCALLY / CA-2).
 - **How to locate:** D-05 memo + CA-2.
-- **Implementation instructions:** extract + persist into provider_reference; UNIQUE index per CA-4 (violation → loud error + investigation, per §8's "silent reuse loud" intent — TL-12 pending); never copied into uetr.
-- **Do not change:** uetr logic (U-01).
-- **Tests to add:** persistence; uniqueness violation surfaces loudly; fields never cross-assigned.
-- **Edge cases:** engine reuses references per day/batch (TL-12 UNCONFIRMED) — the UNIQUE index may then reject legitimate rows: if observed locally/sandbox, record and raise Q-17; do not silently drop the index (decision belongs to the owner).
+- **Implementation instructions:** extract + persist into provider_reference; NON-UNIQUE lookup index per CA-4 (the §8 decision: a UNIQUE index would fail OUR acceptance-persistence transaction on a legitimate reuse AFTER the engine accepted — UNIQUE may be added only after written TL-12 confirmation, by explicit decision); reuse-detection METRIC: the §8 fallback lookup finding >1 candidate → counted + alerted; never copied into uetr.
+- **Do not change:** uetr logic (U-01); do not add a UNIQUE index while TL-12 is open.
+- **Tests to add:** persistence; two rows with the SAME provider_reference both persist (acceptance evidence never rolled back by reuse) and the reuse metric fires; the fallback matcher refuses the ambiguous pair (fail-closed); fields never cross-assigned.
+- **Edge cases:** engine reuses references per day/batch (TL-12 UNCONFIRMED) — with the non-unique index this is now SAFE by design; if reuse is observed, the metric records it and Q-17 gets the data.
 - **Manual validation:** stub run; row inspection.
 - **Expected outcome:** reference captured, distinct, loud on reuse.
 - **Failure signs:** merged uetr/reference field.

@@ -321,7 +321,7 @@
 ## Phase handoff summary (P2 → P3)
 
 - **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-9 authored, owned, versioned.
-- **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0 blocks S-02/S-03/S-05, K-02/K-03, CA-4/CA-5 freeze, IN-02; §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 blocks RC-04 cutoff config; §18-3 default path = OP-01..03.
+- **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0's residue blocks IN-02 ONLY (the §6 consumer freeze; the scope model is a settled §1 contract fact, so S-02/S-03/S-05, K-02/K-03 and the CA-4/CA-5 freeze are NOT gated — normalized 2026-07-11); §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 blocks RC-04 cutoff config; §18-3 default path = OP-01..03.
 - **Local mapping rows expected filled:** none new (document phase).
 - **Tests expected to exist:** none new; CA-5 golden vectors DRAFTED (executed as tests in P4); CA-7 catalog seeded from the test matrix.
-- **Next phase entry condition:** B-01 answered in writing AND CA-4 published (DBA-reviewed) → schema freeze may proceed (S-01).
+- **Next phase entry condition:** CA-4 published (DBA-reviewed) → schema freeze may proceed (S-01). B-01's residue continues in parallel and gates IN-02, not schema (normalized 2026-07-11).

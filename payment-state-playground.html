@@ -395,8 +395,8 @@ const DWELL = {
  READY:'sits ≤ one scanner cycle',
  POSTING:'seconds — bounded by the claim lease; expiry after a possible send → UNKNOWN, never a blind re-send',
  AWAITING:'until feed evidence arrives; a lost one is caught by the resolver (NOT_FOUND-for-SUBMITTED → park)',
- RETRY_E:'minutes–hours: capped by attempts + retry deadline + cutoff; the clock is SUSPENDED during outages',
- RETRY_P:'minutes–hours: capped by attempts + retry deadline + cutoff; suspended during outages/freeze',
+ RETRY_E:'minutes–hours: capped by attempts + payment cutoff (no wall-clock deadline — §7.4 2026-07-11; outages make zero attempts, so no budget burns)',
+ RETRY_P:'minutes–hours: capped by attempts + payment cutoff (no wall-clock deadline; zero attempts during outages/freeze)',
  UNKNOWN:'never forever: resolver polls each sweep; trust age gates the §9.2 re-send; the maybe-age clock escalates to a human',
  REVIEW:'until ops acts (alert + SLA); for MAYBE rows the resolver keeps working it meanwhile',
  DONE:'frozen forever (L1)',REJ:'frozen forever (L1)',CXL:'frozen forever (L1)'};

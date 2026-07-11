@@ -1,4 +1,4 @@
-> **Purpose:** Binding instructions for the local coding agent: 18 rules + the per-task loop (original Section P).
+> **Purpose:** Binding instructions for the local coding agent: 19 rules + the per-task loop (original Section P).
 > **When to use this file:** ALWAYS - read before every working session; re-read when tempted to broaden scope.
 > **Depends on:** 00-README.md; 01-playbook-index.md.
 > **Used by:** Every task execution; the README files of 08-task-cards/ and 09-minimal-context-packets/ repeat its core rules.
@@ -25,10 +25,16 @@ the sections that govern it.
 3.  Execute exactly ONE task card at a time, in dependency order
     (Playbook Index). Do not start a card whose prerequisites or
     required mappings are incomplete.
-4.  Before each task, read ONLY: the task card, its Minimal Context
+4.  Before each task, LOAD ONLY: the task card, its Minimal Context
     Packet (Section I), the requirement sections it lists, and the
-    locally discovered files it names. Do not read the whole repo
-    unless the card is a discovery card.
+    locally discovered files it names. Scope split (amended
+    2026-07-11): MODIFICATION scope is always exactly the card's;
+    read-only SEARCH scope is repository-wide whenever the card's
+    instructions demand an inventory or audit ("every site", "all
+    writers", "grep", inventory/audit wording) — search wide, load
+    only the hits you need, change only the card's concern. Never
+    load *.html files (visualizations/mockups — explanatory only,
+    some contain superseded behavior).
 5.  Use the Minimal Context Packet as your working brief. If your
     context is small, the packet alone plus the named §s suffices.
 6.  Do NOT change business rules (payment decision logic, enrichment,
@@ -77,6 +83,16 @@ the sections that govern it.
     checklist item also file their evidence per
     25-golive-verification-procedures.md at completion time, not at
     GO-04.
+19. Delivery model (adopted 2026-07-11): a card is a COMMIT unit on
+    the current PHASE INTEGRATION BRANCH — every "Stop condition:
+    merged" means merged to that branch. The phase branch merges to
+    main only at the phase boundary, gated by: integration review,
+    the phase's cross-path tests green, and a LOCAL MAPPING REFRESH
+    (re-run the phase's relevant discovery searches; a stale mapping
+    row re-BLOCKS its tasks). A card that leaves a safety path
+    intentionally unwired must NAME its integration gate (the task
+    ID or phase boundary that closes it) in the execution report —
+    unnamed dangling paths fail the phase review.
 ```
 
 **Per-task loop:**

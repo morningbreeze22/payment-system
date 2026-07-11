@@ -16,7 +16,7 @@ portable-implementation-playbook/08-task-cards/<PHASE-FILE>.
 
 Load ONLY, in this order:
 1. portable-implementation-playbook/16-local-agent-instructions.md
-   (binding rules — obey all 18).
+   (binding rules — obey all 19).
 2. portable-implementation-playbook/20-execution-sequence-and-decision-defaults.md
    (gates and defaults) AND your LOCAL progress tracker copy of
    21-progress-tracker-template.md (confirm <TASK-ID> is the next
