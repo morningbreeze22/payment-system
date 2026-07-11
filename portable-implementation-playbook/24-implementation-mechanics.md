@@ -127,6 +127,9 @@ lock (§11).
 Claim CAS (generic stage claim):
 
 ```sql
+-- THE claim CAS. It NEVER touches an already-CLAIMED row, expired
+-- or not (corrected 2026-07-11 — an expired-takeover branch here
+-- was a duplicate-POST hazard for stage=POST):
 UPDATE payment_request
    SET stage_state = 'CLAIMED', claimed_by = :worker_id,
        claim_expires_at = :db_now_plus_lease, version = version + 1
@@ -134,8 +137,32 @@ UPDATE payment_request
    AND outcome IS NULL
    AND stage = :expected_stage
    AND (stage_state = 'READY'
-        OR (stage_state = 'RETRY_WAIT' AND next_retry_at <= :db_now)
-        OR (stage_state = 'CLAIMED' AND claim_expires_at < :db_now));  -- expired lease takeover
+        OR (stage_state = 'RETRY_WAIT' AND next_retry_at <= :db_now));
+```
+
+Expired-lease RECOVERY is a SEPARATE transition, owned exclusively
+by the lease-expiry path (ST-10) — never folded into a claim:
+
+```sql
+-- ENRICH expiry: work is repeatable → back to READY (re-claimable)
+UPDATE payment_request
+   SET stage_state = 'READY', claimed_by = NULL,
+       claim_expires_at = NULL, version = version + 1
+ WHERE id = :id AND outcome IS NULL
+   AND stage = 'ENRICH' AND stage_state = 'CLAIMED'
+   AND claim_expires_at < :db_now;
+
+-- POST expiry: the POST may have executed → MAYBE, resolver owns it.
+-- NEVER back to a claimable posting state, NO exceptions (§11).
+UPDATE payment_request
+   SET stage = 'CONFIRM', stage_state = 'READY',
+       submission_state = 'MAYBE_SUBMITTED',
+       maybe_since = COALESCE(maybe_since, :db_now),
+       claimed_by = NULL, claim_expires_at = NULL,
+       version = version + 1
+ WHERE id = :id AND outcome IS NULL
+   AND stage = 'POST' AND stage_state = 'CLAIMED'
+   AND claim_expires_at < :db_now;
 ```
 
 POSTING claim additions (§11 — the last gate before the wire), all in
@@ -340,22 +367,30 @@ named exceptions) in the report (19). Rule 18 makes this mandatory.
 [ ] unmatched event → log + metric + ack (no storage, no replay)
 ```
 
-**SHAPE-PROC — any guarded manual procedure (OP-xx, RG-05 supersede,
-future ops surface):**
+**SHAPE-PROC — any guarded ops operation (OP-xx, RG-05 supersede,
+future console). Execution boundary (decided 2026-07-11): an
+AUTHORIZED ENDPOINT of the payment APPLICATION calling the shared
+Java transition service — never a PL/SQL reimplementation (a stored
+procedure cannot reuse the shared helpers, check the freeze, emit
+§14/§15 telemetry, or verify enterprise identities); the §10.3
+triggers stay as the DB backstop:**
 ```text
-[ ] mandatory inputs enforced IN the signature: operator id, reason,
-    ticket ref; + two DISTINCT authenticated approvers where the
-    catalog says 4-eyes/dual (refuse identical pair)
+[ ] mandatory inputs enforced IN the operation contract: operator
+    id, reason, ticket ref; + two DISTINCT enterprise-authenticated
+    approver identities where the catalog says 4-eyes/dual (refuse
+    identical pair; free-text strings non-compliant — §9.3)
+[ ] endpoint authorization: restricted to the enterprise ops role;
+    unauthorized-role attempt refused (and tested)
 [ ] release guard honored: terminal-negative only on NOT_SUBMITTED or
     with the legitimately-set evidence flag (§10.1/§10.3)
 [ ] refuses CLAIMED rows and terminal rows; re-checks state INSIDE
     the transaction (operator screens are stale by definition)
-[ ] routes through the SAME shared CAS/money helpers (never a private
-    UPDATE path)
+[ ] routes through the SAME shared CAS/money helpers + M1 skeleton
+    (never a private UPDATE path); freeze check where the operation
+    can lead to a POST
 [ ] §14 line with trigger_source=MANUAL_OPS:<id> (or
     OPS_PLATFORM_VERIFIED) + ticket; §15 alert where specified
-[ ] EXECUTE granted to the restricted role only
-[ ] test proves raw SQL fails where the procedure succeeds (trigger
+[ ] test proves raw SQL fails where the operation succeeds (trigger
     demonstration — the OP-02 pattern)
 ```
 

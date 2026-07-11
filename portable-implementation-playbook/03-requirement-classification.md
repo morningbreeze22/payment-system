@@ -86,7 +86,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C58 | §16.6-5 | Canonical instruction serialization + last_sent_hash definition | ARTIFACT | CA-6 | CA-5 | YES | yes | no |
 | C59 | §16.6-6 | Test catalog aligned to the spec | ARTIFACT | CA-7 | — | YES | yes | no |
 | C60 | §16.6-7 | Runbook stubs (one per §15 alert; aged-MAYBE runbook) | ARTIFACT + RUNBOOK | CA-8 | OB-xx | YES | no | no |
-| C61 | §16.6-8 | apply-platform-verified-outcome stored procedure spec + drill script | ARTIFACT + GATE (§18-3) | CA-9, OP-01..03 | B-04 | YES | yes | no |
+| C61 | §16.6-8 | apply-platform-verified-outcome OPERATION spec (authorized application endpoint — 2026-07-11 boundary) + drill script | ARTIFACT + GATE (§18-3) | CA-9, OP-01..03 | B-04 | YES | yes | no |
 | C62 | §18-0 | BLOCKING residue of the snapshot contract (model = §1 contract fact: multiple payments; snapshot messages; tuple unique within snapshot; no discriminator — schema freeze not gated): upstream ask 5 in writing, §6.0 intake validation, PO-9, TL-16 — gates IN-02 | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
 | C63 | §18-1 | BLOCKING: engine idempotency-collision contract proven by sandbox test (a–d), re-run on engine releases | GATE | B-02, CT-01..05 | sandbox access | YES | no | YES |
 | C64 | §18-2 | BLOCKING: payment cutoff calendar (source, owner, semantics, tz-aware, refresh, fail direction) | GATE | B-03 | calendar owner | YES | no | YES |

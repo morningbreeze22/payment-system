@@ -1,9 +1,9 @@
 # Ops Console — Proposal
 
 **Status:** PROPOSAL — FUTURE implementation, pending PO discussion (`requirment-v4.md` §20).
-**PO DECISION (recorded in §20):** the MVP ships WITHOUT an ops execution surface. Interim: dead-end states are exited via controlled manual database procedures under the §10.1 release guard and §10.3 trigger backstops. Exactly ONE procedure is REQUIRED at MVP — the §9.3 **apply-platform-verified-outcome** audited stored procedure (§18 BLOCKING item 3). It exists independently of this console; the console would only ever be a nicer, audited surface over the same machinery.
+**PO DECISION (recorded in §20; execution boundary decided 2026-07-11):** the MVP ships WITHOUT an ops console. Interim: dead-end states are exited via controlled, AUTHORIZED ADMIN OPERATIONS — enterprise-authenticated endpoints of the payment application invoking the same shared transition service (never PL/SQL reimplementations), under the §10.1 release guard with the §10.3 trigger backstops. Exactly ONE operation is NON-WAIVABLE at go-live — the §9.3 **apply-platform-verified-outcome** audited operation (§18 BLOCKING item 3). It exists independently of this console; the console would only ever be a UI over these same endpoints.
 **Baseline:** `requirment-v4.md` (v4, factored state model). This revision supersedes the v2-era draft: O4/O5 (replay/discard parked event) are **OBSOLETE** — no parked-event store exists (§2.3); unmatched feed events are log/metric/ack and outcomes recover via the §9 status-query sweep. All state displays use the §10.4 labels; all action preconditions are expressed on the dimension columns (stage, stage_state, submission_state, outcome) — never on labels and never on blocked_reason (§10.1).
-**Updated:** 2026-07-10 — revised against `failure-recovery-walkthrough.md`: added **O12 apply-tied-amendment** (the walkthrough's U-9 found §6.7's "manual application" had no operation anywhere), added the §3.1 coverage matrix proving the catalog covers every T3 (ops-action) scenario, and recorded which recoveries deliberately live OUTSIDE this console. **Context:** Payment Orchestration System. Stack: Java (Spring Boot), Oracle, Kafka, Hazelcast.
+**Updated:** 2026-07-11 — second-external-review response: **O12 revised to REPROCESS-SNAPSHOT** (the snapshot XML lives durably in the upstream-populated store, Kafka carries only the storage id — §6.0 transport note; the earlier payload-in-tie-record design conflicted with §16.3 masking) and the **execution boundary decided**: every mutation here is an authorized, enterprise-authenticated endpoint of the payment application calling the shared transition service — never a PL/SQL reimplementation; §10.3 triggers stay as backstops. (2026-07-10 revision had added O12 + the §3.1 coverage matrix over the failure-recovery walkthrough.) **Context:** Payment Orchestration System. Stack: Java (Spring Boot), Oracle, Kafka, Hazelcast.
 
 ---
 
@@ -20,7 +20,7 @@ only guarded manual procedures can execute one:
 | Stuck reservation | active request not progressing (§3 / §15 stuck-reservation alert) | supersede/close — §3 makes this a *required* capability (guarded procedure at MVP, §20-2) |
 | Aged `MAYBE_SUBMITTED` (label UNKNOWN; escalates once per episode to BLOCKED(ESCALATED) on the maybe_since clock, §9.3) | ambiguous POST outcomes, lease expiry, DUPLICATE_REQUEST answers | the §9.3 action set (see O6–O10 below) — **never** a plain release: terminal-negatives on MAYBE/SUBMITTED rows are forbidden unless evidence-driven (§10.1/§9.4) |
 | Overpay latch (`overpay_blocked`, §13) | confirmed > required | today: scope ignored forever (§13 one-way door); ops annotates via the `ops_annotation` field (§2.1, §20-4) — **no state change, no clearing** (clearing is FUTURE, tied to §19.2) |
-| Amendment tie (AMENDMENT_TIE_CONFLICT, §6.7) | two snapshots share an ordering value with DIFFERING payloads — the guard cannot pick a winner, and an upstream resend ties again forever | manual application of the chosen snapshot (O12, NEW). Unlike the rows above this is **not a DB state**: the incoming snapshot was acked and dropped, so the work item is the tie-conflict record itself (alert + §14 log line carrying the canonicalized payload — §6.7 executability requirement / §20-10) |
+| Amendment tie (AMENDMENT_TIE_CONFLICT, §6.7) | two snapshots share an ordering value with DIFFERING payloads — the guard cannot pick a winner, and a verbatim upstream resend ties again forever | REPROCESS-SNAPSHOT (O12, REVISED 2026-07-11): the payload lives durably in the upstream-populated XML STORE (§6.0 transport note — Kafka carries only the storage id); the tie-conflict record holds identifiers + a masked diff, and O12 re-fetches the adjudicated snapshot BY ID and re-runs the normal §6.1 fan-out with the ordering check relaxed to ≥ for exactly the recorded tied value |
 
 ~~Parked feed event~~ — **removed**: no parked-event store exists (§2.3); recovery is query-based (§9).
 
@@ -77,7 +77,7 @@ audited UI, not about adding capability.
 | O9 | Request platform-side formal rejection (TL-10) | BLOCKED/aged MAYBE row | external ask to the platform; the negative flows back as authoritative feed/query evidence — the CLEAN exit | operator (records the ask) |
 | O10 | Apply platform-verified outcome | active ∧ MAYBE/SUBMITTED; refuses CLAIMED and terminal rows and amount mismatch | invokes the **existing MVP audited stored procedure** (§9.3, §16.6-8): verified EXECUTED (+confirmed, SUB=SUBMITTED, amount equality) or REJECTED (marker + release); evidence flag set legitimately; every use alerts (§15) | dual-control ENFORCED BY THE PROCEDURE; ticket mandatory |
 | O11 | Retry-after-provider-reject (clear marker) | provider_rejected marker live (≥2 = ops-only clear) | records decision, clears the marker, §6.8 creates a FRESH successor (new key) | **FUTURE** — pending PO approval (§19.3, §18 PO-7) |
-| O12 | Apply tied amendment (**NEW** — closes walkthrough U-9) | a recorded AMENDMENT_TIE_CONFLICT for the trade (§6.7); input = the tie-conflict record's preserved canonicalized snapshot payload, NEVER free-typed amounts | **TRADE-level** (a tie is a whole-snapshot verdict — §6.7 snapshot note: all blocks resolve together): re-runs the §6.1 fan-out for the chosen snapshot with the strictly-newer ordering check relaxed to ≥ for exactly the recorded tied ordering value; per block, under that obligation's lock: apply amounts → set upstream_ordering to the tied value (idempotent) → §6.8 re-evaluation. Blocks whose payload already matches no-op; §6.4/§6.8 guards (retry-guard, latch, markers, I6) apply unchanged — this op adjudicates ORDERING only, it bypasses no money guard | 4-eyes (can initiate money movement via §6.8) |
+| O12 | Reprocess stored snapshot (**REVISED 2026-07-11** — closes walkthrough U-9 without payload storage) | a recorded AMENDMENT_TIE_CONFLICT (input = XML storage id + the recorded tied ordering), or a fixed-in-place XML needing re-trigger (no ordering relaxation) | **TRADE-level**: re-fetch the snapshot from the XML store by id (§6.0 transport note — the payload is NEVER a parameter, a log field, or a new store) and re-run the §6.1 fan-out; with tied_ordering supplied, the strictly-newer check relaxes to ≥ for EXACTLY that recorded value; per block, under that obligation's lock: apply → set upstream_ordering (idempotent) → §6.8 re-evaluation. Identical blocks no-op; §6.4/§6.5/§6.8 guards and I6 apply unchanged — this op adjudicates ORDERING only. A purged xml id → clean refusal (upstream ask 8 retention) | 4-eyes when tied_ordering is supplied (can initiate money movement); operator for plain reprocess (ordering guard handles staleness) |
 | — | Overpay acknowledge/annotate | latch set | writes `ops_annotation` (§2.1) — display only, **no state change**, latch never cleared (§13) | operator |
 | — | Returned-funds adjustment | — | **FUTURE** — blocked on §19.2 | — |
 | — | Posting-freeze flip (kill switch) | — | role-controlled Hazelcast toggle EXISTS today (§16.1); a dedicated audited surface is §20-6 — capability is not blocked on this console | out of console scope |
@@ -108,7 +108,8 @@ O9  TL-10 ask         R-3, U-12 — the clean external negative
 O10 verified outcome  R-3, P-6, H-2/H-3 — the guaranteed un-wedge
                       (§18 BLOCKING item 3; exists at MVP regardless)
 O11 clear reject      P-10, M-8, B-4 — FUTURE, pending PO-7
-O12 tied amendment    U-9 — was uncovered before this revision
+O12 reprocess snapshot U-9 (tie adjudication, xml-id based) + the
+                      §6.6 fixed-in-place-XML re-trigger
 ann annotation        M-2, M-3, M-4 overpay acknowledgement
 
 OUTSIDE this console, by design:
@@ -208,9 +209,10 @@ POST /requests/{id}/resolve-now              {reason, ticketRef}                
 POST /requests/{id}/downgrade-repost         {reason, ticketRef}                  (O7; repost_permitted-gated)
 POST /requests/{id}/stale-amount-repost      {reason, ticketRef, secondApprover}  (O8; staleness override only)
 POST /requests/{id}/platform-verified-outcome {outcome: EXECUTED|REJECTED, evidenceRef, ticketRef, approvers[2]} (O10 → §9.3 procedure)
-POST /trades/{businessId}/apply-tied-amendment {tieRecordRef, reason, ticketRef}     (O12; trade-level — payload comes
-                                                                                     from the tie-conflict record, never
-                                                                                     from the request body)
+POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, tiedOrdering?, reason, ticketRef}   (O12 revised; trade-level —
+                                                                                     payload fetched from the XML store
+                                                                                     by id, never from the request body;
+                                                                                     tiedOrdering only for tie adjudication)
 POST /approvals/{id}/approve | /reject
 ```
 
@@ -260,18 +262,22 @@ O8  Same target write as O7; permitted iff repost_permitted fails
 O9  No payment-table mutation: records the TL-10 ask (console audit
     row + §14 line); the negative, if granted, arrives as normal
     feed/query evidence.
-O10 CALL the §9.3 stored procedure (spec = §16.6 artifact 8 / CA-9).
-    The console collects inputs only — it NEVER reimplements.
+O10 Invoke the §9.3 audited operation — the authorized application
+    endpoint (spec = §16.6 artifact 8 / CA-9; 2026-07-11 boundary:
+    Java service, never a PL/SQL reimplementation). The console
+    collects inputs only — it NEVER reimplements.
 O11 (FUTURE, PO-7) Obligation-level under the lock: clear the
     provider_rejected fields + reset the count; §6.8 then creates a
     FRESH successor (new deterministic key — correct after a
     definitive reject).
-O12 Per payment block of the recorded snapshot, in sorted tuple
-    order: obligation lock → apply amounts with the §6.7 ordering
-    guard relaxed to ≥ for EXACTLY the recorded tied ordering value
-    → set upstream_ordering to it (idempotent) → normal §6.4/§6.5/
-    §6.8 consequences. Payload always from the tie record, never a
-    request parameter.
+O12 (REVISED 2026-07-11) Fetch the snapshot XML from the store by
+    id (§6.0 transport note), then per payment block in sorted
+    tuple order: obligation lock → apply amounts (with the §6.7
+    ordering guard relaxed to ≥ for EXACTLY the recorded tied
+    ordering value, ONLY when tied_ordering is supplied) → set
+    upstream_ordering (idempotent) → normal §6.4/§6.5/§6.8
+    consequences. Payload always from the STORE, never a request
+    parameter or log field; purged id → clean refusal.
 ann Single UPDATE of payment_obligation.ops_annotation (read-model
     field; no derivation input, no state change).
 ```
@@ -286,10 +292,10 @@ numbers match what execution would compute.
 
 | Phase | Scope | Value |
 |---|---|---|
-| — | **Already at MVP, outside this console:** the §9.3 apply-platform-verified-outcome stored procedure + drill (§18 BLOCKING item 3); the §20 interim procedure set — supersede/close, ops retry, ops reject, overpay annotation, tie application (playbook RG-05 + OP-04) — plus the four ops queue views; role-controlled posting-freeze toggle (§16.1) | every dead-end state has an audited exit and a findable queue before any console ships |
+| — | **Already at MVP, outside this console:** the §9.3 apply-platform-verified-outcome audited operation + drill (§18 BLOCKING item 3 — the one NON-WAIVABLE piece); the §20 interim operation set — supersede/close, ops retry, ops reject, overpay annotation, reprocess-snapshot — as authorized application endpoints (playbook RG-05 + OP-04; ordinary MVP scope, Q29) plus the four ops queue views; role-controlled posting-freeze toggle (§16.1) | every dead-end state has an audited exit (possibly a terminal give-up — §20 exit-honesty note) and a findable queue before any console ships |
 | P0 | S1 + S2 read-only (queues, detail, log timeline) | kills "where do I even look"; no approval machinery; can ship first |
 | P1 | O6 resolve-now, O9 TL-10 ask capture, overpay annotation (`ops_annotation`) | non-monetary, single-operator |
-| P2 | O1–O3 with 4-eyes; O7/O8 downgrade lane; O10 as a UI wrapper over the existing procedure; O12 tied-amendment application | the money-touching operations; requires the PO decisions below |
+| P2 | O1–O3 with 4-eyes; O7/O8 downgrade lane; O10 as a UI wrapper over the existing audited endpoint; O12 reprocess-snapshot | the money-touching operations; requires the PO decisions below |
 | P3 | O11 retry-after-provider-reject (needs §18 PO-7 approval); returned-funds adjustment (blocked on §19.2) | future money-policy operations |
 
 ## 8. Open questions for the PO discussion (aligned to §20)

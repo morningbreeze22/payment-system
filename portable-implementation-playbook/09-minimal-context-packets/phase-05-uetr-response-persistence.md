@@ -17,10 +17,10 @@ Tests: per-class persistence matrix; DUPLICATE leaves prior value intact. Stop: 
 
 ```text
 [U-02] provider_reference persistence
-Read: §2.2 (provider_reference) §8 (fallback) §5. Invariant: distinct field from uetr; UNIQUE makes silent reuse loud; never a dedup key.
+Read: §2.2 (provider_reference) §8 (fallback + index decision 2026-07-11) §5. Invariant: distinct field from uetr; NON-UNIQUE lookup index until TL-12 confirms scope in writing (a UNIQUE index would roll back OUR acceptance persistence on a legitimate reuse); reuse loud via METRIC (fallback finds >1 candidate); never a dedup key.
 Placeholders: [Provider Response Parser] [Request Status Persistence Layer]. Mappings: parser; CA-2 field name.
-Objective: extract + persist; UNIQUE index; reuse observed → raise Q-17, don't drop the index silently.
-Tests: persistence; loud uniqueness violation; no cross-assignment. Stop: merged.
+Objective: extract + persist; non-unique index; reuse metric + alert; fallback stays fail-closed on ambiguity.
+Tests: two same-reference rows BOTH persist + metric fires; ambiguous fallback refused; no cross-assignment. Stop: merged.
 ```
 
 ```text

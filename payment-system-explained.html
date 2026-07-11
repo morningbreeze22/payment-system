@@ -764,7 +764,7 @@ const EV={
   S.out='CANCELLED';S.ss='READY';S.com-=S.amt;return[1,'NOT_SUBMITTED → cancellable. Reservation released.'];}},
  opsverify:{n:'§9.3 verified REJECTED',f(){ if(S.out)return[0,FROZEN]; if(S.sub!=='MAYBE_SUBMITTED'&&S.sub!=='SUBMITTED')return[0,'This procedure exists for MAYBE/SUBMITTED rows whose truth ops verified in the platform.'];
   S.out='REJECTED';S.ss='READY';S.com-=S.amt;S.esc=false;
-  return[1,'Audited stored procedure: dual-control + ticket ref + platform-records evidence → sets the session evidence flag (trigger passes LEGITIMATELY) → outcome=REJECTED via the normal CAS, reservation released, alert fired. The guaranteed exit — no row is ever wedged forever (§18-3).'];}},
+  return[1,'Audited operation (authorized application endpoint): dual-control + ticket ref + platform-records evidence → sets the session evidence flag (trigger passes LEGITIMATELY) → outcome=REJECTED via the normal CAS, reservation released, alert fired. The guaranteed exit — no row is ever wedged forever (§18-3).'];}},
 };
 function simPaint(msg,ok){
  const g=id=>document.getElementById(id);

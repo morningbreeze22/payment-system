@@ -1,4 +1,4 @@
-> **Purpose:** Test matrix T-01..T-32 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
+> **Purpose:** Test matrix T-01..T-34 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
 > **When to use this file:** When writing a task card's tests and when assembling GO-04 gate evidence.
 > **Depends on:** requirment-v4.md sections cited per test; 12-companion-artifacts.md (CA-7).
 > **Used by:** All test-bearing task cards; 17-go-live-checklist.md evidence column.
@@ -272,7 +272,9 @@ Setup:   two scanner instances; seeded READY/RETRY_WAIT rows; two
          concurrent feed duplicates (rebalance case).
 Action:  run concurrently.
 Expect:  each row processed once; losers see row-count 0 / duplicate
-         key; no deadlocks beyond retried ORA-00060.
+         key; ZERO ORA-00060 (any deadlock is a §11 lock-order
+         regression to FIX, never to retry-normalize — see T-34;
+         corrected 2026-07-11).
 Failure: double processing → duplicate POST risk; lock-order
          violation → deadlock storms (§15 tripwire).
 Implemented by: ST-09, IN-05.
@@ -510,20 +512,23 @@ Purpose: every dead-end state has an audited exit before go-live —
          the §20 interim model actually works, not just exists.
 Setup:   seeded rows per dead-end class (BLOCKED·NOT_SUBMITTED,
          BLOCKED·MAYBE, stalled ENRICH, overpay latch); a recorded
-         tie-conflict whose snapshot has one changed and one
-         identical block; Oracle lane with the REAL triggers.
-Action:  run each OP-04 procedure (+ RG-05 supersede/close) with
+         tie-conflict (XML storage id + tied ordering) whose STORED
+         snapshot has one changed and one identical block; Oracle
+         lane with the REAL triggers.
+Action:  run each OP-04 endpoint (+ RG-05 supersede/close) with
          valid and invalid inputs; query the four views.
 Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          reject releases + sets the L9 marker, NOT_SUBMITTED only —
          a MAYBE row is refused at the code layer AND the trigger
-         layer (raw-SQL demo); tie-apply amends exactly the changed
-         block, no-ops on re-run, and respects the §6.5 latch;
-         missing ticket / identical approvers / unauthorized role
-         all refused; every call writes the §14 MANUAL_OPS line;
-         views rank ESCALATED first and list one row per obligation.
-Failure: any dead-end exit that works only via raw SQL, or a
-         procedure whose audit inputs are optional in practice.
+         layer (raw-SQL demo); reprocess-snapshot fetches the XML
+         by id, amends exactly the changed block, no-ops on re-run,
+         respects the §6.5 latch, and cleanly REFUSES a purged xml
+         id (no partial apply); missing ticket / identical
+         approvers / unauthorized role all refused; every call
+         writes the §14 MANUAL_OPS line; views rank ESCALATED first
+         and list one row per obligation.
+Failure: any dead-end exit that works only via raw SQL, or an
+         endpoint whose audit inputs are optional in practice.
 Implemented by: OP-04, RG-05.
 ```
 

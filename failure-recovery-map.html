@@ -119,10 +119,12 @@
        deterministic idempotency key (§5.1) depend on it.</p>
     <p><b>GAP-2 → upstream ask 7:</b> a never-emitted upstream message is the one lost-payment class with no local
        detector — upstream must confirm emit-failure monitoring or provide a count-recon signal.</p>
-    <p><b>GAP-3 → §20-10 + console O12:</b> §6.7's "manual application" of a tied amendment had no operation anywhere,
-       and nothing guaranteed the dropped snapshot's payload survived to be applied. Folded: the tie-conflict record
-       now carries the canonicalized payload (§6.7 executability requirement), §20 item 10 defines the trade-level
-       4-eyes operation, and the ops-console catalog gains O12 + a coverage matrix over this map's T3 scenarios.</p>
+    <p><b>GAP-3 → §20-10 + console O12 (revised 2026-07-11):</b> §6.7's "manual application" of a tied amendment had no
+       operation anywhere. Final design leans on the transport contract fact (§6.0: Kafka carries only the snapshot's
+       storage id — the XML lives durably in the upstream-populated store): the tie record carries identifiers + a
+       masked diff, and the REPROCESS-SNAPSHOT operation re-fetches the adjudicated XML by id and re-runs the normal
+       fan-out with ≥ relaxation for exactly the tied ordering. No payload in logs or parameters; store retention =
+       upstream ask 8.</p>
     <p style="color:var(--muted)">Everything else resolves to an existing designed path, a tracked §18 open item, or a
        PO-accepted limitation — see the walkthrough §10 verdict.</p>
   </div>
@@ -163,7 +165,7 @@ const S = [
 ["U-6","Snapshot violates within-snapshot uniqueness",[4,4],"Two payment blocks share (type+account+currency) — applying would merge two payments.","Whole-snapshot validation failure: anchors + markers on ALL the trade's scopes; alert.","Corrected snapshot clears markers; in-flight requests untouched (blast radius is NEW work only).","§6.0, §6.6",false],
 ["U-7","Duplicate redelivery (identical snapshot)",[0,1],"At-least-once delivery re-sends the same document.","Nothing — second apply sees shortfall 0 / ordering not newer.","Converges silently.","§6.1, §6.7",false],
 ["U-8","Out-of-order delivery (older after newer)",[1,2],"A delayed older snapshot arrives late.","Stale-message metric; alert on volume.","Watermark drops it — BY DESIGN under BA-3 (upstream owns ordering correctness).","§6.7, §1.1 BA-3",false],
-["U-9","Ordering tie with differing payloads",[3,3],"Two genuine amendments share a business timestamp.","AMENDMENT_TIE_CONFLICT alert — never a silent drop; the tie-conflict record preserves the canonicalized payload (§6.7 executability requirement).","Manual application by ops from that record — trade-level 4-eyes operation §20-10 / console O12 (GAP-3, closed this round); a resend cannot fix a tie. The class disappears once upstream ask 1's sequence field arrives.","§6.7, §20-10, O12",true],
+["U-9","Ordering tie with differing payloads",[3,3],"Two genuine amendments share a business timestamp.","AMENDMENT_TIE_CONFLICT alert — never a silent drop; the record carries identifiers + a masked diff (business_id, tied ordering, XML storage id — §6.7 REVISED 2026-07-11).","REPROCESS-SNAPSHOT (§20-10 / console O12): ops adjudicates, the operation re-fetches the chosen snapshot from the XML store by id (Kafka carries only the id — §6.0 transport note) and re-runs §6.1 with ≥ relaxation for exactly the tied ordering. No payload in logs; store retention = upstream ask 8. The class disappears once ask 1's sequence field arrives.","§6.7, §6.0, §20-10, O12",true],
 ["U-10","Consumer crashes mid-fan-out",[1,1],"Multi-payment snapshot partially applied.","Invisible — redelivered snapshot re-applies.","Applied blocks drop as stale; unapplied blocks apply; per-block transactions converge.","§6.1",false],
 ["U-11","Amendment lowers amount, request un-posted",[1,1],"required_amount drops while nothing was sent.","—","Auto-cancel (NOT_SUBMITTED is provably safe) + right-sized successor via §6.8.","§6.4, §6.8",false],
 ["U-12","Amendment lowers amount, request MAYBE",[1,3],"Money may already have moved for the old amount.","AMENDMENT_PARKED + alert; rank-1 exception.","Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation gives ops four exits.","§6.4, §9.2, §9.3",false],
@@ -209,7 +211,7 @@ const S = [
 ["C-9","Return/refund event for an EXECUTED request",[4,4],"Money flowing back — this system has no return model.","Log + CRITICAL + ack; no state change.","§19.2 future workstream; reconciliation lives platform-side.","§8, §19.2",false],
 ["C-10","Feed outage / consumer lag",[1,2],"Confirmations delayed en masse.","Lag page; card freshness indicator.","Sweep continues independently; SUBMITTED-branch damping prevents false ENGINE_INCONSISTENCY parks.","§9.5, §12, §15",false],
 ["C-11","Contradictory / stale evidence",[0,0],"Reject after settle, older status after newer.","Stale evidence affects zero rows.","Outcome write-once + evidence monotonicity; genuine anomalies page per C-7.","§4.4, §10.1",false],
-["C-12","provider_reference reuse / collision",[0,1],"Engine references unique only per day/batch/rail.","UNIQUE index makes silent reuse loud.","Fail-closed fallback: single-active-match + amount + recency required; otherwise the sweep recovers by key. TL-12 tracks confirmation.","§8, §18 TL-12",false],
+["C-12","provider_reference reuse / collision",[0,1],"Engine references unique only per day/batch/rail.","Reuse metric: the fallback lookup finding >1 candidate is counted + alerted (§8 index decision 2026-07-11 — non-unique lookup index until TL-12 confirms in writing).","Fail-closed fallback: single-active-match + amount + recency required; ambiguity → unmatched path, the sweep recovers by key. TL-12 tracks confirmation.","§8, §18 TL-12",false],
 
 ["R-1","Status-query API down",[1,3],"The resolver's only tool is unavailable.","INDETERMINATE + backoff; escalation clocks KEEP RUNNING.","Fail toward a human: if the outage outlives the escalation age, ops is paged with rows parked. Never silence.","§9.1, §9.3",false],
 ["R-2","NOT_FOUND ambiguity",[1,2],"Never-received vs ingest lag vs lookback expiry — indistinguishable answers.","Trust-age rule keyed on submission_state.","Before trust-age: wait. After: MAYBE → same-key re-POST (safe by the collision contract); SUBMITTED → reversible ENGINE_INCONSISTENCY park.","§9.2",false],

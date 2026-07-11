@@ -316,7 +316,7 @@ const EDGES = [
  t:'Ops retry (blocked, provably unsent)',delta:'any·BLOCKED·NOT → SAME-stage·RETRY_WAIT',money:'—',guard:'NOT_SUBMITTED rows only · same stage (an enrich-blocked row re-enriches) · POST exits gated by repost_permitted',ref:'§10.5 · §7.0',
  plain:'A human re-arms a stuck payment. It resumes at the SAME step it stopped at — nothing skips validation.'},
 {id:'opsverified',g:'ops',path:'M541,429 C900,386 1048,252 1062,129',lx:922,ly:332,l:'verified: paid',to:'DONE',
- t:'Ops apply-platform-verified-outcome → EXECUTED (§9.3)',delta:'any active·MAYBE/SUBMITTED → O=EXECUTED (SUB=SUBMITTED)',money:'+confirmed (amount equality)',guard:'dual-control · audited stored procedure · platform records ARE the evidence',ref:'§9.3 · §10.1',
+ t:'Ops apply-platform-verified-outcome → EXECUTED (§9.3)',delta:'any active·MAYBE/SUBMITTED → O=EXECUTED (SUB=SUBMITTED)',money:'+confirmed (amount equality)',guard:'dual-control · audited operation (authorized application endpoint) · platform records ARE the evidence',ref:'§9.3 · §10.1',
  plain:'For payments stuck in "maybe": ops checks the platform’s own records and applies the verified truth — here, it DID pay.'},
 {id:'opsverR',g:'ops',path:'M542,443 L777,443',lx:660,ly:432,l:'verified: rejected',to:'REJ',
  t:'Ops apply-platform-verified-outcome → REJECTED (§9.3)',delta:'any active·MAYBE/SUBMITTED → O=REJECTED',money:'−committed · provider_rejected marker',guard:'dual-control · audited procedure · platform-records evidence — the ONLY manual door through the release guard (§10.1)',ref:'§9.3 · §10.1',

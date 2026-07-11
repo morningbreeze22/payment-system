@@ -169,7 +169,7 @@
 <body>
 
 <div id="mockBanner">
-  <span><strong>MOCKUP</strong> — sample data only, no backend. Companion: <code>ops-console-proposal.md</code> (rev 2026-07-10: O12 tied-amendment + §3.1 coverage matrix vs <code>failure-recovery-walkthrough.md</code>). Statuses are §10.4 display labels over the four dimension columns; release actions obey the §10.1 release guard; tie conflicts have no queue — the alert record is the entry (S1 note).</span>
+  <span><strong>MOCKUP</strong> — sample data only, no backend. Companion: <code>ops-console-proposal.md</code> (rev 2026-07-11: O12 = reprocess-snapshot from the XML store; all mutations are authorized application endpoints per the §20 execution boundary). Statuses are §10.4 display labels over the four dimension columns; release actions obey the §10.1 release guard; tie conflicts have no queue — the alert record is the entry (S1 note).</span>
   <button type="button" aria-label="Dismiss banner" onclick="document.getElementById('mockBanner').remove()">✕</button>
 </div>
 
@@ -193,8 +193,8 @@
 
     <div class="tiestrip" role="alert">
       <span class="tag">AMENDMENT_TIE_CONFLICT</span>
-      <span class="what"><code>TRD-88360</code> — two snapshots tie at ordering <code>2026-07-09T14:02:11Z</code> with differing payloads; the guard cannot pick a winner and a resend ties forever (§6.7). No queue row exists — this alert record (<code>TIE-0709-88360</code>, payload preserved per the §6.7 executability requirement) is the work item.</span>
-      <button type="button" class="act" data-guard="4eyes" data-action="APPLY_TIED" data-item="TIE-0709-88360" data-detail="__tie">Apply chosen snapshot</button><span class="guard eyes">4-eyes · O12</span>
+      <span class="what"><code>TRD-88360</code> — two snapshots tie at ordering <code>2026-07-09T14:02:11Z</code> with differing payloads; the guard cannot pick a winner and a verbatim resend ties forever (§6.7). No queue row exists — this alert record (<code>TIE-0709-88360</code>: identifiers + masked diff; the snapshot XML stays in the store as <code>XML-77812</code>, §6.0 transport note) is the work item.</span>
+      <button type="button" class="act" data-guard="4eyes" data-action="APPLY_TIED" data-item="TIE-0709-88360" data-detail="__tie">Reprocess stored snapshot</button><span class="guard eyes">4-eyes · O12</span>
       <span class="slot" data-slot="TIE-0709-88360"></span>
     </div>
 
@@ -418,7 +418,7 @@ var DETAILS = {
 
 /* O12 tie record — the preserved payload IS the input (never free-typed amounts) */
 var TIE = {
-  ref: "TIE-0709-88360", biz: "TRD-88360", ordering: "2026-07-09T14:02:11Z",
+  ref: "TIE-0709-88360", biz: "TRD-88360", ordering: "2026-07-09T14:02:11Z", xmlId: "XML-77812",
   blocks: [
     { tuple: "SETTLEMENT · ****5501 · EUR", stored: "200,000.00", tied: "215,000.00", effect: "amend +15,000.00; shortfall +15,000.00 → successor WILL be created (§6.8)" },
     { tuple: "FEE · ****5501 · EUR",        stored: "950.00",     tied: "950.00",     effect: "identical — no-op" }
@@ -466,8 +466,8 @@ function effectText(action, item, d) {
     case "DOWNGRADE_REPOST": return "Ops-triggered §9.2 downgrade: " + item.id + " → POST·RETRY_WAIT (submission_state stays MAYBE_SUBMITTED); same idempotency key, instruction assembled fresh (§7.0). Fires ONLY where repost_permitted passes — divergent payload, passed cutoff, or a stale amount block it.";
     case "STALE_REPOST": return "Dual-control override of the ONE overridable repost_permitted term (§7.0 — amount staleness): " + item.id + " → POST·RETRY_WAIT · MAYBE. Knowing re-POST of the request's own IMMUTABLE amount " + amt + " against required " + d.required + " — if the original also executed, the overpay latch is the designed catch. Cutoff, divergent payload, and terminal outcomes are NEVER overridable.";
     case "PLATFORM_REJECT_ASK": return "Records a TL-10 ask (O9): request the payment platform to formally REJECT " + item.id + " by UETR/idempotency key. If granted, the negative flows back through the normal feed/query evidence path (§9.4) — the CLEAN exit; the console mutates nothing.";
-    case "APPLY_VERIFIED": return "Invokes the §9.3 apply-platform-verified-outcome AUDITED STORED PROCEDURE (exists at MVP, §18-3) for " + item.id + ": verified EXECUTED (+confirmed under amount equality, SUB=SUBMITTED) or REJECTED (provider_rejected marker, reservation released). Dual control + ticket ENFORCED BY THE PROCEDURE; evidence session flag set legitimately; refuses CLAIMED/terminal/mismatch; every use raises a §15 alert.";
-    case "APPLY_TIED":  return "O12 (§20-10): TRADE-level application of the chosen tied snapshot for " + TIE.biz + " from tie record " + TIE.ref + " (payload from the record, never typed). Re-runs the §6.1 fan-out with strictly-newer relaxed to ≥ for exactly ordering " + TIE.ordering + ". Every money guard applies unchanged (§6.4 retry-guard, §6.5 latch, §6.8 markers, I6) — this adjudicates ORDERING only. Per-block effect:";
+    case "APPLY_VERIFIED": return "Invokes the §9.3 apply-platform-verified-outcome AUDITED OPERATION — an authorized application endpoint calling the shared transition service (2026-07-11 boundary; exists at MVP, §18-3) for " + item.id + ": verified EXECUTED (+confirmed under amount equality, SUB=SUBMITTED) or REJECTED (provider_rejected marker, reservation released; the live marker then correctly BLOCKS an automatic successor — re-pay needs a newer message or future O11). Dual control + ticket ENFORCED BY THE OPERATION (enterprise-authenticated identities); evidence session flag set legitimately; refuses CLAIMED/terminal/mismatch; every use raises a §15 alert.";
+    case "APPLY_TIED":  return "O12 REPROCESS-SNAPSHOT (§20-10, revised 2026-07-11): re-fetches snapshot " + TIE.xmlId + " for " + TIE.biz + " from the XML STORE (§6.0 transport note — the payload is never a parameter, a log field, or typed) and re-runs the §6.1 fan-out with strictly-newer relaxed to ≥ for exactly ordering " + TIE.ordering + ". Every money guard applies unchanged (§6.4 retry-guard, §6.5 latch, §6.8 markers, I6) — this adjudicates ORDERING only; a purged xml id refuses cleanly. Per-block effect (computed from the fetched XML):";
     case "ACK_OVERPAY": return "Writes ops_annotation (§2.1) — display only, NO state change (§13 one-way latch; never cleared). Overpay latch on " + d.scope + " remains set; acknowledgement recorded with ticket reference.";
     default:            return "";
   }
@@ -614,7 +614,7 @@ function openModal(action, itemId, detailKey) {
       TIE.blocks.map(function (b) {
         return "<tr><td class='mono'>" + esc(b.tuple) + "</td><td class='num'>" + esc(b.stored) + "</td><td class='num'>" + esc(b.tied) + "</td><td>" + esc(b.effect) + "</td></tr>";
       }).join("") + "</tbody></table>";
-    xf.innerHTML = "<label for='mTieRef'>Tie record (payload source — read-only)</label><input type='text' id='mTieRef' readonly value='" + esc(TIE.ref) + " · ordering " + esc(TIE.ordering) + "'>";
+    xf.innerHTML = "<label for='mTieRef'>Snapshot source (fetched from the XML store — read-only)</label><input type='text' id='mTieRef' readonly value='" + esc(TIE.xmlId) + " · tie " + esc(TIE.ref) + " · ordering " + esc(TIE.ordering) + "'>";
   } else { et.innerHTML = ""; xf.innerHTML = ""; }
 
   document.getElementById("mReason").value = "";

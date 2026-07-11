@@ -80,7 +80,7 @@ Two standing facts frame everything:
 | U-6 | Snapshot violates within-snapshot tuple uniqueness (§6.0) — would silently merge two payments | Whole-snapshot validation failure: anchors + validation_failed marker on ALL the trade's scopes (§6.6 blast radius), alert | Corrected snapshot clears markers by ordering; in-flight requests untouched | T4 |
 | U-7 | Duplicate redelivery (identical snapshot) | Nothing to notice — second apply sees shortfall 0 / ordering not newer | Converges silently (§6.1, §6.7) | T0/T1 |
 | U-8 | Out-of-order delivery — older snapshot arrives after newer | Stale-message metric; alert on volume (§6.7) | Watermark drops it; BY DESIGN under BA-3 | T1/T2 |
-| U-9 | Two genuine amendments share an ordering timestamp, payloads differ | AMENDMENT_TIE_CONFLICT alert (§6.7) | Manual application by ops (§20-10 / console O12 — **GAP-3, closed this round**) from the tie-conflict record's preserved payload (§6.7 executability requirement); a resend cannot fix a tie (same timestamp) | T3 |
+| U-9 | Two genuine amendments share an ordering timestamp, payloads differ | AMENDMENT_TIE_CONFLICT alert (§6.7) carrying identifiers + a masked diff (never the payload) | REPROCESS-SNAPSHOT (§20-10 / console O12, REVISED 2026-07-11): ops adjudicates, then the operation re-fetches the chosen snapshot from the XML STORE by id (§6.0 transport note — Kafka carries only the storage id; the XML is durable and re-fetchable) and re-runs §6.1 with ≥ relaxation for exactly the tied ordering; a verbatim resend cannot fix a tie | T3 |
 | U-10 | Consumer crashes mid-fan-out of a multi-payment snapshot | Nothing visible — redelivered snapshot re-applies | Applied blocks drop as stale, unapplied blocks apply; per-block transactions converge (§6.1) | T1 |
 | U-11 | Amendment lowers amount while request un-posted | — | Auto-cancel (§6.4) + right-sized successor via §6.8 | T1 |
 | U-12 | Amendment lowers amount while request MAYBE_SUBMITTED | AMENDMENT_PARKED + alert; rank-1 exception on card | Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation brings ops in (dual-control stale re-POST, TL-10, or §9.3 procedure) | T1 → T3 |
@@ -169,7 +169,7 @@ within escalation age: BLOCKED(ESCALATED) + CRITICAL, ops gets four exits
 | C-9 | Return/refund-style event for an EXECUTED request | Log + CRITICAL + ack; no state change (§8) | §19.2 future work; reconciliation lives platform-side | T4 |
 | C-10 | Feed outage / consumer lag | Lag page (§15); card freshness indicator (§12) | Sweep continues independently; SUBMITTED-branch damping while lag exceeds confirmation age (§9.5) prevents false ENGINE_INCONSISTENCY parks | T1/T2 |
 | C-11 | Contradictory evidence (reject after settle, stale status) | Stale evidence affects zero rows | Outcome write-once + evidence monotonicity (§4.4); anomalies page per C-7 | T0 |
-| C-12 | provider_reference collision (reused reference) | UNIQUE index makes reuse loud (§8) | Fail-closed fallback already requires single-active-match + amount + recency; no match → sweep recovers by key | T0/T1 |
+| C-12 | provider_reference collision (reused reference) | Reuse metric: the fallback lookup finding >1 candidate is counted + alerted (§8 index decision 2026-07-11 — non-unique index until TL-12 confirms in writing) | Fail-closed fallback already requires single-active-match + amount + recency; ambiguity → unmatched path, sweep recovers by key | T0/T1 |
 
 ------
 
@@ -285,16 +285,20 @@ GAP-2  The never-emitted message is invisible (upstream ask 7, §18 — NEW).
        check daily).
 
 GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
-       the "minimal ops surface" review of this walkthrough).
-       §6.7 said tied-but-differing snapshots go to "manual
-       application", but no operation existed in §20 or the
-       ops-console catalog, and nothing guaranteed the dropped
-       snapshot's payload survived to be applied (the message is
-       acked, no parked-message store exists, a resend ties
-       forever). Folded: §6.7 executability requirement (the
-       tie-conflict record carries the canonicalized payload),
-       §20 item 10 (trade-level 4-eyes operation), and
-       ops-console-proposal.md O12 + §3.1 coverage matrix.
+       the "minimal ops surface" review of this walkthrough;
+       REVISED 2026-07-11 after the second external review + the
+       transport contract fact). §6.7 said tied-but-differing
+       snapshots go to "manual application", but no operation
+       existed anywhere. First fold put the payload in the
+       tie-conflict record — which conflicted with §16.3 masking.
+       Final design: the snapshot XML already lives durably in the
+       upstream-populated store (Kafka carries only the storage id
+       — §6.0 transport note), so the record carries IDENTIFIERS
+       ONLY and the §20-10 REPROCESS-SNAPSHOT operation re-fetches
+       the adjudicated XML by id and re-runs the normal §6.1
+       fan-out (≥ relaxation for exactly the tied ordering). No
+       payload in logs, no new store; store retention/fetch
+       contract = upstream ask 8.
 ```
 
 **Already tracked (no change needed — verified still open and correctly owned):**
@@ -307,12 +311,15 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
 - TL-10 / Q-12: platform formal reject — the cleanest parked-MAYBE exit.
 - PO-7 / §19.3: ops retry-after-provider-reject (B-4) — FUTURE.
 - §19.2: returned-funds visibility (B-5, C-9) — FUTURE workstream.
-- §20 console: the entire T3 tier gets an API/UI surface post-MVP;
-  at MVP it is the §20 interim procedure set (supersede/close, retry,
-  reject, annotate, tie-apply — now enumerated in §20 and delivered
-  by playbook RG-05 + OP-04, gated by checklist Q29) + the §9.3
-  stored procedure (the one REQUIRED-at-MVP piece) + the four ops
-  queue views + role-controlled toggles.
+- §20 console: the entire T3 tier gets a UI post-MVP; at MVP it is
+  the §20 interim operation set (supersede/close, retry, reject,
+  annotate, reprocess-snapshot — authorized application endpoints
+  per the 2026-07-11 execution boundary, delivered by playbook
+  RG-05 + OP-04, gated by checklist Q29 as ordinary MVP scope) +
+  the §9.3 audited operation (the one NON-WAIVABLE piece) + the
+  four ops queue views + role-controlled toggles. "Exit" may be a
+  terminal give-up (§20 exit-honesty note): re-pay paths for
+  repeat-reject and latched scopes stay future by design.
 - §5.2 DR runbook: post-MVP by PO decision; interim = major incident
   (I-4). Deterministic keys keep the restore recoverable regardless.
 ```

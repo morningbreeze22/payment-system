@@ -84,7 +84,7 @@
 
 ## Phase handoff summary (P5 → P6)
 
-- **Phase outputs:** uetr persisted from acceptance-class responses ONLY (never overwritten; never from DUPLICATE_REQUEST/collision/rejects); provider_reference persisted as a distinct field with loud uniqueness.
+- **Phase outputs:** uetr persisted from acceptance-class responses ONLY (never overwritten; never from DUPLICATE_REQUEST/collision/rejects); provider_reference persisted as a distinct field with a NON-UNIQUE lookup index + reuse metric (§8 index decision 2026-07-11 — UNIQUE only after written TL-12 confirmation).
 - **Blockers to carry forward:** TL-11(a) field confirmation if still UNCLEAR (CT-07 settles it); TL-12 reference-uniqueness question open (fail-closed fallback stands).
 - **Local mapping rows expected filled:** [Provider Response Parser] change notes; uetr/provider_reference write sites recorded.
 - **Tests expected to exist:** per-response-class persistence matrix (T-15/T-16), dead-UETR non-matching, DUPLICATE-leaves-prior-uetr-intact (spec-named test).

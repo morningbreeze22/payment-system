@@ -949,6 +949,28 @@ identical snapshots. The §6.8 recovery model ("a newer message is
 worth a new attempt") and the boundedness of the validation
 reject cycle (§2.1 validation_reject_count) both lean on this fact.
 
+Transport (contract fact, recorded 2026-07-11 from the PO/team):
+the Kafka notification carries the SNAPSHOT STORAGE ID only — the
+full snapshot XML is written to the upstream-populated store (a
+database this service can read) BEFORE the notification is emitted;
+this service fetches the XML by id, parses it, and processes exactly
+as above (the field list describes the XML content; business_id
+remains the Kafka MESSAGE KEY — ask 2). Consequences:
+
+```text
+- The XML store is an intake dependency: per-dependency timeout +
+  breaker (§16.1); a fetch failure is a TRANSIENT intake failure —
+  retry in place / pause the container, never ack-and-drop (§16.2).
+- A notification whose XML row is MISSING after bounded retries is
+  an upstream defect: DLT + page (a pointer without its payload).
+- The stored XML is durable and RE-FETCHABLE by id: replays and
+  ops-triggered reprocessing (§6.7 tie resolution, §20-10) re-read
+  the SAME document — no payload content ever needs to travel in
+  messages, logs, or alerts. The store contract (id stability,
+  fetch-by-id sanctioned, retention ≥ the ops-queue/tie SLA) is
+  upstream ask 8 (§18).
+```
+
 This schema is one of the three build-time-enforced contracts
 (§16.5).
 
@@ -1160,9 +1182,9 @@ trade-mate delays its siblings' NEW work — never their in-flight
 work. Partial application of a document that violated its own
 contract would be worse.
 
-Consistency semantics of the trade-wide gate (clarified 2026-07-11
-after external review): the gate is EVENTUALLY CONSISTENT per block,
-not atomic — markers are applied per obligation in per-block
+Consistency semantics (clarified 2026-07-11 after external review):
+this is EVENTUAL TRADE-WIDE VALIDATION VISIBILITY, not an atomic
+fail-closed gate — markers are applied per obligation in per-block
 transactions (§6.1), and a crash mid-fan-out leaves siblings
 unmarked until redelivery re-applies. This window is ACCEPTED and
 harmless by construction: a request created on a not-yet-marked
@@ -1252,20 +1274,21 @@ Guard:
     therefore raise the tie-conflict for the snapshot as a whole —
     deliberately conservative; manual application resolves all
     blocks together.
-    Executability requirement (manual application must be possible
-    from our own records): the tie-conflict record — the alert and
-    its §14 log line — SHALL carry the incoming snapshot's
-    CANONICALIZED business-field payload (the §6.0 equality subset).
-    The dropped message was acked; no parked-message store exists
-    (§2.3); and an upstream resend cannot help (it carries the same
-    ordering value and ties forever) — so this record is the ONLY
-    source the applying operation can work from. The operation
-    itself is §20-10 (interim: controlled manual procedure; console
-    surface: ops-console-proposal.md O12): trade-level, applies the
-    chosen snapshot through the normal §6.1 fan-out with the
-    strictly-newer check relaxed to ≥ for exactly the recorded tied
-    ordering value; every money guard (§6.4 retry-guard, §6.5
-    latch, §6.8 marker conditions, I6) applies unchanged.
+    Executability requirement (REVISED 2026-07-11 — supersedes the
+    payload-in-log version, which conflicted with §16.3 masking and
+    would have made ordinary logs an executable-payload store): the
+    tie-conflict record — the alert and its §14 log line — carries
+    IDENTIFIERS ONLY: business_id, the tied ordering value, the
+    incoming snapshot's XML STORAGE ID (§6.0 transport note), and a
+    per-block diff summary with MASKED accounts (enough for a human
+    to adjudicate, never enough to execute). The payload stays where
+    it already durably lives: the XML store. Resolution is the
+    §20-10 REPROCESS-SNAPSHOT operation: re-fetch the adjudicated
+    snapshot by its XML id and re-run the normal §6.1 fan-out with
+    the strictly-newer check relaxed to ≥ for exactly the recorded
+    tied ordering value; every money guard (§6.4 retry-guard, §6.5
+    latch, §6.8 marker conditions, I6) applies unchanged. No
+    payload is ever a parameter, a log field, or a new store.
 - Regressing required_amount remains the non-recoverable direction;
   everything above fails toward alerts and manual application.
 ```
@@ -1899,21 +1922,28 @@ AFTER the money.
   rejection of the UETR (tech-lead ask 10, §18) so the negative
   arrives through the normal evidence path — and, ALWAYS AVAILABLE
   AT MVP (closing the permanent-wedge class): the dual-control
-  APPLY-PLATFORM-VERIFIED-OUTCOME procedure. Normative design:
+  APPLY-PLATFORM-VERIFIED-OUTCOME operation. Normative design:
   ops verifies the payment's true fate in the payment platform's
   own records (the platform holds the authoritative audit trail,
-  §1), then executes an AUDITED STORED PROCEDURE (§10.3
-  stored-procedure model; restricted role; spec = §16.6 artifact 8)
+  §1), then executes the AUDITED VERIFIED-OUTCOME OPERATION — an
+  authorized, enterprise-authenticated endpoint of the payment
+  APPLICATION invoking the same shared transition service as the
+  orchestrator (execution boundary decided 2026-07-11: Java
+  application, never a PL/SQL reimplementation — a raw stored
+  procedure cannot reuse the shared CAS/derivation helpers, check
+  the Hazelcast freeze, emit §14/§15 telemetry, or verify
+  enterprise identities; the §10.3 triggers remain the DB backstop;
+  restricted role; spec = §16.6 artifact 8)
   with: request_id, the verified outcome (EXECUTED or REJECTED), a
   mandatory ticket/evidence reference (§20-8), and TWO distinct
   authenticated approver identities (dual control enforced by the
-  procedure, not by convention). Identity mechanism (decided
+  operation itself, not by convention). Identity mechanism (decided
   2026-07-11): the approver identities are supplied and
   authenticated by the ENTERPRISE ACCESS-MANAGEMENT TOOLING — each
   operator has a unique, non-bypassable identity — and the
-  procedure verifies distinctness and records both. Two free-text
+  operation verifies distinctness and records both. Two free-text
   identity strings do NOT satisfy dual control; discovery confirms
-  how the authenticated identities reach the procedure. The procedure sets the §10.3
+  how the authenticated identities reach the operation. The procedure sets the §10.3
   evidence session flag — the release-guard trigger is passed
   LEGITIMATELY, never disabled — and applies the outcome through
   the SAME evidence-guarded CAS as feed evidence (§4.4):
@@ -1935,7 +1965,13 @@ AFTER the money.
   TL-10 is unavailable, the escalation path ends in a resolvable
   state — the reservation is confirmed or released, the scope can
   complete (§4.1), and a released shortfall re-pays under a NEW
-  key via §6.8 where its guards permit (§19.3 pattern).
+  key via §6.8 where its guards permit (§19.3 pattern). Guard note
+  (clarified 2026-07-11): after a verified REJECTED the
+  provider_rejected marker is LIVE and correctly BLOCKS an
+  automatic successor — re-payment happens only via a strictly
+  newer valid upstream message (§6.8 successor policy) or the
+  future §19.3 clear. The un-wedging claim is about the RESERVATION
+  and the scope's exits, never about automatic re-pay.
 - Rationale: releasing the reservation re-opens the shortfall and
   pays again; if the original payment had in fact executed, its
   eventual confirmation arrives AFTER the money left twice.
@@ -1959,7 +1995,7 @@ operationally different events.
 submission_state moves toward "safe to release" ONLY on evidence from
 this system's own POST responses or an authoritative engine
 REJECTED — NEVER from a status-query answer. (Single sanctioned
-exception: the §9.3 apply-platform-verified-outcome procedure —
+exception: the §9.3 apply-platform-verified-outcome operation —
 platform-records-verified, dual-control, audited.) (Moves AWAY from
 releasable — e.g. a query answer proving acceptance → SUBMITTED —
 are permitted: tightening is always safe.) §10.1 release rights are
@@ -2245,7 +2281,7 @@ default). The same backstop class covers the §10.1 release guard: a trigger rej
 with submission_state MAYBE_SUBMITTED/SUBMITTED unless the session
 context carries the evidence flag — set by the authoritative-negative
 code path or by the §9.3 apply-platform-verified-outcome audited
-procedure (the single legitimate MANUAL setter) — so raw
+operation (the single legitimate MANUAL setter) — so raw
 fat-finger SQL in the no-console interim fails loudly instead of
 silently releasing money. L9 is code +
 drift-scanner verified (cross-table):
@@ -3006,13 +3042,17 @@ tests point at them):
 7. Runbook stubs, one per §15 alert; the §5.2 restore runbook; the
    unqueryable aged MAYBE row (past the engine lookback — §9.3): platform-side lookup → TL-10 rejection or the
    apply-platform-verified-outcome procedure.
-8. The apply-platform-verified-outcome stored procedure spec
-   (§9.3 — §18 BLOCKING item 3): signature, dual-control
-   enforcement (identities authenticated by the enterprise
-   access-management tooling — §9.3 decision 2026-07-11; free-text
-   identity strings are non-compliant), evidence-flag mechanics,
-   refusal conditions (CLAIMED, terminal, amount mismatch), audit
-   fields, and the ops drill script.
+8. The apply-platform-verified-outcome OPERATION spec
+   (§9.3 — §18 BLOCKING item 3; execution boundary decided
+   2026-07-11: an authorized, enterprise-authenticated endpoint of
+   the payment application calling the shared transition service —
+   never a PL/SQL reimplementation; §10.3 triggers stay as the DB
+   backstop): endpoint authorization + operation contract,
+   dual-control enforcement (identities authenticated by the
+   enterprise access-management tooling; free-text identity strings
+   are non-compliant), evidence-flag mechanics, refusal conditions
+   (CLAIMED, terminal, amount mismatch), audit fields, and the ops
+   drill script.
 ```
 
 ------
@@ -3131,8 +3171,9 @@ payment platform
    a wrong calendar blocks a whole currency an hour early or
    re-POSTs after bank close.
 3. MVP MAYBE-row terminal exit: the §9.3
-   apply-platform-verified-outcome audited stored procedure
-   (§16.6 artifact 8) must EXIST AND BE DRILLED before go-live —
+   apply-platform-verified-outcome audited operation (an authorized
+   application endpoint — execution boundary decided 2026-07-11;
+   §16.6 artifact 8) must EXIST AND BE DRILLED before go-live —
    OR TL-10 (platform formal reject) AND TL-5's lookback ≥ maximum
    row lifetime (incl. ops-queue SLA) are both answered
    affirmatively. Without one of these, an unresolvable
@@ -3356,6 +3397,18 @@ payment platform
    periodic trade-count signal this system's reconciliation can
    check. No local machinery is proposed: the detector belongs
    where the data is.
+8. XML snapshot store contract (§6.0 transport note — added
+   2026-07-11): confirm IN WRITING (a) fetch-by-id from the store
+   by this service is a sanctioned interface (not an internal we
+   happen to reach); (b) the storage id in the Kafka notification
+   is stable and unique per snapshot; (c) store retention ≥ the
+   maximum ops-queue / tie-adjudication SLA — the §20-10
+   reprocess-snapshot operation re-fetches by id, potentially days
+   later; a purged row makes tie resolution and DLT reprocessing
+   impossible. Optional future improvement (not required): an
+   on-request re-emission capability (fresh notification, fresh
+   ordering value) would let ties resolve through the fully
+   ordinary path with no ordering relaxation at all.
 ```
 
 ### Resolved: workflow advancement
@@ -3462,31 +3515,45 @@ Interim model (today): operations users read payment state from the
 card, then go to other systems to check details and make payments.
 This system offers no mutation surface to ops.
 
-PO DECISION: shipping the MVP without an ops execution surface
-is ACCEPTED. The states below are exited via controlled manual
-database procedures in the interim (subject to the §10.1 release
-guard and the §10.3 trigger backstops, which make a raw fat-finger
-write fail loudly); the console remains future work per
-`ops-console-proposal.md`. ONE procedure is REQUIRED at MVP:
-the §9.3 apply-platform-verified-outcome stored procedure (§18
-BLOCKING item 3) — it is the guaranteed terminal exit for
-otherwise-unresolvable MAYBE rows; everything else stays future.
+PO DECISION: shipping the MVP without an ops CONSOLE is ACCEPTED.
+Dead-end states are exited in the interim via CONTROLLED, AUTHORIZED
+ADMIN OPERATIONS — endpoints of the payment APPLICATION itself
+(execution boundary decided 2026-07-11: enterprise-authenticated,
+restricted-role endpoints invoking the same shared transition
+service as the orchestrator; a PL/SQL implementation was rejected —
+it cannot reuse the shared CAS/derivation helpers, check the freeze,
+emit §14/§15 telemetry, or verify enterprise identities. The §10.1
+release guard applies in code AND the §10.3 trigger backstops still
+make a raw fat-finger DB write fail loudly). The console remains
+future work per `ops-console-proposal.md` — it will only ever be a
+UI over these same operations. Exactly ONE operation is
+NON-WAIVABLE at go-live: the §9.3 apply-platform-verified-outcome
+operation (§18 BLOCKING item 3) — the guaranteed terminal exit for
+otherwise-unresolvable MAYBE rows.
 
-The interim PROCEDURE SET — the concrete form of "controlled manual
-database procedures" above, consolidating obligations this section,
-§3, and §6.7 already state (enumerated 2026-07-11; it amends no
-decision): supersede/close (the §3 REQUIRED operation), ops retry of
-a BLOCKED request (item 1, L7 semantics), ops reject of a BLOCKED
-request (item 1; release guard + L9 marker), overpay annotation
-(item 4), and tie application (item 10, §6.7). Every procedure
+The interim OPERATION SET — ordinary MVP scope (normalized
+2026-07-11: NOT part of the §18 gate; go-live checklist item Q29
+covers it and, like every non-§18 item, may be risk-accepted only
+by the PO with a named owner and dated plan): supersede/close (the
+§3 REQUIRED operation), ops retry of a BLOCKED request (item 1, L7
+semantics), ops reject of a BLOCKED request (item 1; release guard
++ L9 marker), overpay annotation (item 4), and snapshot
+reprocessing for tie resolution (item 10, §6.7). Every operation
 requires operator identity, reason, and the external ticket
-reference in its SIGNATURE (item 8), plus a second distinct approver
+reference in its CONTRACT (item 8), plus a second distinct approver
 where the action moves or releases money; all run the same guarded
 CAS + obligation-lock flow as the orchestrator. Alongside them,
 read-only QUEUE VIEWS over the §15 ops-queue metrics (BLOCKED by
 reason with ESCALATED first, stuck reservations, aged MAYBE,
 overpay latches) make the dead-end states findable — the card (§12)
 is a user surface keyed by business_id and does not serve this.
+
+Exit honesty (wording fixed 2026-07-11): every dead-end state has
+an audited EXIT, where "exit" may be a terminal GIVE-UP —
+reject/supersede release the reservation and close the scope's
+question. RE-PAY paths for repeat-reject scopes (§19.3/PO-7) and
+latched-overpay scopes (§13 one-way door) remain FUTURE by design;
+annotation is visibility, not an exit.
 
 The design, however, produces states that REQUIRE a database mutation
 to leave — and today no tool can execute them. These questions need a
@@ -3523,14 +3590,17 @@ are obsolete, and its state displays should use the §10.4 labels):
 9. Retry-after-provider-reject (§19.3): 4-eyes operation clearing the
    provider_rejected marker so §6.8 creates a fresh successor.
    Pending PO approval (§18 item 7).
-10. Tie application (§6.7): AMENDMENT_TIE_CONFLICT is resolved by
-    manually applying the chosen tied snapshot — a TRADE-level
-    operation (all payment blocks together, §6.7 snapshot note)
-    working from the tie-conflict record's preserved payload (§6.7
-    executability requirement), never from free-typed amounts.
-    4-eyes: it can initiate money movement via §6.8. Interim:
-    controlled manual procedure; console operation O12
-    (ops-console-proposal.md). Rare by construction, and the whole
-    class disappears when upstream ask 1's explicit sequence field
-    arrives.
+10. Tie resolution (§6.7, REVISED 2026-07-11): the
+    REPROCESS-SNAPSHOT operation — trade-level, 4-eyes (it can
+    initiate money movement via §6.8). Input = the tie-conflict
+    record's XML STORAGE ID + the recorded tied ordering value;
+    the operation re-fetches the adjudicated snapshot from the XML
+    store (§6.0 transport note) and re-runs the normal §6.1
+    fan-out with the ordering check relaxed to ≥ for exactly that
+    tied value. The payload is never a parameter — always fetched
+    from the store. The same operation (without the ordering
+    relaxation) serves as the general re-trigger for a
+    fixed-in-place XML (§6.6 DLT recovery). Rare by construction;
+    the tie class disappears when upstream ask 1's explicit
+    sequence field arrives.
 ```

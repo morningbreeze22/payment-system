@@ -46,5 +46,5 @@ collected retroactively at GO-04.**
 | Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
-| Q29 | §20 interim ops surface live: guarded procedures (retry / reject / supersede / annotate / tie-apply) + four queue views deployed with restricted-role grants and exercised on real Oracle | §20, RG-05, OP-04, T-33 | | |
+| Q29 | §20 interim ops surface live: authorized admin endpoints (retry / reject / supersede / annotate / reprocess-snapshot) + four queue views deployed, enterprise-role-restricted, exercised on real Oracle (ordinary MVP scope — risk-acceptance possible only by the PO with owner + dated plan, §20) | §20, RG-05, OP-04, T-33 | | |
 

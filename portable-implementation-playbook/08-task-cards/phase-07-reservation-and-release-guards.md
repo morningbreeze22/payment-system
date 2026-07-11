@@ -108,14 +108,14 @@
 - **Task ID:** RG-05
 - **Title:** Enforce §10.1's release guard in every terminal-negative code path; implement the guarded supersede/close operation
 - **Classification:** MVP normative implementation
-- **Purpose:** releasing a reservation whose money may have moved is the one remaining double-payment path (§3); the supersede/close operation is a §3 REQUIRED feature, executed at MVP as a controlled procedure (§20 interim model).
+- **Purpose:** releasing a reservation whose money may have moved is the one remaining double-payment path (§3); the supersede/close operation is a §3 REQUIRED feature, executed at MVP as a controlled admin operation — an authorized application endpoint per the §20 execution boundary (2026-07-11).
 - **Prerequisites:** RG-02; S-06 (trigger backstop + evidence flag).
 - **Requirement sections / concepts to read:** §10.1 (release guard), §9.4, §3 (supersede/close + FORBIDDEN clause), §20 (interim model).
 - **Placeholder components involved:** [Request Status Persistence Layer], [Operator Admin Procedure Area] (the supersede/close procedure), [Stored Procedure / Trigger Area].
 - **Local placeholder mappings required before starting:** S-06 evidence-flag mechanics.
 - **Local code areas to discover:** every terminal-negative initiator (auto-cancel RG-07, feed reject IN-07, resolver reject RC-06, ops paths).
 - **How to locate:** outcome-writer inventory.
-- **Implementation instructions:** shared guard check before any terminal-negative CAS: permitted iff submission_state=NOT_SUBMITTED OR driven by an authoritative engine negative (which sets the evidence flag for the trigger) OR the §9.3 procedure (OP-01, its own flag setter). Supersede/close: a guarded procedure (restricted role, ticket + operator identity logged per §20-8) setting SUPERSEDED/CANCELLED on a stalled active request, refused while MAYBE/SUBMITTED unless evidence-driven; releases the reservation via the RG-02 path.
+- **Implementation instructions:** shared guard check before any terminal-negative CAS: permitted iff submission_state=NOT_SUBMITTED OR driven by an authoritative engine negative (which sets the evidence flag for the trigger) OR the §9.3 procedure (OP-01, its own flag setter). Supersede/close: a guarded admin operation — an authorized application endpoint (restricted enterprise role; ticket + operator identity enforced in the contract per §20-8; the OP-01 auth pattern once it exists, else the same shape) setting SUPERSEDED/CANCELLED on a stalled active request via the shared helpers, refused while MAYBE/SUBMITTED unless evidence-driven; releases the reservation via the RG-02 path.
 - **Do not change:** the S-06 trigger (defense in depth — code guard AND trigger both live).
 - **Tests to add:** guard denies terminal-negative on MAYBE row from a non-evidence path (code layer AND trigger layer asserted separately); allows on NOT_SUBMITTED; supersede/close on a stalled ENRICH·BLOCKED row works + releases; refused on MAYBE.
 - **Edge cases:** ops reject of a BLOCKED·NOT_SUBMITTED row is legal (release guard passes on NOT_SUBMITTED).

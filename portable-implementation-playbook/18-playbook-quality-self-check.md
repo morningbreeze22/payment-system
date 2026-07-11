@@ -55,8 +55,11 @@
     classified future/PO discussion (C72; RG-05's supersede/close is
     delivered only as the §20-sanctioned guarded interim procedure
     that §3 REQUIRES, subject to the release guard).
-[x] Drift lint (added 2026-07-11 after the external review): after
-    ANY package modification, grep-verify at minimum — (a) no
+[x] Drift lint (added 2026-07-11; EXECUTABLE since the second
+    external review — run `python tools/doc-lint.py`, wired to CI in
+    .github/workflows/doc-lint.yml; the manual list below is its
+    specification, not a substitute): after
+    ANY package modification, verify at minimum — (a) no
     "card >1 obligation = error/alert" phrasing anywhere; (b) no
     UNIQUE-index claim on provider_reference while TL-12 is open;
     (c) no FOR UPDATE SKIP LOCKED in scanner guidance; (d) no rule

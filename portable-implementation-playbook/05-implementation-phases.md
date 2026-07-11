@@ -388,8 +388,10 @@ Goal:            POST classifier per CA-1 (closed taxonomy, fail
                  closed); submission_state branches incl. collision
                  handling on divergence_expected; repost_permitted
                  implemented once, checked at both ends; retry scanner
-                 with per-class policy, exhaustion, cutoff pre-checks,
-                 freeze/breaker deadline suspension; resolver sweep
+                 with per-class policy, exhaustion, cutoff pre-checks
+                 (bounds = attempts + cutoff, §7.4 2026-07-11 — no
+                 wall-clock deadline; gated scanners make zero
+                 attempts, so nothing needs suspending); resolver sweep
                  (submission-keyed scope, bounded prioritized batches,
                  per-row backoff, never-overlap, SUBMITTED damping);
                  §9.1 outcome application; §9.2 trust-age + downgrade +
@@ -416,7 +418,8 @@ Tests required:  classifier fail-closed defaults; each §7.2 branch;
                  escalation once-per-episode; parked-MAYBE stability
                  (no park⇄un-park cycle); freeze fail-safe (absent /
                  unreachable / timeout = FROZEN; only FROZEN cached);
-                 deadline suspension under freeze/breaker OPEN.
+                 zero attempts + zero BLOCKED conversions across a
+                 simulated freeze/breaker-OPEN window (§16.1).
 Edge cases:      DUPLICATE_REQUEST answering a downgrade re-POST
                  (hidden earlier attempt surfaced → MAYBE + query);
                  query-API outage → INDETERMINATE with escalation
@@ -436,14 +439,18 @@ Verify locally:  existing retry ownership (exactly one owner per
 Go-live blocking: YES (MAYBE recovery tests, cutoff config, Q items).
 ```
 
-### Phase P11 — MVP apply-platform-verified-outcome audited stored procedure
+### Phase P11 — MVP apply-platform-verified-outcome audited operation (+ interim ops surface)
 
 ```text
-Goal:            Implement CA-9's spec: audited stored procedure,
-                 restricted role; inputs = request_id, verified outcome
-                 (EXECUTED|REJECTED), mandatory ticket/evidence
-                 reference, TWO distinct authenticated approver
-                 identities (dual control enforced BY the procedure);
+Goal:            Implement CA-9's spec: the audited verified-outcome
+                 OPERATION — an authorized, enterprise-authenticated
+                 application endpoint calling the shared transition
+                 service (execution boundary decided 2026-07-11;
+                 §10.3 triggers stay as the DB backstop); inputs =
+                 request_id, verified outcome (EXECUTED|REJECTED),
+                 mandatory ticket/evidence reference, TWO distinct
+                 enterprise-authenticated approver identities (dual
+                 control enforced BY the operation);
                  sets the §10.3 evidence session flag legitimately;
                  applies through the SAME evidence-guarded CAS as feed
                  evidence; refuses CLAIMED rows, terminal rows, amount

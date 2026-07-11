@@ -294,7 +294,7 @@
 ### CA-9 — Author the apply-platform-verified-outcome procedure spec
 
 - **Task ID:** CA-9
-- **Title:** apply-platform-verified-outcome stored procedure spec + ops drill script (§16.6 artifact 8)
+- **Title:** apply-platform-verified-outcome OPERATION spec (authorized application endpoint — 2026-07-11 execution boundary) + ops drill script (§16.6 artifact 8)
 - **Classification:** §16.6 companion artifact + §18 BLOCKING item 3 input
 - **Purpose:** OP-01 implements exactly this spec: signature, dual-control enforcement, evidence-flag mechanics, refusal conditions, audit fields, drill script.
 - **Prerequisites:** B-04 (path confirmed); CA-4 (trigger/evidence-flag mechanics defined there must match).

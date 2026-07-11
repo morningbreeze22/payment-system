@@ -33,10 +33,10 @@ Tests: term-by-term; both-ends (laundered reason can't re-POST); override scope.
 
 ```text
 [RC-04] Retry scanner
-Read: §7.4 (whole) §16.1 (scanner+suspension+poison) §16.6. Invariant: the DB scanner is the ONLY retry owner on the POST; freeze/breaker-OPEN time consumes no attempt/deadline budget; cutoff checks still apply at attempt time.
+Read: §7.4 (whole — bounds = attempts + cutoff, 2026-07-11) §16.1 (scanner + clock semantics + poison) §16.6; mechanics M5. Invariant: the DB scanner is the ONLY retry owner on the POST; §11 claim protocol (lock-free select → obligation-first claim CAS); while frozen/breaker-OPEN scanners make ZERO attempts (structural — nothing wired to retry_deadline_at); cutoff checks still apply at attempt time.
 Placeholders: [Retry Resolver Job] [Metrics / Alerting Layer]. Mappings: job infra; S-07 expressions; stacked-retry inventory (remove).
-Objective: breaker-gated bounded claims; per-class policy; exhaustion → BLOCKED (MAYBE rows keep submission_state); downgrade class (reset, now, small max); suspension; poison cap.
-Tests: schedule math; exhaustion-with-MAYBE; suspension over simulated outage; poison cap. Stop: merged.
+Objective: breaker-gated bounded claims; per-class policy; exhaustion → BLOCKED (MAYBE rows keep submission_state); downgrade class (reset, now, small max, cutoff pre-check); poison cap.
+Tests: schedule math; exhaustion-with-MAYBE; simulated 6h outage → zero attempts + zero BLOCKED conversions; poison cap. Stop: merged.
 ```
 
 ```text
