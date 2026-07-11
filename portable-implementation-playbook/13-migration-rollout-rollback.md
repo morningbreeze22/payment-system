@@ -82,7 +82,7 @@ write mode — validates scope + mapping against production answers.
 9. F3 escalation. Soak: no false escalation storms.
 10. F4 auto-downgrade — ONLY after CT-02..05 PASS on file, TL-5-derived
     trust age configured, observed-lag watchdog live.
-11. OP-01 procedure deployed + OP-03 drill done (any time after step
+11. OP-01 operation deployed + OP-03 drill done (any time after step
     1; MUST be before go-live).
 12. GO-04 gates → go-live.
 ```

@@ -65,7 +65,11 @@
     (c) no FOR UPDATE SKIP LOCKED in scanner guidance; (d) no rule
     wired to retry_deadline_at; (e) the task inventory in file 20
     matches the cards on disk (IDs and count); (f) every §18
-    ask/item appears in the K register. The monolithic
+    ask/item appears in the K register; (g) no "enforced by the
+    procedure" dual-control phrasing (round 3: operation + §9.3
+    approval workflow); (h) no deadline/budget-suspension language
+    (round 3: bounds = attempts + cutoff; gated scanners make zero
+    attempts). The monolithic
     implementation-playbook.md is an ARCHIVED SNAPSHOT and is
     exempt (never edited, never loaded for execution).
 ```

@@ -29,7 +29,7 @@ T0  PREVENTED       The failure is unrepresentable: DB constraints (I6,
 T1  SELF-HEALING    The system fixes it alone: durable retries from persisted
                     request rows (§7.4), the status-query resolver (§9),
                     redelivery convergence (§6.1/§6.7/§8 inbox), circuit
-                    breakers + suspended deadlines (§16.1), derivation
+                    breakers + zero-attempt outage windows (§16.1/§7.4), derivation
                     re-running after every mutation (§4). No human involved.
 
 T2  SELF-HEALING,   Same as T1, but a human is INFORMED (volume alerts,
@@ -40,10 +40,11 @@ T2  SELF-HEALING,   Same as T1, but a human is INFORMED (volume alerts,
 T3  OPS ACTION      A sanctioned human action is required: marker clears
                     (§19.3-pattern), ops retry of a BLOCKED row (§20-1),
                     dual-control stale-amount re-POST (§7.0 override),
-                    APPLY-PLATFORM-VERIFIED-OUTCOME procedure (§9.3),
+                    APPLY-PLATFORM-VERIFIED-OUTCOME operation (§9.3),
                     supersede/close (§3), Hazelcast freeze flip (§16.1),
                     DLT replay (§16.2), manual tie application (§6.7).
-                    MVP REALITY: these run as controlled DB procedures +
+                    MVP REALITY: these run as authorized application
+                    endpoints (§20 execution boundary, 2026-07-11) +
                     role-controlled toggles — the PO accepted shipping
                     without an ops console (§20). The future ops console
                     (`ops-console-proposal.md`) gives this tier its API/UI.
@@ -80,10 +81,10 @@ Two standing facts frame everything:
 | U-6 | Snapshot violates within-snapshot tuple uniqueness (§6.0) — would silently merge two payments | Whole-snapshot validation failure: anchors + validation_failed marker on ALL the trade's scopes (§6.6 blast radius), alert | Corrected snapshot clears markers by ordering; in-flight requests untouched | T4 |
 | U-7 | Duplicate redelivery (identical snapshot) | Nothing to notice — second apply sees shortfall 0 / ordering not newer | Converges silently (§6.1, §6.7) | T0/T1 |
 | U-8 | Out-of-order delivery — older snapshot arrives after newer | Stale-message metric; alert on volume (§6.7) | Watermark drops it; BY DESIGN under BA-3 | T1/T2 |
-| U-9 | Two genuine amendments share an ordering timestamp, payloads differ | AMENDMENT_TIE_CONFLICT alert (§6.7) carrying identifiers + a masked diff (never the payload) | REPROCESS-SNAPSHOT (§20-10 / console O12, REVISED 2026-07-11): ops adjudicates, then the operation re-fetches the chosen snapshot from the XML STORE by id (§6.0 transport note — Kafka carries only the storage id; the XML is durable and re-fetchable) and re-runs §6.1 with ≥ relaxation for exactly the tied ordering; a verbatim resend cannot fix a tie | T3 |
+| U-9 | Two genuine amendments share an ordering timestamp, payloads differ | AMENDMENT_TIE_CONFLICT alert (§6.7) carrying identifiers + a masked diff (never the payload) | REPROCESS-SNAPSHOT (§20-10 / console O12, REVISED 2026-07-11): ops adjudicates, then the operation re-fetches the chosen snapshot from the XML STORE by id (§6.0 transport note) and re-runs §6.1 with the tie condition RECOMPUTED SERVER-SIDE (round 3: no caller-supplied ordering — fabrication impossible; re-run no-ops); a verbatim resend cannot fix a tie | T3 |
 | U-10 | Consumer crashes mid-fan-out of a multi-payment snapshot | Nothing visible — redelivered snapshot re-applies | Applied blocks drop as stale, unapplied blocks apply; per-block transactions converge (§6.1) | T1 |
 | U-11 | Amendment lowers amount while request un-posted | — | Auto-cancel (§6.4) + right-sized successor via §6.8 | T1 |
-| U-12 | Amendment lowers amount while request MAYBE_SUBMITTED | AMENDMENT_PARKED + alert; rank-1 exception on card | Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation brings ops in (dual-control stale re-POST, TL-10, or §9.3 procedure) | T1 → T3 |
+| U-12 | Amendment lowers amount while request MAYBE_SUBMITTED | AMENDMENT_PARKED + alert; rank-1 exception on card | Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation brings ops in (dual-control stale re-POST, TL-10, or §9.3 operation) | T1 → T3 |
 | U-13 | Amendment raises amount while request in flight | — | Deferred successor: §6.8 creates it when the active request resolves (PO-6). Never lost. | T1 |
 | U-14 | Scope-key field changes (payment_type / debit_account / currency) | New obligation appears (card shows both) | BA-1: NEW obligation paid under new info — agreed business behavior, NOT a duplicate. Old scope follows its own lifecycle. | Settled (§1.1) |
 | U-15 | Payment absent from a newer snapshot | Nothing (interim) | OPEN — PO-9 (§18): interim absence = NO-OP; if PO answers "absence = cancel", §6.4 machinery handles it | T4 (pending PO) |
@@ -111,7 +112,7 @@ ENRICH on that durable row. Retry needs nothing from upstream.
 
 | # | What breaks | How we notice | Recovery | Tier |
 |---|-------------|---------------|----------|------|
-| E-1 | Enrichment/account API transient failure (timeout, 5xx, connect) | Retry metrics; breaker state | ENRICH·RETRY_WAIT → retry scanner, per-class policy (§7.3, §7.4); breaker gates scanners during outage, deadlines suspended (§16.1) | T1 |
+| E-1 | Enrichment/account API transient failure (timeout, 5xx, connect) | Retry metrics; breaker state | ENRICH·RETRY_WAIT → retry scanner, per-class policy (§7.3, §7.4); breaker gates scanners during outage — zero attempts, no budget burn (§16.1/§7.4) | T1 |
 | E-2 | Enrichment retries exhausted | BLOCKED(RETRY_EXHAUSTED) → ops-queue metric + stuck alert (§15) | Ops retry re-enriches in place (§20-1, L7 — never skips to POST) | T3 |
 | E-3 | Definitive invalid-data result | outcome = REJECTED, validation_failed marker, exception on card | Corrected upstream message → §6.8 successor (NOT_SUBMITTED, so release was legal) | T4 |
 | E-4 | Unmapped/unclassifiable result | BLOCKED(UNMAPPED_CODE) + alert — fail closed (§7.3) | Ops classifies; artifact-1 table updated; ops retry | T3 |
@@ -136,7 +137,7 @@ ENRICH on that durable row. Retry needs nothing from upstream.
 | P-9 | Invalid-data sync reject | REJECTED + validation_failed marker | Corrected upstream message → §6.8 successor | T4 |
 | P-10 | Other definitive sync reject | REJECTED + provider_rejected marker + alert (§15 — a requested payment is NOT happening) | ONE newer valid message may retry (§6.8); from the 2nd reject: ops-only marker clear (§2.1, §19.3 pattern) — stops upstream-paced reject/re-pay loops | T4 → T3 |
 | P-11 | Retry exhaustion / cutoff passed | BLOCKED(RETRY_EXHAUSTED / CUTOFF_EXPIRED) | Ops decision: retry next window (repost_permitted-gated), reject, or supersede (§20-1) | T3 |
-| P-12 | Engine total outage | Breaker OPEN → ticket, page at 30m; ONE rolled-up incident (§15) | Scanners gate quietly; attempt/deadline budgets SUSPENDED while breaker open (§16.1) — no BLOCKED flood at recovery; automatic resume | T1/T2 |
+| P-12 | Engine total outage | Breaker OPEN → ticket, page at 30m; ONE rolled-up incident (§15) | Scanners gate quietly; zero attempts while breaker open — the attempt budget is structurally safe (§16.1/§7.4) — no BLOCKED flood at recovery; automatic resume | T1/T2 |
 | P-13 | Engine accepts but its ingest lags → mass NOT_FOUND | Observed-lag watchdog (§15) | Trust-age rule makes NOT_FOUND = INDETERMINATE until safe; auto-downgrade self-heals the population after trust-age (§9.2) | T1/T2 |
 | P-14 | Hazelcast grid unreachable | Freeze-effective-without-ticket PAGE (§15) | Fail-safe: posting DISABLED (PO signed off); feed/resolver/card continue; infra restore un-freezes | T2 (halt) |
 | P-15 | Posting freeze left on / flipped without ticket | Same page (§16.1) | Ops acknowledges or flips back (role-controlled toggle exists today) | T3 |
@@ -149,7 +150,7 @@ indistinguishable from ingest lag; (d) NOT_FOUND after trust-age +
 repost_permitted: same-key re-POST — engine dedup makes it safe either way
 (§1 assumed contract, proven by §18-1 sandbox gate); (e) nothing resolves
 within escalation age: BLOCKED(ESCALATED) + CRITICAL, ops gets four exits
-(§9.3), terminally the audited APPLY-PLATFORM-VERIFIED-OUTCOME procedure —
+(§9.3), terminally the audited APPLY-PLATFORM-VERIFIED-OUTCOME operation —
 **no MAYBE row is ever permanently wedged at MVP** (§18 BLOCKING item 3).
 
 ------
@@ -179,7 +180,7 @@ within escalation age: BLOCKED(ESCALATED) + CRITICAL, ops gets four exits
 |---|-------------|---------------|----------|------|
 | R-1 | Query API down / timing out | INDETERMINATE + backoff; escalation clocks KEEP RUNNING (§9.1) | Fail toward a human, never toward silence: if the outage outlives escalation age, ops is paged with the row parked | T1 → T3 |
 | R-2 | NOT_FOUND ambiguity (never received vs ingest lag vs lookback expiry) | Trust-age rule (§9.2) | Before trust-age: wait. After: MAYBE → same-key re-POST (safe by collision contract); SUBMITTED → ENGINE_INCONSISTENCY park (reversible — next good query resolves it) | T1/T2 |
-| R-3 | Key aged past the engine's query lookback — NOT_FOUND unfalsifiable | Escalated row that query can never resolve | TL-5 ask (lookback ≥ max row lifetime); terminal exit = §9.3 procedure with platform-records verification | T3 |
+| R-3 | Key aged past the engine's query lookback — NOT_FOUND unfalsifiable | Escalated row that query can never resolve | TL-5 ask (lookback ≥ max row lifetime); terminal exit = §9.3 operation with platform-records verification | T3 |
 | R-4 | Engine acknowledged a payment it now cannot find | CRITICAL ENGINE_INCONSISTENCY (§9.2 SUBMITTED branch) | Never re-POST an acknowledged payment; resolver keeps querying; platform ticket (§16.6 runbook) | T2/T3 |
 | R-5 | Post-outage MAYBE population floods the query API | Sweep-overrun metric (§15) | Bounded prioritized batches (cutoff-first), per-row backoff, per-sweep budget from the engine's rate limit (§9.5) | T1 |
 | R-6 | Resolver scheduler dies | Scanner-heartbeat page — any scanner silent 3× its interval (§15) | Restart; rows unaffected (state is in tables) | T2 |
@@ -236,12 +237,12 @@ major-incident procedure with the engine's records as truth.
 | # | What breaks | How we notice | Recovery | Tier |
 |---|-------------|---------------|----------|------|
 | H-1 | Fat-finger direct DB write (illegal state) | CHECK constraints + L1-freeze/release-guard TRIGGERS reject it loudly (§10.3) | Nothing to recover — the write fails | T0 |
-| H-2 | Ops releases a reservation whose money may have moved | §10.1 release guard: terminal-negative FORBIDDEN while MAYBE/SUBMITTED without engine negative; trigger backstop | Sanctioned exits only: §9.3 procedure (platform-verified, dual-control) | T0 → T3 |
-| H-3 | Wrong outcome fed to APPLY-PLATFORM-VERIFIED-OUTCOME | Dual control (two authenticated approvers), mandatory ticket ref, refuses CLAIMED/terminal/amount-mismatch rows, every use raises a §15 alert | Residual risk accepted: the procedure demands platform-records verification; audit trail = ticket + §14 log (trigger_source=OPS_PLATFORM_VERIFIED) | T3 |
+| H-2 | Ops releases a reservation whose money may have moved | §10.1 release guard: terminal-negative FORBIDDEN while MAYBE/SUBMITTED without engine negative; trigger backstop | Sanctioned exits only: §9.3 operation (platform-verified, dual-control) | T0 → T3 |
+| H-3 | Wrong outcome fed to APPLY-PLATFORM-VERIFIED-OUTCOME | Dual control (two authenticated approvers), mandatory ticket ref, refuses CLAIMED/terminal/amount-mismatch rows, every use raises a §15 alert | Residual risk accepted: the operation demands platform-records verification; audit trail = ticket + §14 log (trigger_source=OPS_PLATFORM_VERIFIED) | T3 |
 | H-4 | Ops retries a BLOCKED row that must not repost | repost_permitted checked at BOTH ends — un-parking writer AND posting claim (§7.0); divergent_payload / terminal never overridable | The gate, not the operator, is the safety | T0 |
 | H-5 | Ops clears a marker prematurely (2nd+ provider reject) | Clear is ops-ONLY by design from the 2nd reject; §19.3 records operator/reason/ticket; 4-eyes for money movement | Audit + alert on reject-count increment | T3 |
 | H-6 | Deliberate freeze forgotten | Freeze-effective-without-acknowledged-ticket PAGE (§15) | Flip back (role-controlled) | T3 |
-| H-7 | Manual action with no ticket trail | §20-8: mandatory external ticket reference — the ONLY record surviving a DB restore | Procedure refuses/audits; process rule | T0/T3 |
+| H-7 | Manual action with no ticket trail | §20-8: mandatory external ticket reference — the ONLY record surviving a DB restore | The operation contract refuses/audits; process rule | T0/T3 |
 
 ------
 
@@ -305,7 +306,7 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
 
 ```text
 - §18 BLOCKING 0–3: snapshot residue; collision-contract sandbox proof;
-  cutoff calendar; MAYBE terminal exit (procedure + drill).
+  cutoff calendar; MAYBE terminal exit (operation + drill).
 - PO-9 / TL-16: absence semantics + snapshot watermark rule (U-15/U-16).
 - TL-5 / Q-10: query lookback ≥ max row lifetime (R-3).
 - TL-10 / Q-12: platform formal reject — the cleanest parked-MAYBE exit.

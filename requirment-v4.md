@@ -40,9 +40,11 @@ The system **sends no notifications**. It is a consumer of exactly two
 inbound flows:
 
 ```text
-1. Upstream service messages carrying the trade id — the trigger for
-   payment processing; payment details are looked up from the message.
-   Message contract: §6.0.
+1. Upstream notifications identifying the trade's snapshot — the
+   trigger for payment processing. The Kafka message carries the
+   snapshot's STORAGE ID; the full snapshot XML is fetched from the
+   upstream-populated store and payment details are taken from it
+   (§6.0 transport note). Message contract: §6.0.
 2. Payment platform status notifications keyed by UETR — the
    authoritative payment-status feed.
 ```
@@ -1274,21 +1276,29 @@ Guard:
     therefore raise the tie-conflict for the snapshot as a whole —
     deliberately conservative; manual application resolves all
     blocks together.
-    Executability requirement (REVISED 2026-07-11 — supersedes the
-    payload-in-log version, which conflicted with §16.3 masking and
-    would have made ordinary logs an executable-payload store): the
-    tie-conflict record — the alert and its §14 log line — carries
-    IDENTIFIERS ONLY: business_id, the tied ordering value, the
-    incoming snapshot's XML STORAGE ID (§6.0 transport note), and a
-    per-block diff summary with MASKED accounts (enough for a human
-    to adjudicate, never enough to execute). The payload stays where
-    it already durably lives: the XML store. Resolution is the
-    §20-10 REPROCESS-SNAPSHOT operation: re-fetch the adjudicated
-    snapshot by its XML id and re-run the normal §6.1 fan-out with
-    the strictly-newer check relaxed to ≥ for exactly the recorded
-    tied ordering value; every money guard (§6.4 retry-guard, §6.5
-    latch, §6.8 marker conditions, I6) applies unchanged. No
-    payload is ever a parameter, a log field, or a new store.
+    Executability requirement (REVISED again 2026-07-11 round 3 —
+    the alert-recorded ordering is now advisory, never an input):
+    the tie-conflict record — the alert and its §14 log line —
+    carries IDENTIFIERS ONLY: business_id, the tied ordering value,
+    the incoming snapshot's XML STORAGE ID (§6.0 transport note),
+    and a per-block diff summary with MASKED accounts (enough for a
+    human to adjudicate, never enough to execute). The payload
+    stays where it already durably lives: the XML store. Resolution
+    is the §20-10 REPROCESS-SNAPSHOT operation, and its safety is
+    SERVER-VERIFIED, not attested: the operation takes the XML
+    STORAGE ID ALONE (no caller-supplied ordering), fetches the
+    document, and RECOMPUTES the tie condition itself at execution
+    time — the ≥ relaxation applies iff the FETCHED document's own
+    ordering value equals the obligation's current
+    upstream_ordering AND its payload differs from the applied
+    state (which IS the definition of the tie, §6.7). A fabricated
+    or non-tying input therefore cannot invoke the relaxation; a
+    re-run after apply finds payload equality and no-ops (single
+    use by construction); every money guard (§6.4 retry-guard,
+    §6.5 latch, §6.8 marker conditions, I6) applies unchanged. No
+    payload is ever a parameter, a log field, or a new store, and
+    no durable conflict record is needed — the store + the
+    obligation row ARE the evidence.
 - Regressing required_amount remains the non-recoverable direction;
   everything above fails toward alerts and manual application.
 ```
@@ -1942,8 +1952,25 @@ AFTER the money.
   authenticated by the ENTERPRISE ACCESS-MANAGEMENT TOOLING — each
   operator has a unique, non-bypassable identity — and the
   operation verifies distinctness and records both. Two free-text
-  identity strings do NOT satisfy dual control; discovery confirms
-  how the authenticated identities reach the operation. The procedure sets the §10.3
+  identity strings do NOT satisfy dual control. PROTOCOL (decided
+  2026-07-11 round 3 — an authenticated caller plus a second
+  identity FIELD is not dual control): the normative mechanism is
+  a TWO-STEP APPROVAL WORKFLOW — the initiator's authenticated
+  session records a pending approval BOUND to (request_id, intended
+  outcome/action, parameter hash, ticket reference, expiry, nonce);
+  the second approver, in their OWN authenticated session, approves
+  that exact record; execution verifies approver ≠ initiator,
+  re-validates the binding, and CONSUMES the record single-use.
+  The pending-approval record lives in a small OPS-SCHEMA store —
+  operational workflow state, explicitly OUTSIDE the §2 payment
+  data model (which remains three tables) and sanctioned as the
+  ONE such store (it is the same approval store the future console
+  was always going to need). Accepted alternative, if the
+  enterprise tooling can issue one: a SIGNED approval assertion
+  carrying the same binding fields. CA-9 documents whichever is
+  chosen, with negative tests: parameter substitution, expired
+  approval, replay of a consumed approval, identical identities,
+  role revoked between approval and execution. The operation sets the §10.3
   evidence session flag — the release-guard trigger is passed
   LEGITIMATELY, never disabled — and applies the outcome through
   the SAME evidence-guarded CAS as feed evidence (§4.4):
@@ -3038,7 +3065,17 @@ tests point at them):
    the §10.3 legality matrix (every illegal tuple write refused);
    (c) the §11 claim-protocol concurrency/deadlock test on real
    Oracle (scanner vs feed vs auto-cancel interleavings — no
-   lock-order inversion, no ORA-00060).
+   lock-order inversion, no ORA-00060); (d) reprocess-snapshot
+   adversarial set (§20-10 round 3): non-tying document → no
+   relaxation (ordinary guard only); document business_id ≠
+   addressed trade → refused; re-run after apply → no-op (single
+   use); purged/missing id → clean refusal, no partial apply;
+   content changed behind an id (ask-8 violation simulated) → the
+   server-recomputed condition still governs, nothing applies
+   outside the ordering guard; (e) dual-control negative set
+   (§9.3): parameter substitution, expired approval, replayed
+   consumed approval, identical identities, role revoked between
+   approval and execution.
 7. Runbook stubs, one per §15 alert; the §5.2 restore runbook; the
    unqueryable aged MAYBE row (past the engine lookback — §9.3): platform-side lookup → TL-10 rejection or the
    apply-platform-verified-outcome procedure.
@@ -3048,11 +3085,15 @@ tests point at them):
    the payment application calling the shared transition service —
    never a PL/SQL reimplementation; §10.3 triggers stay as the DB
    backstop): endpoint authorization + operation contract,
-   dual-control enforcement (identities authenticated by the
-   enterprise access-management tooling; free-text identity strings
-   are non-compliant), evidence-flag mechanics, refusal conditions
-   (CLAIMED, terminal, amount mismatch), audit fields, and the ops
-   drill script.
+   dual-control enforcement — the §9.3 two-step approval workflow
+   (pending-approval record bound to request_id/action/parameter
+   hash/ticket/expiry/nonce; approver ≠ initiator; single-use
+   consumption; identities authenticated by the enterprise
+   access-management tooling; free-text identity strings are
+   non-compliant) or the signed-assertion alternative, with the
+   §9.3 negative-test set — evidence-flag mechanics, refusal
+   conditions (CLAIMED, terminal, amount mismatch), audit fields,
+   and the ops drill script.
 ```
 
 ------
@@ -3398,17 +3439,26 @@ payment platform
    check. No local machinery is proposed: the detector belongs
    where the data is.
 8. XML snapshot store contract (§6.0 transport note — added
-   2026-07-11): confirm IN WRITING (a) fetch-by-id from the store
-   by this service is a sanctioned interface (not an internal we
-   happen to reach); (b) the storage id in the Kafka notification
-   is stable and unique per snapshot; (c) store retention ≥ the
-   maximum ops-queue / tie-adjudication SLA — the §20-10
+   2026-07-11; IMMUTABILITY clause added round 3): confirm IN
+   WRITING (a) fetch-by-id from the store by this service is a
+   sanctioned interface (not an internal we happen to reach);
+   (b) the storage id in the Kafka notification is stable and
+   unique per snapshot; (c) store retention ≥ the maximum
+   ops-queue / tie-adjudication SLA — the §20-10
    reprocess-snapshot operation re-fetches by id, potentially days
    later; a purged row makes tie resolution and DLT reprocessing
-   impossible. Optional future improvement (not required): an
-   on-request re-emission capability (fresh notification, fresh
-   ordering value) would let ties resolve through the fully
-   ordinary path with no ordering relaxation at all.
+   impossible; (d) IMMUTABILITY: read-by-id returns the SAME bytes
+   forever (or the id embeds an immutable version), reads are
+   consistent, and any correction is a NEW id/version with a new
+   notification — content behind an existing id never changes.
+   (The §20-10 operation is server-verified and stays safe even
+   against a violating store — it applies only upstream-authored
+   content under the recomputed tie/ordering guard — but (d) is
+   what makes "re-read the SAME document" literally true.)
+   Optional future improvement (not required): an on-request
+   re-emission capability (fresh notification, fresh ordering
+   value) would let ties resolve through the fully ordinary path
+   with no ordering relaxation at all.
 ```
 
 ### Resolved: workflow advancement
@@ -3531,14 +3581,22 @@ NON-WAIVABLE at go-live: the §9.3 apply-platform-verified-outcome
 operation (§18 BLOCKING item 3) — the guaranteed terminal exit for
 otherwise-unresolvable MAYBE rows.
 
-The interim OPERATION SET — ordinary MVP scope (normalized
-2026-07-11: NOT part of the §18 gate; go-live checklist item Q29
-covers it and, like every non-§18 item, may be risk-accepted only
-by the PO with a named owner and dated plan): supersede/close (the
-§3 REQUIRED operation), ops retry of a BLOCKED request (item 1, L7
-semantics), ops reject of a BLOCKED request (item 1; release guard
-+ L9 marker), overpay annotation (item 4), and snapshot
-reprocessing for tie resolution (item 10, §6.7). Every operation
+NON-WAIVABLE MINIMAL EXIT SET (round-3 normalization, 2026-07-11 —
+resolves the contradiction between §3's "required feature" and a
+waivable Q29): THREE operations must exist before go-live and are
+not risk-acceptable — (1) the §9.3 verified-outcome operation
+(§18-3, above), (2) SUPERSEDE/CLOSE (§3 explicitly REQUIRES it —
+without it a stalled NOT_SUBMITTED request holds its reservation
+forever), and (3) REPROCESS-SNAPSHOT (item 10 — the only §6.7 tie
+exit, server-verified). The go-live checklist marks these within
+Q4/Q29 as non-waivable line items.
+
+The remaining interim OPERATION SET — ordinary MVP scope (Q29;
+like every non-§18 item it may be risk-accepted only by the PO
+with a named owner and dated plan): ops retry of a BLOCKED request
+(item 1, L7 semantics), ops reject of a BLOCKED request (item 1;
+release guard + L9 marker), overpay annotation (item 4), and the
+four queue views. Every operation
 requires operator identity, reason, and the external ticket
 reference in its CONTRACT (item 8), plus a second distinct approver
 where the action moves or releases money; all run the same guarded
@@ -3548,10 +3606,14 @@ reason with ESCALATED first, stuck reservations, aged MAYBE,
 overpay latches) make the dead-end states findable — the card (§12)
 is a user surface keyed by business_id and does not serve this.
 
-Exit honesty (wording fixed 2026-07-11): every dead-end state has
-an audited EXIT, where "exit" may be a terminal GIVE-UP —
-reject/supersede release the reservation and close the scope's
-question. RE-PAY paths for repeat-reject scopes (§19.3/PO-7) and
+Exit honesty (wording fixed 2026-07-11; scoped in round 3): the
+GUARANTEE "every dead-end state has an audited exit" is carried by
+the NON-WAIVABLE minimal set above — verified-outcome for
+MAYBE/SUBMITTED rows, supersede/close for provably-unsent stalled
+rows, reprocess-snapshot for ties — where "exit" may be a terminal
+GIVE-UP (reject/supersede release the reservation and close the
+scope's question). The waivable operations are ergonomics, not the
+guarantee. RE-PAY paths for repeat-reject scopes (§19.3/PO-7) and
 latched-overpay scopes (§13 one-way door) remain FUTURE by design;
 annotation is visibility, not an exit.
 
@@ -3590,17 +3652,22 @@ are obsolete, and its state displays should use the §10.4 labels):
 9. Retry-after-provider-reject (§19.3): 4-eyes operation clearing the
    provider_rejected marker so §6.8 creates a fresh successor.
    Pending PO approval (§18 item 7).
-10. Tie resolution (§6.7, REVISED 2026-07-11): the
-    REPROCESS-SNAPSHOT operation — trade-level, 4-eyes (it can
-    initiate money movement via §6.8). Input = the tie-conflict
-    record's XML STORAGE ID + the recorded tied ordering value;
-    the operation re-fetches the adjudicated snapshot from the XML
-    store (§6.0 transport note) and re-runs the normal §6.1
-    fan-out with the ordering check relaxed to ≥ for exactly that
-    tied value. The payload is never a parameter — always fetched
-    from the store. The same operation (without the ordering
-    relaxation) serves as the general re-trigger for a
-    fixed-in-place XML (§6.6 DLT recovery). Rare by construction;
-    the tie class disappears when upstream ask 1's explicit
-    sequence field arrives.
+10. Tie resolution (§6.7, REVISED 2026-07-11 round 3 —
+    server-verified): the REPROCESS-SNAPSHOT operation —
+    trade-level, 4-eyes ALWAYS (it can initiate money movement via
+    §6.8). Input = the XML STORAGE ID ALONE; the operation fetches
+    the snapshot from the store (§6.0 transport note; it verifies
+    the document's business_id matches the addressed trade) and
+    re-runs the normal §6.1 fan-out, RECOMPUTING the tie condition
+    server-side per the §6.7 executability requirement — no
+    ordering value is ever caller-supplied, so the relaxation
+    cannot be fabricated, and a re-run no-ops (single-use by
+    construction). The same endpoint serves as the general
+    re-trigger after a DLT-parked notification: the corrected
+    document is a NEW immutable storage id/version (upstream ask
+    8 — content behind an id NEVER changes; "fixing in place" is
+    forbidden by contract), and the ordinary §6.7 guard governs
+    its application. Rare by construction; the tie class
+    disappears when upstream ask 1's explicit sequence field
+    arrives.
 ```

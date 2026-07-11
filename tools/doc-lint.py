@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Doc-set drift lint (added 2026-07-11 after the second external review).
+"""Doc-set drift lint (added 2026-07-11; extended after review round 3).
 
+STRUCTURAL SMOKE TEST — catches forbidden stale phrases, ID parity,
+and reference existence. It does NOT prove semantic consistency;
+manual review still owns contradictions between normative statements.
 Executable form of the drift checklist in
 portable-implementation-playbook/18-playbook-quality-self-check.md.
 Exit 0 = clean; exit 1 = violations (printed with file:line).
@@ -52,7 +55,13 @@ FORBIDDEN = [
      re.compile(r"NON-UNIQUE|non-unique|only after|would|do not add|lint", re.I)),
     ("stored-procedure ops boundary (2026-07-11: Java endpoints)",
      re.compile(r"audited stored procedure", re.I),
-     re.compile(r"choose at build|never a PL/SQL|rejected|lint", re.I)),
+     re.compile(r"choose at build|lint", re.I)),
+    ("dual control 'enforced by the procedure' (round 3: operation + approval workflow)",
+     re.compile(r"enforced by the procedure", re.I),
+     re.compile(r"lint", re.I)),
+    ("retired deadline/budget suspension model (round 3)",
+     re.compile(r"deadline suspension|deadlines?\s+(?:are\s+)?suspend(?:ed|s)?\b|budgets?\s+(?:are\s+)?(?:suspended|frozen)\b|suspends the (?:retry )?budget", re.I),
+     re.compile(r"had no durable|nothing to|nothing needs|never suspend|zero attempts|no wall-clock|REMOVED|lint", re.I)),
 ]
 
 for path in MAINTAINED:

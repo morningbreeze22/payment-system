@@ -4,7 +4,7 @@ This repository contains the implementation baseline and supporting design mater
 
 ## Start here
 
-- [`requirment-v4.md`](requirment-v4.md) — canonical requirements baseline (all other documents are derived views).
+- [`requirment-v4.md`](requirment-v4.md) — canonical requirements baseline (all other documents are derived views). The filename misspelling is KNOWN and kept intentionally — renaming would churn every cross-reference; revisit only at a major version.
 - [`payment-state-playground.html`](payment-state-playground.html) — animated state-model map: every state and legal transition, playable scenario stories, rule inspector.
 - [`open-questions-board.html`](open-questions-board.html) — interactive tracker for all open questions (§18 + §20) with answer capture and import/export; run locally in any browser.
 - [`payment-system-explained.html`](payment-system-explained.html) — interactive system guide (architecture, money model, simulator).

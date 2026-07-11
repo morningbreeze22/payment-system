@@ -82,7 +82,7 @@ Action: per §9.3 offered actions ONLY: trigger resolve-via-query;
 Data: request id, key, uetr, maybe_since, last_post_attempt_at,
   divergent_payload_at, cutoff time, resolver's recent answers.
 Escalate: tier-2 age → incident + payments duty manager.
-Safe stop: outcome applied via evidence or the procedure; scope
+Safe stop: outcome applied via evidence or the verified-outcome operation; scope
   re-derived; reservation confirmed or released.
 ```
 
@@ -130,7 +130,7 @@ Action: check the toggle's reason/operator/ticket payload; if infra:
 Data: toggle payload, Hazelcast cluster health, freeze metric history.
 Escalate: infra on-call for grid failure; payments lead otherwise.
 Safe stop: freeze either acknowledged (ticketed) or lifted; retry
-  deadlines were suspended (no BLOCKED flood expected — verify).
+  no attempts were made while gated (no BLOCKED flood expected — verify).
 ```
 
 ```text

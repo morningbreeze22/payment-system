@@ -21,7 +21,7 @@ collected retroactively at GO-04.**
 | Q1 | §18 BLOCKING item 0 residue closed: written snapshot-contract confirmation (upstream ask 5); §6.0 within-snapshot uniqueness intake validation live; PO-9 (absence semantics) and TL-16 (ordering watermark) answered and implemented | §18-0, B-01 | | |
 | Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 BLOCKING item 2: cutoff calendar sourced, owned, tz-aware, refresh + fail direction configured | §18-2, B-03 | | |
-| Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome procedure EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |
+| Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome OPERATION (authorized application endpoint) EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |
 | Q5 | Schema at CA-4 target: constraints VALIDATED, triggers live, indexes in place; migration test pass green (incl. dual-run) | S-05..09 | | |
 | Q6 | Factored state model implemented: dual-write live, CAS discipline audited, legality suite green | ST-01..03 | | |
 | Q7 | Legacy status not used for business rules: ST-05 inventory empty or fully dispositioned; display via derived labels only | ST-04/05 | | |
@@ -46,5 +46,5 @@ collected retroactively at GO-04.**
 | Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
-| Q29 | §20 interim ops surface live: authorized admin endpoints (retry / reject / supersede / annotate / reprocess-snapshot) + four queue views deployed, enterprise-role-restricted, exercised on real Oracle (ordinary MVP scope — risk-acceptance possible only by the PO with owner + dated plan, §20) | §20, RG-05, OP-04, T-33 | | |
+| Q29 | §20 interim ops surface live: authorized admin endpoints + four queue views deployed, enterprise-role-restricted, exercised on real Oracle. NON-WAIVABLE line items (§20 minimal exit set, with Q4): supersede/close and reprocess-snapshot. Waivable only by PO with owner + dated plan: retry, reject, annotate, views | §20, RG-05, OP-04, T-33 | | |
 

@@ -87,13 +87,13 @@
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** default decision per spec: BUILD the procedure (OP-01..03, CA-9). Only if TL-10 (platform formal reject) AND TL-5 (lookback ≥ max row lifetime incl. ops-queue SLA) are BOTH answered affirmatively in writing may the procedure be de-scoped — record whichever path, and note §20's PO decision already REQUIRES the procedure at MVP, so de-scoping needs explicit PO re-confirmation.
+- **Implementation instructions:** default decision per spec: BUILD the operation (OP-01..03, CA-9). Only if TL-10 (platform formal reject) AND TL-5 (lookback ≥ max row lifetime incl. ops-queue SLA) are BOTH answered affirmatively in writing may the operation be de-scoped — record whichever path, and note §20's PO decision already REQUIRES the operation at MVP, so de-scoping needs explicit PO re-confirmation.
 - **Do not change:** code.
 - **Tests to add:** none.
 - **Edge cases:** partial alternative (TL-10 yes, TL-5 no) → procedure stays required.
 - **Manual validation:** decision recorded with approver.
 - **Expected outcome:** OP-xx confirmed in scope (expected default).
-- **Failure signs:** de-scoping the procedure on optimistic unwritten answers.
+- **Failure signs:** de-scoping the operation on optimistic unwritten answers.
 - **Common mistakes:** reading §18-3 as optional because an alternative exists.
 - **Completion criteria:** path recorded.
 - **Stop condition:** recorded.
@@ -304,7 +304,7 @@
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
 - **Implementation instructions:** specify: inputs (request_id, verified outcome EXECUTED|REJECTED, mandatory ticket/evidence reference, two distinct authenticated approver identities); dual control enforced IN the procedure; sets the evidence session flag; applies via the SAME evidence-guarded CAS as feed evidence; EXECUTED → outcome=EXECUTED, SUB=SUBMITTED, amount equality enforced, +confirmed; REJECTED → outcome=REJECTED, provider_rejected marker (L9), −committed; refuses CLAIMED and terminal rows and amount mismatch; every use → §15 alert; log line carries trigger_source=OPS_PLATFORM_VERIFIED + ticket ref; restricted role; drill script = end-to-end rehearsal steps on a seeded row in a non-prod environment.
-- **Do not change:** §9.4's single-sanctioned-exception framing — the procedure is the ONLY manual path.
+- **Do not change:** §9.4's single-sanctioned-exception framing — the operation is the ONLY manual path.
 - **Tests to add:** none here (OP-02).
 - **Edge cases:** platform amount differs from request amount → NOT applicable here; that is the §8 AMOUNT_MISMATCH defect path (spec is explicit).
 - **Manual validation:** DBA + ops-owner review; approver-identity mechanism confirmed workable in the real role model (from D-10 — else UNCLEAR flagged).

@@ -80,10 +80,10 @@ Tests: three fail-safe conditions; no unfrozen caching; frozen blocks claim+POST
 ```
 
 ```text
-[RC-10] Breakers + suspension
-Read: §16.1 (breaker/suspension/bulkheads/timeouts) §16.6. Invariant: business rejects are breaker SUCCESSES; scanners gate on breaker; OPEN/freeze windows consume no budget; per-dependency breakers + timeouts.
+[RC-10] Breakers + structural outage safety
+Read: §16.1 (breaker/clock semantics/bulkheads/timeouts) §7.4 (bounds = attempts + cutoff, 2026-07-11) §16.6. Invariant: business rejects are breaker SUCCESSES; scanners gate on breaker; while OPEN/frozen scanners make ZERO attempts (structural — no suspension mechanism exists, nothing wired to retry_deadline_at); per-dependency breakers + timeouts.
 Placeholders: [Provider POST Client] [Retry Resolver Job] [Status Query Resolver] [Metrics / Alerting Layer]. Mappings: breaker conventions.
-Objective: breakers per dependency; scanner gating; end-to-end budget suspension; bulkhead verification.
-Tests: reject-as-success; zero claims while OPEN; budget frozen; query-breaker → INDETERMINATE. Stop: merged. NOTE: auto-downgrade production enablement stays gated on P8 PASS.
+Objective: breakers per dependency; scanner gating; VERIFY zero attempts + zero BLOCKED conversions across an OPEN window; bulkhead verification.
+Tests: reject-as-success; zero claims while OPEN; attempt_count unchanged across a simulated 6h outage; query-breaker → INDETERMINATE. Stop: merged. NOTE: auto-downgrade production enablement stays gated on P8 PASS.
 ```
 

@@ -82,11 +82,11 @@
 ### RC-04 — Retry scanner + policy
 
 - **Task ID:** RC-04
-- **Title:** Retry scanner per §7.4: per-error-class policy from config, exhaustion → BLOCKED, cutoff pre-checks, downgrade policy class, freeze/breaker deadline suspension
+- **Title:** Retry scanner per §7.4: per-error-class policy from config, exhaustion → BLOCKED, cutoff pre-checks, downgrade policy class, zero-attempt outage windows (structural)
 - **Classification:** MVP normative implementation
-- **Purpose:** exactly one retry owner (the DB scanner); §16.1's suspension prevents an outage from converting the RETRY_WAIT population to BLOCKED.
+- **Purpose:** exactly one retry owner (the DB scanner); §16.1's zero-attempt gating prevents an outage from converting the RETRY_WAIT population to BLOCKED.
 - **Prerequisites:** ST-09 (claims), RC-03 (gate), RC-01/02 (classification + application), B-03 (cutoff config — else BLOCKED for the cutoff term's real values, fail-blocked stub meanwhile).
-- **Requirement sections / concepts to read:** §7.4 (whole incl. downgrade class), §16.1 (scanner rules, suspension, poison cap), §16.6 (config entries).
+- **Requirement sections / concepts to read:** §7.4 (whole incl. downgrade class), §16.1 (scanner rules, clock semantics, poison cap), §16.6 (config entries).
 - **Placeholder components involved:** [Retry Resolver Job], [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** job infra; S-07 index expressions (queries must match).
 - **Local code areas to discover:** in-process retry wrappers on the POST path (from D-05 — REMOVE them here, the single-owner rule).
@@ -97,7 +97,7 @@
 - **Edge cases:** downgrade-class rows re-posting immediately (next_retry_at=now) — L7 satisfied by the explicit write (§9.2).
 - **Manual validation:** seeded RETRY_WAIT population through a scripted breaker-OPEN window.
 - **Expected outcome:** one disciplined retry owner.
-- **Failure signs:** wall-clock consuming budget during suspension.
+- **Failure signs:** any attempt made (or attempt budget consumed) while frozen/breaker-OPEN.
 - **Common mistakes:** counting business rejects as breaker failures (§16.1 — they are successes to the breaker).
 - **Completion criteria:** tests green.
 - **Stop condition:** merged.
@@ -252,8 +252,8 @@
 
 ## Phase handoff summary (P10 → P11)
 
-- **Phase outputs:** CA-1-driven fail-closed classifier; §7.2 tuple transitions (incl. collision branch on the claim-time flag); repost_permitted checked at BOTH ends; §7.4 retry scanner with suspension + poison cap; §9.5 submission-keyed shaped resolver sweep; §9.1 outcome application via the shared helper; §9.2 trust-age + downgrade + SUBMITTED park; §9.3 once-per-episode tiered escalation; fail-safe Hazelcast freeze; per-dependency breakers.
+- **Phase outputs:** CA-1-driven fail-closed classifier; §7.2 tuple transitions (incl. collision branch on the claim-time flag); repost_permitted checked at BOTH ends; §7.4 retry scanner with structural outage safety + poison cap; §9.5 submission-keyed shaped resolver sweep; §9.1 outcome application via the shared helper; §9.2 trust-age + downgrade + SUBMITTED park; §9.3 once-per-episode tiered escalation; fail-safe Hazelcast freeze; per-dependency breakers.
 - **Blockers to carry forward:** PRODUCTION ENABLEMENT of the §9.2 auto-downgrade stays gated on P8 PASS + TL-5-derived trust age (rollout stage F4); §18-2 cutoff values needed for real cutoff config; TL-13 rate limit for the real sweep budget.
 - **Local mapping rows expected filled:** [Retry Resolver Job], [Status Query Resolver] rows complete; stacked-retry removals recorded.
-- **Tests expected to exist:** classifier fixtures, §7.2 row tests, gate term-by-term + both-ends (T-23), suspension (part of T-32 rehearsals), sweep scope/budget tests, T-22 lifecycle set, escalation cycle-gate tests, freeze fail-safe tests.
+- **Tests expected to exist:** classifier fixtures, §7.2 row tests, gate term-by-term + both-ends (T-23), zero-attempt outage rehearsals (part of T-32), sweep scope/budget tests, T-22 lifecycle set, escalation cycle-gate tests, freeze fail-safe tests.
 - **Next phase entry condition:** RC-10 done; phase report filed.

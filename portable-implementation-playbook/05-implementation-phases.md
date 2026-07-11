@@ -483,7 +483,7 @@ Edge cases:      row becomes CLAIMED between verification and
                  write (maybe_since/escalated_at cleared).
 Common mistakes: disabling the trigger instead of passing it
                  legitimately; enforcing dual control by convention
-                 (runbook) instead of in the procedure; omitting the
+                 (runbook) instead of in the operation; omitting the
                  ticket reference (the only restore-surviving record,
                  §20-8).
 Completion:      OP-01..02 done; OP-03 drill EXECUTED and recorded.

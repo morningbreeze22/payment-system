@@ -731,7 +731,7 @@ const EV={
  syncrej:{n:'sync definitive reject',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='POST'||S.ss!=='CLAIMED')return[0,'Needs POST·CLAIMED.'];
   S.out='REJECTED';S.ss='READY';S.com-=S.amt;return[1,'Provably not executed (§7.1) → outcome=REJECTED, reservation released, provider_rejected marker (L9). ≥2 rejects on one scope = ops-only.'];}},
  transient:{n:'transient failure',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='CLAIMED'||S.stage==='CONFIRM')return[0,'Needs a CLAIMED work stage.'];
-  S.ss='RETRY_WAIT';return[1,'Connect-level failure = NOT_SUBMITTED (nothing reached the engine) → RETRY_WAIT with next_retry_at (L7). Deadlines suspend during freeze/breaker-open (§16.1).'];}},
+  S.ss='RETRY_WAIT';return[1,'Connect-level failure = NOT_SUBMITTED (nothing reached the engine) → RETRY_WAIT with next_retry_at (L7). Bounds = attempts + cutoff (§7.4); freeze/breaker-open windows make zero attempts (§16.1).'];}},
  retrydue:{n:'retry due',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='RETRY_WAIT')return[0,'No RETRY_WAIT row is due.'];
   S.ss='CLAIMED';return[1,'Scanner claims the due row (§11 claim protocol: obligation-first claim CAS, DB time). Same key — retries never mint new identity.'];}},
  feedsettle:{n:'feed settlement',f(){ if(S.out)return[0,'Zero rows matched an ACTIVE request → new event_id against a TERMINAL row = CRITICAL anomaly (§8; the §5.2 tripwire).'];

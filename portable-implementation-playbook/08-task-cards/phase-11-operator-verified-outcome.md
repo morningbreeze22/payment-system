@@ -22,31 +22,31 @@
 - **Implementation instructions:** per CA-9: an AUTHORIZED ENDPOINT (enterprise-authenticated, restricted ops role) whose service-layer implementation calls the SHARED transition helpers (RG-02/RG-03/ST-06 — never a private update path). Inputs: request_id, outcome EXECUTED|REJECTED, ticket/evidence reference NOT NULL, two distinct enterprise-authenticated approver identities — the operation REFUSES identical or unauthenticated pairs. Inside ONE transaction: re-check row state (refuse CLAIMED, refuse terminal); set the evidence session flag (S-06 session-context, from the same JDBC session); EXECUTED → the RG-03 settlement path (amount equality enforced; +confirmed; SUB=SUBMITTED; outcome=EXECUTED; normalization); REJECTED → outcome=REJECTED + provider_rejected marker (L9) + release (RG-02) + normalization; emit the §14 line with trigger_source=OPS_PLATFORM_VERIFIED + ticket ref; raise the §15 every-use alert. Endpoint restricted to the enterprise ops role; unauthorized attempts refused and logged.
 - **Do not change:** the trigger (passed legitimately, never disabled — §9.3); §9.4's single-exception framing.
 - **Tests to add:** in OP-02 (next card).
-- **Edge cases:** row becomes CLAIMED between the operator's check and execution — the in-transaction re-check refuses (assert in OP-02); amount mismatch on EXECUTED → refuse (that is the §8 defect path, not this procedure's job — §9.3 note).
-- **Manual validation:** DBA review of grants; procedure visible only to the restricted role.
+- **Edge cases:** row becomes CLAIMED between the operator's check and execution — the in-transaction re-check refuses (assert in OP-02); amount mismatch on EXECUTED → refuse (that is the §8 defect path, not this operation's job — §9.3 note).
+- **Manual validation:** endpoint-authorization review with security/DBA; the operation reachable only by the enterprise ops role (unauthorized attempt refused + logged).
 - **Expected outcome:** MVP terminal exit exists.
 - **Failure signs:** procedure updating rows directly without the shared CAS semantics (must route through the SAME evidence-guarded CAS shape as feed evidence — §9.3).
 - **Common mistakes:** dual control by runbook convention; optional ticket reference.
-- **Completion criteria:** procedure deployed to test env; OP-02 green.
+- **Completion criteria:** operation deployed to test env; OP-02 green.
 - **Stop condition:** merged.
 - **Next task:** OP-02.
 
 ### OP-02 — Procedure test suite
 
 - **Task ID:** OP-02
-- **Title:** Test the procedure: refusals, dual control, money effects, guard passage, audit artifacts
+- **Title:** Test the operation: refusals, dual control (incl. the §9.3 approval-workflow negative set), money effects, guard passage, audit artifacts
 - **Classification:** §18 BLOCKING go-live gate evidence
 - **Purpose:** prove every CA-9 property on real Oracle.
 - **Prerequisites:** OP-01.
 - **Requirement sections / concepts to read:** §9.3, §10.3, CA-9.
 - **Placeholder components involved:** [Integration Test Suite], [Operator Admin Procedure Area].
-- **Local placeholder mappings required before starting:** Oracle test lane with the procedure deployed.
+- **Local placeholder mappings required before starting:** Oracle test lane with the operation deployed.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** tests: EXECUTED on a seeded MAYBE row → outcome, SUBMITTED, +confirmed, normalization, alert, log line with ticket; REJECTED → outcome, marker, −committed; refusal: CLAIMED row; terminal row; same approver twice; missing ticket; amount mismatch on EXECUTED; guard interplay: the operation succeeds WHERE raw SQL fails (run the raw-SQL attempt in the same test to demonstrate the trigger); after the REJECTED case with a remaining shortfall: reservation RELEASED, provider_rejected marker LIVE, and NO successor created — the §6.8 marker gate correctly blocks blind re-pay (corrected 2026-07-11; the earlier assert-successor instruction was wrong and would push an implementer to weaken the marker); then apply a strictly-NEWER valid upstream message and assert the successor DOES create (the §6.8 successor policy); unauthorized-role endpoint attempt refused.
+- **Implementation instructions:** tests: EXECUTED on a seeded MAYBE row → outcome, SUBMITTED, +confirmed, normalization, alert, log line with ticket; REJECTED → outcome, marker, −committed; refusal: CLAIMED row; terminal row; same approver twice; missing ticket; amount mismatch on EXECUTED; the §9.3 approval-workflow negative set (parameter substitution, expired approval, replayed consumed approval, identical identities, role revoked between approve and execute); guard interplay: the operation succeeds WHERE raw SQL fails (run the raw-SQL attempt in the same test to demonstrate the trigger); after the REJECTED case with a remaining shortfall: reservation RELEASED, provider_rejected marker LIVE, and NO successor created — the §6.8 marker gate correctly blocks blind re-pay (corrected 2026-07-11; the earlier assert-successor instruction was wrong and would push an implementer to weaken the marker); then apply a strictly-NEWER valid upstream message and assert the successor DOES create (the §6.8 successor policy); unauthorized-role endpoint attempt refused.
 - **Do not change:** production code (failures reopen OP-01).
 - **Tests to add:** the suite above.
-- **Edge cases:** frozen-row convention holds after the procedure's outcome write (maybe_since cleared → off the MAYBE clocks).
+- **Edge cases:** frozen-row convention holds after the operation's outcome write (maybe_since cleared → off the MAYBE clocks).
 - **Manual validation:** review evidence with the ops owner.
 - **Expected outcome:** §18-3's "EXISTS" half proven.
 - **Failure signs:** tests passing with the trigger disabled in the lane (the lane must run S-06's triggers).
@@ -60,15 +60,15 @@
 - **Task ID:** OP-03
 - **Title:** Execute CA-9's drill script end to end with real operators in a non-prod environment
 - **Classification:** §18 BLOCKING go-live gate (the "AND BE DRILLED" half) + operational runbook / drill
-- **Purpose:** §18-3: the procedure must EXIST AND BE DRILLED before go-live.
+- **Purpose:** §18-3: the operation must EXIST AND BE DRILLED before go-live.
 - **Prerequisites:** OP-02 green; CA-9 drill script; two real operators with the restricted role in the drill environment.
 - **Requirement sections / concepts to read:** §18-3, CA-9 drill section, §20-8 (ticket trail).
 - **Placeholder components involved:** [Operator Admin Procedure Area].
 - **Local placeholder mappings required before starting:** drill environment provisioned.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** seed an unresolvable MAYBE row (divergent_payload_at set, cutoff passed — repost_permitted permanently false); operators verify the "platform truth" per the drill script's staged evidence; execute the procedure with a real ticket reference; verify: outcome applied, alert fired, log line correct, scope re-evaluated; record timings + friction; file the drill report.
-- **Do not change:** the procedure based on drill friction without re-running OP-02.
+- **Implementation instructions:** seed an unresolvable MAYBE row (divergent_payload_at set, cutoff passed — repost_permitted permanently false); operators verify the "platform truth" per the drill script's staged evidence; execute the operation via its authorized endpoint with a real ticket reference (two-step approval per §9.3); verify: outcome applied, alert fired, log line correct, scope re-evaluated; record timings + friction; file the drill report.
+- **Do not change:** the operation based on drill friction without re-running OP-02.
 - **Tests to add:** none (this is the drill).
 - **Edge cases:** operator errors during the drill are FINDINGS (usability of the runbook), not failures — record.
 - **Manual validation:** drill report signed by the ops owner.
@@ -91,14 +91,14 @@
 - **Local placeholder mappings required before starting:** OP-01's role/approver mechanics; view deployment target.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** (a) three request-level AUTHORIZED ENDPOINTS (enterprise-authenticated, restricted ops role — the OP-01 pattern) whose service layer calls the SAME shared CAS/money helpers (never a private UPDATE path): retry-blocked → SAME-stage RETRY_WAIT per L7 (outcome IS NULL ∧ BLOCKED ∧ NOT_SUBMITTED ∧ divergent_payload_at IS NULL; POST-stage exits re-check the remaining repost_permitted terms); reject-blocked → outcome=REJECTED + L9 marker + release via the RG-02 path (release guard: NOT_SUBMITTED only); annotate → ops_annotation write (display-only, no state change). (b) reprocess-snapshot(business_id, xml_storage_id, tied_ordering?) — REVISED 2026-07-11: fetch the snapshot XML from the store by id (§6.0 transport note — the payload is NEVER a parameter), then re-run the normal §6.1 fan-out; when tied_ordering is supplied (tie adjudication, §6.7/§20-10) the §6.7 ordering check is relaxed to ≥ for EXACTLY that recorded value; without it, plain reprocess (the §6.6 DLT-recovery re-trigger — the ordering guard handles staleness normally); every money guard (§6.4/§6.5/§6.8, I6) applies unchanged. (c) Every endpoint enforces IN ITS CONTRACT: operator id, reason, external ticket ref (§20-8), plus a second DISTINCT enterprise-authenticated approver where 4-eyes applies (retry, reject, reprocess-with-relaxation — they move or release money via §6.8); §14 line with trigger_source=MANUAL_OPS:<operator>. (d) Four read-only queue views on the artifact-4 ACTIVE-row-bounded indexes: BLOCKED by reason (ESCALATED ranked first), stuck reservations by age, aged MAYBE by maybe_since + cutoff proximity, overpay latches; §15 alert definitions link to them. Execution-semantics reference: ops-console-proposal.md §6.1; mechanics: 24-implementation-mechanics.md M1/M8 (SHAPE-PROC + SHAPE-READ).
-- **Do not change:** RG-05's supersede/close (already delivered); OP-01's operation; the §10.3 triggers; the §6.7 guard for NON-tied orderings (the ≥ relaxation applies to exactly one recorded value, and only when tied_ordering is explicitly supplied).
+- **Implementation instructions:** (a) three request-level AUTHORIZED ENDPOINTS (enterprise-authenticated, restricted ops role — the OP-01 pattern) whose service layer calls the SAME shared CAS/money helpers (never a private UPDATE path): retry-blocked → SAME-stage RETRY_WAIT per L7 (outcome IS NULL ∧ BLOCKED ∧ NOT_SUBMITTED ∧ divergent_payload_at IS NULL; POST-stage exits re-check the remaining repost_permitted terms); reject-blocked → outcome=REJECTED + L9 marker + release via the RG-02 path (release guard: NOT_SUBMITTED only); annotate → ops_annotation write (display-only, no state change). (b) reprocess-snapshot(business_id, xml_storage_id) — SERVER-VERIFIED (round 3, §6.7/§20-10): fetch the XML by id (§6.0 transport note — the payload is NEVER a parameter), verify the document's business_id matches the addressed trade, then re-run the normal §6.1 fan-out with the tie condition RECOMPUTED server-side: the ≥ relaxation applies iff the FETCHED document's own ordering equals the obligation's upstream_ordering AND its payload differs (the §6.7 tie definition) — NO caller-supplied ordering exists, so fabrication is impossible; a non-tying document gets the ordinary strictly-newer guard only; re-run after apply finds payload equality and no-ops (single-use by construction); corrected DLT documents arrive as NEW immutable ids (ask 8); every money guard (§6.4/§6.5/§6.8, I6) applies unchanged; 4-eyes ALWAYS. (c) Every endpoint enforces IN ITS CONTRACT: operator id, reason, external ticket ref (§20-8), plus the §9.3 two-step approval workflow where 4-eyes applies (retry, reject, reprocess-snapshot — they move or release money via §6.8; approver ≠ initiator, binding + single-use consumption per §9.3); §14 line with trigger_source=MANUAL_OPS:<operator>. (d) Four read-only queue views on the artifact-4 ACTIVE-row-bounded indexes: BLOCKED by reason (ESCALATED ranked first), stuck reservations by age, aged MAYBE by maybe_since + cutoff proximity, overpay latches; §15 alert definitions link to them. Execution-semantics reference: ops-console-proposal.md §6.1; mechanics: 24-implementation-mechanics.md M1/M8 (SHAPE-PROC + SHAPE-READ).
+- **Do not change:** RG-05's supersede/close (already delivered); OP-01's operation; the §10.3 triggers; the §6.7 guard for NON-tied orderings (the ≥ relaxation is SERVER-DERIVED from the fetched document — never caller-supplied; round 3).
 - **Tests to add:** T-33.
-- **Edge cases:** reject attempted on a MAYBE row → refused at BOTH layers (code guard AND trigger — reuse OP-02's raw-SQL demo pattern); reprocess-snapshot re-run → every block no-ops (idempotent — ordering guard); reprocess onto a latched scope → amount applies, NO request created, AMENDMENT_ON_LATCHED_SCOPE fires (§6.5 latch guard unchanged); reprocess of a PURGED xml id → clean refusal + upstream-ask-8 escalation (never a partial apply); queue views on a multi-payment trade list one row per obligation — count is never an error (§12).
+- **Edge cases:** reject attempted on a MAYBE row → refused at BOTH layers (code guard AND trigger — reuse OP-02's raw-SQL demo pattern); reprocess-snapshot re-run → every block no-ops (idempotent — ordering guard); a NON-TYING or wrong-business_id document → refused / ordinary guard only, NO relaxation (the server recomputes the tie — the fabrication case, artifact-6(d)); reprocess onto a latched scope → amount applies, NO request created, AMENDMENT_ON_LATCHED_SCOPE fires (§6.5 latch guard unchanged); reprocess of a PURGED xml id → clean refusal + upstream-ask-8 escalation (never a partial apply); queue views on a multi-payment trade list one row per obligation — count is never an error (§12).
 - **Manual validation:** run each endpoint against seeded rows in the OP-02 lane; compare view output against the seeded queue states; attempt each endpoint with a non-restricted role (must fail).
-- **Expected outcome:** every §20 dead-end state has a working, audited, findable exit before go-live (exit may be a terminal give-up — §20 exit-honesty note).
+- **Expected outcome:** the §20 NON-WAIVABLE minimal exit set works (verified-outcome via OP-01, supersede/close via RG-05, reprocess-snapshot here) plus the waivable ergonomics endpoints; exits may be terminal give-ups (§20 exit-honesty note).
 - **Failure signs:** any endpoint with its own UPDATE path instead of the shared helpers; reprocess accepting payload/amounts as parameters; a view keyed on display labels.
-- **Common mistakes:** relaxing the ordering guard for ALL messages instead of exactly the recorded tied value; making ticket/approver optional "for now"; exposing the endpoints beyond the enterprise ops role.
+- **Common mistakes:** accepting an ordering parameter on reprocess (the server derives it — round 3); making ticket/approver optional "for now"; exposing the endpoints beyond the enterprise ops role.
 - **Completion criteria:** T-33 green on real Oracle; grants audited.
 - **Stop condition:** merged; SHAPE-PROC + SHAPE-READ ticked in the report; Q29 evidence filed.
 - **Next task:** OB-01.

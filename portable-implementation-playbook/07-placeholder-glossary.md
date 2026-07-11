@@ -139,7 +139,7 @@ Responsibilities: §11 claim protocol (lock-free candidate selection,
               exhaustion/cutoff → BLOCKED; breaker/freeze gating
               (zero attempts while gated — §16.1).
 Do not change: scheduling infrastructure conventions.
-Tests:        seeded-row scanner tests; suspension tests.
+Tests:        seeded-row scanner tests; zero-attempt outage-window tests.
 Mode:         MODIFIED/NEW.
 ```
 

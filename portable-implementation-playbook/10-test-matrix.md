@@ -508,8 +508,9 @@ Implemented by: OB-03..07.
 
 ```text
 Section: §20, §6.7, §10.1   Type: INTEGRATION   Blocking: YES
-Purpose: every dead-end state has an audited exit before go-live —
-         the §20 interim model actually works, not just exists.
+Purpose: the §20 NON-WAIVABLE minimal exit set (verified-outcome,
+         supersede/close, reprocess-snapshot) works before go-live,
+         and the waivable ergonomics endpoints work where built.
 Setup:   seeded rows per dead-end class (BLOCKED·NOT_SUBMITTED,
          BLOCKED·MAYBE, stalled ENRICH, overpay latch); a recorded
          tie-conflict (XML storage id + tied ordering) whose STORED
@@ -521,7 +522,9 @@ Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          reject releases + sets the L9 marker, NOT_SUBMITTED only —
          a MAYBE row is refused at the code layer AND the trigger
          layer (raw-SQL demo); reprocess-snapshot fetches the XML
-         by id, amends exactly the changed block, no-ops on re-run,
+         by id, RE-VERIFIES the tie server-side (a non-tying or
+         wrong-business_id document is refused — no relaxation),
+         amends exactly the changed block, no-ops on re-run,
          respects the §6.5 latch, and cleanly REFUSES a purged xml
          id (no partial apply); missing ticket / identical
          approvers / unauthorized role all refused; every call

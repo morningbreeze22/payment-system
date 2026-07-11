@@ -60,6 +60,11 @@ the sections that govern it.
 13. Never invent tables, journals, outboxes, parked-event tables,
     attempt-history tables, or audit-history tables. If an
     implementation seems to need one, report SPEC_CONFLICT.
+    SINGLE SANCTIONED EXCEPTION (2026-07-11 round 3): the §9.3
+    two-step approval workflow's pending-approval record — a small
+    OPS-SCHEMA store, operational workflow state OUTSIDE the §2
+    payment data model (which remains three tables). Its spec lives
+    in CA-9; nothing payment-state may ever be stored there.
 14. Tasks marked BLOCKED on §18 items stay blocked until the human
     owner records the answer. Do not "unblock" them by assuming.
 15. Rejected design alternatives recorded in requirment-v4.md

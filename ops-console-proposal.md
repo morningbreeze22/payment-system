@@ -12,12 +12,12 @@
 The orchestrator is deliberately fail-blocked: when it cannot prove an
 outcome it parks state and holds money reserved rather than guessing.
 Every parked state **requires a database mutation to leave**, and today
-only guarded manual procedures can execute one:
+only guarded admin operations (authorized application endpoints, §20) can execute one:
 
 | Dead-end state (v4 terms) | Produced by | What must eventually happen |
 |---|---|---|
 | `stage_state = BLOCKED` (label NEEDS_REVIEW; reasons RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH, CUTOFF_EXPIRED, ENGINE_INCONSISTENCY, AMENDMENT_PARKED, OPS_PARKED, ESCALATED — §13) | retry exhaustion, unmapped codes, mismatch defects, amendment parks, §9.3 escalation | retry / reject / supersede — a CAS transition under the §10.1 release guard; reject/supersede release the reservation |
-| Stuck reservation | active request not progressing (§3 / §15 stuck-reservation alert) | supersede/close — §3 makes this a *required* capability (guarded procedure at MVP, §20-2) |
+| Stuck reservation | active request not progressing (§3 / §15 stuck-reservation alert) | supersede/close — §3 makes this a *required* capability, NON-WAIVABLE per the §20 minimal exit set (guarded admin operation at MVP, §20-2) |
 | Aged `MAYBE_SUBMITTED` (label UNKNOWN; escalates once per episode to BLOCKED(ESCALATED) on the maybe_since clock, §9.3) | ambiguous POST outcomes, lease expiry, DUPLICATE_REQUEST answers | the §9.3 action set (see O6–O10 below) — **never** a plain release: terminal-negatives on MAYBE/SUBMITTED rows are forbidden unless evidence-driven (§10.1/§9.4) |
 | Overpay latch (`overpay_blocked`, §13) | confirmed > required | today: scope ignored forever (§13 one-way door); ops annotates via the `ops_annotation` field (§2.1, §20-4) — **no state change, no clearing** (clearing is FUTURE, tied to §19.2) |
 | Amendment tie (AMENDMENT_TIE_CONFLICT, §6.7) | two snapshots share an ordering value with DIFFERING payloads — the guard cannot pick a winner, and a verbatim upstream resend ties again forever | REPROCESS-SNAPSHOT (O12, REVISED 2026-07-11): the payload lives durably in the upstream-populated XML STORE (§6.0 transport note — Kafka carries only the storage id); the tie-conflict record holds identifiers + a masked diff, and O12 re-fetches the adjudicated snapshot BY ID and re-runs the normal §6.1 fan-out with the ordering check relaxed to ≥ for exactly the recorded tied value |
@@ -25,8 +25,8 @@ only guarded manual procedures can execute one:
 ~~Parked feed event~~ — **removed**: no parked-event store exists (§2.3); recovery is query-based (§9).
 
 The interim model — ops reads the card, verifies in other systems, and
-executes guarded DB procedures — is the accepted MVP (§20). This
-console proposal is about replacing raw-procedure ergonomics with an
+executes guarded admin operations — is the accepted MVP (§20). This
+console proposal is about replacing raw-endpoint ergonomics with an
 audited UI, not about adding capability.
 
 ## 2. Design principles
@@ -39,7 +39,7 @@ audited UI, not about adding capability.
    outcome (REJECT / SUPERSEDE / CANCEL) is permitted only when
    `submission_state = NOT_SUBMITTED`, or driven by an authoritative
    engine negative, or executed via the §9.3
-   apply-platform-verified-outcome procedure (dual-control, evidence
+   apply-platform-verified-outcome operation (dual-control, evidence
    flag). The console disables release actions for MAYBE/SUBMITTED
    rows (§9.3 rule) — and the §10.3 trigger backstop would refuse them
    anyway. The console never disables a trigger or guard.
@@ -75,9 +75,9 @@ audited UI, not about adding capability.
 | O7 | Ops-triggered §9.2 downgrade (same-key re-POST) | MAYBE_SUBMITTED ∧ past trust-age ∧ repost_permitted passes | → POST · RETRY_WAIT (SUB stays MAYBE); next_retry_at = now, attempt reset (§7.4 downgrade class) | 4-eyes (initiates a wire attempt) |
 | O8 | Dual-control stale-amount re-POST | MAYBE_SUBMITTED ∧ repost_permitted fails ONLY on the amount-staleness term (§7.0 override — the single overridable term) | → POST · RETRY_WAIT · MAYBE; knowing re-POST of the request's own immutable amount | strict dual-control |
 | O9 | Request platform-side formal rejection (TL-10) | BLOCKED/aged MAYBE row | external ask to the platform; the negative flows back as authoritative feed/query evidence — the CLEAN exit | operator (records the ask) |
-| O10 | Apply platform-verified outcome | active ∧ MAYBE/SUBMITTED; refuses CLAIMED and terminal rows and amount mismatch | invokes the **existing MVP audited stored procedure** (§9.3, §16.6-8): verified EXECUTED (+confirmed, SUB=SUBMITTED, amount equality) or REJECTED (marker + release); evidence flag set legitimately; every use alerts (§15) | dual-control ENFORCED BY THE PROCEDURE; ticket mandatory |
+| O10 | Apply platform-verified outcome | active ∧ MAYBE/SUBMITTED; refuses CLAIMED and terminal rows and amount mismatch | invokes the **existing MVP audited operation** (authorized application endpoint — §9.3, §16.6-8): verified EXECUTED (+confirmed, SUB=SUBMITTED, amount equality) or REJECTED (marker + release); evidence flag set legitimately; every use alerts (§15) | dual-control ENFORCED BY THE OPERATION (§9.3 two-step approval workflow); ticket mandatory |
 | O11 | Retry-after-provider-reject (clear marker) | provider_rejected marker live (≥2 = ops-only clear) | records decision, clears the marker, §6.8 creates a FRESH successor (new key) | **FUTURE** — pending PO approval (§19.3, §18 PO-7) |
-| O12 | Reprocess stored snapshot (**REVISED 2026-07-11** — closes walkthrough U-9 without payload storage) | a recorded AMENDMENT_TIE_CONFLICT (input = XML storage id + the recorded tied ordering), or a fixed-in-place XML needing re-trigger (no ordering relaxation) | **TRADE-level**: re-fetch the snapshot from the XML store by id (§6.0 transport note — the payload is NEVER a parameter, a log field, or a new store) and re-run the §6.1 fan-out; with tied_ordering supplied, the strictly-newer check relaxes to ≥ for EXACTLY that recorded value; per block, under that obligation's lock: apply → set upstream_ordering (idempotent) → §6.8 re-evaluation. Identical blocks no-op; §6.4/§6.5/§6.8 guards and I6 apply unchanged — this op adjudicates ORDERING only. A purged xml id → clean refusal (upstream ask 8 retention) | 4-eyes when tied_ordering is supplied (can initiate money movement); operator for plain reprocess (ordering guard handles staleness) |
+| O12 | Reprocess stored snapshot (**round 3: SERVER-VERIFIED** — closes walkthrough U-9 with no payload storage and no caller-supplied ordering) | input = XML storage id ONLY (from a recorded AMENDMENT_TIE_CONFLICT, or a corrected DLT document — which is always a NEW immutable id/version per ask 8) | **TRADE-level**: fetch the snapshot from the XML store by id (§6.0 transport note — the payload is NEVER a parameter, a log field, or a new store), verify document.business_id matches, and re-run the §6.1 fan-out with the tie condition RECOMPUTED server-side: ≥ applies iff the FETCHED document's ordering equals the obligation's upstream_ordering AND its payload differs (§6.7 — fabrication impossible; a non-tying document gets the ordinary strictly-newer guard only); per block, under that obligation's lock: apply → set upstream_ordering (idempotent) → §6.8 re-evaluation. Re-run after apply no-ops (single-use by construction); §6.4/§6.5/§6.8 guards and I6 apply unchanged. A purged xml id → clean refusal (ask 8 retention) | 4-eyes ALWAYS (can initiate money movement via §6.8) |
 | — | Overpay acknowledge/annotate | latch set | writes `ops_annotation` (§2.1) — display only, **no state change**, latch never cleared (§13) | operator |
 | — | Returned-funds adjustment | — | **FUTURE** — blocked on §19.2 | — |
 | — | Posting-freeze flip (kill switch) | — | role-controlled Hazelcast toggle EXISTS today (§16.1); a dedicated audited surface is §20-6 — capability is not blocked on this console | out of console scope |
@@ -85,7 +85,7 @@ audited UI, not about adding capability.
 O1–O3, O7, O8, O12 change money-relevant state or initiate wire
 attempts → 4-eyes. O6/O9/annotation push events through existing
 idempotent paths → single operator. O10's dual control lives in the
-procedure itself — the console only collects the two authenticated
+operation itself (§9.3 approval workflow) — the console only fronts the two authenticated
 approvals.
 
 ### 3.1 Coverage matrix — every ops-action scenario in the failure walkthrough
@@ -109,7 +109,7 @@ O10 verified outcome  R-3, P-6, H-2/H-3 — the guaranteed un-wedge
                       (§18 BLOCKING item 3; exists at MVP regardless)
 O11 clear reject      P-10, M-8, B-4 — FUTURE, pending PO-7
 O12 reprocess snapshot U-9 (tie adjudication, xml-id based) + the
-                      §6.6 fixed-in-place-XML re-trigger
+                      §6.6 DLT re-trigger (corrected document = NEW immutable id/version, ask 8)
 ann annotation        M-2, M-3, M-4 overpay acknowledgement
 
 OUTSIDE this console, by design:
@@ -134,25 +134,25 @@ corrected message     U-3, U-6, E-3, P-9, M-7 — upstream is the fix;
 └─────────────┘                │                   │  lock, read-only│        │
                                │  - queue queries  │  views for lists│        │
                                │  - action executor│  + §9.3 stored  │        │
-                               │  - approval store │    procedure    │        │
+                               │  - approval store │    operation    │        │
                                └──────────────────┘                 └────────┘
 ```
 
 - **Separate deployable**, same database, same transaction primitives —
   ideally a shared transition library so console and orchestrator can
   never disagree about a WHERE clause; O10 calls the §9.3 stored
-  procedure (never reimplements it).
+  operation (never reimplements it).
 - **AuthN:** corporate SSO (OAuth2/OIDC). **AuthZ roles:** `viewer`,
   `operator` (O6, O9, annotations), `approver` (second pair of eyes
   for O1–O3/O7/O8; cannot initiate what they approve). O10 requires
-  two distinct authenticated identities passed to the procedure.
+  two distinct authenticated identities verified by the operation (§9.3 approval workflow).
 - **Approval flow:** initiator submits action + reason + ticket ref →
   pending row → approver confirms → execution. Pending approvals
   expire (24h); the CAS re-check at execution time is the final
   arbiter; row-count-0 is surfaced to both parties.
 - **Audit:** every submit/approve/execute/reject emits the §14
   structured log line, `trigger_source = MANUAL_OPS:<operator-id>`
-  (O10's procedure emits `trigger_source = OPS_PLATFORM_VERIFIED`,
+  (O10's operation emits `trigger_source = OPS_PLATFORM_VERIFIED`,
   §9.3), plus the ticket reference. Console DB keeps only approval
   workflow rows (console state, not payment state).
 
@@ -208,11 +208,12 @@ POST /requests/{id}/actions                  {type: RETRY|REJECT|SUPERSEDE, reas
 POST /requests/{id}/resolve-now              {reason, ticketRef}                  (O6)
 POST /requests/{id}/downgrade-repost         {reason, ticketRef}                  (O7; repost_permitted-gated)
 POST /requests/{id}/stale-amount-repost      {reason, ticketRef, secondApprover}  (O8; staleness override only)
-POST /requests/{id}/platform-verified-outcome {outcome: EXECUTED|REJECTED, evidenceRef, ticketRef, approvers[2]} (O10 → §9.3 procedure)
-POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, tiedOrdering?, reason, ticketRef}   (O12 revised; trade-level —
-                                                                                     payload fetched from the XML store
-                                                                                     by id, never from the request body;
-                                                                                     tiedOrdering only for tie adjudication)
+POST /requests/{id}/platform-verified-outcome {outcome: EXECUTED|REJECTED, evidenceRef, ticketRef} (O10 → §9.3 operation; approvals via the §9.3 two-step workflow, not inline)
+POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, reason, ticketRef}       (O12 round 3; trade-level — payload
+                                                                                     fetched from the XML store by id,
+                                                                                     never from the body; the tie
+                                                                                     condition is recomputed SERVER-side,
+                                                                                     no ordering parameter exists)
 POST /approvals/{id}/approve | /reject
 ```
 
@@ -270,14 +271,17 @@ O11 (FUTURE, PO-7) Obligation-level under the lock: clear the
     provider_rejected fields + reset the count; §6.8 then creates a
     FRESH successor (new deterministic key — correct after a
     definitive reject).
-O12 (REVISED 2026-07-11) Fetch the snapshot XML from the store by
-    id (§6.0 transport note), then per payment block in sorted
-    tuple order: obligation lock → apply amounts (with the §6.7
-    ordering guard relaxed to ≥ for EXACTLY the recorded tied
-    ordering value, ONLY when tied_ordering is supplied) → set
+O12 (round 3 — SERVER-VERIFIED) Fetch the snapshot XML from the
+    store by id (§6.0 transport note), verify document.business_id
+    matches, then per payment block in sorted tuple order:
+    obligation lock → apply amounts with the tie condition
+    RECOMPUTED server-side (≥ applies iff the FETCHED document's
+    ordering equals upstream_ordering AND its payload differs —
+    §6.7; NO caller-supplied ordering exists) → set
     upstream_ordering (idempotent) → normal §6.4/§6.5/§6.8
     consequences. Payload always from the STORE, never a request
-    parameter or log field; purged id → clean refusal.
+    parameter or log field; re-run no-ops; purged id → clean
+    refusal.
 ann Single UPDATE of payment_obligation.ops_annotation (read-model
     field; no derivation input, no state change).
 ```
@@ -306,7 +310,7 @@ numbers match what execution would compute.
 2. Is 4-eyes required by policy for O1–O3/O7, or is single-operator
    with mandatory ticket acceptable? (O8 and O10 are dual-control by
    design — not negotiable here; O10's dual control is enforced by the
-   procedure, §9.3.)
+   operation, §9.3.)
 3. Which ticket system anchors the audit trail (§20-8), and is the
    reference validated against its API or free-text?
 4. Retention for console approval/action records.
@@ -320,7 +324,7 @@ numbers match what execution would compute.
    or rate-limited (the §9.5 sweep budget shares the engine's
    query-API quota, TL-13)?
 8. O12 (tie application, §20-10): confirm the interim form — until
-   the console ships, is the controlled manual procedure acceptable
+   the console ships, is the controlled admin operation acceptable
    for what §6.7 expects to be a rare event (ties disappear entirely
    once upstream ask 1's explicit sequence field arrives)? And who
    adjudicates WHICH tied snapshot is the business truth — ops alone,

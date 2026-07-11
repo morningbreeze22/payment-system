@@ -33,7 +33,7 @@ Tests: none. Stop: six attributes recorded (or RC-04 cutoff config stays BLOCKED
 
 ```text
 [B-04] §18-3 resolution path
-Read: §18 item 3, §9.3, TL-10, TL-5, §20 (PO decision). Invariant: the procedure is required unless TL-10 AND TL-5 both affirm in writing AND the PO re-confirms de-scope.
+Read: §18 item 3, §9.3, TL-10, TL-5, §20 (PO decision). Invariant: the operation is required unless TL-10 AND TL-5 both affirm in writing AND the PO re-confirms de-scope.
 Placeholders: [Operator Admin Procedure Area]. Mappings: none.
 Objective: record the chosen path (default: build OP-01..03 per CA-9).
 Tests: none. Stop: path recorded.
@@ -105,7 +105,7 @@ Tests: none. Stop: stubs published.
 
 ```text
 [CA-9] apply-platform-verified-outcome spec
-Read: §9.3 (procedure) §10.1 §10.3 §20-8 §16.6 artifact 8 §18-3. Invariant: dual control enforced BY the procedure; guard passed legitimately, never disabled.
+Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8 §16.6 artifact 8 §18-3. Invariant: dual control enforced BY the operation (two-step approval workflow / signed assertion per CA-9); guard passed legitimately, never disabled.
 Placeholders: [Operator Admin Procedure Area]. Mappings: none.
 Objective: spec signature (request_id, EXECUTED|REJECTED, ticket ref, two approvers), evidence-flag mechanics, refusals (CLAIMED/terminal/amount mismatch), money effects, audit fields, alert, restricted role, drill script.
 Tests: none (OP-02). Stop: published; OP-01 unblocked.

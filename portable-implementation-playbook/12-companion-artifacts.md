@@ -171,7 +171,7 @@ Owner type: TEAM + DBA + OPS.
 Purpose: the implementable spec for OP-01 and the §18-3 drill.
 Required contents: signature (request_id, EXECUTED|REJECTED, mandatory
   ticket/evidence ref, two distinct authenticated approvers); dual-
-  control enforcement IN the procedure; evidence-flag mechanics;
+  control enforcement IN the operation (two-step approval workflow / signed assertion — §9.3); evidence-flag mechanics;
   application through the same evidence-guarded CAS; money effects
   per outcome; refusal conditions (CLAIMED, terminal, amount
   mismatch); §15 every-use alert; §14 audit line
