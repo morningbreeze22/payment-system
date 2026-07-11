@@ -127,8 +127,9 @@ what `requirment-v4.md` documents: the stack (Java Spring Boot,
 Oracle, Spring Kafka, Hazelcast), the four documented services
 (`PaymentOrchestrationService`, `PaymentEnrichmentService`,
 `PaymentExecutionService`, `PaymentNotificationConsumerService`), the
-three core tables (`payment_obligation`, `payment_request`,
-`processed_inbound_event`), the documented columns/states, and the
+four core tables (`payment_obligation`, `payment_request`,
+`processed_inbound_event`, `trade_snapshot_state`), the documented
+columns/states, and the
 documented companion artifacts. Everything else is a placeholder
 (Section G) to be mapped locally (Section O).
 

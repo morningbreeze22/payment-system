@@ -78,10 +78,12 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   expression; enum CHECKs; L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
-  (one per standing scan); expand/contract sequencing.
+  (one per standing scan); trade_snapshot_state DDL (§2.4, round 5 —
+  business_id PK, ordering, storage id, digest, updated_at);
+  expand/contract sequencing.
 Validation: DBA review; S-05/S-06/S-07 violation + plan tests green
   on real Oracle; S-09 dual-run proof.
-Dependent tasks: S-01..S-09, OP-01 (flag mechanics), OB-01 (indexes).
+Dependent tasks: S-01..S-10, OP-01 (flag mechanics), OB-01 (indexes).
 Go-live relevance: YES — the DB backstop for every invariant.
 Failure if omitted: illegal states representable; fat-finger releases
   silent; scans degrade with terminal-row growth.
@@ -130,7 +132,7 @@ Failure if omitted: divergence_expected is noise → expected
 Section: §16.6 artifact 6.
 Owner type: TEAM, named owner.
 Purpose: single owned index of every required test.
-Required contents: Section J's T-01..T-32; the spec-named entries
+Required contents: Section J's T-01..T-35; the spec-named entries
   (downgrade re-POST answered DUPLICATE_REQUEST leaves prior uetr
   intact; §11 ambiguous claim-commit; §8 concurrent in-flight
   duplicates); per-entry §-traceability, owner type, implementing
@@ -152,7 +154,7 @@ Purpose: every alert actionable; the aged-MAYBE path documented.
 Required contents: one stub per §15 alert (Trigger / Severity / Why /
   Immediate action / Data to collect / Escalation / Safe stop —
   Section N seeds the majors); the unqueryable-aged-MAYBE runbook
-  (platform lookup → TL-10 rejection or the OP procedure); known-
+  (platform lookup → TL-10 rejection or the OP operation); known-
   outage suppression semantics; §5.2 restore = post-MVP stub only
   ("major incident — manual engine-side reconciliation").
 Validation: ops-owner review; OB-06 links every alert to its stub.
@@ -163,7 +165,7 @@ Failure if omitted: 03:00 alerts without actions; operators improvise
   guard).
 ```
 
-### CA-9 — apply-platform-verified-outcome procedure spec
+### CA-9 — apply-platform-verified-outcome operation spec
 
 ```text
 Section: §16.6 artifact 8; §9.3, §18-3, §20-8.
@@ -173,8 +175,12 @@ Required contents: execution signature = approval_id ONLY (round 4 —
   identities derived from the approval record, never parameters);
   approval-record schema + PENDING→APPROVED→CONSUMED state machine
   (version/nonce uniqueness; binding fields incl. the reprocess
-  content digest); ATOMIC consumption (CONSUMED CAS + payment
-  transition in ONE transaction — §9.3); evidence-flag mechanics;
+  content digest); consumption semantics PER OPERATION CLASS
+  (round 5): single-transition → CONSUMED CAS + payment transition
+  in ONE transaction; reprocess-snapshot → CONSUME-AT-START after
+  the digest check, crash mid-fan-out remedied by a NEW approval
+  (§9.3 — never resurrect a consumed approval); evidence-flag
+  mechanics;
   application through the same evidence-guarded CAS; money effects
   per outcome; refusal conditions (CLAIMED, terminal, amount
   mismatch); §15 every-use alert; §14 audit line

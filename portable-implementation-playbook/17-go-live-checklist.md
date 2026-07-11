@@ -18,7 +18,7 @@ collected retroactively at GO-04.**
 
 | # | Item | Source | PASS/FAIL/BLOCKED | Evidence |
 |---|------|--------|-------------------|----------|
-| Q1 | §18 BLOCKING item 0 residue closed: written snapshot-contract confirmation (upstream ask 5); §6.0 within-snapshot uniqueness intake validation live; PO-9 (absence semantics) and TL-16 (ordering watermark) answered and implemented; upstream ask 8 IN WRITING (§18-0(d) — store fetch-by-id, versioned ids, consistent reads, IMMUTABILITY, retention) | §18-0, B-01 | | |
+| Q1 | §18 BLOCKING item 0 residue closed: written snapshot-contract confirmation (upstream ask 5); §6.0 within-snapshot uniqueness intake validation live; PO-9 (absence semantics) answered and implemented; TL-16 answered round 5 (§6.1 admission — S-10/IN-02 implement it, T-35 green); upstream ask 8 IN WRITING (§18-0(d) — store fetch-by-id, versioned ids, consistent reads, IMMUTABILITY, retention) | §18-0, B-01 | | |
 | Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 BLOCKING item 2: cutoff calendar sourced, owned, tz-aware, refresh + fail direction configured | §18-2, B-03 | | |
 | Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome OPERATION (authorized application endpoint) EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |

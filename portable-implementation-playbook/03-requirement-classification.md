@@ -36,7 +36,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C8 | §2.3, §16.2 | processed_inbound_event inbox + purge policy (inbox_retention > kafka_retention ≥ replay_window, named owner) | MVP + RUNBOOK | S-04, OB-05 | — | no | yes | owner needed |
 | C9 | §3 | Reservation semantics: +committed at creation, −committed on terminal-negative row-count-1, no movement at POST/confirm; I1–I6 | MVP | RG-01..03, RG-06 | S-xx | yes | yes | no |
 | C10 | §3 | Drift scanner: recompute I1/I2, snapshot + re-check under lock, page on mismatch; verifies L9 | MVP | OB-01 | RG-xx | yes | yes | no |
-| C11 | §3, §20 | Supersede/close operation (release-guarded); at MVP exercised via controlled manual DB procedure under §10.3 backstops, not a console | MVP guard + RUNBOOK | RG-05, S-06, CA-8 | S-06 | no | yes | no |
+| C11 | §3, §20 | Supersede/close operation (release-guarded); at MVP exercised via the RG-05 authorized application endpoint (2026-07-11 Java boundary) under §10.3 backstops, not a console | MVP guard + RUNBOOK | RG-05, S-06, CA-8 | S-06 | no | yes | no |
 | C12 | §4.1 | Step-status completion predicate (incl. vacuous-completion guards) | MVP | RG-08 | RG-01..03 | no | yes | no |
 | C13 | §4.2, §4.5 | Active-exception derivation (precedence ranks) + next-actor derivation — derived, never stored/accumulated | MVP | RG-09 | RG-08 | no | yes | no |
 | C14 | §4.4, §10.1 | Evidence rules: terminal evidence → any active row; intermediate → non-CLAIMED only; stale/duplicate → zero rows | MVP | IN-07, RC-06 | ST-02 | yes | yes | no |
@@ -64,7 +64,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C36 | §9.1 | Status-query outcome mapping (EXECUTED/REJECTED/NOT_FOUND/INDETERMINATE/ACCEPTED) | MVP + ARTIFACT (CA-3) | RC-06 | CA-3 | no | yes | yes |
 | C37 | §9.2 | NOT_FOUND trust-age rule; §9.2 auto-downgrade (the ONE backward stage move) gated by repost_permitted; SUBMITTED branch → ENGINE_INCONSISTENCY park | MVP | RC-07 | RC-03, TL-5 config | yes | yes | TL-5 (ingest lag) |
 | C38 | §9.3 | MAYBE escalation (maybe_since clock, once per episode, tiered); ops action set for BLOCKED·MAYBE rows; apply-platform-verified-outcome as MVP terminal exit | MVP + GATE (§18-3) | RC-08, OP-01..03 | B-04 | YES | yes | no |
-| C39 | §9.4 | Release-rights invariant (single sanctioned exception: the §9.3 procedure) | MVP | RG-05, S-06 | — | yes | yes | no |
+| C39 | §9.4 | Release-rights invariant (single sanctioned exception: the §9.3 operation) | MVP | RG-05, S-06 | — | yes | yes | no |
 | C40 | §9.5 | Resolver scope keyed on submission_state+outcome ONLY; bounded prioritized sweep; per-row backoff; never-overlap; SUBMITTED damping | MVP | RC-05 | TL-13 (rate limit) | yes | yes | yes |
 | C41 | §10.1–10.5 | Factored state model: global rules, per-dimension transitions, legality matrix L1–L9, display labels (no rule keys on label or blocked_reason) | MVP | ST-01..08, S-05..06 | S-xx | yes | yes | no |
 | C42 | §11 | Two-tier concurrency (obligation lock + request CAS); lock ordering; claims as leases; posting-claim persistence; ambiguous claim-commit; lease-expiry recovery; graceful shutdown | MVP | ST-02, ST-09..11 | S-xx | yes | yes | no |
@@ -76,7 +76,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C48 | §16.2 | Kafka rules: manual ack after commit, earliest, ErrorHandlingDeserializer, DLT for poison only, no retry topics for money events, partition keying, retention-chain check | MVP + RUNBOOK | IN-09, OB-05 | — | yes | yes | no |
 | C49 | §16.3 | Security: read-surface auth, account masking in encoder, no instruction content persisted, secrets vaulted, topic ACLs | MVP | cross-cutting (IN, U, OB) | — | no | yes | no |
 | C50 | §16.4 | Amount/time hygiene: currency-scale validation, BigDecimal.compareTo, no tolerance, UTC + DB time, tz-aware cutoff calendar | MVP | IN-01, RC-04 | B-03 | no | yes | no |
-| C51 | §16.5 | Expand/contract migrations (Flyway/Liquibase); volume NFR ~3k trades/day; contract tests for 3 external contracts; defensive enum reads (UNKNOWN sentinel); 4 dimension enums CLOSED | MVP | S-01..09, GO-01 | — | yes | yes | no |
+| C51 | §16.5 | Expand/contract migrations (Flyway/Liquibase); volume NFR ~3k trades/day; contract tests for 3 external contracts; defensive enum reads (UNKNOWN sentinel); 4 dimension enums CLOSED | MVP | S-01..10, GO-01 | — | yes | yes | no |
 | C52 | §16.6 | Configuration inventory + config-load ordering validation (trust_age + cadence < escalation < tier-2 < cutoff margin) | MVP | OB-07 | B-03, TL-5, TL-13 | no | yes | values needed |
 | C53 | §16.6-1 | Engine error-code → classification table (incl. replay-original-response class) | ARTIFACT | CA-1 | provider | YES (feeds RC-01) | no | yes |
 | C54 | §16.6-2 | Engine status vocabulary + precedence/evidence mapping + feed event schema | ARTIFACT | CA-2 | provider | YES (feeds IN-07) | no | yes |
@@ -87,17 +87,17 @@ provider / tech-lead / PO / upstream confirmation.
 | C59 | §16.6-6 | Test catalog aligned to the spec | ARTIFACT | CA-7 | — | YES | yes | no |
 | C60 | §16.6-7 | Runbook stubs (one per §15 alert; aged-MAYBE runbook) | ARTIFACT + RUNBOOK | CA-8 | OB-xx | YES | no | no |
 | C61 | §16.6-8 | apply-platform-verified-outcome OPERATION spec (authorized application endpoint — 2026-07-11 boundary) + drill script | ARTIFACT + GATE (§18-3) | CA-9, OP-01..03 | B-04 | YES | yes | no |
-| C62 | §18-0 | BLOCKING residue of the snapshot contract (model = §1 contract fact: multiple payments; snapshot messages; tuple unique within snapshot; no discriminator — schema freeze not gated): upstream ask 5 in writing, §6.0 intake validation, PO-9, TL-16 — gates IN-02 | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
+| C62 | §18-0 | BLOCKING residue of the snapshot contract (model = §1 contract fact: multiple payments; snapshot messages; tuple unique within snapshot; no discriminator — schema freeze not gated): upstream ask 5 in writing, §6.0 intake validation, PO-9 — gates IN-02 (TL-16 answered round 5: §6.1 admission) | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
 | C63 | §18-1 | BLOCKING: engine idempotency-collision contract proven by sandbox test (a–d), re-run on engine releases | GATE | B-02, CT-01..05 | sandbox access | YES | no | YES |
 | C64 | §18-2 | BLOCKING: payment cutoff calendar (source, owner, semantics, tz-aware, refresh, fail direction) | GATE | B-03 | calendar owner | YES | no | YES |
-| C65 | §18-3 | BLOCKING: MVP MAYBE-row terminal exit (procedure EXISTS + DRILLED, or TL-10 ∧ TL-5 alternative) | GATE | B-04, OP-01..03 | CA-9 | YES | yes | possibly |
+| C65 | §18-3 | BLOCKING: MVP MAYBE-row terminal exit (operation EXISTS + DRILLED, or TL-10 ∧ TL-5 alternative) | GATE | B-04, OP-01..03 | CA-9 | YES | yes | possibly |
 | C66 | §18 PO 1–8 | PO items: ask-then-retry approval, query cadence, escalation age, cutoff-passed-while-MAYBE, cancelled-trade display, deferral latency, retry-after-reject concept, fresh-assembly consequence | QUESTION | Section K | — | no | no | YES |
 | C67 | §18 TL 1–15 | Tech-lead items: event_id stability, card read contract, RPO/RTO, collision contract, ingest lag + lookback, re-execute-after-reject, key-only anchoring, confirmation age, artifact owners, TL-10 platform reject, SDK contract, provider_reference, rate limits, archival, downgrade telemetry | QUESTION | Section K | — | TL-4/5 feed gates | no | YES |
 | C68 | §18 upstream 1–4 | Upstream asks: strict ordering, business_id as Kafka key, schema formalization, emission contract | QUESTION | Section K | — | no | no | YES |
 | C69 | §19.1 | Outbound completion signal | FUTURE | none | — | no | no | no |
 | C70 | §19.2 | Returned funds / reconciliation visibility / manual-adjustment op | FUTURE | none | — | no | no | no |
 | C71 | §19.3 | Ops retry-after-provider-reject (4-eyes, marker clear) | FUTURE (pending PO-7) | none | PO-7 | no | no | yes |
-| C72 | §20 | Ops console / manual operations beyond the one MVP procedure | QUESTION / FUTURE | none (only OP-xx at MVP) | PO | no | no | yes |
+| C72 | §20 | Ops console / manual operations beyond the §20 MVP operation set | QUESTION / FUTURE | none (only OP-xx at MVP) | PO | no | no | yes |
 
 
 **Note on §17:** "Core Requirements Summary" restates §1–§16 in

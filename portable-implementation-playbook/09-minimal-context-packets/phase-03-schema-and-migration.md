@@ -1,4 +1,4 @@
-> **Purpose:** Minimal context packets S-01..S-09 — paste-alone briefs for a small-context local agent (original Section I, phase P3).
+> **Purpose:** Minimal context packets S-01..S-10 — paste-alone briefs for a small-context local agent (original Section I, phase P3).
 > **When to use this file:** Paired with the matching task-card file 08-task-cards/03-schema-and-migration.md — one packet per task, used as the working brief.
 > **Depends on:** 09-minimal-context-packets/README.md; the matching task card; the requirement sections each packet cites; 07-placeholder-glossary.md.
 > **Used by:** The local coding agent executing phase P3.
@@ -40,6 +40,14 @@ Tests: duplicate-key clean return; purge boundary. Stop: merged.
 ```
 
 ```text
+[S-10] trade_snapshot_state (admission row — round 5)
+Read: §2.4 (field list given) §6.1 (ADMISSION consumer) §6.7 (pluggable comparator) §7.0 (read path). Invariant: ONE row per trade, overwritten (never an append log); the §6.1 admission transaction is the ONLY writer; digest = the SAME canonical algorithm as the §9.3 approval digest (one shared implementation).
+Placeholders: [DB Migration Directory] [Obligation Repository]. Mappings: directory.
+Objective: business_id PK; last_accepted_ordering (comparator-agnostic representation); last_xml_storage_id (+version); last_payload_digest; updated_at (DB time). Repository: insert-if-absent (PK race → retry) + SELECT FOR UPDATE by business_id only.
+Tests: duplicate-insert race clean; FOR UPDATE blocks same-trade, not other trades. Stop: merged.
+```
+
+```text
 [S-05] CHECKs, UNIQUEs, I6
 Read: §10.3 (matrix) §2.2 constraints CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified).
 Placeholders: [DB Migration Directory]. Mappings: real-Oracle test lane (STOP if H2-only).
@@ -49,7 +57,7 @@ Tests: one violation test per constraint; I6 second-active rejected. Stop: valid
 
 ```text
 [S-06] Freeze + release-guard triggers
-Read: §10.3 (backstops) §10.1 §9.3 (flag setters). Invariant: raw SQL on MAYBE/SUBMITTED rows fails loudly; flag setters are exactly the authoritative-negative path and the §9.3 procedure.
+Read: §10.3 (backstops) §10.1 §9.3 (flag setters). Invariant: raw SQL on MAYBE/SUBMITTED rows fails loudly; flag setters are exactly the authoritative-negative path and the §9.3 operation.
 Placeholders: [Stored Procedure / Trigger Area] [DB Migration Directory]. Mappings: session-context facility confirmed; pool interaction verified.
 Objective: freeze trigger (dimension change on already-terminal row → raise); release-guard trigger (terminal-negative on MAYBE/SUBMITTED without session evidence flag → raise); flag transaction-scoped.
 Tests: rejected/accepted paths; pool non-leakage (two sessions). Stop: green on real Oracle.

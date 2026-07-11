@@ -10,18 +10,18 @@
 ### B-01 — Resolve §18 BLOCKING item 0 (payments-per-trade / scope key)
 
 - **Task ID:** B-01
-- **Title:** Drive the snapshot-contract residue: written confirmation, intake validation, PO-9, TL-16
+- **Title:** Drive the snapshot-contract residue: written confirmation, intake validation, PO-9
 - **Classification:** §18 BLOCKING go-live gate
 - **Purpose:** the §1 contract facts record the model: one trade carries MULTIPLE payments; each message is a FULL-TRADE SNAPSHOT (newer overwrites older); (payment_type + debit_account + currency) is unique WITHIN a snapshot, and an equal tuple ACROSS snapshots means the same payment. Consequence: the §2.1 scope key needs NO discriminator, §5.1 identity stands unchanged, and the schema/identity freeze (S-02/S-03/S-05/K-02/K-03/CA-4/CA-5) is NOT gated here. §12 lookup: business_id returns ALL of the trade's obligations (multiple results = normal). This task drives the model's four open edges to closure.
 - **Prerequisites:** none (human task).
 - **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 BLOCKING item 0.
-- **Implementation instructions (residue):** (1) obtain the WRITTEN upstream confirmation of the snapshot schema + within-snapshot uniqueness (upstream ask 5) — the cross-snapshot identity half is unverifiable at runtime and rests on this document; (2) ensure IN-02 implements the §6.0 within-snapshot uniqueness intake validation (whole-snapshot validation failure, fail closed); (3) drive PO-9 (absence semantics — a BA-2 amendment, PO-only) and TL-16 (snapshot ordering-watermark rule) to answers BEFORE the IN-02 consumer freeze — both shape §6.1's fan-out; (4) TL-2's read contract now must also answer step granularity (per-payment vs per-trade rollup, §12); (5) upstream ask 8 IN WRITING (round 4 — §18-0(d)): sanctioned fetch-by-id, stable unique versioned ids, consistent reads, IMMUTABILITY (corrections = new id/version), retention ≥ the ops/tie SLA.
+- **Implementation instructions (residue):** (1) obtain the WRITTEN upstream confirmation of the snapshot schema + within-snapshot uniqueness (upstream ask 5) — the cross-snapshot identity half is unverifiable at runtime and rests on this document; (2) ensure IN-02 implements the §6.0 within-snapshot uniqueness intake validation (whole-snapshot validation failure, fail closed); (3) drive PO-9 (absence semantics — a BA-2 amendment, PO-only) to an answer BEFORE the IN-02 consumer freeze — it shapes §6.1's fan-out (TL-16 was ANSWERED 2026-07-11 round 5: the §6.1 trade-level admission gate + §2.4 — no longer a residue item); (4) TL-2's read contract now must also answer step granularity (per-payment vs per-trade rollup, §12); (5) upstream ask 8 IN WRITING (round 4 — §18-0(d)): sanctioned fetch-by-id, stable unique versioned ids, consistent reads, IMMUTABILITY (corrections = new id/version), retention ≥ the ops/tie SLA.
 - **Do not change:** code.
 - **Tests to add:** intake test — snapshot with two blocks sharing a tuple → whole-snapshot validation failure + anchors (§6.0/§6.6); fan-out convergence test — kill consumer mid-fan-out, redeliver, assert per-obligation ordering guard converges (§6.1).
 - **Edge cases:** "usually unique" is NOT an answer for ask 5 — the identity contract needs a guarantee; PO-9 unanswered means absence = NO-OP (BA-2 stands), which knowingly leaves a genuinely-removed payment paying.
-- **Manual validation:** written confirmation attributed and filed; PO-9/TL-16 answers recorded in §18.
+- **Manual validation:** written confirmation attributed and filed; the PO-9 answer recorded in §18 (TL-16 already answered round 5).
 - **Expected outcome:** B-01 fully closed; IN-02 consumer freeze unblocked.
-- **Failure signs:** IN-02 frozen while PO-9/TL-16 are open; treating a verbal model confirmation as the written contract.
+- **Failure signs:** IN-02 frozen while PO-9 is open; treating a verbal model confirmation as the written contract.
 - **Common mistakes:** re-litigating the §1 contract fact instead of driving its open edges.
 - **Completion criteria:** all four residue items closed; blocked-task list updated.
 - **Stop condition:** residue items closed (or explicitly pending — then IN-02 stays BLOCKED).
@@ -82,7 +82,7 @@
 - **Classification:** §18 BLOCKING go-live gate
 - **Purpose:** §18-3: without a terminal exit, an unresolvable MAYBE row holds its reservation forever, the scope never completes (§4.1) and I6 blocks successors.
 - **Prerequisites:** B-02 (TL-5/TL-10 answers inform the alternative).
-- **Requirement sections / concepts to read:** §18 BLOCKING item 3, §9.3 (procedure), TL-10, TL-5.
+- **Requirement sections / concepts to read:** §18 BLOCKING item 3, §9.3 (operation), TL-10, TL-5.
 - **Placeholder components involved:** [Operator Admin Procedure Area] (default path).
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
@@ -184,7 +184,7 @@
 - **Local code areas to discover:** none beyond D-02's inventory.
 - **How to locate:** n/a.
 - **Implementation instructions:** specify (schema-shape pseudocode, not final SQL): every §2.1/§2.2 column with type/nullability; scope-key UNIQUE (per B-01!); UNIQUE(idempotency_key), UNIQUE(uetr) (NULL-ignoring); I6 as CASE WHEN outcome IS NULL THEN payment_obligation_id END unique function-based index; per-enum CHECKs; L1-shape + L2–L8 CHECK expressions; freeze trigger + release-guard trigger with evidence session flag mechanics; the normative index list — resolver sweep, retry scanner, escalation scanner, BLOCKED queue, stuck-state, drift, §5.2 created_at window — each expression NULL for terminal rows (§16.6-4); expand/contract sequencing notes per migration.
-- **Do not change:** the three-table model — any "needs another table" is SPEC_CONFLICT.
+- **Do not change:** the four-table model (§2.1–§2.4) — any "needs another table" is SPEC_CONFLICT.
 - **Tests to add:** none here (S-09 executes them).
 - **Edge cases:** existing-column type conflicts from D-02 → each gets an explicit expand/contract path in the spec.
 - **Manual validation:** DBA-owner review (privileges for triggers/procedures confirmed — from D-02).
@@ -255,7 +255,7 @@
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** adopt Section J's matrix (T-01..T-32) as the seed; add the spec-named entries above; assign each entry an owner-type and the phase whose task implements it; keep IDs stable; version the catalog.
+- **Implementation instructions:** adopt Section J's matrix (T-01..T-35) as the seed; add the spec-named entries above; assign each entry an owner-type and the phase whose task implements it; keep IDs stable; version the catalog.
 - **Do not change:** Section J's BLOCKING flags without the accountable owner.
 - **Tests to add:** none here (the catalog IS the index of tests).
 - **Edge cases:** local discovery may reveal existing equivalent tests — map, don't duplicate.
@@ -272,7 +272,7 @@
 - **Task ID:** CA-8
 - **Title:** Runbook stubs: one per §15 alert + the aged-MAYBE runbook (§16.6 artifact 7)
 - **Classification:** §16.6 companion artifact + operational runbook
-- **Purpose:** §15 requires every alert definition to carry a runbook link; §16.6-7 also names the unqueryable-aged-MAYBE runbook (platform-side lookup → TL-10 rejection or the apply-platform-verified-outcome procedure). The §5.2 restore runbook is POST-MVP and only stubbed as "major incident — manual engine-side reconciliation" per §5.2's MVP scope.
+- **Purpose:** §15 requires every alert definition to carry a runbook link; §16.6-7 also names the unqueryable-aged-MAYBE runbook (platform-side lookup → TL-10 rejection or the apply-platform-verified-outcome operation). The §5.2 restore runbook is POST-MVP and only stubbed as "major incident — manual engine-side reconciliation" per §5.2's MVP scope.
 - **Prerequisites:** Section N (this playbook) drafted; OB-xx alert names as they land.
 - **Requirement sections / concepts to read:** §15 (list + rollup + practices), §16.6 artifact 7, §9.3 (ops actions), §5.2 (MVP scope statement).
 - **Placeholder components involved:** [Metrics / Alerting Layer].
@@ -291,7 +291,7 @@
 - **Stop condition:** published.
 - **Next task:** CA-9.
 
-### CA-9 — Author the apply-platform-verified-outcome procedure spec
+### CA-9 — Author the apply-platform-verified-outcome operation spec
 
 - **Task ID:** CA-9
 - **Title:** apply-platform-verified-outcome OPERATION spec (authorized application endpoint — 2026-07-11 execution boundary) + ops drill script (§16.6 artifact 8)

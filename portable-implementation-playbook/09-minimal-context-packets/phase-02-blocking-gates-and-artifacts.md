@@ -11,7 +11,7 @@
 [B-01] §18-0 snapshot-contract residue
 Read: §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 item 0. Model (§1 fact): multiple payments per trade; snapshot messages (newer overwrites older); tuple unique within snapshot → NO discriminator; schema/identity freeze not gated here.
 Placeholders: none. Mappings: none.
-Objective (residue): written upstream confirmation of snapshot schema + uniqueness (ask 5); §6.0 intake uniqueness validation in IN-02; PO-9 (absence semantics, BA-2 amendment) and TL-16 (ordering-watermark rule) answered before IN-02 freeze; TL-2 gains the step-granularity clause.
+Objective (residue): written upstream confirmation of snapshot schema + uniqueness (ask 5); §6.0 intake uniqueness validation in IN-02; PO-9 (absence semantics, BA-2 amendment) answered before IN-02 freeze (TL-16 answered round 5 — §6.1 admission gate + §2.4); TL-2 gains the step-granularity clause.
 Tests: within-snapshot collision → whole-snapshot validation failure; mid-fan-out crash + redelivery converges. Stop: residue closed (or IN-02 stays BLOCKED).
 ```
 
@@ -65,7 +65,7 @@ Tests: none. Stop: published.
 
 ```text
 [CA-4] DDL migration set spec
-Read: §2.1 §2.2 §2.3 §10.3 §3(I6) §16.5 §16.6 artifact 4. Invariant: three tables only; new-table needs = SPEC_CONFLICT.
+Read: §2.1 §2.2 §2.3 §10.3 §3(I6) §16.5 §16.6 artifact 4. Invariant: four tables only (§2.1–§2.4) + the sanctioned §9.3 ops approval store; other new-table needs = SPEC_CONFLICT.
 Placeholders: [DB Migration Directory] [Stored Procedure / Trigger Area]. Mappings: D-02 inventory; scope key settled (§1 contract facts).
 Objective: spec all columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum+L1-shape+L2–L8 CHECKs, freeze+release-guard triggers w/ evidence-flag mechanics, active-row-bounded index list, expand/contract sequencing.
 Tests: none (S-09 executes). Stop: DBA-reviewed spec published.
@@ -91,7 +91,7 @@ Tests: none (K-05). Stop: published.
 [CA-7] Test catalog
 Read: §16.6 artifact 6; playbook Section J. Invariant: stable IDs; every entry §-traceable.
 Placeholders: [Integration Test Suite] [Contract Test Suite]. Mappings: none.
-Objective: adopt Section J (T-01..T-32) + spec-named entries (downgrade-DUPLICATE leaves uetr intact; ambiguous claim-commit; concurrent inbox duplicates); owner per entry.
+Objective: adopt Section J (T-01..T-35) + spec-named entries (downgrade-DUPLICATE leaves uetr intact; ambiguous claim-commit; concurrent inbox duplicates); owner per entry.
 Tests: none. Stop: published.
 ```
 

@@ -53,6 +53,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 24 | CA-8 | HUMAN+AGENT | Section-N seeds (14-observability file) | phase-02 |
 | 25 | CA-9 | HUMAN+AGENT | B-04; CA-4 | phase-02 |
 | 26–34 | S-01 → S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts) | phase-03-schema-and-migration.md |
+| 34a | S-10 | AGENT | S-01 (round 5: trade_snapshot_state §2.4 — runs after S-04, before S-09's proof pass) | phase-03-schema-and-migration.md |
 | 35–40 | K-01 → K-06 | AGENT | S-09 green; CA-5 for K-02/K-03 | phase-04-identity-and-idempotency.md |
 | 41–47 | CT-01 → CT-07 | HUMAN+AGENT | B-02 sandbox access; K-02/K-03 (see DD-6 if access missing) | phase-08-provider-contract-tests.md |
 | 48–50 | U-01 → U-03 | AGENT | S-03; K-04 path | phase-05-uetr-response-persistence.md |
@@ -64,7 +65,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 91 | OP-01 | AGENT | CA-9; S-06 | phase-11-operator-verified-outcome.md |
 | 92 | OP-02 | AGENT | OP-01 | phase-11 |
 | 93 | OP-03 | HUMAN | OP-02 green; real operators | phase-11 |
-| 93a | OP-04 | AGENT | OP-02 green; RG-05; IN-02 tie record verified | phase-11 |
+| 93a | OP-04 | AGENT | OP-02 green; RG-05; IN-02 tie record + §6.1 admission gate verified (round 5) | phase-11 |
 | 94 | OB-01 | AGENT | RG money paths live | phase-12-drift-reconciliation.md |
 | 95 | OB-02 | AGENT | IN-07 | phase-12 |
 | 96–100 | OB-03 → OB-07 | AGENT | metric sources from P6–P12 | phase-13-observability-and-runbooks.md |

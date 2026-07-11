@@ -9,16 +9,16 @@
 
 ```text
 [OP-01] Verified-outcome operation (authorized application endpoint)
-Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8; CA-9; mechanics SHAPE-PROC. Invariant: Java endpoint calling the SHARED transition helpers (never PL/SQL — 2026-07-11 boundary); execution input = approval_id ONLY (identities DERIVED from the §9.3 approval record — round 4); APPROVED→CONSUMED CAS + payment transition commit in ONE transaction (refusal rolls back both); evidence flag set legitimately (S-06 session context); refuses CLAIMED/terminal/mismatch; every use alerts.
+Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8; CA-9; mechanics SHAPE-PROC. Invariant: Java endpoint calling the SHARED transition helpers (never PL/SQL — 2026-07-11 boundary); execution input = approval_id ONLY (identities DERIVED from the §9.3 approval record — round 4); SINGLE-TRANSITION op → APPROVED→CONSUMED CAS + payment transition commit in ONE transaction (refusal rolls back both; round 5: this rule is for single-transition ops — reprocess consume-at-start lives in OP-04); evidence flag set legitimately (S-06 session context); refuses CLAIMED/terminal/mismatch; every use alerts.
 Placeholders: [Operator Admin Procedure Area] [Stored Procedure / Trigger Area] (triggers = backstop). Mappings: ops-schema approval store deployed (CA-9); enterprise session identities reach the app (else BLOCKED).
 Objective: implement CA-9 exactly; EXECUTED → RG-03 path; REJECTED → REJECTED+marker+release; §14 line trigger_source=OPS_PLATFORM_VERIFIED + ticket; endpoint restricted to the enterprise ops role.
 Tests: in OP-02. Stop: deployed to test env.
 ```
 
 ```text
-[OP-02] Procedure tests
-Read: §9.3 §10.3; CA-9. Invariant: raw SQL fails where the procedure succeeds (trigger demonstrated); lane runs the REAL triggers.
-Placeholders: [Integration Test Suite] [Operator Admin Procedure Area]. Mappings: Oracle lane + procedure.
+[OP-02] Operation tests
+Read: §9.3 §10.3; CA-9. Invariant: raw SQL fails where the operation succeeds (trigger demonstrated); lane runs the REAL triggers.
+Placeholders: [Integration Test Suite] [Operator Admin Procedure Area]. Mappings: Oracle lane + operation endpoint.
 Objective: both outcomes' money effects; all refusals; dual-control; guard interplay; wedge-opens assertion (scope completes / successor creates).
 Tests: the suite. Stop: green on real Oracle; evidence filed.
 ```
@@ -33,9 +33,9 @@ Tests: none (drill). Stop: signed report; §18-3 satisfiable in Section Q.
 
 ```text
 [OP-04] Interim ops surface (§20 endpoint set + queue views)
-Read: §20 (minimal exit set + items 1/4/8/10) §6.7 (tie, round 3 — server-verified) §6.0 (transport note) §10.1 §9.3 (approval workflow); ops-console-proposal §6.1; mechanics M1/M8. Invariant: AUTHORIZED application endpoints calling the shared CAS/money helpers only (2026-07-11 boundary); contract ENFORCES operator+reason+ticket + the §9.3 two-step approval workflow on retry/reject/reprocess (approver ≠ initiator, bound + single-use); reprocess-snapshot executes by approval_id; the §9.3 approval binds the snapshot's canonical DIGEST (computed at approval time); execution re-fetches, HARD-REFUSES on digest mismatch before any lock, then applies the §20-10 PER-BLOCK algorithm (no caller-supplied ordering; ≥ applies per block iff fetched ordering == that obligation's watermark ∧ block payload differs).
+Read: §20 (minimal exit set + items 1/4/8/10) §6.1 (ADMISSION — round 5) §6.7 (tie, round 3 — server-verified) §6.0 (transport note) §10.1 §9.3 (approval workflow + consume-at-start); ops-console-proposal §6.1; mechanics M1/M8. Invariant: AUTHORIZED application endpoints calling the shared CAS/money helpers only (2026-07-11 boundary); contract ENFORCES operator+reason+ticket + the §9.3 two-step approval workflow on retry/reject/reprocess (approver ≠ initiator, bound + single-use); reprocess-snapshot executes by approval_id; the §9.3 approval binds the snapshot's canonical DIGEST (computed at approval time); execution re-fetches, HARD-REFUSES on digest mismatch BEFORE consumption or locks (refusal burns nothing), consumes AT START (round 5 — multi-block; crash mid-fan-out = NEW approval of the same document, never resurrect the consumed one), enters the §6.1 admission gate (≥ relaxation AT ADMISSION iff fetched ordering == trade watermark ∧ digest differs; older-than-watermark refused even with approval; admission row update IS the application for a reference-only tie), then the §20-10 PER-BLOCK algorithm (no caller-supplied ordering; per block ≥ iff fetched ordering == that obligation's watermark ∧ block payload differs).
 Placeholders: [Operator Admin Procedure Area] [Stored Procedure / Trigger Area] (triggers = backstop) [Obligation Repository] [Metrics / Alerting Layer]. Mappings: OP-01 auth pattern; IN-02 tie record carries business_id + tied ordering + XML id + masked diff (else reopen IN-02 first).
 Objective: retry-blocked (L7, same stage) / reject-blocked (NOT_SUBMITTED only, L9 marker, release) / annotate / reprocess-snapshot(xml_id) server-verified via normal §6.1 fan-out (§6.4/§6.5/§6.8 guards unchanged; 4-eyes always); four queue views (BLOCKED-by-reason ESCALATED-first, stuck, aged-MAYBE, overpay) on artifact-4 indexes; §15 alerts link to them. NOTE: supersede/close (RG-05) + reprocess-snapshot are NON-WAIVABLE (§20 minimal exit set); retry/reject/annotate/views are Q29-waivable.
-Tests: T-33 incl. MAYBE-reject refused at code AND trigger layer; reprocess idempotent + latch-respecting + purged-xml clean refusal + non-tying/fabrication refusal. Stop: merged; SHAPE-PROC+READ ticked; Q29 evidence filed.
+Tests: T-33 incl. MAYBE-reject refused at code AND trigger layer; reprocess idempotent + latch-respecting + purged-xml clean refusal + non-tying/fabrication refusal + crash-after-consume (approval burned, nothing applied, NEW approval completes) + T-35 admission cases. Stop: merged; SHAPE-PROC+READ ticked; Q29 evidence filed.
 ```
 

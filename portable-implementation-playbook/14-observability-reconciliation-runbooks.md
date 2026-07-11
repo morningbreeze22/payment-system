@@ -97,7 +97,7 @@ Action: verify the event against platform records; open a provider
 Data: event payload, request amount, provider_reference, correlation.
 Escalate: tech lead + provider support same day.
 Safe stop: corrected event settles the row normally, or the dispute
-  resolves platform-side and the row exits via the §9.3 procedure.
+  resolves platform-side and the row exits via the §9.3 operation.
 ```
 
 ```text
@@ -245,7 +245,7 @@ Why: the engine asserts an outcome for a row we closed — possible
 Action: FREEZE posting for the affected scope's payment type if
   volume >1 (ticketed); reconcile the request against platform
   records; if the terminal state is wrong, the correction path is the
-  §9.3 procedure (never a raw un-freeze of the row).
+  §9.3 operation (never a raw un-freeze of the row).
 Data: event payload, the row's terminal outcome + §14 history, key.
 Escalate: tech lead immediately.
 Safe stop: explained (true duplicate/foreign) or corrected via

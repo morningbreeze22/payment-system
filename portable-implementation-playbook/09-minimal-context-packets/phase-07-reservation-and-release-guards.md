@@ -41,7 +41,7 @@ Tests: sets on overpay; survives required-amount rise (§13 trace); I4. Stop: me
 
 ```text
 [RG-05] Release guard + supersede/close
-Read: §10.1 §9.4 §3 (required feature + FORBIDDEN clause) §20. Invariant: terminal-negative only on NOT_SUBMITTED, or authoritative engine negative, or the §9.3 procedure; a query answer never releases.
+Read: §10.1 §9.4 §3 (required feature + FORBIDDEN clause) §20. Invariant: terminal-negative only on NOT_SUBMITTED, or authoritative engine negative, or the §9.3 operation; a query answer never releases.
 Placeholders: [Request Status Persistence Layer] [Operator Admin Procedure Area] [Stored Procedure / Trigger Area]. Mappings: S-06 flag mechanics.
 Objective: shared guard before every terminal-negative CAS; guarded supersede/close procedure (restricted role, ticket + identity logged) refusing MAYBE/SUBMITTED.
 Tests: deny/allow at code AND trigger layers; supersede releases on legal rows only. Stop: merged.

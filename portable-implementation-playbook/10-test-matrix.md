@@ -1,4 +1,4 @@
-> **Purpose:** Test matrix T-01..T-34 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
+> **Purpose:** Test matrix T-01..T-35 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
 > **When to use this file:** When writing a task card's tests and when assembling GO-04 gate evidence.
 > **Depends on:** requirment-v4.md sections cited per test; 12-companion-artifacts.md (CA-7).
 > **Used by:** All test-bearing task cards; 17-go-live-checklist.md evidence column.
@@ -208,7 +208,7 @@ Setup:   B-02's written lookback; aged sandbox data where achievable.
 Action:  query the oldest achievable executed payment by key.
 Expect:  found within the stated lookback; statement + evidence filed;
          if lookback < max lifetime → §18-3 alternative dies and the
-         OP procedure is mandatory (it is anyway, by default).
+         OP operation is mandatory (it is anyway, by default).
 Failure: unverified lookback → aged MAYBE rows may be permanently
          unresolvable by query.
 Implemented by: CT-04/CT-06 evidence + B-02.
@@ -358,7 +358,7 @@ Failure: laundered blocked_reason or writer bug reaching the wire.
 Implemented by: RC-03, RC-07.
 ```
 
-### T-24 — apply-platform-verified-outcome procedure
+### T-24 — apply-platform-verified-outcome operation
 
 ```text
 Section: §9.3, §16.6-8   Type: INTEGRATION + OPERATIONAL   Blocking: YES
@@ -370,7 +370,7 @@ Action:  execute with valid dual-control inputs (both outcomes); then
 Expect:  outcomes applied with money effects + alert + audit line;
          every refusal refuses; raw SQL equivalent fails on the
          trigger.
-Failure: procedure bypassable or refusals soft → the single
+Failure: operation bypassable or refusals soft → the single
          sanctioned manual path isn't the single path.
 Implemented by: OP-01/02; drilled by OP-03.
 ```
@@ -427,7 +427,7 @@ Section: §18-3, §9.3, §4.1, §6.8   Type: INTEGRATION   Blocking: YES
 Purpose: NO MAYBE row is permanently wedged at MVP.
 Setup:   the worst row: divergent_payload_at set + cutoff passed +
          stale amount + (simulated) key past query lookback.
-Action:  walk the escalation path to the OP-01 procedure; apply a
+Action:  walk the escalation path to the OP-01 operation; apply a
          platform-verified REJECTED; then a remaining shortfall.
 Expect:  reservation released legitimately; scope completes or
          re-pays under a NEW key via §6.8 (guards permitting); I6
@@ -504,7 +504,7 @@ Failure: silent alert gaps discovered during a real incident instead.
 Implemented by: OB-03..07.
 ```
 
-### T-33 — Interim ops surface (procedures + queue views)
+### T-33 — Interim ops surface (operations + queue views)
 
 ```text
 Section: §20, §6.7, §10.1   Type: INTEGRATION   Blocking: YES
@@ -523,12 +523,21 @@ Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          a MAYBE row is refused at the code layer AND the trigger
          layer (raw-SQL demo); reprocess-snapshot executes by
          approval_id, re-fetches and HARD-REFUSES on digest
-         mismatch BEFORE any lock (content-changed-behind-id →
-         alert fired — round 4), RE-VERIFIES the tie server-side
-         PER BLOCK (§20-10 algorithm; a non-tying or
-         wrong-business_id document is refused — no relaxation;
-         run the artifact-6(d) mixed-snapshot set), amends exactly
-         the changed block, no-ops on re-run,
+         mismatch BEFORE any consumption or lock
+         (content-changed-behind-id → alert fired — round 4; the
+         refused approval is NOT burned), consumes AT START
+         (round 5: crash-after-consume seeded → approval burned,
+         nothing applied, a NEW approval of the same document
+         applies the remainder — the consumed one stays refused),
+         enters through the §6.1 ADMISSION gate (≥ relaxation at
+         admission; a document older than the trade watermark is
+         refused whole even with a valid approval), RE-VERIFIES
+         the tie server-side PER BLOCK (§20-10 algorithm; a
+         non-tying or wrong-business_id document is refused — no
+         relaxation; run the artifact-6(d) mixed-snapshot set),
+         amends exactly the changed block, converges a
+         trade-reference-only tie via the admission row update
+         (re-run digest-equal → no-op), no-ops on re-run,
          respects the §6.5 latch, and cleanly REFUSES a purged xml
          id (no partial apply); approval-workflow negatives refused
          (expired / replayed-consumed / identical identities /
@@ -563,5 +572,39 @@ Failure: any FOR UPDATE on payment_request before the obligation
          interleaving.
 Implemented by: ST-09..11, RC-04/RC-05 (protocol per §11 + mechanics
 M5), OB-xx dashboards unaffected.
+```
+
+### T-35 — Snapshot admission gate (trade-level watermark — round 5)
+
+```text
+Section: §6.1, §2.4, §20-10   Type: INTEGRATION   Blocking: YES
+Purpose: a stale snapshot can neither mutate NOR CREATE anything;
+         admission serializes all snapshot writers for a trade;
+         the reference-only tie converges.
+Setup:   real Oracle; trade with snapshot S2 (ordering 200, payment
+         A only) APPLIED; delayed snapshot S1 (ordering 100,
+         payments A + B) available in the XML store; a second trade
+         with NO rows; a reference-only tie pair (equal ordering,
+         identical blocks, different trade reference).
+Action:  deliver S1 after S2; run two concurrent FIRST snapshots
+         with disjoint scopes on the empty trade; race a reprocess
+         execution against live intake on one trade; deliver a
+         failed-validation message; run the reference-only tie
+         through detection + approved reprocess + re-run.
+Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
+         B NEVER created, no payment_request for B ever exists (the
+         round-5 H-1 trace); the two first snapshots serialize on
+         the trade-row insert/lock — both scopes exist, the newer
+         ordering owns the row, no lost update; reprocess and live
+         intake serialize on the admission lock (no interleaved
+         block application); the failed-validation message advances
+         NEITHER trade_snapshot_state nor upstream_ordering;
+         reference-only tie: detected at admission (digest differs),
+         approved reprocess updates ONLY the trade row (blocks
+         no-op), §7.0 assembly reads the new reference, re-run is
+         digest-equal → no-op (converged, no repeat tie alert).
+Failure: any path that creates an obligation from a refused
+         document, or a tie that re-alerts after adjudication.
+Implemented by: S-10, IN-02, OP-04 (reprocess entry path).
 ```
 

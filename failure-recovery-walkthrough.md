@@ -80,15 +80,15 @@ Two standing facts frame everything:
 | U-5 | Message unreadable including the key | DLT depth > 0 pages (§16.2) | Accepted blind spot, shrunk to key corruption only (§6.6); manual DLT replay after fix | T3 |
 | U-6 | Snapshot violates within-snapshot tuple uniqueness (§6.0) — would silently merge two payments | Whole-snapshot validation failure: anchors + validation_failed marker on ALL the trade's scopes (§6.6 blast radius), alert | Corrected snapshot clears markers by ordering; in-flight requests untouched | T4 |
 | U-7 | Duplicate redelivery (identical snapshot) | Nothing to notice — second apply sees shortfall 0 / ordering not newer | Converges silently (§6.1, §6.7) | T0/T1 |
-| U-8 | Out-of-order delivery — older snapshot arrives after newer | Stale-message metric; alert on volume (§6.7) | Watermark drops it; BY DESIGN under BA-3 | T1/T2 |
-| U-9 | Two genuine amendments share an ordering timestamp, payloads differ | AMENDMENT_TIE_CONFLICT alert (§6.7) carrying identifiers + a masked diff (never the payload) | REPROCESS-SNAPSHOT (§20-10 / console O12, REVISED 2026-07-11): ops adjudicates, then the operation re-fetches the chosen snapshot from the XML STORE by id (§6.0 transport note) and re-runs §6.1 with the tie condition RECOMPUTED SERVER-SIDE (round 3: no caller-supplied ordering — fabrication impossible; re-run no-ops); a verbatim resend cannot fix a tie | T3 |
+| U-8 | Out-of-order delivery — older snapshot arrives after newer | Stale-message metric; alert on volume (§6.7) | The §6.1 ADMISSION gate (round 5, trade_snapshot_state §2.4) refuses it WHOLE — including a never-seen scope it carries (the round-5 H-1 trace: a stale snapshot must never CREATE a payment the newer authoritative snapshot says does not exist); BY DESIGN under BA-3 | T1/T2 |
+| U-9 | Two genuine amendments share an ordering timestamp, payloads differ | AMENDMENT_TIE_CONFLICT alert (§6.7, detected at admission as digest-vs-stored-digest) carrying identifiers + a masked diff (never the payload) | REPROCESS-SNAPSHOT (§20-10 / console O12, rounds 3–5): ops adjudicates, the §9.3 approval binds the snapshot's canonical digest, execution runs by approval_id — digest re-verified (hard refusal burns nothing), approval CONSUMED AT START (a crash mid-fan-out = NEW approval of the same document; convergence applies the remainder), then §6.1 admission (≥ relaxation there; the admission row update IS the application for a reference-only tie) + the §20-10 per-block rules (no caller-supplied ordering — fabrication impossible; re-run digest-equal → no-op); a verbatim resend cannot fix a tie | T3 |
 | U-10 | Consumer crashes mid-fan-out of a multi-payment snapshot | Nothing visible — redelivered snapshot re-applies | Applied blocks drop as stale, unapplied blocks apply; per-block transactions converge (§6.1) | T1 |
 | U-11 | Amendment lowers amount while request un-posted | — | Auto-cancel (§6.4) + right-sized successor via §6.8 | T1 |
 | U-12 | Amendment lowers amount while request MAYBE_SUBMITTED | AMENDMENT_PARKED + alert; rank-1 exception on card | Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation brings ops in (dual-control stale re-POST, TL-10, or §9.3 operation) | T1 → T3 |
 | U-13 | Amendment raises amount while request in flight | — | Deferred successor: §6.8 creates it when the active request resolves (PO-6). Never lost. | T1 |
 | U-14 | Scope-key field changes (payment_type / debit_account / currency) | New obligation appears (card shows both) | BA-1: NEW obligation paid under new info — agreed business behavior, NOT a duplicate. Old scope follows its own lifecycle. | Settled (§1.1) |
 | U-15 | Payment absent from a newer snapshot | Nothing (interim) | OPEN — PO-9 (§18): interim absence = NO-OP; if PO answers "absence = cancel", §6.4 machinery handles it | T4 (pending PO) |
-| U-16 | Delayed older snapshot hits an obligation absent from newer snapshots (stale watermark) | Stale-amount application risk | OPEN — TL-16 (§18): watermark-advance rule; decide with PO-9 | tracked |
+| U-16 | Delayed older snapshot hits an obligation absent from newer snapshots — or carries a NEVER-SEEN scope (round-5 sharper variant) | Stale-amount application / stale-scope-creation risk | RESOLVED round 5 (TL-16 answered): the §6.1 trade-level admission gate refuses the delayed older document whole — no stale amounts, no created scope; T-35 proves both traces | T1 (structural) |
 | U-17 | Upstream data wrong but valid (wrong amount/account that passes validation) | Not detectable locally — data is the contract | Corrected message (amendment machinery §6.3–§6.8); if already executed: platform recall (§19.2 family) | T4 |
 | U-18 | Poison pill breaks deserialization loop | ErrorHandlingDeserializer + DLT page (§16.2) | Fix producer / replay DLT preserving keys | T3 |
 
@@ -307,7 +307,8 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
 ```text
 - §18 BLOCKING 0–3: snapshot residue; collision-contract sandbox proof;
   cutoff calendar; MAYBE terminal exit (operation + drill).
-- PO-9 / TL-16: absence semantics + snapshot watermark rule (U-15/U-16).
+- PO-9: absence semantics (U-15). (TL-16 snapshot watermark rule ANSWERED
+  2026-07-11 round 5 — U-16: §6.1 admission + §2.4.)
 - TL-5 / Q-10: query lookback ≥ max row lifetime (R-3).
 - TL-10 / Q-12: platform formal reject — the cleanest parked-MAYBE exit.
 - PO-7 / §19.3: ops retry-after-provider-reject (B-4) — FUTURE.

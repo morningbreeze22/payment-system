@@ -1,4 +1,4 @@
-> **Purpose:** Task cards S-01..S-09 (schema and migration foundation) (original Section H, phase P3).
+> **Purpose:** Task cards S-01..S-10 (schema and migration foundation; S-10 = round-5 trade_snapshot_state) (original Section H, phase P3).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P3.
@@ -101,6 +101,30 @@
 - **Common mistakes:** making event_id globally unique instead of per (source, event_id).
 - **Completion criteria:** merged + green.
 - **Stop condition:** applied.
+- **Next task:** S-10.
+
+### S-10 — trade_snapshot_state table (admission gate — round 5)
+
+- **Task ID:** S-10
+- **Title:** Create trade_snapshot_state per §2.4 (trade-level snapshot admission row)
+- **Classification:** MVP normative implementation
+- **Purpose:** §2.4/§6.1 (round 5): the trade-level watermark + applied-snapshot pointer. Money safety, not audit — without it, a delayed older snapshot can CREATE a never-seen scope and pay a payment the newer authoritative snapshot says does not exist; it is also the durable pointer §7.0 instruction assembly reads for "the most recent snapshot".
+- **Prerequisites:** S-01.
+- **Requirement sections / concepts to read:** §2.4 (field list is in the spec), §6.1 (ADMISSION — the consumer of this table), §6.7 (pluggable ordering comparator — the column must store whatever it compares), §7.0 (read path).
+- **Placeholder components involved:** [DB Migration Directory], [Obligation Repository] (or a sibling repository area).
+- **Local placeholder mappings required before starting:** [DB Migration Directory].
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** create the table per §2.4: business_id PRIMARY KEY; last_accepted_ordering in the SAME representation the §6.7 comparator uses (business timestamp today — the future explicit-sequence cutover must not need a table rebuild: keep the comparison in code, the column representation-agnostic); last_xml_storage_id (+ version if the store separates them, ask 8); last_payload_digest (same canonical algorithm as the §9.3 approval digest — one shared implementation, never two); updated_at (DB time). Repository exposes exactly: insert-if-absent (PK race → retry + re-read) and SELECT ... FOR UPDATE by business_id — the §6.1 admission transaction is the ONLY writer.
+- **Do not change:** the three existing tables (no obligation column for the trade reference — §7.0 reads the stored snapshot instead, PO-confirmed round 5).
+- **Tests to add:** duplicate-insert race returns cleanly (retry + re-read); FOR UPDATE blocks a concurrent admission for the same trade; a different trade is not blocked.
+- **Edge cases:** the row is created on FIRST contact — including a failed-validation first message? NO: §6.6/§6.1 — a failed-validation message never advances (or creates) the admission row; only a schema-valid document reaches admission.
+- **Manual validation:** table + PK visible; seeded two-session FOR UPDATE demo.
+- **Expected outcome:** IN-02's admission gate has its lock and memory.
+- **Failure signs:** any second writer path; the digest computed by a second implementation.
+- **Common mistakes:** treating this as audit history (it is ONE row per trade, overwritten — not an append log); adding columns "while we're here" (SPEC_CONFLICT).
+- **Completion criteria:** merged + green.
+- **Stop condition:** applied.
 - **Next task:** S-05.
 
 ### S-05 — Constraints: CHECKs, UNIQUEs, I6
@@ -132,14 +156,14 @@
 - **Task ID:** S-06
 - **Title:** Create the L1-freeze trigger and the release-guard trigger with evidence session flag
 - **Classification:** MVP normative implementation
-- **Purpose:** §10.3: the FREEZE is a transition property no CHECK can see — an UPDATE trigger rejects any dimension change on a row whose outcome was already non-NULL; the release-guard trigger rejects a terminal-negative outcome write on a MAYBE/SUBMITTED row unless the session context carries the evidence flag (set by the authoritative-negative code path or the §9.3 procedure). Raw fat-finger SQL fails loudly.
+- **Purpose:** §10.3: the FREEZE is a transition property no CHECK can see — an UPDATE trigger rejects any dimension change on a row whose outcome was already non-NULL; the release-guard trigger rejects a terminal-negative outcome write on a MAYBE/SUBMITTED row unless the session context carries the evidence flag (set by the authoritative-negative code path or the §9.3 operation). Raw fat-finger SQL fails loudly.
 - **Prerequisites:** S-05; CA-4 (mechanics); D-02 (trigger privileges confirmed).
 - **Requirement sections / concepts to read:** §10.3 (backstop paragraphs), §10.1 (release guard), §9.3 (legitimate flag setters).
 - **Placeholder components involved:** [Stored Procedure / Trigger Area], [DB Migration Directory].
 - **Local placeholder mappings required before starting:** both; Oracle session-context facility confirmed (D-10/D-02 — else BLOCKED).
 - **Local code areas to discover:** how the app sets DB session state per transaction (connection pooling interaction — MUST_VERIFY_LOCALLY).
 - **How to locate:** data-source/session customizer config.
-- **Implementation instructions:** freeze trigger: BEFORE UPDATE, if :old.outcome IS NOT NULL and any dimension column changes → raise. Release-guard trigger: BEFORE UPDATE, if :new.outcome IN (terminal-negative set) and :old.submission_state IN (MAYBE_SUBMITTED, SUBMITTED) and evidence flag not set in session context → raise. Evidence-flag mechanics per CA-4: set by the authoritative-negative code path within the transaction, cleared with it; the §9.3 procedure is the single legitimate MANUAL setter. Pool-safety: the flag must be transaction-scoped or explicitly cleared — verify with the real pool.
+- **Implementation instructions:** freeze trigger: BEFORE UPDATE, if :old.outcome IS NOT NULL and any dimension column changes → raise. Release-guard trigger: BEFORE UPDATE, if :new.outcome IN (terminal-negative set) and :old.submission_state IN (MAYBE_SUBMITTED, SUBMITTED) and evidence flag not set in session context → raise. Evidence-flag mechanics per CA-4: set by the authoritative-negative code path within the transaction, cleared with it; the §9.3 operation is the single legitimate MANUAL setter. Pool-safety: the flag must be transaction-scoped or explicitly cleared — verify with the real pool.
 - **Do not change:** application transaction managers; other triggers.
 - **Tests to add:** on real Oracle: dimension update on terminal row → rejected; terminal-negative on MAYBE row without flag → rejected; same WITH flag (set the way the code path will) → accepted; flag does not leak across pooled connections (two-session test).
 - **Edge cases:** the outcome-setting transaction itself normalizes stage_state/claim fields (§10.2) — the freeze trigger must permit the outcome-setting UPDATE itself (fires on rows ALREADY terminal, i.e. :old.outcome NOT NULL).
@@ -205,7 +229,7 @@
 - **Title:** Full migration test pass: clean schema, prod-shaped schema, dual-run compatibility
 - **Classification:** MVP normative implementation
 - **Purpose:** prove the whole P3 sequence per §16.5 before any behavior change lands on it.
-- **Prerequisites:** S-02..S-08 merged.
+- **Prerequisites:** S-02..S-08 + S-10 merged.
 - **Requirement sections / concepts to read:** §16.5 (expand/contract, claim compatibility across one release boundary).
 - **Placeholder components involved:** [DB Migration Directory], [Integration Test Suite].
 - **Local placeholder mappings required before starting:** real-Oracle test lane available (if D-11 found H2-only, FIRST set up the Oracle lane — that setup is part of this task; split locally if large).
@@ -228,7 +252,7 @@
 
 ## Phase handoff summary (P3 → P4)
 
-- **Phase outputs:** three-table schema at the CA-4 target: columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum + L1-shape + L2–L8 CHECKs (VALIDATED), freeze + release-guard triggers with evidence-flag mechanics, active-row-bounded index set, inbox table + purge, backfilled dimensions.
+- **Phase outputs:** four-table schema at the CA-4 target: columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum + L1-shape + L2–L8 CHECKs (VALIDATED), freeze + release-guard triggers with evidence-flag mechanics, active-row-bounded index set, inbox table + purge, trade_snapshot_state (S-10, §2.4), backfilled dimensions.
 - **Blockers to carry forward:** §18-1/2/3 unchanged; any staged-NOVALIDATE constraint has a dated follow-up.
 - **Local mapping rows expected filled:** [DB Migration Directory], [Stored Procedure / Trigger Area] CONFIRMED; index expressions recorded for later scanner queries (S-07 note).
 - **Tests expected to exist:** migration apply (clean + prod-shaped), constraint violation suite, trigger backstop suite (incl. pool non-leakage), backfill idempotency, S-09 dual-run proof (old version runs on new schema).

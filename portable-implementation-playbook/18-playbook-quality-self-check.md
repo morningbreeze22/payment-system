@@ -23,7 +23,7 @@
     settled constraints (C4) with explicit do-not-build notes.
 [x] No source-code names invented: all local components are Section G
     placeholders; the only concrete names used are the spec's own
-    (three tables, four documented services, documented columns/
+    (four tables, four documented services, documented columns/
     states/artifacts).
 [x] No invented persistent tables/journals/outboxes/parked-event/
     attempt-history/manual-action/audit-history tables: Section B
@@ -32,7 +32,8 @@
 [x] No future/post-MVP/PO-discussion work promoted to MVP: §5.2 DR
     runbook (C18), key-only anchoring (C25), §19.1/19.2/19.3
     (C69-71), ops console (C72) are classified FUTURE/QUESTION;
-    the ONLY §20 implementation work is the §18-3-required procedure.
+    the §20 implementation work is the three-operation NON-WAIVABLE
+    exit set + OP-04's waivable ergonomics endpoints (rounds 3–5).
 [x] Every task has requirement-section traceability: each card's
     "Requirement sections / concepts to read" field; classification
     table maps C-items to task IDs.
@@ -51,9 +52,9 @@
     CA-1..9 each have a task card (Section H Phase 2), a Section L
     plan entry (deliverable, owner type, validation, dependents,
     start-before rule via prerequisites), and packet.
-[x] Every manual operation beyond the MVP-required procedure is
+[x] Every manual operation beyond the §20 MVP operation set is
     classified future/PO discussion (C72; RG-05's supersede/close is
-    delivered only as the §20-sanctioned guarded interim procedure
+    delivered only as the §20-sanctioned guarded interim operation
     that §3 REQUIRES, subject to the release guard).
 [x] Drift lint (added 2026-07-11; EXECUTABLE since the second
     external review — run `python tools/doc-lint.py`, wired to CI in

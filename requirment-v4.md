@@ -83,9 +83,10 @@ Confirmed contract facts this design relies on:
   tuple MEANS the same payment (that identity IS the contract — it is
   how amendments are recognized). Written upstream confirmation of
   the snapshot schema and the uniqueness guarantee is tracked as §18
-  upstream ask 5. Two consequences remain OPEN: absence semantics
-  (PO-9, §18 — interacts with BA-2) and the snapshot ordering-
-  watermark rule (TL-16, §18).
+  upstream ask 5. One consequence remains OPEN: absence semantics
+  (PO-9, §18 — interacts with BA-2). The snapshot ordering-watermark
+  rule (TL-16) was ANSWERED 2026-07-11 round 5: trade-level
+  admission (§6.1, §2.4).
 ```
 
 Assumed contract facts — the design ASSUMES these are true and
@@ -148,7 +149,10 @@ BA-3 Message-ordering correctness is upstream's
 
 ## 2. Data Model
 
-Three tables.
+Four tables (three payment tables + the §2.4 trade-level admission
+row — added 2026-07-11 round 5, the one correctness-driven schema
+change since the model froze: per-obligation watermarks cannot stop
+a stale snapshot from CREATING a never-seen scope).
 
 ### 2.1 payment_obligation
 
@@ -469,6 +473,49 @@ the Kafka topic retention; ownership §16.2).
 There is deliberately NO parked-event table: unmatched feed events are
 logged, counted, and acked (§8); recovery of any real missed outcome
 is query-based (§9), keyed by identity this system already persists.
+
+### 2.4 trade_snapshot_state (snapshot admission — added 2026-07-11 round 5)
+
+One row per trade (business_id). It owns the two trade-wide facts
+that per-obligation rows structurally cannot: which snapshot ordering
+this trade has ACCEPTED, and which stored document that was.
+
+```text
+business_id              — PRIMARY KEY (one row per trade)
+last_accepted_ordering   — ordering value of the last ADMITTED
+                           snapshot; same representation and pluggable
+                           comparator as upstream_ordering (§6.7 —
+                           business timestamp today, explicit sequence
+                           later, no logic change on cutover)
+last_xml_storage_id      — the immutable storage id (+ version) of
+                           that snapshot in the upstream-populated
+                           store (§6.0 transport, upstream ask 8);
+                           THE durable pointer to "the most recent
+                           snapshot" — §7.0 instruction assembly and
+                           §20-10 reprocessing read it
+last_payload_digest      — the canonical business-payload digest of
+                           that snapshot (SAME algorithm as the §9.3
+                           approval digest); what makes §6.0/§6.7 tie
+                           equality — including the trade reference —
+                           EVALUABLE against applied state (round 5)
+updated_at               — audit timestamp (DB time, §16.4)
+```
+
+Why it exists (money safety, not audit — round-5 review H-1): a
+payment block whose scope has no obligation row has no watermark to
+be checked against, so without a trade-level watermark a DELAYED
+OLDER full snapshot could CREATE and pay a payment that the newer
+authoritative snapshot says does not exist. The row is the admission
+gate's lock and memory (§6.1): it is locked (SELECT ... FOR UPDATE;
+insert-on-first-contact with PK-race retry, the §6.1 pattern) as the
+FIRST lock of snapshot processing — lock order: trade row, then
+obligations in scope-tuple order, so the existing deadlock-freedom
+argument is preserved. Two concurrent first snapshots for one trade
+serialize HERE (previously nothing existed to lock). A
+failed-validation message NEVER advances this row (§6.6 — the same
+rule as upstream_ordering). This table is payment data (§16.5 schema
+contract) — it is NOT the §9.3 ops-schema approval store, which
+remains a separate, sanctioned, non-payment store.
 
 ------
 
@@ -978,6 +1025,37 @@ This schema is one of the three build-time-enforced contracts
 
 ### 6.1 Normal processing
 
+ADMISSION (trade-level, normative — added 2026-07-11 round 5; runs
+BEFORE any per-block work, in its own transaction):
+
+```text
+1. Upsert-lock the trade_snapshot_state row (§2.4) for the
+   document's business_id: INSERT on first contact (PK race →
+   retry + re-read, the same pattern as obligation creation), then
+   SELECT ... FOR UPDATE.
+2. Compare the document's ordering value (pluggable comparator,
+   §6.7):
+   doc.ordering >  last_accepted_ordering
+     → ADMIT: update the row (ordering, xml storage id, canonical
+       payload digest), COMMIT, then fan out per block below.
+   doc.ordering == last_accepted_ordering
+     → digest EQUAL   → ADMIT WITHOUT UPDATE: a true redelivery or
+       a crash re-run; fan out — per-block convergence no-ops the
+       applied blocks and applies the remainder.
+     → digest DIFFERS → AMENDMENT_TIE_CONFLICT (§6.7): NO block is
+       applied, NO scope is created; resolution is §20-10, which
+       passes THIS gate with the ≥ relaxation under an approved
+       digest.
+   doc.ordering <  last_accepted_ordering
+     → REFUSE the whole document as stale: counted (stale metric),
+       no block applied, and — the round-5 rule — NO NEW SCOPE IS
+       EVER CREATED from a refused document.
+3. Only an ADMITTED document may create or mutate obligations.
+   Crash between the admission commit and block application
+   converges: the re-run admits (== ordering, equal digest) and
+   the per-block guards no-op whatever already applied.
+```
+
 A snapshot FANS OUT to one application per payment block. Message
 validation (schema, amounts, within-snapshot uniqueness §6.0) runs
 once for the whole snapshot; then, per payment block, in a
@@ -1001,9 +1079,12 @@ stale (ordering not newer for that obligation), unapplied blocks
 apply normally. No cross-obligation transaction is required.
 
 A payment block whose scope tuple has no existing obligation creates
-one (the normal first-message path). Two concurrent first messages
-can race the obligation insert; the scope-key unique constraint is
-the backstop — on `ORA-00001`, retry the transaction and re-read.
+one (the normal first-message path) — safe ONLY because the document
+passed admission: a stale document never reaches this path (round-5
+H-1; a new scope has no per-obligation watermark of its own). Two
+concurrent first messages can race the obligation insert; the
+scope-key unique constraint is the backstop — on `ORA-00001`, retry
+the transaction and re-read.
 
 OPEN — absence semantics (PO-9, §18): a payment that exists as an
 obligation but is ABSENT from a newer snapshot. Candidate meaning
@@ -1015,14 +1096,15 @@ cancel" amends BA-2 and is therefore the PO's call, not a default.
 INTERIM (until PO-9 is answered): absence is a NO-OP — the absent
 payment's obligation is left untouched.
 
-OPEN — snapshot ordering-watermark rule (TL-16, §18): must applying
-a snapshot advance the §6.7 ordering watermark on ALL of the trade's
-obligations, INCLUDING those absent from the snapshot? Failure mode
-if not: obligation B's watermark stays old while newer snapshots
-(without B) arrive; a DELAYED older snapshot that still contains B
-then passes B's staleness guard and applies stale amounts to B.
-Interacts with PO-9 (if absence cancels, absent obligations
-terminalize and the window shrinks) — decide both together.
+RESOLVED — snapshot ordering-watermark rule (TL-16, §18; ANSWERED
+2026-07-11 round 5): the trade-level ADMISSION gate above is the
+answer. Per-obligation watermarks are NOT advanced for absent
+obligations (no extra no-op writes) — they remain the per-block
+convergence/re-run guard only. Both TL-16 failure traces close at
+admission: a delayed older snapshot is refused WHOLE, so it can
+neither apply stale amounts to an existing absent-from-newer
+obligation NOR create a never-seen scope (the sharper round-5 trace).
+PO-9 (absence semantics) remains open and is unchanged by this.
 
 ### 6.2 Zero shortfall
 
@@ -1256,7 +1338,11 @@ Guard:
   FUTURE (§18 upstream ask 1). The comparison is a single pluggable
   point in code so the cutover requires no logic change.
 - The obligation persists the last-applied ordering value
-  (upstream_ordering).
+  (upstream_ordering); the TRADE persists the last-ADMITTED ordering,
+  storage id, and canonical digest (trade_snapshot_state, §2.4 —
+  round 5). The §6.1 admission gate consults the trade watermark
+  FIRST; per-obligation watermarks remain the per-block
+  convergence/re-run guard.
 - A message mutates required_amount only if its ordering value is
   strictly newer than the stored one. Otherwise it is ignored and
   counted (stale-message metric; alert on unusual volume).
@@ -1272,10 +1358,13 @@ Guard:
                                carries the identical timestamp and
                                would be rejected forever.
     Snapshot note: equality is evaluated over the WHOLE snapshot
-    (§6.0). Two tying snapshots differing in only one payment block
-    therefore raise the tie-conflict for the snapshot as a whole —
-    deliberately conservative; manual application resolves all
-    blocks together.
+    (§6.0), concretely as digest-vs-stored-digest at the §6.1
+    admission gate (trade_snapshot_state.last_payload_digest, §2.4
+    — round 5: this is what makes equality INCLUDING the trade
+    reference evaluable against applied state). Two tying snapshots
+    differing in only one payment block therefore raise the
+    tie-conflict for the snapshot as a whole — deliberately
+    conservative; manual application resolves all blocks together.
     Executability requirement (REVISED again 2026-07-11 round 3 —
     the alert-recorded ordering is now advisory, never an input):
     the tie-conflict record — the alert and its §14 log line —
@@ -1288,14 +1377,17 @@ Guard:
     SERVER-VERIFIED, not attested: the operation takes the XML
     STORAGE ID ALONE (no caller-supplied ordering), fetches the
     document, and RECOMPUTES the tie condition itself at execution
-    time — the ≥ relaxation applies iff the FETCHED document's own
-    ordering value equals the obligation's current
-    upstream_ordering AND its payload differs from the applied
-    state (which IS the definition of the tie, §6.7). A fabricated
-    or non-tying input therefore cannot invoke the relaxation; a
-    re-run after apply finds payload equality and no-ops (single
-    use by construction); every money guard (§6.4 retry-guard,
-    §6.5 latch, §6.8 marker conditions, I6) applies unchanged. No
+    time — at the §6.1 ADMISSION gate (round 5): the ≥ relaxation
+    applies iff the FETCHED document's own ordering value equals
+    trade_snapshot_state.last_accepted_ordering AND its canonical
+    digest differs from the stored one (which IS the definition of
+    the tie); per block, the §20-10 rules then decide application
+    against each obligation's own watermark. A fabricated or
+    non-tying input therefore cannot invoke the relaxation; a
+    re-run after apply finds digest equality at admission and
+    no-ops (single use by construction); every money guard (§6.4
+    retry-guard, §6.5 latch, §6.8 marker conditions, I6) applies
+    unchanged. No
     payload is ever a parameter, a log field, or a new store, and
     no durable conflict record is needed — the store + the
     obligation row ARE the evidence.
@@ -1442,7 +1534,13 @@ unspecified):
   (trade reference → trade store + reference data). The newest
   upstream data is ALWAYS the ground truth: a party-information
   update between attempts is picked up automatically. There is no
-  payload freeze.
+  payload freeze. SOURCE of the trade reference (made normative
+  2026-07-11 round 5, PO-confirmed): every attempt re-reads the
+  trade's MOST RECENT admitted snapshot — fetched by
+  trade_snapshot_state.last_xml_storage_id (§2.4) — and re-does ALL
+  enrichment steps against it (account mappings and party addresses
+  change; nothing about the instruction is cached on payment rows).
+  The trade reference is deliberately NOT an obligation column.
 - The claim transaction persists the identity (§5.1, first claim) and
   the hash of the assembled instruction (last_sent_hash, §2.2,
   every claim) BEFORE the HTTP call.
@@ -1967,20 +2065,38 @@ AFTER the money.
   DERIVED from the trusted record, never from parameters. The
   approval-state machine is PENDING → APPROVED → CONSUMED (plus
   REJECTED / EXPIRED), each move a row-count-checked CAS on a
-  version column. ATOMICITY (round 4, normative): the
-  APPROVED → CONSUMED CAS and the privileged payment transition
-  COMMIT IN THE SAME database transaction and session — any
-  refusal or exception rolls back BOTH (a failed transition never
-  burns an approval; a crash after the transition never leaves a
-  replayable approval; two concurrent executors race on the CAS
-  and exactly one wins). For reprocess-snapshot, execution
-  re-fetches the snapshot, recomputes the canonical digest, and
-  REFUSES on any mismatch with the approved digest BEFORE
-  evaluating the tie or taking any obligation lock — content
-  changed behind an id is a HARD refusal + alert, never applied.
+  version column. ATOMICITY (round 4; SCOPED round 5 — the round-4
+  rule as written could not cover a multi-transaction operation):
+  for SINGLE-TRANSITION operations (verified-outcome, retry/reject,
+  supersede/close), the APPROVED → CONSUMED CAS and the privileged
+  payment transition COMMIT IN THE SAME database transaction and
+  session — any refusal or exception rolls back BOTH (a failed
+  transition never burns an approval; a crash after the transition
+  never leaves a replayable approval; two concurrent executors race
+  on the CAS and exactly one wins). For REPROCESS-SNAPSHOT
+  (multi-block — §20-10 applies each block in its OWN transaction)
+  the rule is CONSUME-AT-START: execution re-fetches the snapshot,
+  recomputes the canonical digest, and REFUSES on any mismatch with
+  the approved digest BEFORE any consumption or lock (content
+  changed behind an id is a HARD refusal + alert, never applied —
+  and a refusal burns nothing); then the CONSUMED CAS commits ALONE,
+  BEFORE the §6.1 admission/fan-out. Consequences (accepted,
+  round 5): consumption precedes any money movement, so NO replay
+  window exists and concurrent executors still race exactly one
+  CAS; a crash mid-fan-out leaves the approval CONSUMED and the
+  trade partially applied — the remedy is a NEW approval of the
+  SAME document (same storage id, same digest; §20-10 per-block
+  convergence applies only the remainder). Burning an approval on
+  a crash of a rare-by-construction operation is the accepted
+  cost: the failure direction demands MORE authorization, never
+  less. Considered and REJECTED for MVP (recorded so it is not
+  relitigated): a resumable APPROVED → EXECUTING → COMPLETED
+  execution record with lease/fencing and a progress cursor —
+  machinery disproportionate to the hazard; revisit post-MVP only
+  if reprocess frequency proves material.
   The pending-approval record lives in a small OPS-SCHEMA store —
   operational workflow state, explicitly OUTSIDE the §2 payment
-  data model (which remains three tables) and sanctioned as the
+  data model (the four §2 tables) and sanctioned as the
   ONE such store. A SIGNED enterprise approval assertion is an
   EXPLICITLY-GATED alternative only (it must carry the same
   binding fields incl. the digest, define issuer/keys/audience/
@@ -2159,14 +2275,14 @@ certainty, loosens only on own-POST evidence (§9.4):
         └── sync definitive reject of ────┘
             a re-POST (own-POST evidence)
    Never loosened by a status-query answer. Single sanctioned
-   exception: the §9.3 apply-platform-verified-outcome procedure.
+   exception: the §9.3 apply-platform-verified-outcome operation.
 ```
 
 outcome — write-once; setting it FREEZES the row (L1) and
 normalizes stage_state/claim/retry fields (§10.2):
 
 ```text
-   ∅ ──▶ EXECUTED    settlement / resolver / §9.3 procedure;
+   ∅ ──▶ EXECUTED    settlement / resolver / §9.3 operation;
                       +confirmed under amount equality
    ∅ ──▶ REJECTED    sync definitive / feed / resolver / §9.3;
                       exactly one marker set (L9); reservation released
@@ -2410,7 +2526,7 @@ apply):
 | Amendment-down vs MAYBE row, ANY stage incl. CONFIRM (§6.4 row-count 0) | → same·BLOCKED(AMENDMENT_PARKED) + alert; wait-then-decide — no auto-downgrade while the amount is stale (§7.0) | — |
 | Ops retry (NOT_SUBMITTED rows; POST-stage exits gated by repost_permitted §7.0, next_retry_at set per policy — L7) | any·BLOCKED·NOT → SAME-stage·RETRY_WAIT (an ENRICH-blocked row re-enriches; it never skips to POST with unresolved data) | — |
 | Ops actions on BLOCKED·MAYBE rows (§9.3) | resolve-via-query (no state change); ops-triggered §9.2 downgrade where repost_permitted passes → POST·RETRY_WAIT·MAYBE; dual-control stale-amount re-POST (§7.0 override of the staleness term ONLY) → POST·RETRY_WAIT·MAYBE | — |
-| Ops apply-platform-verified-outcome (§9.3 — dual-control audited procedure; evidence flag set legitimately) | any active·MAYBE/SUBMITTED → O=EXECUTED (SUB=SUBMITTED, amount equality) or O=REJECTED | +confirmed on EXECUTED; −committed + provider_rejected on REJECTED |
+| Ops apply-platform-verified-outcome (§9.3 — dual-control audited operation; evidence flag set legitimately) | any active·MAYBE/SUBMITTED → O=EXECUTED (SUB=SUBMITTED, amount equality) or O=REJECTED | +confirmed on EXECUTED; −committed + provider_rejected on REJECTED |
 | Ops reject / supersede / close (release guard) | any·BLOCKED (or stalled active) → O=REJECTED / SUPERSEDED / CANCELLED | −committed; marker per L9 on REJECTED |
 | Late feed settlement for BLOCKED row | any·BLOCKED (active) → O=EXECUTED, SUB=SUBMITTED (amount equality) | +confirmed |
 
@@ -3098,16 +3214,29 @@ tests point at them):
    plus the §20-10 mixed-snapshot per-block set: one changed tied
    block + one identical tied block + one new block + one
    already-newer obligation + one absent obligation +
-   trade-reference-only difference + crash-mid-reprocess re-run
-   convergence; (e) dual-control negative set (§9.3): parameter
+   trade-reference-only difference (round 5: converges via the
+   admission update — re-run digest-equal, no-op) +
+   crash-mid-reprocess re-run under a NEW approval (round 5:
+   consumed approval refused; new approval applies only the
+   remainder); (e) dual-control negative set (§9.3): parameter
    substitution, expired approval, replayed consumed approval,
    identical identities, role revoked between approval and
    execution, digest mismatch, concurrent double-execution
    (exactly one CONSUMED CAS wins), mid-transaction failure
-   (approval survives unconsumed — atomicity).
+   (approval survives unconsumed — single-transition atomicity),
+   crash-after-consume-before-fan-out (reprocess consume-at-start:
+   approval burned, nothing applied, NEW approval succeeds);
+   (f) admission-gate set (§6.1/§2.4, round 5): the
+   never-seen-scope trace (newer snapshot without B commits first;
+   delayed older snapshot containing B is refused whole — B and
+   its request are NEVER created); two disjoint first snapshots
+   serialize on the trade row (both scopes exist afterwards, one
+   ordering wins the row); reprocess vs live intake racing the
+   same trade serializes on the admission lock; a
+   failed-validation message advances neither watermark.
 7. Runbook stubs, one per §15 alert; the §5.2 restore runbook; the
    unqueryable aged MAYBE row (past the engine lookback — §9.3): platform-side lookup → TL-10 rejection or the
-   apply-platform-verified-outcome procedure.
+   apply-platform-verified-outcome operation.
 8. The apply-platform-verified-outcome OPERATION spec
    (§9.3 — §18 BLOCKING item 3; execution boundary decided
    2026-07-11: an authorized, enterprise-authenticated endpoint of
@@ -3119,8 +3248,11 @@ tests point at them):
    the §9.3 two-step approval workflow (approval-record schema +
    PENDING→APPROVED→CONSUMED state machine with version/nonce
    uniqueness; binding fields incl. the reprocess content digest;
-   approver ≠ initiator; ATOMIC consumption: the CONSUMED CAS and
-   the payment transition commit in ONE transaction/session), with
+   approver ≠ initiator; consumption semantics PER OPERATION CLASS
+   (round 5): single-transition → the CONSUMED CAS and the payment
+   transition commit in ONE transaction/session; reprocess-snapshot
+   → CONSUME-AT-START after the digest check, crash remedied by a
+   NEW approval — §9.3), with
    the full §9.3 negative-test set (substitution, expiry, replay,
    identical identities, revoked role, digest mismatch, concurrent
    double-execution, mid-transaction failure) — evidence-flag
@@ -3209,9 +3341,10 @@ payment platform
         this contract.
      b. The within-snapshot uniqueness intake validation (§6.0)
         implemented — the runtime-checkable half.
-     c. PO-9 (absence semantics — amends BA-2) and TL-16 (snapshot
-        ordering-watermark rule) answered: both shape §6.1's
-        fan-out behavior.
+     c. PO-9 (absence semantics — amends BA-2) answered — it shapes
+        §6.1's fan-out behavior. (TL-16 was ANSWERED 2026-07-11
+        round 5: the §6.1 trade-level admission gate + §2.4; no
+        longer blocking.)
      d. Upstream ask 8 IN WRITING (added round 4 — elevated from
         the ask list because intake itself fetches by id and the
         NON-WAIVABLE reprocess-snapshot operation depends on it):
@@ -3313,8 +3446,9 @@ payment platform
    signal exists. Risk either way: "cancelled" lets a producer bug
    (accidentally dropped block) cancel real unsent payments;
    "unchanged" leaves a genuinely-removed payment paying. INTERIM
-   until answered: absence is a no-op (BA-2 stands). Decide together
-   with TL-16.
+   until answered: absence is a no-op (BA-2 stands). (TL-16, once
+   its co-decision partner, was answered round 5 — the §6.1
+   admission gate; PO-9 stands alone now and is NOT changed by it.)
 ```
 
 ### Requiring tech lead review
@@ -3387,7 +3521,7 @@ payment platform
     MAYBE rows (§9.2/§9.3 wait-then-decide); without it, ops's only
     exits are the dual-control stale-amount re-POST (§7.0) or
     waiting out the engine's own resolution. (the §9.3
-    apply-platform-verified-outcome procedure exists at MVP
+    apply-platform-verified-outcome operation exists at MVP
     regardless — §18 BLOCKING item 3; TL-10 remains the CLEANER
     path because its negative arrives through the normal feed/query
     evidence machinery with no human transport.)
@@ -3413,21 +3547,20 @@ payment platform
 15. Production measurement, first quarter: NOT_FOUND-after-
     trust-age frequency — how often the §9.2 downgrade would fire —
     to revisit auto vs ops-triggered enablement with data (§9.2).
-16. Snapshot ordering-watermark rule (§6.1): must applying a
-    snapshot advance the §6.7 ordering watermark on ALL of the
-    trade's obligations, INCLUDING those absent from that snapshot?
-    Failure mode if not: an absent payment's watermark goes stale;
-    a DELAYED older snapshot still containing that payment then
-    passes its staleness guard and applies stale amounts. Options:
-    (a) advance watermarks on absent obligations (an extra no-op
-    write per absent obligation per snapshot); (b) track a
-    trade-level watermark consulted alongside the per-obligation
-    one; (c) accept the window and rely on upstream ask 1 (strictly
-    increasing ordering) + partition ordering (ask 2) making
-    delayed-older-snapshot delivery impossible — verify that claim
-    before choosing it. Interacts with PO-9 (if absence cancels,
-    absent obligations terminalize and the window shrinks) — decide
-    both together.
+16. ANSWERED 2026-07-11 (round 5, design owner): option (b),
+    STRENGTHENED — trade_snapshot_state (§2.4) + the §6.1 admission
+    gate. The round-5 review exposed the sharper failure the
+    original options missed: neither (a) nor per-obligation
+    watermarks can stop a delayed older snapshot from CREATING a
+    never-seen scope (no row → no watermark → the first-message
+    path pays a payment the newer authoritative snapshot says does
+    not exist). A document older than the trade watermark is now
+    refused WHOLE at admission and can never create a scope;
+    disjoint concurrent first snapshots serialize on the trade row.
+    Option (c) was rejected — it contradicts the stated
+    out-of-order condition (§6.7's own motivating trace is a late
+    original). Per-obligation watermarks are NOT advanced for
+    absent obligations. PO-9 remains open and unchanged.
 ```
 
 ### Upstream contract asks
@@ -3719,8 +3852,17 @@ are obsolete, and its state displays should use the §10.4 labels):
     not an opaque id; the approver sees digest + masked diff).
     Execution input = the approval_id; the operation re-fetches,
     recomputes the digest, and REFUSES on mismatch (hard refusal +
-    alert) BEFORE any obligation lock — then verifies the
-    document's business_id and re-runs the normal §6.1 fan-out.
+    alert) BEFORE any consumption or lock; then consumes the
+    approval (CONSUME-AT-START — §9.3 round-5 scoping; a crash
+    mid-fan-out is remedied by a NEW approval of the same
+    document), verifies the document's business_id, and re-runs
+    the normal §6.1 fan-out THROUGH THE ADMISSION GATE (round 5):
+    the approved digest authorizes the ≥ relaxation AT ADMISSION
+    (== trade watermark + differing digest → admit + update
+    trade_snapshot_state); a document OLDER than the trade
+    watermark is refused even with an approval — a stale
+    adjudication is re-initiated against current state, never
+    applied.
     PER-BLOCK ALGORITHM (normative, round 4 — the relaxation
     decision is PER OBLIGATION; whole-snapshot equality is only
     the §6.7 tie-DETECTION rule at intake; no whole-snapshot
@@ -3728,10 +3870,16 @@ are obsolete, and its state displays should use the §10.4 labels):
     transactions mean NO atomic whole-trade application exists):
 
 ```text
-for each payment block of the FETCHED document,
+PRECONDITION: the document has passed §6.1 ADMISSION (trade row
+  locked; ordinary strictly-newer, OR the approved-tie ≥ relaxation
+  applied THERE; trade_snapshot_state updated). A refused document
+  reaches no rule below and creates nothing.
+for each payment block of the ADMITTED document,
     sorted by scope tuple (§6.1), each its own transaction:
   no obligation exists            -> create (normal first-message
-                                     path, §6.1)
+                                     path, §6.1 — safe only because
+                                     admission refused stale
+                                     documents, round 5)
   doc.ordering >  watermark       -> apply (ordinary strictly-newer)
   doc.ordering == watermark:
       block payload == applied    -> no-op (this is what makes a
@@ -3742,12 +3890,23 @@ for each payment block of the FETCHED document,
   doc.ordering <  watermark       -> drop as stale (guard)
 obligations ABSENT from the document -> untouched (PO-9 interim
                                      no-op; revisit with PO-9)
-trade-reference-only difference   -> no amount changes; blocks
-                                     no-op per the rules above
+trade-reference-only difference   -> blocks no-op per the rules
+                                     above; the ADMISSION update to
+                                     trade_snapshot_state (ordering,
+                                     storage id, digest) IS the
+                                     application (round 5): §7.0
+                                     fresh assembly picks the new
+                                     reference up from the stored
+                                     pointer, and a re-run compares
+                                     digest-EQUAL at admission and
+                                     no-ops — the tie converges
 after each applied block: set upstream_ordering := doc.ordering
   (idempotent), then §6.4/§6.5/§6.8 consequences unchanged.
-Crash mid-reprocess + re-run: converges per block (applied blocks
-  now no-op; remaining blocks apply) — same §6.1 property.
+Crash mid-reprocess: the approval is already CONSUMED (§9.3
+  consume-at-start); the re-run happens under a NEW approval of the
+  SAME document — admission sees == ordering + equal digest,
+  re-fans-out, applied blocks no-op, remaining blocks apply
+  (converges; same §6.1 property).
 ```
 
     The same endpoint serves as the general re-trigger after a

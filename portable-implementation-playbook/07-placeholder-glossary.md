@@ -214,9 +214,9 @@ Mode:         NEW.
 
 ```text
 Meaning:      restricted-role home of the apply-platform-verified-
-              outcome procedure (§9.3, CA-9).
+              outcome operation (§9.3, CA-9).
 Identify:     F.20.
-Responsibilities: OP-01's procedure: dual control, ticket reference,
+Responsibilities: OP-01's operation: dual control, ticket reference,
               evidence flag, refusal conditions, audit + alert.
 Do not change: existing ops grants without DBA owner.
 Tests:        OP-02 suite + OP-03 drill.

@@ -16,11 +16,11 @@ Tests: validation cases; scale cases; equality (envelope excluded). Stop: merged
 ```
 
 ```text
-[IN-02] Upsert + ordering guard
-Read: §6.1 §6.7 (whole) §6.9 (required row) §6.0. Invariant: required_amount mutates only on strictly-newer ordering; tie+identical drops; tie+different alerts (never silent); comparator is ONE pluggable point.
-Placeholders: [Obligation Repository]. Mappings: upsert path; B-01 answered.
-Objective: locked upsert (ORA-00001 retry); guard; tie branches; stale counted; T1 → RG-06 even without amount change.
-Tests: §6.7 regression trace; ties; T1. Stop: merged.
+[IN-02] Snapshot admission + upsert + ordering guard
+Read: §6.1 (ADMISSION first — round 5) §2.4 §6.7 (whole) §6.9 (required row) §6.0. Invariant: NO per-block work before the trade-level admission transaction (upsert-lock trade_snapshot_state; newer → admit+update; equal+digest-equal → admit; equal+digest-differs → tie alert, stop; older → refuse WHOLE — a refused document NEVER creates a scope); lock order trade row → obligations in tuple order; required_amount mutates only on strictly-newer ordering; comparator is ONE pluggable point shared by admission and blocks.
+Placeholders: [Obligation Repository]. Mappings: upsert path; B-01 answered; S-10 applied.
+Objective: admission gate; locked upsert (ORA-00001 retry); guard; stale counted; T1 → RG-06 even without amount change.
+Tests: §6.7 regression trace; ties at admission; T1; T-35 admission set (never-seen-scope refused; disjoint first snapshots serialize; failed-validation advances neither watermark). Stop: merged.
 ```
 
 ```text

@@ -124,7 +124,7 @@ idempotency keys forever (K-02 rule).
 Old version ignores new columns (nullable); new version tolerates
 legacy-only rows via the S-08 map + defensive enum reads (UNKNOWN
 sentinel — §16.5); enum evolution (adding a blocked_reason value)
-follows the §16.5 NOVALIDATE swap procedure; the four dimension enums
+follows the §16.5 NOVALIDATE swap sequence; the four dimension enums
 are CLOSED — extending one is a design change with a review round,
 not a migration.
 ```
@@ -158,7 +158,7 @@ downgrade decisions (the §9.2 ops action) — safe, more manual.
 Released reservations, confirmed amounts, terminal outcomes, and their
 downstream successor creations are FACTS once written — protected by
 write-once outcome + freeze trigger by design. Any correction is a
-forward operation through sanctioned paths (§9.3 procedure at MVP;
+forward operation through sanctioned paths (§9.3 operation at MVP;
 §19.2-family platform reconciliation). Plan reviews at GO-05 must
 name this line explicitly per environment.
 ```

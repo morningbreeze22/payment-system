@@ -60,14 +60,15 @@ Edge cases:      CA-4/CA-5 freeze is NOT gated on §18-0 — no
                  within snapshot). §12 lookup returns ALL of the
                  trade's obligations. IN-02 residue: upstream ask 5
                  (written uniqueness), §6.0 intake validation, PO-9
-                 (absence), TL-16 (watermark).
+                 (absence). (TL-16 answered round 5: §6.1
+                 admission + §2.4.)
 Common mistakes: treating a written "yes" as closing TL-4/TL-6 (only
                  the §18-1 sandbox test closes them); letting artifact
                  authoring drift unowned; promoting PO-discussion
                  items to MVP.
 Completion:      B-01 answered in writing; B-02 sandbox access + TTL
                  statement obtained; B-03 calendar source/owner named;
-                 B-04 decision recorded (default: procedure); CA-1..9
+                 B-04 decision recorded (default: operation); CA-1..9
                  drafted with owners; blocked-task list updated.
 Verify locally:  nothing (no code).
 Go-live blocking: YES — items 0–3 are the §18 gates.
@@ -76,12 +77,13 @@ Go-live blocking: YES — items 0–3 are the §18 gates.
 ### Phase P3 — Schema and migration foundation
 
 ```text
-Goal:            Bring the three-table model to the §2/§10.3 target
+Goal:            Bring the four-table model to the §2/§10.3 target
                  shape via expand/contract Flyway migrations: new
                  columns (nullable-with-default first), enum CHECKs,
                  L-shape CHECKs, UNIQUE keys, I6 function-based unique
                  index, L1-freeze + release-guard triggers,
-                 active-row-bounded index set, inbox table + purge.
+                 active-row-bounded index set, inbox table + purge,
+                 trade_snapshot_state (S-10, §2.4 — round 5).
 Why here:        D graph #2 — schema before state-machine persistence.
 Sections:        §2.1, §2.2, §2.3, §10.3, §16.5, §16.6-4, §3 (I6).
 Classification:  MVP normative.
@@ -460,7 +462,7 @@ Goal:            Implement CA-9's spec: the audited verified-outcome
 Why here:        §18 BLOCKING item 3 — the guaranteed MAYBE-row
                  terminal exit must exist AND be drilled before
                  go-live; needs P6/P7 CAS + trigger machinery.
-Sections:        §9.3 (procedure design), §10.1, §10.3 (evidence
+Sections:        §9.3 (operation design), §10.1, §10.3 (evidence
                  flag), §16.6-8 (CA-9), §20-8 (audit rules), §18-3.
 Classification:  GATE (§18-3) + MVP normative.
 Required concepts: DB session-context mechanism used by the release-
@@ -474,11 +476,11 @@ State-transition deps: EXECUTED path (amount equality, +confirmed,
 Tests required:  dual-control enforced (same approver twice =
                  refused); refusal conditions (CLAIMED, terminal,
                  amount mismatch); release guard passed LEGITIMATELY
-                 (flag set by procedure; raw SQL without flag fails
+                 (flag set by the operation; raw SQL without flag fails
                  loudly); money effects on both outcomes; alert + audit
                  log emitted.
 Edge cases:      row becomes CLAIMED between verification and
-                 execution (procedure must re-check inside its own
+                 execution (operation must re-check inside its own
                  transaction); frozen-row convention on the outcome
                  write (maybe_since/escalated_at cleared).
 Common mistakes: disabling the trigger instead of passing it

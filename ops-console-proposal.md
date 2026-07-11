@@ -77,7 +77,7 @@ audited UI, not about adding capability.
 | O9 | Request platform-side formal rejection (TL-10) | BLOCKED/aged MAYBE row | external ask to the platform; the negative flows back as authoritative feed/query evidence — the CLEAN exit | operator (records the ask) |
 | O10 | Apply platform-verified outcome | active ∧ MAYBE/SUBMITTED; refuses CLAIMED and terminal rows and amount mismatch | invokes the **existing MVP audited operation** (authorized application endpoint — §9.3, §16.6-8): verified EXECUTED (+confirmed, SUB=SUBMITTED, amount equality) or REJECTED (marker + release); evidence flag set legitimately; every use alerts (§15) | dual-control ENFORCED BY THE OPERATION (§9.3 two-step approval workflow); ticket mandatory |
 | O11 | Retry-after-provider-reject (clear marker) | provider_rejected marker live (≥2 = ops-only clear) | records decision, clears the marker, §6.8 creates a FRESH successor (new key) | **FUTURE** — pending PO approval (§19.3, §18 PO-7) |
-| O12 | Reprocess stored snapshot (**round 3: SERVER-VERIFIED** — closes walkthrough U-9 with no payload storage and no caller-supplied ordering) | input = XML storage id ONLY (from a recorded AMENDMENT_TIE_CONFLICT, or a corrected DLT document — which is always a NEW immutable id/version per ask 8) | **TRADE-level**: fetch the snapshot from the XML store by id (§6.0 transport note — the payload is NEVER a parameter, a log field, or a new store), verify document.business_id matches, and re-run the §6.1 fan-out with the tie condition RECOMPUTED server-side: ≥ applies iff the FETCHED document's ordering equals the obligation's upstream_ordering AND its payload differs (§6.7 — fabrication impossible; a non-tying document gets the ordinary strictly-newer guard only); per block, under that obligation's lock: apply → set upstream_ordering (idempotent) → §6.8 re-evaluation. Re-run after apply no-ops (single-use by construction); §6.4/§6.5/§6.8 guards and I6 apply unchanged. A purged xml id → clean refusal (ask 8 retention) | 4-eyes ALWAYS (can initiate money movement via §6.8) |
+| O12 | Reprocess stored snapshot (**rounds 3–5: SERVER-VERIFIED, DIGEST-BOUND, CONSUME-AT-START** — closes walkthrough U-9 with no payload storage and no caller-supplied ordering) | input = XML storage id ONLY at APPROVAL time (from a recorded AMENDMENT_TIE_CONFLICT, or a corrected DLT document — always a NEW immutable id/version per ask 8); EXECUTION input = the §9.3 approval_id | **TRADE-level**: approval fetches + validates the snapshot and binds its canonical digest (§9.3); execution re-fetches by id (§6.0 transport note — the payload is NEVER a parameter, a log field, or a new store), recomputes the digest and HARD-REFUSES on mismatch BEFORE consumption or locks, consumes the approval AT START (round 5 — a crash mid-fan-out is remedied by a NEW approval of the same document; convergence applies only the remainder), verifies document.business_id, then enters the §6.1 ADMISSION gate (round 5): ≥ relaxation AT ADMISSION iff the FETCHED document's ordering equals the trade watermark AND its digest differs (§6.7 — fabrication impossible; a non-tying document gets the ordinary strictly-newer guard; OLDER than the trade watermark → refused whole, even approved); admission updates trade_snapshot_state (for a trade-reference-only tie that update IS the application), then per block, under that obligation's lock: §20-10 rules → apply → set upstream_ordering (idempotent) → §6.8 re-evaluation. Re-run after apply is digest-equal at admission and no-ops (single-use by construction); §6.4/§6.5/§6.8 guards and I6 apply unchanged. A purged xml id → clean refusal (ask 8 retention) | 4-eyes ALWAYS (can initiate money movement via §6.8) |
 | — | Overpay acknowledge/annotate | latch set | writes `ops_annotation` (§2.1) — display only, **no state change**, latch never cleared (§13) | operator |
 | — | Returned-funds adjustment | — | **FUTURE** — blocked on §19.2 | — |
 | — | Posting-freeze flip (kill switch) | — | role-controlled Hazelcast toggle EXISTS today (§16.1); a dedicated audited surface is §20-6 — capability is not blocked on this console | out of console scope |
@@ -207,14 +207,23 @@ GET  /obligations/{scopeKey}/log-timeline    → from log store (§14 lines)
 POST /requests/{id}/actions                  {type: RETRY|REJECT|SUPERSEDE, reason, ticketRef}
 POST /requests/{id}/resolve-now              {reason, ticketRef}                  (O6)
 POST /requests/{id}/downgrade-repost         {reason, ticketRef}                  (O7; repost_permitted-gated)
-POST /requests/{id}/stale-amount-repost      {reason, ticketRef, secondApprover}  (O8; staleness override only)
+POST /requests/{id}/stale-amount-repost      {reason, ticketRef}                  (O8; staleness override only; 4-eyes
+                                                                                     via the §9.3 approval workflow —
+                                                                                     round 5: NEVER an approver identity
+                                                                                     in the body)
 POST /requests/{id}/platform-verified-outcome {outcome: EXECUTED|REJECTED, evidenceRef, ticketRef} (O10 → §9.3 operation; approvals via the §9.3 two-step workflow, not inline)
-POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, reason, ticketRef}       (O12 round 3; trade-level — payload
+POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, reason, ticketRef}       (O12 rounds 3–5; trade-level —
+                                                                                     INITIATES the §9.3 approval: fetch +
+                                                                                     validate + bind digest; payload
                                                                                      fetched from the XML store by id,
-                                                                                     never from the body; the tie
-                                                                                     condition is recomputed SERVER-side,
-                                                                                     no ordering parameter exists)
+                                                                                     never from the body; EXECUTION runs
+                                                                                     by approval_id after the second
+                                                                                     approval — consume-at-start, §6.1
+                                                                                     admission entry, tie recomputed
+                                                                                     SERVER-side, no ordering parameter)
 POST /approvals/{id}/approve | /reject
+POST /approvals/{id}/execute                 (round 5: the ONE execution entry —
+                                              input is the approval_id only)
 ```
 
 All mutating endpoints: idempotency via the approval-row id;

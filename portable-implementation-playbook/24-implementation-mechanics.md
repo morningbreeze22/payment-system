@@ -251,10 +251,16 @@ poll → for each record:
 
 - `enable-auto-commit=false`, ack-mode=record, offsets commit only
   after the DB commit (§16.2). auto-offset-reset=earliest.
-- Upstream flow: whole-snapshot validation FIRST (§6.0), then fan out
-  per payment block in sorted tuple order, ONE transaction per block
-  (§6.1). A crash mid-fan-out is fine: redelivery re-applies; applied
-  blocks drop on the §6.7 ordering guard.
+- Upstream flow: whole-snapshot validation FIRST (§6.0), then the
+  trade-level ADMISSION transaction (§6.1/§2.4, round 5): upsert-lock
+  the trade_snapshot_state row, compare orderings — newer → admit +
+  update row; equal + digest-equal → admit without update; equal +
+  digest-differs → tie alert, STOP; older → refuse WHOLE (a refused
+  document never creates a scope); THEN fan out per payment block in
+  sorted tuple order, ONE transaction per block (§6.1). Lock order:
+  trade row first, then obligations in tuple order. A crash
+  mid-fan-out is fine: redelivery re-admits (equal + digest-equal)
+  and re-applies; applied blocks drop on the §6.7 ordering guard.
 - ErrorHandlingDeserializer is mandatory; DLT is for POISON messages
   only (deserialization/semantic validation). Transient infra errors
   retry IN PLACE or pause the container — NEVER dead-letter a money
@@ -380,11 +386,18 @@ triggers stay as the DB backstop:**
     execution input is the §9.3 approval_id ONLY — identities are
     DERIVED from the approval record (round 4: never approver-
     identity parameters, never free-text strings)
-[ ] approval consumption is ATOMIC with the transition: the
-    APPROVED→CONSUMED CAS (row count 1) and the payment CAS commit
-    in ONE transaction/session; refusal or exception rolls back
-    BOTH (test: concurrent double-execution — exactly one wins;
-    mid-transaction failure — approval survives unconsumed)
+[ ] approval consumption matches the OPERATION CLASS (round 5):
+    SINGLE-TRANSITION ops → the APPROVED→CONSUMED CAS (row count 1)
+    and the payment CAS commit in ONE transaction/session; refusal
+    or exception rolls back BOTH (test: concurrent double-execution
+    — exactly one wins; mid-transaction failure — approval survives
+    unconsumed). MULTI-BLOCK reprocess-snapshot → digest check
+    FIRST (refusal burns nothing), then CONSUME-AT-START in its own
+    transaction BEFORE fan-out; crash mid-fan-out = NEW approval of
+    the same document (test: crash-after-consume — approval burned,
+    nothing applied, new approval applies the remainder). NEVER a
+    consumption that commits with the LAST block, and NEVER a
+    resumable EXECUTING state (rejected, §9.3)
 [ ] endpoint authorization: restricted to the enterprise ops role;
     unauthorized-role attempt refused (and tested)
 [ ] release guard honored: terminal-negative only on NOT_SUBMITTED or

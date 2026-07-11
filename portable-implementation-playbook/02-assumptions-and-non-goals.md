@@ -23,15 +23,19 @@
    conversations.
 4. The target stack is as documented: Java Spring Boot, Oracle DB,
    Spring Kafka, Hazelcast (§ front matter). Oracle DDL / CHECK
-   constraints / function-based unique indexes / triggers / audited
-   stored procedures; Spring transactions, repositories, scheduled
-   jobs; Spring Kafka consumers with inbox idempotency; Hazelcast
-   posting freeze.
-5. The data model is exactly three core tables: payment_obligation,
-   payment_request, processed_inbound_event (§2). No new persistent
-   tables, journals, outboxes, parked-event tables, attempt-history
-   tables, manual-action tables, or audit-history tables. A task that
-   appears to need a new table is a SPEC_CONFLICT, not a new table.
+   constraints / function-based unique indexes / backstop triggers;
+   Spring transactions, repositories, scheduled jobs; Spring Kafka
+   consumers with inbox idempotency; Hazelcast posting freeze. Ops
+   mutations are authorized JAVA APPLICATION ENDPOINTS (2026-07-11
+   boundary) — never PL/SQL reimplementations.
+5. The data model is exactly four core tables: payment_obligation,
+   payment_request, processed_inbound_event, trade_snapshot_state
+   (§2 — the fourth added 2026-07-11 round 5, admission gate). Plus
+   ONE sanctioned non-payment store: the §9.3 ops-schema approval
+   record. No other new persistent tables, journals, outboxes,
+   parked-event tables, attempt-history tables, manual-action
+   tables, or audit-history tables. A task that appears to need a
+   new table is a SPEC_CONFLICT, not a new table.
 ```
 
 **Non-goals**
@@ -49,18 +53,24 @@
    improve the design. Rejected alternatives recorded in the spec
    (derived committed_amount, attempt-history table, materiality
    re-POST, auto-unlatch, UETR generation/validation, runtime
-   collision-contract gating) stay rejected and are not re-proposed.
+   collision-contract gating, the resumable EXECUTING approval
+   execution record — round 5, §9.3) stay rejected and are not
+   re-proposed.
 4. NO re-opening of §1.1 Basic Agreements (BA-1 scope-key mutability,
    BA-2 no upstream cancellation, BA-3 ordering is upstream's
    responsibility) or the §1 contract facts.
 5. NO implementation of future work (§19.1 completion signal, §19.2
    returned funds, §19.3 retry-after-reject, §5.2 DR runbook tooling,
-   ops console beyond the one MVP procedure, §6.6 key-only anchoring
-   before TL-7 confirms) unless §18 explicitly makes it BLOCKING.
-6. NO full ops console. The ONLY manual-operation implementation work
-   at MVP is the §9.3 apply-platform-verified-outcome audited stored
-   procedure (§18 BLOCKING item 3, §20). Everything else in §20 is
-   future / PO discussion.
+   ops console beyond the §20 MVP operation set, §6.6 key-only
+   anchoring before TL-7 confirms) unless §18 explicitly makes it
+   BLOCKING.
+6. NO full ops console. The manual-operation implementation work at
+   MVP is the §20 interim set delivered as authorized application
+   endpoints: the THREE non-waivable operations (§9.3
+   apply-platform-verified-outcome — §18 BLOCKING item 3;
+   supersede/close; reprocess-snapshot) plus the waivable ergonomics
+   endpoints of OP-04. Everything else in §20 is future / PO
+   discussion.
 7. The old compound status may survive only as a derived display
    label (§10.4); migration of business logic away from any legacy
    compound status enum is gradual and safe (Phase P6), never a

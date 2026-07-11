@@ -64,7 +64,7 @@ Section E). Arrows read "must be settled before".
                 ▼
         ┌──────────────────────────────┐
         │ P11 APPLY-PLATFORM-VERIFIED- │  MAYBE-row terminal exit must
-        │ OUTCOME PROCEDURE (§9.3)     │  exist before go-live (§18-3)
+        │ OUTCOME OPERATION (§9.3)     │  exist before go-live (§18-3)
         └───────┬──────────────────────┘
                 ▼
         ┌──────────────────────────────┐
@@ -92,7 +92,7 @@ Section E). Arrows read "must be settled before".
    scope-key/identity/schema freeze is NOT gated here. The §6
    consumer (IN-02) waits on the B-01 residue: written uniqueness
    guarantee (upstream ask 5), intake validation (§6.0), PO-9
-   (absence), TL-16 (watermark).
+   (absence). (TL-16 answered round 5: §6.1 admission + §2.4.)
 2. Schema BEFORE state-machine persistence: the four dimension
    columns, CHECK constraints, I6, and triggers (§2.2, §10.3) are the
    substrate every CAS in P6 writes against; code written before the
