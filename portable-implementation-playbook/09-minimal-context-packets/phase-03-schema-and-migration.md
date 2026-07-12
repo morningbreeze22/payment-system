@@ -81,7 +81,7 @@ Tests: idempotency; per-value spot checks; constraint dry-validate; read-model p
 
 ```text
 [S-09] Migration test pass
-Read: §16.5. Invariant: the OLD app version must run against the NEW schema — incl. READING a row whose ui_step_status is CANCELLED without error (round 13 dual-run evidence).
+Read: §16.5; Section M.1a decision record. Invariant: the OLD app version must run against the NEW schema; the CANCELLED-read proof is CONDITIONAL on M.1a (round 15) — not-read → N/A with proof; defensive reader → test the deployed version; non-defensive → test the COMPATIBILITY release + prove the incompatible original is fenced; name the EXACT build tested.
 Placeholders: [DB Migration Directory] [Integration Test Suite]. Mappings: Oracle lane (set it up first if missing).
 Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema; constraint suite in CI.
 Tests: the four proofs. Stop: green; report filed.

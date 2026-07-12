@@ -59,6 +59,11 @@ incompatibility. Ladder, decided by DISCOVERY EVIDENCE:
 4. Verify the ENTIRE reader fleet is upgraded; only THEN enable
    the round-11 derivation that WRITES CANCELLED.
 5. Soak + rollback rehearsal precede the M.1-7 contract step.
+6. Reader-fleet upgrade and writer-fleet drain are SEPARATE
+   evidence items (round 15): a compatibility release may READ
+   CANCELLED while still WRITING legacy/NULL status; the M.3
+   fenced cutover requires the WRITER drain, not just the reader
+   upgrade.
 ```
 
 ### M.2 Feature flag strategy
@@ -85,11 +90,23 @@ GO-02: dual-write soak with tuple-vs-legacy comparison (report must
 be CLEAN — zero UNEXPLAINED disagreements, each dispositioned;
 EXPECTED CANCELLED semantic deltas are classified, not fixed —
 round 13).
-Catch-up derivation pass (round 14): during dual-run, OLD writers
-may leave ui_step_status NULL; BEFORE the card read switch a batch
-pass re-runs the shared §4 derivation over all obligations (same
-S-08 machinery, idempotent); GO-02 evidence includes ZERO NULL
-rows exposed to the card.
+Catch-up + FENCED CUTOVER (rounds 14-15): during dual-run, OLD
+writers may leave ui_step_status NULL. A one-time batch cannot
+hold an invariant while a writer capable of violating it stays
+live, so the card read switch requires this ORDER:
+  1. WRITER fleet drained/upgraded — no binary that writes
+     legacy/NULL status remains — AND old writer versions FENCED
+     from reconnecting (deployment control).
+  2. THEN the final catch-up pass re-runs the shared §4
+     derivation over all obligations (S-08 machinery, idempotent).
+  3. Verify ZERO NULL ui_step_status rows.
+  4. THEN switch the card reader.
+  5. The M.1-7 NOT NULL contract migration follows.
+Cutover assertion (GO-02/GO-03): a fenced old-writer version
+attempting to reconnect is REJECTED. READER-fleet upgrade and
+WRITER-fleet drain are SEPARATE evidence items — the M.1a
+compatibility release may READ CANCELLED safely while still
+WRITING legacy/NULL status.
 Derivation shadow: derived ui_step_status/exception vs legacy display
 behavior compared on real traffic before the card reads switch.
 Resolver dry-run mode (recommended, cheap): sweep + query + LOG the

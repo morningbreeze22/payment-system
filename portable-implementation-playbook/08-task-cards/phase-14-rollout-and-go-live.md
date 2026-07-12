@@ -45,9 +45,9 @@
 - **How to locate:** n/a.
 - **Implementation instructions:** a comparison job/report over a soak window: per row, tuple-derived label vs legacy status per the reviewed mapping; disagreements fall in TWO CLASSES (round 13): (1) EXPECTED SEMANTIC DELTAS — CANCELLED rows ONLY (legacy display has no such value): verify the row's invariants (required = 0, clean unwind), CLASSIFY in the report, never "fix"; (2) UNEXPLAINED disagreements — each is a dual-write bug or mapping-table error: fix, re-soak. CLEAN = ZERO UNEXPLAINED disagreements — never byte-for-byte legacy label parity. Completion-predicate shadow: RG-08's derived ui_step_status vs the legacy step status where observable.
 - **Do not change:** production traffic; read-only comparison.
-- **Tests to add:** the comparison tooling's own correctness (seeded disagreement detected).
+- **Tests to add:** the comparison tooling's own correctness (seeded disagreement detected); cutover fence assertion: a FENCED old-writer version attempting to reconnect is REJECTED (round 15).
 - **Edge cases:** rows written by the OLD app version during dual-run (legacy-only) — the S-08 backfill mapping covers them; comparison must tolerate the window.
-- **Manual validation:** soak report clean over the agreed window (owner-defined; record; clean = zero UNEXPLAINED disagreements, expected CANCELLED deltas classified — round 13); evidence: NO obligation row exposed to the card path carries NULL ui_step_status — the M.3 catch-up derivation pass ran before the read switch (round 14).
+- **Manual validation:** soak report clean over the agreed window (owner-defined; record; clean = zero UNEXPLAINED disagreements, expected CANCELLED deltas classified — round 13); evidence: NO obligation row exposed to the card path carries NULL ui_step_status — the M.3 FENCED cutover ran before the read switch (round 15: writer fleet drained AND old versions fenced BEFORE the final catch-up pass; reader-fleet upgrade and writer-fleet drain recorded as SEPARATE evidence items).
 - **Expected outcome:** factored model trusted.
 - **Failure signs:** "small" disagreement rates waved through — every disagreement has a cause; disposition each.
 - **Common mistakes:** comparing labels only (compare the tuple fields too).
