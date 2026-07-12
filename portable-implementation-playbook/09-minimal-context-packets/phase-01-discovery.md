@@ -9,10 +9,10 @@
 
 ```text
 [D-01] Set up local mapping document
-Read: playbook Sections G, O. Invariant: mappings stay LOCAL, never transferred out.
+Read: playbook Sections G, O; file 26 T.2/T.3. Invariant: mappings, the divergence register, and the facts sheet stay LOCAL, never transferred out.
 Placeholders: all. Mappings: none.
-Objective: create the Section O table locally, one row per Section G placeholder, Status=UNMAPPED.
-Tests: none. Stop: table exists.
+Objective: create the Section O table locally (one row per Section G placeholder + the four §2 tables incl. trade_snapshot_state, Status=UNMAPPED) + the empty divergence register + facts sheet (file 26).
+Tests: none. Stop: all three files exist.
 ```
 
 ```text
@@ -97,9 +97,9 @@ Tests: baseline run. Stop: inventory + baseline recorded.
 
 ```text
 [D-12] Discovery report
-Read: playbook Section F status codes; Playbook Index BLOCKED list. Invariant: no "probably" — IMPLEMENTED/PARTIAL/MISSING/UNCLEAR only.
+Read: playbook Section F status codes; Playbook Index BLOCKED list; file 26 T.1–T.3. Invariant: no "probably" — IMPLEMENTED/PARTIAL/MISSING/UNCLEAR only; DIV-3/DIV-4 register rows highlighted (they block cards, rule 21).
 Placeholders: all. Mappings: all D-xx rows filled.
-Objective: per F.1–F.24 concept assign a status + one-line evidence; list UNCLEARs + resolution needs; update locally-BLOCKED task list; deliver to human owner.
+Objective: per F.1–F.26 concept assign a status + one-line evidence; summarize the divergence register + facts sheet; confirm the T.1 premise (happy path exists — else stop for re-scoping); update locally-BLOCKED task list; deliver to human owner.
 Tests: none. Stop: report delivered; WAIT for human review before implementation.
 ```
 

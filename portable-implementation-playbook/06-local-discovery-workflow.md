@@ -475,3 +475,59 @@ MISSING:    none — record prominently; every phase's "existing
             and the D-12 report must say so.
 ```
 
+
+### F.25 Upstream snapshot store access
+
+```text
+Find:       how the full trade snapshot XML is obtained today — the
+            §6.0 transport fact says Kafka carries the storage id
+            and the XML is fetched from an upstream-populated store.
+Search:     payload/XML fetch near the upstream consumer; datasource
+            or client config pointing at an upstream-owned schema or
+            service; storage-id fields in message DTOs.
+Confirm:    fetch-by-id works; typical latency; driver + privileges;
+            who owns the connection secret.
+Don't touch: the store or its schema — upstream-owned (ask 8).
+Tests:      any existing fetch/stub tests.
+IMPLEMENTED: client exists with explicit timeout (+ breaker).
+PARTIAL:    payload arrives INLINE in the message today — a DIV-2
+            divergence from the §6.0 transport fact: record it;
+            IN-01/IN-02 adapt the intake seam while preserving
+            admission semantics; the reprocess/re-fetch paths
+            (§20-10, §7.0 pointer) still need a fetch-by-id route —
+            surface that gap to the human owner.
+MISSING:    no access path at all — blocks IN-01/IN-02 and the
+            reprocess operation; raise with upstream immediately
+            (ask 8 context).
+Mark UNCLEAR: store retention/immutability (ask 8 — external, never
+            a local guess).
+```
+
+### F.26 Local facts measurement (fills the FACTS SHEET — file 26 T.3)
+
+```text
+Find/measure (READ-ONLY — from existing logs, metrics, and config;
+            build no new instrumentation during discovery):
+            - enrichment step inventory: the ordered lookups the
+              existing enrichment performs, each with typical + p99
+              latency (feeds ENRICH lease + §16.1 timeout budgets)
+            - POST call p50/p99 + current timeout (feeds POST lease,
+              breaker thresholds)
+            - status-feed volume + typical ingest lag (feeds §15
+              thresholds)
+            - peak/average daily volumes vs the §16.5 NFR (feeds
+              Q31 capacity gate, scanner batch + §9.5 sweep budget)
+            - Oracle edition/exact version/patch + privileges
+              (triggers? contexts? — with F.18/F.20; feeds M0
+              dialect checks and S-06 feasibility)
+            - migration tool + version (F.17); test lanes (F.23)
+            - every EXISTING retry mechanism + its intervals (F.9 —
+              the removal inventory for §16.1 single-retry-owner)
+            - connection pool sizes per service; Kafka partitions
+              per topic (feeds §16.1 pool math, §16.2 concurrency)
+Record:     in the LOCAL facts sheet (file 26 T.3), value + source +
+            date. Values you cannot measure locally are Section K
+            EXTERNAL asks — never guessed into the sheet.
+Status:     this entry is a measurement checklist — completeness is
+            judged in the D-12 report, not by IMPLEMENTED/PARTIAL.
+```

@@ -1,4 +1,4 @@
-> **Purpose:** The single flat task-level execution order for a SINGLE small-context agent (no parallel tracks), with AGENT/HUMAN ownership tags and hard decision defaults for every judgment point in the cards.
+> **Purpose:** The single flat task-level execution order (complete for a single agent; ALSO the within-stream order for the file-26 T.4 parallel work streams), with AGENT/HUMAN ownership tags and hard decision defaults for every judgment point in the cards.
 > **When to use this file:** Before starting any task — take the next row; when a card says "coordinate", "helpful but not required", "if X not yet done", or "parallel" — apply the matching decision default instead of judging.
 > **Depends on:** 01-playbook-index.md (BLOCKED list); 08-task-cards/ (the cards themselves).
 > **Used by:** The local coding agent and its human driver; 21-progress-tracker-template.md mirrors this order.
@@ -9,6 +9,9 @@
 
 This file changes NO card content. It linearizes the phase plan for one
 executor and resolves every coordination point with a hard default.
+Teams running the sanctioned parallel streams (file 26 T.4, rule 22)
+still take each stream's rows in THIS order — the streams only say
+which contiguous segments may run concurrently.
 The cards' own prerequisites still apply; if a row's prerequisite is
 not met, the row is BLOCKED — stop and report, never skip ahead past a
 money-affecting dependency.

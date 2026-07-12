@@ -1,4 +1,4 @@
-> **Purpose:** Binding instructions for the local coding agent: 19 rules + the per-task loop (original Section P).
+> **Purpose:** Binding instructions for the local coding agent: 22 rules + the per-task loop (original Section P).
 > **When to use this file:** ALWAYS - read before every working session; re-read when tempted to broaden scope.
 > **Depends on:** 00-README.md; 01-playbook-index.md.
 > **Used by:** Every task execution; the README files of 08-task-cards/ and 09-minimal-context-packets/ repeat its core rules.
@@ -106,6 +106,27 @@ the sections that govern it.
     P11 ops approval + outcome operation, P14 rollout/evidence
     pack. An agent NEVER implements across two of these boundaries
     in one unreviewed branch.
+21. DIVERGENCE PROTOCOL (file 26 T.2 — binding): the playbook's
+    schema and names are a REFERENCE MODEL — invariants are
+    non-negotiable, identifiers are not. Classify every local
+    difference as DIV-1..DIV-5 and apply its fixed resolution;
+    record it in the LOCAL divergence register. DIV-3 (semantic
+    reuse of an existing column/mechanism) requires a recorded
+    human approval BEFORE use; DIV-4 (structural conflict with an
+    invariant) = SPEC_CONFLICT, stop; DIV-5 (business behavior) =
+    BUSINESS_RULE_CHANGE_REQUIRED, stop. Cards and snippets are
+    NEVER edited to local names — translate at execution time via
+    the mapping + register. An OPEN DIV-3/DIV-4 row BLOCKS every
+    card touching it.
+22. TEAM PARALLELISM (file 26 T.4): rule 3's "one card at a time"
+    applies PER WORK STREAM. One stream = one phase integration
+    branch = one owner; streams consume each other's helpers ONLY
+    via merged main (never cherry-picks or shared WIP branches).
+    The quality-over-parallelism list is binding: IN-02 in one
+    sitting by one owner; P6+P7 same owner recommended; S-08+S-09
+    together; GO cards one owner. Rule-20 reviews are never waived
+    by parallelism. A single agent ignores this rule and follows
+    file 20's flat order.
 ```
 
 **Per-task loop:**

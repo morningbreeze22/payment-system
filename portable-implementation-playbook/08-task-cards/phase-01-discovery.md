@@ -19,11 +19,11 @@
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none yet.
 - **How to locate:** n/a.
-- **Implementation instructions:** copy Section O's table into a local file (e.g. a local notes file inside the repo's ignored area); one row per placeholder from Section G; add rows for the three core tables and the four documented services.
+- **Implementation instructions:** copy Section O's table into a local file (e.g. a local notes file inside the repo's ignored area); one row per placeholder from Section G; add rows for the four core tables (§2 — incl. trade_snapshot_state, §2.4) and the four documented services; ALSO create, in the same ignored area, the LOCAL DIVERGENCE REGISTER (file 26 T.2) and the LOCAL FACTS SHEET (file 26 T.3) — both stay local exactly like the mapping.
 - **Do not change:** any source file.
 - **Tests to add:** none.
 - **Edge cases:** none.
-- **Manual validation:** table exists, all Section G placeholders present as rows, Status column = UNMAPPED.
+- **Manual validation:** table exists, all Section G placeholders present as rows, Status column = UNMAPPED; divergence register + facts sheet files exist (empty, headers only).
 - **Expected outcome:** empty mapping table ready to fill.
 - **Failure signs:** mapping file placed where it could be committed/pushed to a shared location visible externally — it must stay local.
 - **Common mistakes:** starting discovery before the table exists (findings get lost).
@@ -283,7 +283,7 @@
 - **Local placeholder mappings required before starting:** all D-xx rows filled.
 - **Local code areas to discover:** none (consolidation).
 - **How to locate:** n/a.
-- **Implementation instructions:** for each F.1–F.24 concept assign IMPLEMENTED/PARTIAL/MISSING/UNCLEAR with one-line evidence; list every UNCLEAR with what would resolve it; mark which task cards are locally BLOCKED (mapping missing) beyond the §18-BLOCKED list; deliver the report to the human owner.
+- **Implementation instructions:** for each F.1–F.26 concept assign IMPLEMENTED/PARTIAL/MISSING/UNCLEAR with one-line evidence (F.26 = the facts-sheet completeness check); list every UNCLEAR with what would resolve it; summarize the DIVERGENCE REGISTER (every DIV-3/DIV-4 highlighted — each blocks its cards until resolved, rule 21) and the FACTS SHEET (enrichment step inventory + latencies, volumes, Oracle version, test lanes); verify the T.1 handover premise holds (a happy path exists — if not, the report says so and everything stops for re-scoping); mark which task cards are locally BLOCKED (mapping missing) beyond the §18-BLOCKED list; deliver the report to the human owner.
 - **Do not change:** any source file.
 - **Tests to add:** none.
 - **Edge cases:** conflicts between findings (e.g. two duplicate-prevention layers with different keys) — surface, don't resolve.

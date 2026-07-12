@@ -16,6 +16,70 @@ placeholder to map locally.
 
 ------
 
+## M0. Adapting these recipes to YOUR codebase (read first)
+
+The SQL and pseudo-code below are SHAPES, not paste-ready code.
+BINDING: transaction boundaries, lock ORDER, the WHERE carrying the
+full precondition, the row-count verdict, ack-after-commit, and the
+§3 money rules. NOT binding: identifier names, exact column types,
+framework idioms. Translation protocol, per snippet:
+
+```text
+1. Replace reference-model table/column names via the LOCAL mapping
+   + divergence register (file 26 T.2). Never edit the playbook's
+   own copies to local names.
+2. Verify column types/scales against the REAL DDL captured in
+   F.18 (BigDecimal scale round-trips, VARCHAR2 sizes, TIMESTAMP
+   vs DATE semantics) — a type mismatch is DIV-2: record it, adapt,
+   and the card's tests must prove the spec invariant against the
+   REAL shape.
+3. A local column with SIMILAR-but-not-identical semantics (DIV-3)
+   needs the register's recorded human approval BEFORE any snippet
+   touches it — never silently reuse (the F.12 trap).
+4. Run every adapted statement through EXPLAIN — scanner queries
+   must ride the ACTIVE-row-bounded indexes (M5); a full scan of
+   terminal rows means the adaptation is wrong, not the index.
+5. If a snippet CANNOT be expressed against local reality without
+   weakening its WHERE/lock/row-count semantics, that is DIV-4 —
+   STOP and report SPEC_CONFLICT; never ship "approximately the
+   same".
+```
+
+Oracle dialect notes:
+
+```text
+- Written for Oracle 12c+ (FETCH FIRST n ROWS ONLY). On 11g use a
+  ROWNUM subselect — same shape, same ordering-before-limit rule.
+- SYS_EXTRACT_UTC(SYSTIMESTAMP) = database-side UTC. If the local
+  convention stores DATE or local-zone timestamps, record DIV-2 and
+  keep every COMPARISON in one zone — never mix.
+- Sequences vs IDENTITY columns: use whatever the local schema
+  already uses (F.18); the shapes do not care.
+- The two ORA codes the recipes branch on: ORA-00001 (unique
+  violation → the §6.1 upsert-retry and I6 refusal paths) and
+  ORA-00060 (deadlock → lock-order regression ticket, §15). Verify
+  which Spring exceptions YOUR driver/dialect maps them to
+  (typically DuplicateKeyException / CannotAcquireLockException) —
+  test it, don't assume.
+```
+
+Spring notes:
+
+```text
+- Snippets assume plain SQL (JdbcTemplate / NamedParameterJdbcTemplate)
+  inside ONE @Transactional service method (M7-1). If the codebase
+  is JPA/Hibernate-first: these four tables STILL get plain SQL
+  (M2 — no dirty-checking); a JdbcTemplate-backed repository beside
+  the JPA ones is the usual shape. MyBatis: the mapper XML carries
+  the same WHERE shapes. Either way the row count comes back to the
+  caller as the verdict.
+- The @Transactional method must be invoked through the Spring
+  proxy (no self-invocation) and owns the WHOLE M1 unit — verify
+  with a transaction-boundary test, not by reading annotations.
+```
+
+------
+
 ## M1. The canonical write-path skeleton
 
 Every transaction that changes a request DIMENSION (stage,

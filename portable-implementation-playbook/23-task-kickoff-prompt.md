@@ -16,7 +16,7 @@ portable-implementation-playbook/08-task-cards/<PHASE-FILE>.
 
 Load ONLY, in this order:
 1. portable-implementation-playbook/16-local-agent-instructions.md
-   (binding rules — obey all 19).
+   (binding rules — obey all 22).
 2. portable-implementation-playbook/20-execution-sequence-and-decision-defaults.md
    (gates and defaults) AND your LOCAL progress tracker copy of
    21-progress-tracker-template.md (confirm <TASK-ID> is the next
@@ -35,6 +35,10 @@ Load ONLY, in this order:
 6. From the LOCAL mapping file: ONLY the rows for those placeholders.
    If a required row is not CONFIRMED, the task is locally BLOCKED —
    report and stop.
+6b. From the LOCAL divergence register (file 26 T.2): ONLY the rows
+   touching this card's tables/components — apply their recorded
+   resolutions when translating names/types. An OPEN DIV-3/DIV-4
+   row on this card's scope = the task is BLOCKED — report and stop.
 7. If <TASK-ID> is an implementation card (writes code):
    portable-implementation-playbook/24-implementation-mechanics.md —
    the M1–M6 recipe(s) the card's shape needs plus the matching M8
@@ -45,7 +49,10 @@ Then execute the card's implementation instructions. Do not read the
 whole repository. Do not touch anything the card's "Do not change"
 field names. Do not change business rules (if a business-rule change
 seems required → report BUSINESS_RULE_CHANGE_REQUIRED and stop).
-Do not create new tables (report SPEC_CONFLICT and stop).
+Do not create new tables (report SPEC_CONFLICT and stop). If the
+team runs parallel work streams (file 26 T.4): confirm <TASK-ID>
+belongs to YOUR stream and every cross-stream prerequisite (shared
+helper) is on merged main — not on another stream's branch.
 
 Finish by:
 - running the card's "Tests to add" and the surrounding suite,

@@ -25,10 +25,17 @@ work laptop.
 ## How to use (work laptop)
 
 1. Read this file, then `16-local-agent-instructions.md` (binding
-   rules), then `01-playbook-index.md`.
+   rules), then `01-playbook-index.md`. Teams assigning parallel
+   work (and anyone hitting a local-vs-playbook difference) also
+   read `26-team-execution-and-divergence-protocol.md` — the
+   handover premise (T.1: a happy-path flow exists, business logic
+   is preserved, this kit adds the failure paths), the divergence
+   protocol (T.2), the facts sheet (T.3), and the work streams
+   (T.4).
 2. Run Phase P1 (discovery ONLY) with
    `08-task-cards/phase-01-discovery.md`; fill a LOCAL copy of
-   `15-local-placeholder-mapping-template.md`.
+   `15-local-placeholder-mapping-template.md` (D-01 also creates
+   the LOCAL divergence register and facts sheet from file 26).
 3. Record §18 answers as they arrive (Phase P2). Never start a task
    the index lists as BLOCKED on an unanswered §18 item.
 4. Execute one task card at a time, in index order, using its Minimal
@@ -48,7 +55,9 @@ For any single task you need ONLY:
   (and its task card in `08-task-cards/` when you need the full
   field set — the card wins on conflict),
 - the `requirment-v4.md` sections the packet cites,
-- your locally filled mapping template.
+- your locally filled mapping template,
+- the LOCAL divergence-register rows touching the card's
+  tables/components (file 26 T.2).
 
 Do not read the whole package per task. Do not read the whole repo
 unless the task is a discovery card.
@@ -172,7 +181,7 @@ placeholder to real code exists only on the work laptop.
 
 ---
 
-## Small-context executor kit (files 20–25)
+## Small-context executor kit (files 20–26)
 
 Added for weak, low-context executors (validated against a 200K-token
 window):
@@ -185,6 +194,7 @@ window):
 | 23-task-kickoff-prompt.md | copy-paste per-task bootstrap prompt enforcing the minimal reading set |
 | 24-implementation-mechanics.md | the concrete HOW: transaction/CAS/lock/claim/scanner/consumer recipes (M1–M6), Spring/Oracle traps (M7), binding per-shape edge-case checklists (M8) — mandatory for every implementation card (rules 17–18) |
 | 25-golive-verification-procedures.md | per-Q go-live verification: the check to run, the evidence artifact, the sign-off role; evidence-pack layout + GO-04 meeting script |
+| 26-team-execution-and-divergence-protocol.md | TEAM execution: handover premise (happy path exists; business logic preserved), the divergence protocol + LOCAL register (reference model vs local reality — rule 21), the local facts sheet (enrichment steps/latencies, volumes, Oracle version), and the sanctioned parallel work streams (rule 22) |
 
 **Context budget (200K-token window):** the complete per-task reading
 set (this file + index + glossary entries + one phase card file + one

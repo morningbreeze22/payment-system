@@ -11,7 +11,9 @@ Copy this table to a LOCAL file on the work laptop (an ignored/
 untracked location). Fill during Phase P1. It must NEVER leave the
 work laptop — it is the one document that contains real names.
 Status values: UNMAPPED / CONFIRMED / PARTIAL / MISSING / UNCLEAR /
-BLOCKED.
+BLOCKED. Two companion LOCAL files live beside this one, created by
+D-01 from file 26 (T.2/T.3): the DIVERGENCE REGISTER and the FACTS
+SHEET — same local-only rule.
 
 | Placeholder component | Local file/class/table/job found | How I confirmed it | Existing tests found | Existing behavior to preserve | Required change | Requirement sections | Risk level | Owner / reviewer | Status | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -43,4 +45,6 @@ BLOCKED.
 | Upstream trade-message consumer | | | | | | §6.0–6.9, §16.2 | | | UNMAPPED | |
 | Hazelcast posting-freeze toggle | | | | | | §16.1 | | | UNMAPPED | |
 | Legacy compound status enum | | | | | | §10.4, ST-05 | | | UNMAPPED | |
+| trade_snapshot_state (real table — NEW §2.4, deploys empty; map = confirm none exists/name collision check) | | | | | | §2.4, §6.1 | | | UNMAPPED | |
+| [Upstream Snapshot Store Client] | | | | | | §6.0 (transport fact), §20-10 | | | UNMAPPED | |
 

@@ -275,3 +275,27 @@ Do not change: sandbox environments beyond test data.
 Mode:         NEW.
 ```
 
+
+### [Upstream Snapshot Store Client]
+
+```text
+Meaning:      the read path that fetches the full snapshot XML by
+              storage id from the upstream-populated store (§6.0
+              transport fact: the Kafka notification carries only
+              the id; the XML lives in a store this service reads).
+Probable:     a repository/DAO over an upstream-owned schema, or a
+              thin service client; may NOT exist yet if the current
+              happy path receives payloads inline — record which
+              (that difference is DIV-2, file 26 T.2).
+Identify:     F.25.
+Responsibilities: fetch-by-id at intake (§6.0); re-fetch for
+              reprocess/tie adjudication (§20-10, OP-04b/c) and for
+              §7.0 fresh assembly via trade_snapshot_state's
+              pointer; per-dependency timeout + breaker (§16.1);
+              row missing after bounded retries = DLT + page (§6.0).
+Do not change: the store itself — upstream-owned; ask 8 governs its
+              contract (fetch-by-id sanction, immutability,
+              retention).
+Tests:        stubbed fetch tests; missing-id path (IN-01/IN-02).
+Mode:         NEW or MODIFIED (wrapping an existing read path).
+```
