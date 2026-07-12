@@ -272,8 +272,14 @@ reopened_at         — set on step reopening (§6.5); derivation input
 Read-model fields (consumed by the card, derived only — §4, §12):
 
 ```text
-ui_step_status                  — IN_PROGRESS / COMPLETED as stored
-                                  values; NOT_STARTED is virtual —
+ui_step_status                  — IN_PROGRESS / COMPLETED / CANCELLED
+                                  as stored values (CANCELLED = the
+                                  §4.1 zero-required terminal branch,
+                                  round 11; the Java enum, the DB
+                                  CHECK, and the serialization/API
+                                  contract ALL carry the three values
+                                  — CA-4/S-02, rollout-safe per
+                                  §16.5); NOT_STARTED is virtual —
                                   represented by row absence (§12)
 active_exception_category
 active_exception_code
@@ -702,8 +708,13 @@ snapshot carrying the block again applies normally
 (required_amount := the new positive value) and the derivation
 returns the step to IN_PROGRESS. If money already moved
 (confirmed > 0), the zeroing write instead trips the §6.5/§13
-overpay latch — the row lands BLOCKED, not CANCELLED, and ops
-disposition per §10 governs (the PO's "same as overpay: we stop").
+overpay latch — the OBLIGATION derives IN_PROGRESS with
+overpay_blocked = true and active exception OVERPAY_DETECTED,
+never CANCELLED. NO request-state mutation is implied (round 12):
+an executed request is terminal/frozen; BLOCKED is a
+payment_request stage_state, and no active request need exist on
+a zeroed scope. Ops disposition per §10/§13 governs (the PO's
+"same as overpay: we stop").
 
 - The first and last terms guard against vacuous completion: an anchor
   obligation created from a failed-validation message (§6.6) has no
@@ -719,6 +730,19 @@ disposition per §10 governs (the PO's "same as overpay: we stop").
   an anchor can reach the CANCELLED branch only via the §6.1
   ordering-aware anchor retirement (which zeroes it AND advances the
   watermark past the failure marker in one write).
+- `provider_rejected` is DELIBERATELY absent from the CANCELLED branch
+  (round 12): removal does not launder reject history, and reject
+  history does not resurrect a removed payment. At count 1 the zeroing
+  write's watermark advance makes the marker not-live naturally; at
+  count >= 2 the marker stays LIVE (§2.1 — ops-only clearing) yet the
+  scope STILL derives CANCELLED — the payment no longer exists, so
+  nothing is being refused. While required_amount = 0, §4.2 derives no
+  marker-based exception (markers stay STORED, never cleared by
+  removal). If the payment REAPPEARS (§6.5), required becomes positive,
+  the exception resurfaces, and request creation remains subject to
+  ALL §6.8 gates — a live provider_rejected marker still blocks the
+  automatic successor, and count >= 2 still requires the ops-only
+  clear. Reappearance NEVER auto-pays through a live marker.
 - `committed_amount = confirmed_amount` alone is insufficient: after a
   terminal-negative decrement both can be zero while `required_amount`
   is unpaid. The `confirmed_amount >= required_amount` term is
@@ -742,6 +766,17 @@ the underlying condition, and the next derivation reflects it. In
 particular, a corrected message clears a DATA_VALIDATION_FAILED
 exception by construction (it makes the validation_failed marker
 not-live), which also unblocks the §4.1 completion predicate.
+
+Zero-required suppression (round 12): a scope with
+required_amount = 0 (removed by upstream truth, §6.1) derives NO
+MARKER-BASED exception — the DATA_VALIDATION_FAILED and
+PROVIDER_REJECTED ranks are skipped; a payment that no longer
+exists needs no correction. The markers themselves stay STORED
+(monotonic writes untouched) and resurface when the payment
+reappears (required > 0 again, §6.5). Active-REQUEST conditions
+and the latch derive NORMALLY on a zeroed scope: an in-flight
+MAYBE still shows PAYMENT_OUTCOME_UNKNOWN (money may be moving),
+and OVERPAY_DETECTED still shows when the latch is set.
 
 Derivation — first live condition wins (precedence order; all request
 conditions consider ACTIVE requests only):
@@ -1251,7 +1286,12 @@ never COMPLETED (§12).
 Reappearance (round 11): removal is not a tombstone forever — a
 STRICTLY NEWER snapshot carrying the block again applies normally
 (required_amount := the new positive value; the §6.8 trigger
-inventory fires) and the step returns to IN_PROGRESS. Redelivery
+inventory fires) and the step returns to IN_PROGRESS. Round 12:
+request creation on a reappeared scope remains subject to ALL
+§6.8 gates — a live provider_rejected marker (count >= 2 =
+ops-only clear, §2.1) still blocks the automatic successor;
+removal never launders reject history and reappearance never
+auto-pays through a live marker. Redelivery
 of the zeroing document itself converges: the zeroed obligation
 compares equal (same ordering, same absence) and no-ops.
 
@@ -1309,8 +1349,8 @@ message:
 required_amount increases → shortfall re-evaluated (§6.8) → new
   request immediately if no request is active; otherwise DEFERRED —
   created by §6.8 when the in-flight request resolves. Never lost.
-  (Step reopening per §6.5 if already COMPLETED; never if
-   overpay-latched — §6.5 latch guard.)
+  (Step reopening per §6.5 if already COMPLETED or CANCELLED
+   (round 12); never if overpay-latched — §6.5 latch guard.)
 required_amount decreases → attempt auto-cancel of un-posted requests
   (§6.4); posted/in-flight requests are never auto-amended
 ```
@@ -1395,11 +1435,17 @@ This prevents re-posting a stale amount after an amendment.
 ### 6.5 Step reopening
 
 If `required_amount` increases via a newer upstream message after the
-step reached `COMPLETED`:
+step reached `COMPLETED` — or becomes positive again after the step
+reached `CANCELLED` (round 12: a reappeared removed payment reopens
+IDENTICALLY; §4.1's two terminal branches share one reopening rule):
 
 ```text
 1. The obligation re-activates: shortfall recalculated under the
-   obligation lock; §6.8 may create new requests.
+   obligation lock; §6.8 may create new requests — MAY: every §6.8
+   gate applies, incl. live markers (round 12: a reappeared
+   payment with provider_reject_count >= 2 gets NO automatic
+   successor until the ops-only clear; removal never laundered
+   the reject history).
 2. Derived ui_step_status returns to IN_PROGRESS; reopened_at is set
    (derivation input, §4.3 — the card can indicate reopening).
 3. Overpay evaluation re-runs against the updated amounts.
@@ -2899,8 +2945,18 @@ remain stored as display/reference fields.
 Step granularity (open, folded into the TL-2 read contract, §18):
 does the UI render one step per PAYMENT, or one rolled-up step per
 TRADE? The §4 derivations are per obligation; a per-trade rollup
-("completed when ALL the trade's payments complete, exception when
-ANY has one") is a display aggregation the read contract must define
+is a display aggregation the read contract must define — and the
+answer must cover the FULL state algebra (round 12), not the old
+completed/not-completed binary: {NOT_STARTED, IN_PROGRESS,
+COMPLETED, CANCELLED} × active exceptions, including MIXED
+COMPLETED/CANCELLED (suggested: rolled-up COMPLETED when every
+non-CANCELLED payment completes and at least one COMPLETED
+exists), ALL-CANCELLED (suggested: rolled-up CANCELLED), and a
+trade whose current snapshot carries an EMPTY derived set with no
+obligation rows (renders NOT_STARTED by row absence, §6.0). NOTE:
+"trade cancelled" (PO-5) and "payment removed from the settlement
+set" (§4.1 CANCELLED) are DIFFERENT concepts unless the PO
+explicitly equates them
 — no core-model change either way.
 
 Lookup semantics:
@@ -3073,8 +3129,11 @@ never on blocked_reason as a rule input (§10.1).
                                                  handling)
 - Payment DISAPPEARANCE (round 11 — the §6.1
   absence fan-out zeroed ≥ 1 obligation)       → metric + mandatory
-  log line (business_id, zeroed scope tuples,
-  doc.ordering); alert on volume/spike. P5:
+  log line (business_id, zeroed scope tuples
+  MASKED per §16.3 — never a raw debit_account;
+  an irreversible scope fingerprint is
+  acceptable — and doc.ordering); alert on
+  volume/spike. P5:
   absence-as-cancellation must never be
   silent — this is the local detector for the
   accidental-omission class (H-1; upstream
@@ -3083,7 +3142,10 @@ never on blocked_reason as a rule input (§10.1).
 - Live marker (validation_failed or
   provider_rejected) with NO active request,
   older than max age                           → alert
-  (generalizes the anchor alert: covers anchors AND scopes whose
+  (round 12: scopes with required_amount = 0 are EXCLUDED — a
+   removed payment's markers need no correction; they stay stored
+   and resurface only on reappearance, §4.2 suppression.
+   Generalizes the anchor alert: covers anchors AND scopes whose
    correction never arrives. For validation_failed the age keys
    on validation_failed_first_at — the re-tag timestamp is refreshed
    by every newer failing message and can never age. Note:
@@ -3722,10 +3784,14 @@ payment platform
    timestamps; retry progress "next attempt at / attempt N of M" for
    retryable exceptions), freshness, authentication, volume
    (§12). Also (multi-payment, §12): step granularity — one step per
-   PAYMENT, or one rolled-up step per TRADE ("completed" only when
-   all the trade's payments complete)? The §4 derivations are per
-   obligation; a rollup is a display aggregation this contract must
-   define.
+   PAYMENT, or one rolled-up step per TRADE? The §4 derivations are
+   per obligation; a rollup is a display aggregation this contract
+   must define — round 12: the answer must specify the FULL
+   aggregation table over {NOT_STARTED, IN_PROGRESS, COMPLETED,
+   CANCELLED} + exceptions (mixed completed/cancelled, all-cancelled,
+   empty-derived-set trade = row absence); trade-cancel (PO-5) and
+   payment-removed (§4.1 CANCELLED) are different concepts unless
+   the PO equates them.
 3. RPO/RTO sign-off for the database, and ownership of the
    post-restore runbook (§5.2). The deterministic-key rule stands
    regardless; the runbook's urgency depends on these numbers.

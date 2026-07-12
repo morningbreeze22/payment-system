@@ -65,15 +65,15 @@ Tests: every §10.5 cancel/park row; ENRICH·CLAIMED cancellable; POST·CLAIMED 
 
 ```text
 [RG-08] Step-status predicate
-Read: §4.1 (predicate + BOTH branches + bullets) §4 §2.1 (liveness incl. anchor clause) §12. Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status; round 11 — required = 0 (writable only by the §6.1 absence path) with 0/0/0 + no active request + markers clear derives CANCELLED, a TERMINAL branch displayed CANCELLED never COMPLETED, reopenable by a strictly newer positive block.
+Read: §4.1 (predicate + BOTH branches + bullets) §4 §2.1 (liveness incl. anchor clause) §12. Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status; round 11 — required = 0 (writable only by the §6.1 absence path) with 0/0/0 + no active request + markers clear derives CANCELLED, a TERMINAL branch displayed CANCELLED never COMPLETED, reopenable by a strictly newer positive block; provider_rejected never blocks the CANCELLED branch (round 12 — markers stay stored, resurface on reappearance).
 Placeholders: [Obligation Repository] [Request Status Persistence Layer]. Mappings: ST-02 re-derive hook.
 Objective: implement BOTH branches exactly (COMPLETED incl. required NOT NULL ∧ >0 and confirmed>=required terms; CANCELLED per round 11); output IN_PROGRESS/COMPLETED/CANCELLED; wire into every re-derivation; remove event-copy writers.
-Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed with confirmed>0 stays latched; reappearance → IN_PROGRESS (T-37). Stop: merged.
+Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed with confirmed>0 → IN_PROGRESS + latch + OVERPAY_DETECTED (no request mutation — round 12); reappearance → IN_PROGRESS (T-37). Stop: merged.
 ```
 
 ```text
 [RG-09] Exception + next-actor derivation
-Read: §4.2 (ranks) §4.3 §4.5 §13. Invariant: derived, never accumulated; rank-1 (MAYBE, OVERPAY) never masked; actor never stored; active requests only.
+Read: §4.2 (ranks + round-12 suppression) §4.3 §4.5 §13. Invariant: derived, never accumulated; rank-1 (MAYBE, OVERPAY) never masked; actor never stored; active requests only; required = 0 skips MARKER-BASED ranks only (markers stay stored, resurface on reappearance) — active-request conditions + latch derive normally.
 Placeholders: [Obligation Repository] [Request Status Persistence Layer]. Mappings: RG-08 hook.
 Objective: precedence evaluation → active_exception_* writes (codes: PAYMENT_OUTCOME_UNKNOWN, OVERPAY_DETECTED, DATA_VALIDATION_FAILED, PROVIDER_REJECTED, BLOCKED-derived, INSUFFICIENT_ACCOUNT_BALANCE, SYSTEM_UNAVAILABLE; content per §12 rules); §4.5 actor as a pure function.
 Tests: precedence; construction-clearing (corrected message); dual-actor rows; PAYMENT_OUTCOME_UNKNOWN never shows as SYSTEM_UNAVAILABLE. Stop: merged.
@@ -81,9 +81,9 @@ Tests: precedence; construction-clearing (corrected message); dual-actor rows; P
 
 ```text
 [RG-10] Reopening + latch guard
-Read: §6.5 §6.3 §2.1 (reopened_at). Invariant: reopening = standing re-evaluation; latched scope applies amounts but creates NOTHING (AMENDMENT_ON_LATCHED_SCOPE).
+Read: §6.5 (both terminal states) §6.3 §2.1 (reopened_at). Invariant: reopening = standing re-evaluation from COMPLETED or CANCELLED alike (round 12); ALL §6.8 gates apply on reappearance (live provider_rejected blocks; count >= 2 = ops-only clear); latched scope applies amounts but creates NOTHING (AMENDMENT_ON_LATCHED_SCOPE).
 Placeholders: [Obligation Repository] [Payment Request Creation Component]. Mappings: amendment path.
-Objective: required-increase on COMPLETED → recalc + RG-06 + reopened_at + IN_PROGRESS + overpay re-eval; latch branch alerts instead.
-Tests: reopening trace; latched branch; reopened_at set. Stop: merged.
+Objective: required-increase on COMPLETED, or positive-again on CANCELLED → recalc + RG-06 (gates apply) + reopened_at + IN_PROGRESS + overpay re-eval; latch branch alerts instead.
+Tests: reopening trace both terminal states; count-1 vs count-2 reappearance (T-37 F/G); latched branch; reopened_at set. Stop: merged.
 ```
 

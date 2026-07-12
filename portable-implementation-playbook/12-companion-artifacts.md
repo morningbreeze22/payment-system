@@ -75,7 +75,9 @@ Owner type: TEAM + DBA.
 Purpose: the authoritative schema spec P3 implements.
 Required contents: all columns/types; scope-key UNIQUE (per B-01);
   UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); exact I6
-  expression; enum CHECKs; L1-shape + L2–L8 CHECK expressions (with
+  expression; enum CHECKs (round 12: the ui_step_status CHECK
+  carries IN_PROGRESS/COMPLETED/CANCELLED — a two-value constraint
+  is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
   (one per standing scan); trade_snapshot_state DDL (§2.4, round 5 —

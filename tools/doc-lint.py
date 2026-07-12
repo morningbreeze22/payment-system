@@ -104,6 +104,15 @@ FORBIDDEN = [
     ("absent-obligation watermark no-advance (round 11: the zeroing write ADVANCES it)",
      re.compile(r"(?:NOT|never) advanced for absent|absent obligations?.{0,30}(?:NOT|never) advanced", re.I),
      re.compile(r"retired|superseded|superseding|round 11|pre-PO-9|lint", re.I)),
+    ("stored ui_step_status missing CANCELLED (round 12: three stored values)",
+     re.compile(r"IN_PROGRESS / COMPLETED as stored|IN_PROGRESS/COMPLETED stored", re.I),
+     re.compile(r"CANCELLED|lint", re.I)),
+    ("reopening from COMPLETED only (round 12: CANCELLED reopens identically)",
+     re.compile(r"reached .?COMPLETED.?:|if already COMPLETED;|increase after COMPLETED\)|increase on COMPLETED\b|against a COMPLETED scope", re.I),
+     re.compile(r"CANCELLED|lint", re.I)),
+    ("zeroed-overpay described as request BLOCKED (round 12: obligation derives IN_PROGRESS + latch)",
+     re.compile(r"lands BLOCKED|latched/BLOCKED", re.I),
+     re.compile(r"never|request state|lint", re.I)),
     ("retired deadline/budget suspension model (round 3)",
      re.compile(r"deadline suspension|deadlines?\s+(?:are\s+)?suspend(?:ed|s)?\b|budgets?\s+(?:are\s+)?(?:suspended|frozen)\b|suspends the (?:retry )?budget", re.I),
      re.compile(r"had no durable|nothing to|nothing needs|never suspend|zero attempts|no wall-clock|REMOVED|lint", re.I)),
@@ -175,6 +184,17 @@ for missing in sorted(card_n - tracker_n):
     errors.append(f"{rel(tracker)}: card {missing} has NO tracker row (the round-9 H-2 defect class)")
 for ghost in sorted(tracker_n - card_n):
     errors.append(f"{rel(tracker)}: tracker row {ghost} has no task card")
+
+# ---- Rule 6d (round 12): walkthrough scenario IDs are unique ----
+walk = ROOT / "failure-recovery-walkthrough.md"
+wids = {}
+for n, l in enumerate(lines_of(walk), 1):
+    m = re.match(r"\|\s*([A-Z]{1,2}-\d+)\s*\|", l)
+    if m:
+        if m.group(1) in wids:
+            errors.append(f"{rel(walk)}:{n}: DUPLICATE walkthrough scenario id {m.group(1)} (first at line {wids[m.group(1)]})")
+        else:
+            wids[m.group(1)] = n
 
 # ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
 P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"

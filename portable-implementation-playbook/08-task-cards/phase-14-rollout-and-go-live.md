@@ -36,7 +36,7 @@
 - **Task ID:** GO-02
 - **Title:** Dual-run/shadow comparison: derived dimensions + labels agree with legacy status; derivation outputs agree with observed behavior
 - **Classification:** MVP normative implementation
-- **Purpose:** Section M's dry-run stage: prove the factored model tracks reality before any rule ENFORCEMENT relies on it in production.
+- **Purpose:** Section M's dry-run stage: prove the factored model tracks reality before any rule ENFORCEMENT relies on it in production. Round 12: the comparison table maps CANCELLED EXPLICITLY — legacy display has no such value, so CANCELLED rows are EXPECTED disagreements to be classified, and CANCELLED must NEVER be silently mapped to COMPLETED.
 - **Prerequisites:** GO-01; production-like environment with dual-write live (ST-01).
 - **Requirement sections / concepts to read:** §10.4 (mapping), Section M (shadow stage).
 - **Placeholder components involved:** [Metrics / Alerting Layer] (comparison metric), [Request Status Persistence Layer].

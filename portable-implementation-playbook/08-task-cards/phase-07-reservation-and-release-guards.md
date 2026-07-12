@@ -189,7 +189,7 @@
 - **How to locate:** column write sites.
 - **Implementation instructions:** predicate exactly per §4.1: required NOT NULL ∧ required > 0 ∧ confirmed >= required ∧ committed = confirmed ∧ latch clear ∧ validation_failed not LIVE (LIVE = marker set ∧ (marker ordering >= upstream_ordering ∨ upstream_ordering IS NULL)); PLUS the round-11 CANCELLED terminal branch (§4.1): required = 0 ∧ committed = 0 ∧ confirmed = 0 ∧ no ACTIVE request ∧ latch clear ∧ validation_failed not LIVE → CANCELLED (displayed CANCELLED, NEVER COMPLETED; reopenable like COMPLETED — a strictly newer positive block returns it to IN_PROGRESS; required = 0 is writable ONLY by the §6.1 absence path, inbound blocks are strictly positive); output IN_PROGRESS/COMPLETED/CANCELLED stored; NOT_STARTED is row absence (§12); wire into the ST-02 re-derive hook (same transaction, under lock); remove/route any event-copy writer of ui_step_status.
 - **Do not change:** feed handlers may NEVER write ui_step_status directly (§4.1 last bullet).
-- **Tests to add:** each predicate term isolated (anchor row cannot complete; post-decrement zero-zero cannot complete; active request blocks completion; recovered anchor completes after valid message); derivation runs after every mutating flow (hook coverage); zeroed obligation (0/0/0, no active request, markers clear) derives CANCELLED — never COMPLETED; zeroed scope with confirmed > 0 stays latched/BLOCKED, never CANCELLED; reappearance returns CANCELLED → IN_PROGRESS (T-37 set).
+- **Tests to add:** each predicate term isolated (anchor row cannot complete; post-decrement zero-zero cannot complete; active request blocks completion; recovered anchor completes after valid message); derivation runs after every mutating flow (hook coverage); zeroed obligation (0/0/0, no active request, validation marker not live — provider_rejected does NOT block the branch, round 12) derives CANCELLED — never COMPLETED; zeroed scope with confirmed > 0 derives IN_PROGRESS + overpay latch + OVERPAY_DETECTED (round 12: obligation-level only — BLOCKED is a payment_request state; NO request mutation; never CANCELLED); reappearance returns CANCELLED → IN_PROGRESS (T-37 set).
 - **Edge cases:** terminal-negative leaves committed=confirmed=0 with required unpaid → IN_PROGRESS (the mandatory confirmed>=required term).
 - **Manual validation:** card-visible status trace through a full happy path locally.
 - **Expected outcome:** completion always derived, never copied.
@@ -211,9 +211,9 @@
 - **Local placeholder mappings required before starting:** RG-08 hook.
 - **Local code areas to discover:** current exception writers (become derivation-only).
 - **How to locate:** active_exception field writers.
-- **Implementation instructions:** in the same derivation pass: evaluate §4.2's ranks in order over live conditions (active requests only) → write active_exception_* fields (§13 attributes; codes per §4.2/§13: PAYMENT_OUTCOME_UNKNOWN, OVERPAY_DETECTED, DATA_VALIDATION_FAILED, PROVIDER_REJECTED, BLOCKED-derived via blocked_reason, INSUFFICIENT_ACCOUNT_BALANCE, SYSTEM_UNAVAILABLE; content rules per §12: ops-readable, no sensitive account data, no stack traces); next-actor: implement §4.5 as a pure function of the tuple (+ ages) for scanner scoping/metrics — NEVER persisted.
+- **Implementation instructions:** in the same derivation pass: evaluate §4.2's ranks in order over live conditions (active requests only; round 12: required_amount = 0 SKIPS the marker-based ranks — DATA_VALIDATION_FAILED / PROVIDER_REJECTED — markers stay STORED; rank-1 conditions and the latch derive normally) → write active_exception_* fields (§13 attributes; codes per §4.2/§13: PAYMENT_OUTCOME_UNKNOWN, OVERPAY_DETECTED, DATA_VALIDATION_FAILED, PROVIDER_REJECTED, BLOCKED-derived via blocked_reason, INSUFFICIENT_ACCOUNT_BALANCE, SYSTEM_UNAVAILABLE; content rules per §12: ops-readable, no sensitive account data, no stack traces); next-actor: implement §4.5 as a pure function of the tuple (+ ages) for scanner scoping/metrics — NEVER persisted.
 - **Do not change:** rank order; the two rank-1 conditions' precedence rationale.
-- **Tests to add:** precedence (MAYBE outranks OVERPAY outranks validation etc. per ranks); derivation clears by construction (corrected message → DATA_VALIDATION_FAILED gone in the same transaction); dual-actor rows (BLOCKED+MAYBE → ops AND resolver; RETRY_WAIT+MAYBE → scanner AND resolver) — assert via the function.
+- **Tests to add:** precedence (MAYBE outranks OVERPAY outranks validation etc. per ranks); derivation clears by construction (corrected message → DATA_VALIDATION_FAILED gone in the same transaction); round-12 suppression: zeroed scope with live provider_rejected (count 2) → NO exception, same scope reappeared → PROVIDER_REJECTED resurfaces; zeroed scope with in-flight MAYBE → still PAYMENT_OUTCOME_UNKNOWN; dual-actor rows (BLOCKED+MAYBE → ops AND resolver; RETRY_WAIT+MAYBE → scanner AND resolver) — assert via the function.
 - **Edge cases:** PAYMENT_OUTCOME_UNKNOWN must never surface as SYSTEM_UNAVAILABLE (§9.3 display block — explicit test).
 - **Manual validation:** card fields through seeded scenarios.
 - **Expected outcome:** exceptions/actors always current, never stale accumulations.
@@ -226,7 +226,7 @@
 ### RG-10 — Step reopening + latch guard
 
 - **Task ID:** RG-10
-- **Title:** Implement §6.5 reopening (required increase after COMPLETED) with reopened_at, and the latch guard (no reopening-created requests on latched scopes)
+- **Title:** Implement §6.5 reopening (required increase after COMPLETED, or positive-again after CANCELLED — round 12) with reopened_at, and the latch guard (no reopening-created requests on latched scopes)
 - **Classification:** MVP normative implementation
 - **Purpose:** §6.5: re-activation via the standing re-evaluation; latch wins — AMENDMENT_ON_LATCHED_SCOPE alerts instead of paying.
 - **Prerequisites:** RG-06 (creation), RG-04 (latch), RG-08 (status re-derives).
@@ -235,9 +235,9 @@
 - **Local placeholder mappings required before starting:** amendment-application path (IN-02's home).
 - **Local code areas to discover:** none new.
 - **How to locate:** message flow.
-- **Implementation instructions:** on an applied required increase against a COMPLETED scope: recalc shortfall under lock; RG-06 evaluation creates requests (unless gated); set reopened_at; derivation returns IN_PROGRESS; overpay re-evaluates; if latched: apply the amount (§6.7 permitting), create NOTHING, fire AMENDMENT_ON_LATCHED_SCOPE.
+- **Implementation instructions:** on an applied required increase against a scope whose derived status is COMPLETED or CANCELLED (round 12 — a reappeared removed payment reopens IDENTICALLY): recalc shortfall under lock; RG-06 evaluation creates requests (unless gated — ALL §6.8 gates apply: a live provider_rejected marker blocks the successor, count >= 2 = ops-only clear; removal never laundered reject history); set reopened_at; derivation returns IN_PROGRESS; overpay re-evaluates; if latched: apply the amount (§6.7 permitting), create NOTHING, fire AMENDMENT_ON_LATCHED_SCOPE.
 - **Do not change:** the latch (RG-04 one-way rule).
-- **Tests to add:** reopening full trace (COMPLETED → IN_PROGRESS + reopened_at + successor); latched-scope amendment → amount applied, no request, alert fired; overpay re-eval on reopening.
+- **Tests to add:** reopening full trace (COMPLETED → IN_PROGRESS + reopened_at + successor); CANCELLED → IN_PROGRESS + reopened_at + successor (clean reappearance — round 12); reappearance with provider_reject_count = 1 (marker went not-live via the zeroing watermark advance) → successor created; with count = 2 (marker LIVE) → NO successor until the ops-only clear, PROVIDER_REJECTED resurfaces (T-37 F/G cases); latched-scope amendment → amount applied, no request, alert fired; overpay re-eval on reopening.
 - **Edge cases:** reopening while a live marker exists — RG-06's gates still apply (no special path).
 - **Manual validation:** seeded reopening trace.
 - **Expected outcome:** reopening = ordinary standing consequence.

@@ -9,7 +9,7 @@
 
 ```text
 [OP-01] Verified-outcome operation (authorized application endpoint)
-Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8; CA-9; mechanics SHAPE-PROC. Invariant: Java endpoint calling the SHARED transition helpers (never PL/SQL — 2026-07-11 boundary); execution input = approval_id ONLY (identities DERIVED from the §9.3 approval record — round 4); SINGLE-TRANSITION op → APPROVED→CONSUMED CAS + payment transition commit in ONE transaction (refusal rolls back both; round 5: this rule is for single-transition ops — reprocess consume-at-start lives in OP-04); evidence flag set legitimately (S-06 session context); refuses CLAIMED/terminal/mismatch; every use alerts.
+Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8; CA-9; mechanics SHAPE-PROC. Invariant: Java endpoint calling the SHARED transition helpers (never PL/SQL — 2026-07-11 boundary); execution input = approval_id ONLY (identities DERIVED from the §9.3 approval record — round 4); SINGLE-TRANSITION op → APPROVED→CONSUMED CAS + payment transition commit in ONE transaction (refusal rolls back both; round 5: this rule is for single-transition ops — reprocess consume-at-start lives in OP-04c); evidence flag set legitimately (S-06 session context); refuses CLAIMED/terminal/mismatch; every use alerts.
 Placeholders: [Operator Admin Procedure Area] [Stored Procedure / Trigger Area] (triggers = backstop). Mappings: ops-schema approval store deployed (CA-9); enterprise session identities reach the app (else BLOCKED).
 Objective: implement CA-9 exactly; EXECUTED → RG-03 path; REJECTED → REJECTED+marker+release; §14 line trigger_source=OPS_PLATFORM_VERIFIED + ticket; endpoint restricted to the enterprise ops role.
 Tests: in OP-02. Stop: deployed to test env.
