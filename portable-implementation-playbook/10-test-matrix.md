@@ -558,13 +558,30 @@ Purpose: the scanner claim protocol cannot invert the global lock
 Setup:   one obligation with a claimable request; concurrent actors
          on real Oracle: retry scanner, feed consumer applying
          evidence, auto-cancel amendment, second scanner instance.
-Action:  run interleaved rounds (scanner vs feed vs cancel vs
-         scanner-2) under load; instrument lock acquisition order.
+Action:  TWO LANES (round 16). DETERMINISTIC lane: separate
+         physical DB sessions with barriers/latches at transaction
+         boundaries forcing exact schedules for scanner-vs-feed,
+         scanner-vs-auto-cancel, two scanners, lease-expiry-vs-
+         worker-completion, evidence-vs-terminal-operation, and
+         admission/fence races. STRESS lane: randomized scheduling
+         over thousands of iterations, bounded lock waits,
+         REPRODUCIBLE SEEDS, Oracle wait-event capture. Plus
+         session-kill / connection-loss at the four commit
+         boundaries: claim commit, POST-response persistence,
+         approval consumption, fan-out block commit. Instrument
+         lock acquisition order throughout.
 Expect:  every both-table transaction locks the obligation FIRST
          (candidate selection takes NO row locks); exactly one actor
          wins each claim (CAS rowCount 1), losers see 0 rows and
          skip silently; zero ORA-00060 across the run; claim/unclaim
-         triggers no §4 re-derivation.
+         triggers no §4 re-derivation; deterministic-lane
+         assertions per forced schedule: row counts, final tuples,
+         amount invariants, lock acquisition order; recorded with
+         the evidence: exact Oracle edition/version, isolation
+         level, driver/pool versions, DDL, seeds, lock/deadlock
+         traces (round 16 — "no deadlock observed under load"
+         alone is NOT proof; the deterministic lane is the proof;
+         H2/mock-DB results NEVER satisfy this gate).
 Failure: any FOR UPDATE on payment_request before the obligation
          lock in the same transaction, or a deadlock under
          interleaving.

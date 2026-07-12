@@ -91,7 +91,7 @@
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** walk Section Q item by item: PASS with linked evidence / FAIL with owner + plan / BLOCKED with the blocking §18 item; §18 BLOCKING items are non-waivable (Playbook Index rule); deliver to the accountable owner for go/no-go.
+- **Implementation instructions:** walk Section Q item by item: PASS with linked evidence / FAIL with owner + plan / BLOCKED with the blocking §18 item; TWO non-waivable classes (round 16): §18 BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set — FAIL or missing evidence = NO-GO; reclassification requires a new architecture/safety review, never a meeting-time waiver); verify manifest.yaml + SHA256SUMS target the exact RC build and environment and the invalidation map shows no stale PASS (round 16); deliver to the accountable owner for go/no-go.
 - **Do not change:** checklist items (additions allowed; removals need the owner).
 - **Tests to add:** none.
 - **Edge cases:** unresolved non-BLOCKING Section K questions → recorded risks with owners, not silent passes.
@@ -133,7 +133,7 @@
 ## Phase handoff summary (P14 → steady state)
 
 - **Phase outputs:** localized rollout plan executed in the 13-migration-rollout-rollback.md order; clean shadow-soak report; staged enablement with sign-offs (auto-downgrade last, on P8 PASS evidence); go-live checklist executed with linked evidence and a signed go/no-go; rollback rehearsed with the point of no return documented.
-- **Blockers to carry forward:** none permitted at go-live — §18 items 0–3 (Q1–Q4, Q28) are non-waivable; open non-BLOCKING questions become owned risks.
+- **Blockers to carry forward:** none permitted at go-live — §18 items 0–3 (Q1–Q4, Q28) AND the MONEY_SAFETY_BLOCKING class (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-minimal — round 16) are non-waivable; open non-BLOCKING questions become owned risks.
 - **Local mapping rows expected filled:** all rows final; the filled mapping + all execution reports REMAIN ON THE WORK LAPTOP.
 - **Tests expected to exist:** the full catalog green at the release candidate; D-11 baseline green (backwards compatibility, Q22).
 - **Next phase entry condition:** n/a — operate per the runbooks (14-observability-reconciliation-runbooks.md / CA-8).

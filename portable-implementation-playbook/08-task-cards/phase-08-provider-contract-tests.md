@@ -43,11 +43,11 @@
 - **Local placeholder mappings required before starting:** CT-01 harness.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** POST once (record response); re-POST byte-identical payload same key; assert: no second execution (engine-side status query shows ONE payment); classify the second response (dedup code vs original-replay) and file into CA-1; record evidence.
+- **Implementation instructions:** POST once (record response); re-POST byte-identical payload same key; assert: no second execution — round 16: a status query showing ONE visible payment is NOT sufficient (provider dedup/query semantics can collapse records); obtain a provider-side EXECUTION/AUDIT COUNT or settlement-ledger equivalent; classify the second response (dedup code vs original-replay) and file into CA-1; record evidence per the V.1-Q2 round-16 standard (raw bytes, versions, execution count, parity statement).
 - **Do not change:** CA-1 without the owner (the test FEEDS it).
 - **Tests to add:** this test.
 - **Edge cases:** engine executes twice → §18-1 FAILS: STOP the reliance chain — report immediately; the entire §7.0/§9.2 re-POST design is gated on this (TL-4's revert-to-payload-freeze clause becomes live).
-- **Manual validation:** engine-side verification of single execution.
+- **Manual validation:** engine-side EXECUTION-COUNT verification (round 16 — not status-query visibility alone).
 - **Expected outcome:** PASS recorded with evidence.
 - **Failure signs:** ambiguous engine answer — treat as NOT passed; escalate to provider.
 - **Common mistakes:** payload accidentally differing (envelope timestamps) — byte-identical means byte-identical.
@@ -67,11 +67,11 @@
 - **Local placeholder mappings required before starting:** harness.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** POST; re-POST same key with a changed business field (and separately a changed amount); assert: no execution of the second; capture the rejection code; assert distinguishable from the plain-duplicate code observed in CT-02; file codes into CA-1; evidence.
+- **Implementation instructions:** POST; re-POST same key with a changed business field (and separately a changed amount); assert: no execution of the second — round 16: prove via provider-side EXECUTION/AUDIT COUNT, not status-query visibility alone; capture the rejection code; assert distinguishable from the plain-duplicate code observed in CT-02; file codes into CA-1; evidence per the V.1-Q2 round-16 standard.
 - **Do not change:** n/a.
 - **Tests to add:** this test (two payload-variant runs).
 - **Edge cases:** engine EXECUTES the divergent payload → §18-1 FAILS catastrophically (double-pay path): STOP, report — §7.0 must revert to payload freeze per TL-4, which is a design-level decision for the humans, not a local fix.
-- **Manual validation:** engine-side single-execution check.
+- **Manual validation:** engine-side execution-COUNT check (round 16).
 - **Expected outcome:** PASS + codes recorded.
 - **Failure signs:** rejection code identical to plain duplicate (breaks §7.2's branch discrimination — escalate; CA-1 must then classify on secondary signals per provider guidance).
 - **Common mistakes:** changing only envelope fields (not a payload divergence).

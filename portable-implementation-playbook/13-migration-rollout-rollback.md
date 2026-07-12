@@ -218,3 +218,29 @@ forward operation through sanctioned paths (§9.3 operation at MVP;
 name this line explicitly per environment.
 ```
 
+### M.11 Migration SQL review checklist (round 16 — apply when CA-4/Flyway SQL exists)
+
+```text
+[ ] immutable, ordered migrations with checksums; fix-forward only
+[ ] explicit Oracle types, precision/scale, UTC timestamp behavior,
+    identifier lengths
+[ ] preflight queries: duplicate scopes, duplicate active requests,
+    duplicate keys/UETRs, illegal legacy tuples, NULL status residue
+[ ] function-based index expressions EXACTLY match scanner SQL
+[ ] NOVALIDATE → backfill → VALIDATE with captured USER_CONSTRAINTS
+    evidence
+[ ] I6/unique-index creation behavior verified on existing data
+[ ] trigger compilation/status; session-context lifecycle; pool
+    non-leakage; least-privilege grants
+[ ] DDL lock duration, online/index-build strategy, redo/undo/temp
+    usage, production-sized runtime estimates
+[ ] idempotent batch backfill with restart checkpoints and bounded
+    transactions
+[ ] writer fence, final catch-up, zero-NULL query, reader switch,
+    NOT-NULL cutover — full transcript retained (M.3)
+[ ] schema diff vs CA-4 after deployment AND after rollback
+    rehearsal
+Test on a clean schema AND a production-shaped clone — a tiny
+synthetic schema cannot produce DDL-lock or index-build evidence.
+```
+

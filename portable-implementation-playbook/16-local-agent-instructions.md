@@ -98,6 +98,14 @@ the sections that govern it.
     intentionally unwired must NAME its integration gate (the task
     ID or phase boundary that closes it) in the execution report —
     unnamed dangling paths fail the phase review.
+20. HUMAN REVIEW CHECKPOINTS (round 16): a human review is REQUIRED
+    at each of these risk boundaries before the phase branch merges
+    — P3 schema/migrations, P4 identity/write-ahead persistence,
+    P6 factored state/CAS helpers, P7 reservation/release guards,
+    P9 admission/fence/marker flows, P10 MAYBE/retry/resolver,
+    P11 ops approval + outcome operation, P14 rollout/evidence
+    pack. An agent NEVER implements across two of these boundaries
+    in one unreviewed branch.
 ```
 
 **Per-task loop:**

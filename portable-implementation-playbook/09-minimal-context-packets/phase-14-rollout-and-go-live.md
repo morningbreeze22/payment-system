@@ -33,7 +33,7 @@ Tests: stage checklists (existing suites). Stop: all stages enabled + soaked; si
 
 ```text
 [GO-04] Go-live gates
-Read: playbook Section Q; §18 (BLOCKING items). Invariant: §18 items 0–3 are non-waivable; every PASS carries linked evidence.
+Read: playbook Section Q; §18 (BLOCKING items); 25-golive V.2/V.3. Invariant: TWO non-waivable classes (round 16) — §18 items 0–3 AND MONEY_SAFETY_BLOCKING (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-minimal): FAIL or missing evidence = NO-GO, no owner+plan waiver; every PASS carries linked evidence; manifest.yaml + SHA256SUMS must target the exact RC and environment with no stale entries in the invalidation map.
 Placeholders: none. Mappings: none.
 Objective: execute Section Q; deliver evidence pack; obtain signed go/no-go.
 Tests: none. Stop: decision recorded.

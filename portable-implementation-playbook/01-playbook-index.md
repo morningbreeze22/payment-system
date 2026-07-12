@@ -150,4 +150,4 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 | P11 Operator ops | OP-01..OP-03, OP-04a–e (round-9 pre-split) | CA-9; S-06; P6/P7 | §18-3 — this phase satisfies it | operation + signed drill + §20 interim surface | P12 |
 | P12 Drift | OB-01..OB-02 | P7 live; S-07 | none new | drift scan + tripwires | P13 |
 | P13 Observability | OB-03..OB-07 | P6-P12 metric sources | config owners pending → marked | §15 alert surface + config validation | P14 |
-| P14 Rollout | GO-01..GO-05 | ALL phases; P8 PASS; OP-03 | §18-0..3 non-waivable at Q1-Q4/Q28 | live system + signed go/no-go | steady state |
+| P14 Rollout | GO-01..GO-05 | ALL phases; P8 PASS; OP-03 | §18-0..3 (Q1-Q4/Q28) + MONEY_SAFETY_BLOCKING (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-min, round 16) non-waivable | live system + signed go/no-go | steady state |

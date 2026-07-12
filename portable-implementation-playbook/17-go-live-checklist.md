@@ -1,4 +1,4 @@
-> **Purpose:** Go-live readiness checklist Q1-Q29 with PASS/FAIL/BLOCKED and evidence columns; the four §18 BLOCKING items (Q1-Q4, Q28) are non-waivable (original Section Q).
+> **Purpose:** Go-live readiness checklist Q1-Q31 with PASS/FAIL/BLOCKED and evidence columns; TWO non-waivable classes (round 16): the §18 BLOCKING items (Q1-Q4, Q28) AND the MONEY_SAFETY_BLOCKING set (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, Q29-minimal) (original Section Q).
 > **When to use this file:** Executed at GO-04; tracked continuously from Phase P8 onward.
 > **Depends on:** All phase outputs; 10-test-matrix.md; 11-provider-techlead-po-questions.md.
 > **Used by:** GO-04 go/no-go decision.
@@ -8,8 +8,11 @@
 # Q. Go-live readiness checklist
 
 Execute at GO-04. Every PASS carries linked evidence (test run,
-report, signed document). §18 BLOCKING items are non-waivable; other
-FAILs need a named owner and dated plan to proceed as risks.
+report, signed document). TWO non-waivable classes (round 16): §18
+BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set —
+the duplicate-payment / wrong-release controls; FAIL or missing
+evidence = NO-GO; reclassification requires a safety review). Only
+items outside both classes may proceed as owned, dated risks.
 **HOW to verify each row — the concrete check, the required evidence
 artifact, and who signs — is 25-golive-verification-procedures.md
 (V.1); the evidence-pack layout is V.2 and the GO-04 meeting script
@@ -47,4 +50,6 @@ collected retroactively at GO-04.**
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
 | Q29 | §20 interim ops surface live: authorized admin endpoints + four queue views deployed, enterprise-role-restricted, exercised on real Oracle. NON-WAIVABLE line items (§20 minimal exit set, with Q4): supersede/close and reprocess-snapshot. Waivable only by PO with owner + dated plan: retry, reject, annotate, views | §20, RG-05, OP-04a–e, T-33 | | |
+| Q30 | Security/supply-chain gate (round 16) on the EXACT RC: SAST + dependency vulnerability scan + SBOM + license policy + secret scan; Kafka ACLs, DB grants, service/ops-role least privilege, endpoint authn/authz, TLS config + certificate rotation; masking tests across success AND failure paths (logs, traces, metric tags, exceptions, dead letters); config/secret provenance from the sanctioned vault | §16.1, §16.3, §14 | | |
+| Q31 | Capacity gate (round 16): peak + post-outage burst test at the §16.5 volume NFR; connection-pool/bulkhead saturation behavior; scanner backlog recovery; provider quota shaping (TL-13 budget); card-read latency under load; resource alarms + recorded headroom under the tested RC configuration | §16.1, §16.5, §9.5 | | |
 
