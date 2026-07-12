@@ -127,6 +127,13 @@ idempotency keys forever (K-02 rule).
   boots against the schema" is NOT sufficient here — the old
   version must be GONE from snapshot consumption, not merely
   compatible.
+- §7.0 POINTER-ONLY ASSEMBLY has its own flag (round 7): OFF =
+  transitional legacy assembly for NULL-pointer trades; ON only
+  after the S-11 POINTER-coverage gate (zero NULL-pointer rows
+  among wire-capable trades; residuals dispositioned). The legacy
+  assembly path is REMOVED only after that gate — removing it
+  early wedges live requests at
+  BLOCKED(SNAPSHOT_POINTER_MISSING).
 ```
 
 ### M.7 Data compatibility

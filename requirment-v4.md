@@ -546,11 +546,39 @@ reopening the exact stale-creation hole the table closes):
   gate is a ROLLOUT POINT OF NO RETURN: rolling back to a
   non-maintaining version invalidates the table — re-enabling
   later requires re-running bootstrap + coverage.
+- POINTER COMPLETENESS (round 7 — §7.0 makes last_xml_storage_id
+  the ONLY instruction-assembly source, so a watermark-only row
+  is not enough for a trade that can still reach the wire):
+    · TRANSITIONAL ASSEMBLY (flag-gated, expand/contract): until
+      a trade's pointer is complete, instruction assembly uses
+      the LEGACY pre-migration enrichment source its requests
+      were built on — the §7.0 pointer-only rule is ENFORCED
+      only where its data exists; nothing wedges at cutover.
+    · FAIL-CLOSED BACKSTOP: once §7.0 enforcement is on, a NULL
+      pointer REFUSES assembly with a NAMED reason —
+      BLOCKED(SNAPSHOT_POINTER_MISSING) (blocked_reason is
+      descriptive-only §10.1, so the value is sanctioned) +
+      §15 alert + queue-view visibility + runbook. Never an
+      accidental NULL-fetch failure. When the pointer completes
+      (next admitted message, adjudicated reprocess, or the
+      ask-9 export), the SAME request resumes with the SAME
+      idempotency key.
+    · GO-LIVE GATE (Q5 evidence): zero NULL-pointer rows among
+      WIRE-CAPABLE trades (any active request) before the legacy
+      assembly path is removed; each residual individually
+      dispositioned by ops. Row coverage alone is NOT the gate —
+      POINTER coverage is.
+    · Optional accelerator: upstream ask 9 — a one-time
+      current-snapshot-id export per business_id to complete
+      rows up front. An accelerator, never a dependency.
 - Archival (TL-14): the trade row archives WITH its trade.
-- §5.2 restore note: post-restore the row is stale like all
-  rows; replay converges it, and a conservative row is always
-  re-derivable from obligations (the bootstrap job doubles as
-  the repair tool).
+- §5.2 restore note (corrected round 7): post-restore the row is
+  stale like all rows; replay converges trades WITH messages in
+  the retention window; a quiet active trade whose source
+  message is OUTSIDE retention falls back to the same
+  pointer-completeness ladder above (bootstrap job as repair
+  tool → watermark-only row → transitional/fail-closed assembly
+  rules apply).
 ```
 
 ------
@@ -1088,39 +1116,55 @@ BEFORE any per-block work, in its own transaction):
        EVER CREATED from a refused document.
 3. Only an ADMITTED document may create or mutate obligations —
    and admission is a POINT-IN-TIME fact (round 6), so every
-   BLOCK transaction RE-VERIFIES CURRENCY: it locks the trade
-   row FIRST (SELECT ... FOR UPDATE — the global lock order is
-   trade row → obligation → request), confirms that
-   (last_accepted_ordering, last_payload_digest) still equal the
-   values THIS worker admitted, and only then applies the block.
-   On mismatch the fan-out STOPS: a newer snapshot owns the
-   trade and the remaining blocks are ABANDONED (newest-wins —
-   the newer document's own application is the ground truth).
-   Consequences: block transactions for one trade SERIALIZE on
-   the trade row (this is what makes "no interleaved block
-   application" literally true), and a stale worker can never
-   create a scope — creation commits in the same transaction
-   that proved currency (no check-then-act window).
+   BLOCK transaction passes the TRADE-SNAPSHOT FENCE (renamed
+   round 7 — never "currency check": currency is a scope-key
+   field in this system): it locks the trade row FIRST
+   (SELECT ... FOR UPDATE — the global lock order is trade row →
+   obligation → request), confirms that (last_accepted_ordering,
+   last_payload_digest) still equal the values THIS worker
+   admitted, and only then applies the block. On mismatch the
+   fan-out STOPS: a newer snapshot owns the trade and the
+   remaining blocks are ABANDONED — each abandoned block is
+   LOGGED with its scope identifiers and counted (metric,
+   round 7). Consequences: block transactions for one trade
+   SERIALIZE on the trade row (this is what makes "no
+   interleaved block application" literally true), and a stale
+   worker can never create a scope — creation commits in the
+   same transaction that proved the snapshot still current (no
+   check-then-act window).
 4. Kafka ack: the record is acknowledged ONLY after its fan-out
    completes (M6). Crash before that → redelivery; the re-run
    admits (== ordering, equal digest) and the per-block guards
    no-op whatever already applied. Partition ordering
    (business_id is the message key) means a redelivered snapshot
    ALWAYS re-runs before any newer snapshot of its trade is
-   consumed — normal intake cannot overtake itself; the currency
-   check exists for the paths that ARE concurrent (§20-10
-   reprocess vs live intake; rebalance-zombie consumers).
-5. Considered and REJECTED (round 6 — recorded so they are not
-   relitigated): (a) an APPLYING → COMPLETE application state
-   machine on the trade row (generation, owner, lease, fencing) —
-   machinery disproportionate to the residual hazard once block
-   transactions verify currency; (b) one atomic whole-snapshot
-   transaction — reverts per-block convergence, holds
-   multi-obligation locks against every other writer, and lets
-   one poison block hold the whole trade hostage. PO-9 note:
-   the sequential-equivalence of an abandoned fan-out holds under
-   the INTERIM absence-is-no-op rule — re-examine at the PO-9
-   fold.
+   consumed — normal intake cannot overtake itself; the fence
+   exists for the paths that ARE concurrent (§20-10 reprocess vs
+   live intake; rebalance-zombie consumers).
+5. BLOCK-LEVEL SUPERSESSION — the explicit business rule
+   (round 7, replacing an INCORRECT round-6 sequential-
+   equivalence claim; ratified by the design owner 2026-07-11,
+   PO ratification rides PO-9): a strictly newer ADMITTED
+   snapshot supersedes the UNAPPLIED remainder of an older
+   fan-out; obligations the older fan-out already created remain
+   and are governed by BA-2 and the PO-9 absence semantics. This
+   is NOT full-snapshot sequential convergence — sequential
+   S1-then-S2 under absence-no-op would keep ALL of S1's blocks,
+   supersession keeps only the applied prefix — and the outcome
+   is therefore timing-dependent BY RULE, not by accident. The
+   only production path that can experience it is a §20-10
+   reprocess racing a newer live amendment (normal intake is
+   partition-serialized); there, newer live truth beating an
+   older adjudication is the intended answer — the same
+   newest-wins stance as refusing to re-approve a stale
+   document. Reprocess approvers are TOLD this at approval time
+   (§9.3 display). Considered and REJECTED (round 6, upheld
+   round 7): (a) an APPLYING → COMPLETE application state
+   machine on the trade row (generation, owner, lease, fencing);
+   (b) one atomic whole-snapshot transaction — both purchase
+   full-snapshot completion for a path where supersession is the
+   wanted semantics, at the cost of machinery or trade-wide
+   locks.
 ```
 
 A snapshot FANS OUT to one application per payment block. Message
@@ -1608,6 +1652,13 @@ unspecified):
   enrichment steps against it (account mappings and party addresses
   change; nothing about the instruction is cached on payment rows).
   The trade reference is deliberately NOT an obligation column.
+  TRANSITION (round 7 — §2.4 pointer completeness): while a
+  bootstrap row's pointer is NULL, assembly uses the flag-gated
+  LEGACY enrichment source; once pointer-only enforcement is on, a
+  NULL pointer refuses assembly with
+  BLOCKED(SNAPSHOT_POINTER_MISSING) — never an accidental NULL
+  fetch; the request resumes with the SAME key when the pointer
+  completes.
 - The claim transaction persists the identity (§5.1, first claim) and
   the hash of the assembled instruction (last_sent_hash, §2.2,
   every claim) BEFORE the HTTP call.
@@ -2126,8 +2177,11 @@ AFTER the money.
   APPROVAL TIME — round 4: approval authorizes CONTENT, not an
   opaque id). (2) The second approver, in their OWN authenticated
   session, is shown the binding — including the digest and the
-  masked diff — and approves that exact record (approver ≠
-  initiator, verified from session identity). (3) EXECUTION takes
+  masked diff, and (reprocess-snapshot, round 7) the notice that a
+  newer LIVE snapshot admitted mid-execution SUPERSEDES the
+  unapplied remainder (§6.1 block-level supersession) — and
+  approves that exact record (approver ≠ initiator, verified from
+  session identity). (3) EXECUTION takes
   ONE input: the approval_id. Initiator and approver identities are
   DERIVED from the trusted record, never from parameters. The
   approval-state machine is PENDING → APPROVED → CONSUMED (plus
@@ -2918,6 +2972,11 @@ never on blocked_reason as a rule input (§10.1).
                                                  newest-wins
                                                  abandonment —
                                                  runbook decides)
+- BLOCKED(SNAPSHOT_POINTER_MISSING) present
+  (§2.4 pointer completeness, round 7)         → alert (bootstrap
+                                                 residue on a
+                                                 wire-capable
+                                                 trade)
 - AMENDMENT_ON_LATCHED_SCOPE (§6.5)            → alert (manual
                                                  handling)
 - Money-truth divergence found (§19.2 policy)  → CRITICAL incident
@@ -3318,10 +3377,11 @@ tests point at them):
    its request are NEVER created); two disjoint first snapshots
    serialize on the trade row (both scopes exist afterwards, one
    ordering wins the row); a failed-validation message advances
-   neither watermark; round-6 currency set: pause a worker AFTER
+   neither watermark; round-6 fence set: pause a worker AFTER
    admission and AFTER block 1, admit a newer snapshot, resume —
-   the paused worker's next block ABORTS on the currency check
-   and creates nothing; kill the paused worker — redelivery/alert
+   the paused worker's next block ABORTS on the trade-snapshot
+   fence and creates nothing (abandoned blocks logged + counted,
+   round 7); kill the paused worker — redelivery/alert
    recovers; zombie consumer re-applying an already-converged
    document → all no-ops; bootstrap set: digest-NULL row refuses
    older, fails equal-order CLOSED into the tie path, and is
@@ -3541,6 +3601,12 @@ payment platform
    until answered: absence is a no-op (BA-2 stands). (TL-16, once
    its co-decision partner, was answered round 5 — the §6.1
    admission gate; PO-9 stands alone now and is NOT changed by it.)
+   RIDER (round 7): when PO-9 is answered, the PO also RATIFIES
+   the §6.1 BLOCK-LEVEL SUPERSESSION rule (a newer admitted
+   snapshot supersedes the unapplied remainder of an older
+   fan-out) — the two are the same question: what does the newest
+   snapshot mean for payments it does not carry / has not yet
+   applied. Design-owner ratification recorded 2026-07-11.
 ```
 
 ### Requiring tech lead review
@@ -3729,6 +3795,12 @@ payment platform
    re-emission capability (fresh notification, fresh ordering
    value) would let ties resolve through the fully ordinary path
    with no ordering relaxation at all.
+9. One-time current-snapshot-id export per business_id (round 7,
+   OPTIONAL accelerator — never a dependency): completes the §2.4
+   bootstrap rows' pointers up front so the pointer-coverage
+   go-live gate is reached without waiting for organic amendments;
+   without it the transitional legacy-assembly + fail-closed
+   ladder (§2.4/§7.0) carries the cutover on its own.
 ```
 
 ### Resolved: workflow advancement
@@ -3956,10 +4028,11 @@ are obsolete, and its state displays should use the §10.4 labels):
     watermark is refused even with an approval — a stale
     adjudication is re-initiated against current state, never
     applied. Round 6: reprocess block transactions carry the SAME
-    §6.1 currency check (trade row locked first, admitted
+    §6.1 TRADE-SNAPSHOT FENCE (trade row locked first, admitted
     ordering + digest re-verified per block) — if live intake
     admits a newer snapshot mid-reprocess, the remaining blocks
-    are ABANDONED (correct newest-wins), the §9.3
+    are ABANDONED (§6.1 block-level supersession, round 7 — the
+    approvers were told at approval time), the §9.3
     consumed-without-completion alert surfaces it, and a
     re-approval of the now-stale document is REFUSED at
     admission — the right answer, not a defect.
@@ -3975,8 +4048,9 @@ PRECONDITION: the document has passed §6.1 ADMISSION (trade row
   applied THERE; trade_snapshot_state updated). A refused document
   reaches no rule below and creates nothing. Round 6: EACH block
   transaction re-locks the trade row and re-verifies the admitted
-  (ordering, digest) before the rules below run — mismatch stops
-  the fan-out (newest-wins abandonment).
+  (ordering, digest) — the trade-snapshot FENCE — before the rules
+  below run; mismatch stops the fan-out (§6.1 block-level
+  supersession).
 for each payment block of the ADMITTED document,
     sorted by scope tuple (§6.1), each its own transaction:
   no obligation exists            -> create (normal first-message

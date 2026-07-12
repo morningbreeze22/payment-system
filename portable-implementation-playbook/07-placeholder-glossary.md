@@ -201,7 +201,11 @@ Mode:         NEW files appended.
 
 ```text
 Meaning:      where PL/SQL objects (triggers, procedures) are
-              defined/migrated.
+              defined/migrated. NAME IS DELIBERATE (round 7 note):
+              placeholder labels are stable local-mapping keys;
+              "Procedure" here names real DB object areas — it is
+              NOT the retired §9.3 "procedure" terminology (ops
+              mutations are Java application endpoints).
 Identify:     F.18, F.20.
 Responsibilities: L1 freeze trigger; release-guard trigger + evidence
               session flag mechanics (§10.3).

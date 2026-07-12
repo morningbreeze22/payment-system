@@ -261,12 +261,14 @@ poll → for each record:
   digest-differs → tie alert, STOP; older → refuse WHOLE (a refused
   document never creates a scope); THEN fan out per payment block in
   sorted tuple order, ONE transaction per block (§6.1). ROUND 6 —
-  currency check, NOT optional: every block transaction locks the
-  trade row FIRST (SELECT FOR UPDATE), re-verifies the admitted
-  (ordering, digest), THEN locks the obligation and applies; on
-  mismatch STOP the fan-out (a newer snapshot owns the trade —
-  newest-wins abandonment). Never check currency without holding
-  the trade lock in the SAME transaction (check-then-act races).
+  the TRADE-SNAPSHOT FENCE, NOT optional (round-7 rename; the old
+  name collided with the currency scope-key field): every block
+  transaction locks the trade row FIRST (SELECT FOR UPDATE),
+  re-verifies the admitted (ordering, digest), THEN locks the
+  obligation and applies; on mismatch STOP the fan-out (§6.1
+  block-level supersession — abandoned blocks logged + counted).
+  Never run the fence check without holding the trade lock in the
+  SAME transaction (check-then-act races).
   Ack the Kafka record ONLY after the fan-out completes. A crash
   mid-fan-out is fine: redelivery re-admits (equal + digest-equal)
   and re-applies; applied blocks drop on the §6.7 ordering guard;

@@ -574,15 +574,18 @@ Implemented by: ST-09..11, RC-04/RC-05 (protocol per §11 + mechanics
 M5), OB-xx dashboards unaffected.
 ```
 
-### T-35 — Snapshot admission gate + per-block currency (rounds 5–6)
+### T-35 — Snapshot admission gate + trade-snapshot fence (rounds 5–7)
 
 ```text
 Section: §6.1, §2.4, §20-10   Type: INTEGRATION / CONCURRENCY
 Blocking: YES
 Purpose: a stale snapshot can neither mutate NOR CREATE anything;
-         BLOCK transactions serialize on the trade row and re-verify
-         currency (round 6 — admission alone is a point-in-time
-         fact, not ownership); the reference-only tie converges.
+         BLOCK transactions serialize on the trade row and pass the
+         trade-snapshot FENCE (round 6 — admission alone is a
+         point-in-time fact, not ownership); §6.1 BLOCK-LEVEL
+         SUPERSESSION is the ratified outcome rule (round 7 — NOT
+         full-snapshot convergence); the reference-only tie
+         converges.
 Setup:   real Oracle; trade with snapshot S2 (ordering 200, payment
          A only) APPLIED; delayed snapshot S1 (ordering 100,
          payments A + B) available in the XML store; a second trade
@@ -600,13 +603,19 @@ Action:  deliver S1 after S2; run two concurrent FIRST snapshots
          through detection + approved reprocess + re-run.
 Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          B NEVER created, no payment_request for B ever exists (the
-         round-5 H-1 trace); the two first snapshots serialize on
-         the trade-row insert/lock — both scopes exist, the newer
-         ordering owns the row, no lost update; the paused worker's
-         NEXT block transaction locks the trade row, sees the
-         admitted (ordering, digest) no longer current, ABORTS the
-         fan-out, and creates/mutates NOTHING (round-6 overtake —
-         newest-wins abandonment; the §9.3
+         round-5 H-1 trace); concurrent first snapshots serialize
+         on the trade-row insert/lock and the outcome follows
+         BLOCK-LEVEL SUPERSESSION (round 7 — deterministic per
+         schedule, NOT "both scopes exist": blocks the older worker
+         applied BEFORE the newer admission exist; its unapplied
+         remainder is abandoned — test BOTH paused schedules:
+         supersession before block 1 → only the newer document's
+         scopes exist; supersession after block N → all of the
+         older document's scopes exist; each abandoned block is
+         logged with scope identifiers + counted); the paused
+         worker's NEXT block transaction locks the trade row, sees
+         the admitted (ordering, digest) no longer current, ABORTS
+         the fan-out, and creates/mutates NOTHING (the §9.3
          consumed-without-completion alert fires for the reprocess
          case); the killed worker's document converges via
          redelivery (intake) or is correctly refused on
@@ -619,8 +628,9 @@ Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          no-op), §7.0 assembly reads the new reference, re-run is
          digest-equal → no-op (converged, no repeat tie alert).
 Failure: any block transaction that applies or creates without
-         holding the trade lock and proving currency IN THAT
-         transaction; a tie that re-alerts after adjudication.
+         holding the trade lock and passing the fence IN THAT
+         transaction; an abandoned block that is not logged; a tie
+         that re-alerts after adjudication.
 Implemented by: S-10, IN-02, OP-04 (reprocess entry path).
 ```
 
@@ -651,7 +661,15 @@ Expect:  every existing business_id gets a row with watermark =
          completed (id + digest populated); bootstrap re-run
          changes nothing (insert-if-absent); the coverage report +
          shadow metric flag the non-maintaining writer's trades
-         before enforcement is enabled.
+         before enforcement is enabled; ACTIVE-REQUEST case
+         (round 7): a POST·READY/RETRY_WAIT request on a
+         NULL-pointer trade — under the transitional flag it
+         assembles via the LEGACY source; under §7.0 enforcement
+         NO provider call occurs and the row shows
+         BLOCKED(SNAPSHOT_POINTER_MISSING) + alert; after the
+         pointer completes, the SAME request resumes with the SAME
+         idempotency key; pointer-coverage (wire-capable) metric
+         reported.
 Failure: an older document admitted by a bootstrapped or
          digest-NULL row, or enforcement enabled with coverage
          gaps.
