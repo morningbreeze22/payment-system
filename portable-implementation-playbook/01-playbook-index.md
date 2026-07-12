@@ -55,7 +55,7 @@ P14  Migration, rollout, rollback, and go-live gates        (tasks GO-xx)
 P1  Discovery:        D-01 D-02 D-03 D-04 D-05 D-06 D-07 D-08 D-09 D-10 D-11 D-12
 P2  Gates/artifacts:  B-01 B-02 B-03 B-04
                       CA-1 CA-2 CA-3 CA-4 CA-5 CA-6 CA-7 CA-8 CA-9
-P3  Schema:           S-01 S-02 S-03 S-04 S-10 S-05 S-06 S-07 S-08 S-09
+P3  Schema:           S-01 S-02 S-03 S-04 S-10 S-05 S-06 S-07 S-08 S-11 S-09
 P4  Identity:         K-01 K-02 K-03 K-04 K-05 K-06
 P5  UETR:             U-01 U-02 U-03
 P6  State model:      ST-01 ST-02 ST-03 ST-04 ST-05 ST-06 ST-07 ST-08 ST-09 ST-10 ST-11
@@ -138,7 +138,7 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 |---|---|---|---|---|---|
 | P1 Discovery | D-01..D-12 | none | none (read-only) | filled local mapping + D-12 report | P2 (after human review) |
 | P2 Gates + artifacts | B-01..B-04, CA-1..CA-9 | D-12 report | §18-0..3 are THE work here | recorded answers + CA-1..9 published | P3 (needs CA-4; B-01 residue does NOT gate — see BLOCKED list above) |
-| P3 Schema | S-01..S-10 | CA-4 published (scope model settled as a §1 contract fact — B-01 residue NOT required; it gates the §6 consumer freeze IN-02, not schema) | §18-0 gates IN-02, not this phase | schema at target + S-09 proof | P4 |
+| P3 Schema | S-01..S-11 | CA-4 published (scope model settled as a §1 contract fact — B-01 residue NOT required; it gates the §6 consumer freeze IN-02, not schema) | §18-0 gates IN-02, not this phase | schema at target + S-09 proof | P4 |
 | P4 Identity | K-01..K-06 | S-09; CA-5 | §18-0 (via CA-5) | deterministic identity + golden vectors | P5 (P8 may start) |
 | P5 UETR | U-01..U-03 | S-03; P4 claim path | TL-11(a) if unclear | acceptance-only UETR rules | P6 |
 | P6 State model | ST-01..ST-11 | P3; S-08 backfill | none new | factored model + CAS + leases | P7 |

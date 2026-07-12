@@ -83,7 +83,8 @@ Goal:            Bring the four-table model to the §2/§10.3 target
                  L-shape CHECKs, UNIQUE keys, I6 function-based unique
                  index, L1-freeze + release-guard triggers,
                  active-row-bounded index set, inbox table + purge,
-                 trade_snapshot_state (S-10, §2.4 — round 5).
+                 trade_snapshot_state (S-10, §2.4 — round 5) + its
+                 S-11 bootstrap/enablement gate (round 6).
 Why here:        D graph #2 — schema before state-machine persistence.
 Sections:        §2.1, §2.2, §2.3, §10.3, §16.5, §16.6-4, §3 (I6).
 Classification:  MVP normative.

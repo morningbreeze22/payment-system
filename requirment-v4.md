@@ -517,6 +517,42 @@ rule as upstream_ordering). This table is payment data (§16.5 schema
 contract) — it is NOT the §9.3 ops-schema approval store, which
 remains a separate, sanctioned, non-payment store.
 
+BOOTSTRAP (round 6 — this table is deployed into a system with
+EXISTING trades, and a missing row would read as "first contact",
+reopening the exact stale-creation hole the table closes):
+
+```text
+- Before admission ENFORCEMENT is enabled, a bootstrap job
+  initializes one row per existing business_id:
+  last_accepted_ordering := MAX(upstream_ordering) over the
+  trade's obligations (quiet window, consistent read);
+  last_xml_storage_id and last_payload_digest stay NULL — a
+  NULL digest IS the bootstrap-incomplete marker (no extra
+  column).
+- BOOTSTRAP-INCOMPLETE row semantics (digest IS NULL): OLDER
+  documents are refused exactly as normal; an EQUAL-ordering
+  document CANNOT be proven a redelivery (no digest to compare)
+  → FAIL CLOSED into the §6.7 tie-conflict path (human
+  adjudicates; the adjudicated reprocess installs the full row);
+  a STRICTLY NEWER valid document replaces the row with complete
+  id + digest — bootstrap completes organically.
+- MIXED-VERSION rule (Section M): an application version that
+  does not maintain this row must NEVER process upstream
+  snapshots while admission enforcement is on. Enablement order:
+  deploy additive schema → run bootstrap → drain old consumers →
+  verify coverage (every active business_id has a row; shadow
+  metric compares the proposed trade watermark against
+  per-obligation watermarks) → enable enforcement. Enabling the
+  gate is a ROLLOUT POINT OF NO RETURN: rolling back to a
+  non-maintaining version invalidates the table — re-enabling
+  later requires re-running bootstrap + coverage.
+- Archival (TL-14): the trade row archives WITH its trade.
+- §5.2 restore note: post-restore the row is stale like all
+  rows; replay converges it, and a conservative row is always
+  re-derivable from obligations (the bootstrap job doubles as
+  the repair tool).
+```
+
 ------
 
 ## 3. Money: Reservation Semantics and Invariants
@@ -1050,10 +1086,41 @@ BEFORE any per-block work, in its own transaction):
      → REFUSE the whole document as stale: counted (stale metric),
        no block applied, and — the round-5 rule — NO NEW SCOPE IS
        EVER CREATED from a refused document.
-3. Only an ADMITTED document may create or mutate obligations.
-   Crash between the admission commit and block application
-   converges: the re-run admits (== ordering, equal digest) and
-   the per-block guards no-op whatever already applied.
+3. Only an ADMITTED document may create or mutate obligations —
+   and admission is a POINT-IN-TIME fact (round 6), so every
+   BLOCK transaction RE-VERIFIES CURRENCY: it locks the trade
+   row FIRST (SELECT ... FOR UPDATE — the global lock order is
+   trade row → obligation → request), confirms that
+   (last_accepted_ordering, last_payload_digest) still equal the
+   values THIS worker admitted, and only then applies the block.
+   On mismatch the fan-out STOPS: a newer snapshot owns the
+   trade and the remaining blocks are ABANDONED (newest-wins —
+   the newer document's own application is the ground truth).
+   Consequences: block transactions for one trade SERIALIZE on
+   the trade row (this is what makes "no interleaved block
+   application" literally true), and a stale worker can never
+   create a scope — creation commits in the same transaction
+   that proved currency (no check-then-act window).
+4. Kafka ack: the record is acknowledged ONLY after its fan-out
+   completes (M6). Crash before that → redelivery; the re-run
+   admits (== ordering, equal digest) and the per-block guards
+   no-op whatever already applied. Partition ordering
+   (business_id is the message key) means a redelivered snapshot
+   ALWAYS re-runs before any newer snapshot of its trade is
+   consumed — normal intake cannot overtake itself; the currency
+   check exists for the paths that ARE concurrent (§20-10
+   reprocess vs live intake; rebalance-zombie consumers).
+5. Considered and REJECTED (round 6 — recorded so they are not
+   relitigated): (a) an APPLYING → COMPLETE application state
+   machine on the trade row (generation, owner, lease, fencing) —
+   machinery disproportionate to the residual hazard once block
+   transactions verify currency; (b) one atomic whole-snapshot
+   transaction — reverts per-block convergence, holds
+   multi-obligation locks against every other writer, and lets
+   one poison block hold the whole trade hostage. PO-9 note:
+   the sequential-equivalence of an abandoned fan-out holds under
+   the INTERIM absence-is-no-op rule — re-examine at the PO-9
+   fold.
 ```
 
 A snapshot FANS OUT to one application per payment block. Message
@@ -2093,7 +2160,21 @@ AFTER the money.
   relitigated): a resumable APPROVED → EXECUTING → COMPLETED
   execution record with lease/fencing and a progress cursor —
   machinery disproportionate to the hazard; revisit post-MVP only
-  if reprocess frequency proves material.
+  if reprocess frequency proves material. COMPLETION EVIDENCE
+  (round 6 — consume-at-start must never fail SILENTLY): the
+  reprocess execution stamps the approval record (ops schema, not
+  payment data) with completed_at + a per-block summary
+  (applied / no-op / dropped / abandoned) in a small transaction
+  after the last block; a §15 alert fires for any CONSUMED
+  reprocess approval without completion evidence past a
+  configured SLA (crash mid-fan-out OR correct newest-wins
+  abandonment by a concurrent newer snapshot, §6.1 — both need
+  eyes); the runbook: check the trade row; if the document is now
+  stale, the abandonment was correct — annotate and close; else
+  create a NEW approval of the same immutable document and let
+  convergence apply the remainder. A crash between the last block
+  and the stamp only causes a false alert; the runbook re-run
+  no-ops and stamps.
   The pending-approval record lives in a small OPS-SCHEMA store —
   operational workflow state, explicitly OUTSIDE the §2 payment
   data model (the four §2 tables) and sanctioned as the
@@ -2832,6 +2913,11 @@ never on blocked_reason as a rule input (§10.1).
   branch)                                 → CRITICAL
 - AMENDMENT_TIE_CONFLICT (§6.7)                → alert (manual
                                                  application needed)
+- Reprocess approval CONSUMED, no completion
+  evidence past SLA (§9.3 round 6)             → alert (crash or
+                                                 newest-wins
+                                                 abandonment —
+                                                 runbook decides)
 - AMENDMENT_ON_LATCHED_SCOPE (§6.5)            → alert (manual
                                                  handling)
 - Money-truth divergence found (§19.2 policy)  → CRITICAL incident
@@ -3226,14 +3312,20 @@ tests point at them):
    (approval survives unconsumed — single-transition atomicity),
    crash-after-consume-before-fan-out (reprocess consume-at-start:
    approval burned, nothing applied, NEW approval succeeds);
-   (f) admission-gate set (§6.1/§2.4, round 5): the
+   (f) admission-gate set (§6.1/§2.4, rounds 5–6): the
    never-seen-scope trace (newer snapshot without B commits first;
    delayed older snapshot containing B is refused whole — B and
    its request are NEVER created); two disjoint first snapshots
    serialize on the trade row (both scopes exist afterwards, one
-   ordering wins the row); reprocess vs live intake racing the
-   same trade serializes on the admission lock; a
-   failed-validation message advances neither watermark.
+   ordering wins the row); a failed-validation message advances
+   neither watermark; round-6 currency set: pause a worker AFTER
+   admission and AFTER block 1, admit a newer snapshot, resume —
+   the paused worker's next block ABORTS on the currency check
+   and creates nothing; kill the paused worker — redelivery/alert
+   recovers; zombie consumer re-applying an already-converged
+   document → all no-ops; bootstrap set: digest-NULL row refuses
+   older, fails equal-order CLOSED into the tie path, and is
+   completed by the first strictly-newer document.
 7. Runbook stubs, one per §15 alert; the §5.2 restore runbook; the
    unqueryable aged MAYBE row (past the engine lookback — §9.3): platform-side lookup → TL-10 rejection or the
    apply-platform-verified-outcome operation.
@@ -3543,7 +3635,8 @@ payment platform
     money invariants: at archival each obligation gains an
     archived-confirmed rollup and I1/I2 become rollup + Σ live rows;
     the §5.2 created_at query window must survive archival. (§2.2's
-    terminal-time convention is the enabler.)
+    terminal-time convention is the enabler.) Round 6: the
+    trade_snapshot_state row archives WITH its trade.
 15. Production measurement, first quarter: NOT_FOUND-after-
     trust-age frequency — how often the §9.2 downgrade would fire —
     to revisit auto vs ops-triggered enablement with data (§9.2).
@@ -3862,7 +3955,14 @@ are obsolete, and its state displays should use the §10.4 labels):
     trade_snapshot_state); a document OLDER than the trade
     watermark is refused even with an approval — a stale
     adjudication is re-initiated against current state, never
-    applied.
+    applied. Round 6: reprocess block transactions carry the SAME
+    §6.1 currency check (trade row locked first, admitted
+    ordering + digest re-verified per block) — if live intake
+    admits a newer snapshot mid-reprocess, the remaining blocks
+    are ABANDONED (correct newest-wins), the §9.3
+    consumed-without-completion alert surfaces it, and a
+    re-approval of the now-stale document is REFUSED at
+    admission — the right answer, not a defect.
     PER-BLOCK ALGORITHM (normative, round 4 — the relaxation
     decision is PER OBLIGATION; whole-snapshot equality is only
     the §6.7 tie-DETECTION rule at intake; no whole-snapshot
@@ -3873,7 +3973,10 @@ are obsolete, and its state displays should use the §10.4 labels):
 PRECONDITION: the document has passed §6.1 ADMISSION (trade row
   locked; ordinary strictly-newer, OR the approved-tie ≥ relaxation
   applied THERE; trade_snapshot_state updated). A refused document
-  reaches no rule below and creates nothing.
+  reaches no rule below and creates nothing. Round 6: EACH block
+  transaction re-locks the trade row and re-verifies the admitted
+  (ordering, digest) before the rules below run — mismatch stops
+  the fan-out (newest-wins abandonment).
 for each payment block of the ADMITTED document,
     sorted by scope tuple (§6.1), each its own transaction:
   no obligation exists            -> create (normal first-message

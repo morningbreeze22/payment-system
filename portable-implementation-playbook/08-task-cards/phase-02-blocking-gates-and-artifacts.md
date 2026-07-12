@@ -255,7 +255,7 @@
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** adopt Section J's matrix (T-01..T-35) as the seed; add the spec-named entries above; assign each entry an owner-type and the phase whose task implements it; keep IDs stable; version the catalog.
+- **Implementation instructions:** adopt Section J's matrix (T-01..T-36) as the seed; add the spec-named entries above; assign each entry an owner-type and the phase whose task implements it; keep IDs stable; version the catalog.
 - **Do not change:** Section J's BLOCKING flags without the accountable owner.
 - **Tests to add:** none here (the catalog IS the index of tests).
 - **Edge cases:** local discovery may reveal existing equivalent tests — map, don't duplicate.

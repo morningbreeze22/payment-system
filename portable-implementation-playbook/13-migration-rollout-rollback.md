@@ -116,6 +116,17 @@ idempotency keys forever (K-02 rule).
   reverse-migration. Schema stays; drops were deferred anyway (M.1.7).
 - Never roll back the schema VALIDATE/trigger steps while the new
   code runs — the code assumes the backstops exist.
+- TRADE-ADMISSION ENABLEMENT GATE (round 6, §2.4 BOOTSTRAP): the
+  §6.1 admission enforcement has its OWN enablement order — additive
+  schema (S-10) → bootstrap job (S-11) → DRAIN every consumer
+  version that does not maintain trade_snapshot_state → coverage
+  report + shadow metric verified → enable. Enabling it is a
+  SECOND point of no return: rolling back to a non-maintaining
+  version invalidates the table; re-enabling later requires
+  re-running S-11 bootstrap + coverage. "The old version still
+  boots against the schema" is NOT sufficient here — the old
+  version must be GONE from snapshot consumption, not merely
+  compatible.
 ```
 
 ### M.7 Data compatibility

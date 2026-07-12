@@ -54,6 +54,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 25 | CA-9 | HUMAN+AGENT | B-04; CA-4 | phase-02 |
 | 26–34 | S-01 → S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts) | phase-03-schema-and-migration.md |
 | 34a | S-10 | AGENT | S-01 (round 5: trade_snapshot_state §2.4 — runs after S-04, before S-09's proof pass) | phase-03-schema-and-migration.md |
+| 34b | S-11 | AGENT | S-10; S-08 (round 6: bootstrap + enablement gate — runs after S-08, before S-09) | phase-03-schema-and-migration.md |
 | 35–40 | K-01 → K-06 | AGENT | S-09 green; CA-5 for K-02/K-03 | phase-04-identity-and-idempotency.md |
 | 41–47 | CT-01 → CT-07 | HUMAN+AGENT | B-02 sandbox access; K-02/K-03 (see DD-6 if access missing) | phase-08-provider-contract-tests.md |
 | 48–50 | U-01 → U-03 | AGENT | S-03; K-04 path | phase-05-uetr-response-persistence.md |

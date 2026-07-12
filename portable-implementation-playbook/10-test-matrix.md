@@ -1,4 +1,4 @@
-> **Purpose:** Test matrix T-01..T-35 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
+> **Purpose:** Test matrix T-01..T-36 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
 > **When to use this file:** When writing a task card's tests and when assembling GO-04 gate evidence.
 > **Depends on:** requirment-v4.md sections cited per test; 12-companion-artifacts.md (CA-7).
 > **Used by:** All test-bearing task cards; 17-go-live-checklist.md evidence column.
@@ -574,37 +574,87 @@ Implemented by: ST-09..11, RC-04/RC-05 (protocol per §11 + mechanics
 M5), OB-xx dashboards unaffected.
 ```
 
-### T-35 — Snapshot admission gate (trade-level watermark — round 5)
+### T-35 — Snapshot admission gate + per-block currency (rounds 5–6)
 
 ```text
-Section: §6.1, §2.4, §20-10   Type: INTEGRATION   Blocking: YES
+Section: §6.1, §2.4, §20-10   Type: INTEGRATION / CONCURRENCY
+Blocking: YES
 Purpose: a stale snapshot can neither mutate NOR CREATE anything;
-         admission serializes all snapshot writers for a trade;
-         the reference-only tie converges.
+         BLOCK transactions serialize on the trade row and re-verify
+         currency (round 6 — admission alone is a point-in-time
+         fact, not ownership); the reference-only tie converges.
 Setup:   real Oracle; trade with snapshot S2 (ordering 200, payment
          A only) APPLIED; delayed snapshot S1 (ordering 100,
          payments A + B) available in the XML store; a second trade
          with NO rows; a reference-only tie pair (equal ordering,
-         identical blocks, different trade reference).
+         identical blocks, different trade reference); a harness
+         that can PAUSE a fan-out worker between transactions and
+         KILL it.
 Action:  deliver S1 after S2; run two concurrent FIRST snapshots
-         with disjoint scopes on the empty trade; race a reprocess
-         execution against live intake on one trade; deliver a
+         with disjoint scopes on the empty trade; pause a reprocess
+         fan-out AFTER admission and again AFTER block 1, admit a
+         newer live snapshot, resume the paused worker; kill the
+         paused worker instead of resuming; run a zombie consumer
+         re-applying an already-converged document; deliver a
          failed-validation message; run the reference-only tie
          through detection + approved reprocess + re-run.
 Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          B NEVER created, no payment_request for B ever exists (the
          round-5 H-1 trace); the two first snapshots serialize on
          the trade-row insert/lock — both scopes exist, the newer
-         ordering owns the row, no lost update; reprocess and live
-         intake serialize on the admission lock (no interleaved
-         block application); the failed-validation message advances
-         NEITHER trade_snapshot_state nor upstream_ordering;
+         ordering owns the row, no lost update; the paused worker's
+         NEXT block transaction locks the trade row, sees the
+         admitted (ordering, digest) no longer current, ABORTS the
+         fan-out, and creates/mutates NOTHING (round-6 overtake —
+         newest-wins abandonment; the §9.3
+         consumed-without-completion alert fires for the reprocess
+         case); the killed worker's document converges via
+         redelivery (intake) or is correctly refused on
+         re-approval when a newer snapshot owns the trade
+         (reprocess); the zombie's blocks all no-op; the
+         failed-validation message advances NEITHER
+         trade_snapshot_state nor upstream_ordering;
          reference-only tie: detected at admission (digest differs),
          approved reprocess updates ONLY the trade row (blocks
          no-op), §7.0 assembly reads the new reference, re-run is
          digest-equal → no-op (converged, no repeat tie alert).
-Failure: any path that creates an obligation from a refused
-         document, or a tie that re-alerts after adjudication.
+Failure: any block transaction that applies or creates without
+         holding the trade lock and proving currency IN THAT
+         transaction; a tie that re-alerts after adjudication.
 Implemented by: S-10, IN-02, OP-04 (reprocess entry path).
+```
+
+### T-36 — trade_snapshot_state bootstrap + mixed-version cutover (round 6)
+
+```text
+Section: §2.4 BOOTSTRAP, §6.1, Section M   Type: MIGRATION
+Blocking: YES
+Purpose: an EXISTING production trade must never read as "first
+         contact"; bootstrap-incomplete rows fail closed; the
+         enablement gate is enforced.
+Setup:   prod-shaped copy: trades with obligations at various
+         upstream_ordering values and NO trade rows; one §6.6
+         anchor-only trade (all NULL ordering); XML store seeded
+         with a delayed older snapshot carrying a never-seen scope.
+Action:  run the S-11 bootstrap; deliver the delayed older snapshot
+         to a bootstrapped trade; deliver an equal-order snapshot
+         to a digest-NULL row; deliver a strictly newer snapshot;
+         re-run the bootstrap job; simulate the mixed-version
+         window (a writer that does not maintain the trade row).
+Expect:  every existing business_id gets a row with watermark =
+         MAX(upstream_ordering) (anchor-only trade: NULL ordering =
+         first-contact semantics); the delayed older snapshot is
+         REFUSED — the never-seen scope is NOT created (the H-2
+         first-contact trace); equal-order onto digest-NULL →
+         FAILS CLOSED into the tie-conflict path (no silent apply,
+         no silent drop); strictly newer → applied AND the row
+         completed (id + digest populated); bootstrap re-run
+         changes nothing (insert-if-absent); the coverage report +
+         shadow metric flag the non-maintaining writer's trades
+         before enforcement is enabled.
+Failure: an older document admitted by a bootstrapped or
+         digest-NULL row, or enforcement enabled with coverage
+         gaps.
+Implemented by: S-11, IN-02.
 ```
 

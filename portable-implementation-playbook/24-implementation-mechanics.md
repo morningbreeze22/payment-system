@@ -112,10 +112,13 @@ lock (§11).
 - Obligation lock = `SELECT ... FOR UPDATE` on the payment_obligation
   row. It owns ALL money math: shortfall, creation, amount updates,
   overpay latch, completion + exception derivation (§11).
-- Global order: obligation lock FIRST, then request CAS. Never the
-  reverse; never lock two obligations except in the §6.1 fan-out —
-  and there strictly in sorted scope-tuple order, one block's
-  transaction at a time (no cross-obligation transaction exists).
+- Global order (round 6): trade row (§2.4, snapshot paths only) →
+  obligation → request CAS. Never the reverse; never lock two
+  obligations except in the §6.1 fan-out — and there strictly in
+  sorted scope-tuple order, one block's transaction at a time (no
+  cross-obligation transaction exists). Writers that touch ONE
+  obligation (feed, scanners, ops) never take the trade row — no
+  inversion is possible.
 - Never hold the lock across an external call (HTTP, engine, account
   service). The posting flow persists-then-calls: claim transaction
   commits BEFORE the HTTP call (M4).
@@ -257,10 +260,18 @@ poll → for each record:
   update row; equal + digest-equal → admit without update; equal +
   digest-differs → tie alert, STOP; older → refuse WHOLE (a refused
   document never creates a scope); THEN fan out per payment block in
-  sorted tuple order, ONE transaction per block (§6.1). Lock order:
-  trade row first, then obligations in tuple order. A crash
+  sorted tuple order, ONE transaction per block (§6.1). ROUND 6 —
+  currency check, NOT optional: every block transaction locks the
+  trade row FIRST (SELECT FOR UPDATE), re-verifies the admitted
+  (ordering, digest), THEN locks the obligation and applies; on
+  mismatch STOP the fan-out (a newer snapshot owns the trade —
+  newest-wins abandonment). Never check currency without holding
+  the trade lock in the SAME transaction (check-then-act races).
+  Ack the Kafka record ONLY after the fan-out completes. A crash
   mid-fan-out is fine: redelivery re-admits (equal + digest-equal)
-  and re-applies; applied blocks drop on the §6.7 ordering guard.
+  and re-applies; applied blocks drop on the §6.7 ordering guard;
+  partition ordering guarantees the redelivery runs before any
+  newer snapshot of that trade.
 - ErrorHandlingDeserializer is mandatory; DLT is for POISON messages
   only (deserialization/semantic validation). Transient infra errors
   retry IN PLACE or pause the container — NEVER dead-letter a money

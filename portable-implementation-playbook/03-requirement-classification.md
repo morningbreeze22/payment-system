@@ -76,7 +76,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C48 | §16.2 | Kafka rules: manual ack after commit, earliest, ErrorHandlingDeserializer, DLT for poison only, no retry topics for money events, partition keying, retention-chain check | MVP + RUNBOOK | IN-09, OB-05 | — | yes | yes | no |
 | C49 | §16.3 | Security: read-surface auth, account masking in encoder, no instruction content persisted, secrets vaulted, topic ACLs | MVP | cross-cutting (IN, U, OB) | — | no | yes | no |
 | C50 | §16.4 | Amount/time hygiene: currency-scale validation, BigDecimal.compareTo, no tolerance, UTC + DB time, tz-aware cutoff calendar | MVP | IN-01, RC-04 | B-03 | no | yes | no |
-| C51 | §16.5 | Expand/contract migrations (Flyway/Liquibase); volume NFR ~3k trades/day; contract tests for 3 external contracts; defensive enum reads (UNKNOWN sentinel); 4 dimension enums CLOSED | MVP | S-01..10, GO-01 | — | yes | yes | no |
+| C51 | §16.5 | Expand/contract migrations (Flyway/Liquibase); volume NFR ~3k trades/day; contract tests for 3 external contracts; defensive enum reads (UNKNOWN sentinel); 4 dimension enums CLOSED | MVP | S-01..11, GO-01 | — | yes | yes | no |
 | C52 | §16.6 | Configuration inventory + config-load ordering validation (trust_age + cadence < escalation < tier-2 < cutoff margin) | MVP | OB-07 | B-03, TL-5, TL-13 | no | yes | values needed |
 | C53 | §16.6-1 | Engine error-code → classification table (incl. replay-original-response class) | ARTIFACT | CA-1 | provider | YES (feeds RC-01) | no | yes |
 | C54 | §16.6-2 | Engine status vocabulary + precedence/evidence mapping + feed event schema | ARTIFACT | CA-2 | provider | YES (feeds IN-07) | no | yes |

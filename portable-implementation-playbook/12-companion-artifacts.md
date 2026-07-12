@@ -132,7 +132,7 @@ Failure if omitted: divergence_expected is noise → expected
 Section: §16.6 artifact 6.
 Owner type: TEAM, named owner.
 Purpose: single owned index of every required test.
-Required contents: Section J's T-01..T-35; the spec-named entries
+Required contents: Section J's T-01..T-36; the spec-named entries
   (downgrade re-POST answered DUPLICATE_REQUEST leaves prior uetr
   intact; §11 ambiguous claim-commit; §8 concurrent in-flight
   duplicates); per-entry §-traceability, owner type, implementing
@@ -179,7 +179,10 @@ Required contents: execution signature = approval_id ONLY (round 4 —
   (round 5): single-transition → CONSUMED CAS + payment transition
   in ONE transaction; reprocess-snapshot → CONSUME-AT-START after
   the digest check, crash mid-fan-out remedied by a NEW approval
-  (§9.3 — never resurrect a consumed approval); evidence-flag
+  (§9.3 — never resurrect a consumed approval); round 6: completed_at
+  + per-block summary stamped on the approval record after the last
+  block + the §15 consumed-without-completion alert + runbook
+  (stale → annotate/close; else new approval); evidence-flag
   mechanics;
   application through the same evidence-guarded CAS; money effects
   per outcome; refusal conditions (CLAIMED, terminal, amount

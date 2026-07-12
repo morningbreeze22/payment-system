@@ -1,4 +1,4 @@
-> **Purpose:** Minimal context packets S-01..S-10 — paste-alone briefs for a small-context local agent (original Section I, phase P3).
+> **Purpose:** Minimal context packets S-01..S-11 — paste-alone briefs for a small-context local agent (original Section I, phase P3).
 > **When to use this file:** Paired with the matching task-card file 08-task-cards/03-schema-and-migration.md — one packet per task, used as the working brief.
 > **Depends on:** 09-minimal-context-packets/README.md; the matching task card; the requirement sections each packet cites; 07-placeholder-glossary.md.
 > **Used by:** The local coding agent executing phase P3.
@@ -77,6 +77,14 @@ Read: §10.4 (reverse map) §10.2 §2.2 anchors §7.1. Invariant: ambiguous lega
 Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: legacy meanings memo (D-04); unmappable values = BLOCKED, report.
 Objective: reviewed legacy→tuple map; idempotent backfill; anchors defensibly set; terminal rows L1-normalized; run in a quiet window.
 Tests: idempotency; per-value spot checks; constraint dry-validate. Stop: validated; anomaly list dispositioned.
+```
+
+```text
+[S-11] trade_snapshot_state bootstrap + enablement gate (round 6)
+Read: §2.4 BOOTSTRAP block (normative) §6.1; Section M (13-migration). Invariant: NULL digest = bootstrap-incomplete (older refused; equal-order FAILS CLOSED into the §6.7 tie path; strictly newer installs the complete row); enforcement only after old consumers DRAINED + coverage verified; enabling = rollout POINT OF NO RETURN.
+Placeholders: [DB Migration Directory] [Obligation Repository]. Mappings: quiet window (S-08's).
+Objective: idempotent insert-if-absent bootstrap (watermark = MAX(upstream_ordering) per trade); coverage report; shadow metric (trade vs per-obligation watermarks); enablement gate documented.
+Tests: T-36. Stop: bootstrap run + coverage filed.
 ```
 
 ```text
