@@ -35,7 +35,30 @@ release boundary.
    is dropped LAST, after ST-05 shows zero rule sites and GO-02's
    soak is clean (round 13: clean = zero UNEXPLAINED disagreements;
    CANCELLED rows are EXPECTED, classified deltas — legacy display
-   has no such label).
+   has no such label). ui_step_status tightens to NOT NULL here too
+   (round 14): only after the old writer is gone AND the M.3
+   catch-up derivation pass reports ZERO NULL rows;
+   active_exception_* fields stay nullable.
+```
+
+### M.1a Reader-first compatibility ladder (round 14 — conditional)
+
+```text
+The CANCELLED stored value must never reach a reader that cannot
+tolerate it. A DB CHECK change NEVER solves an application-reader
+incompatibility. Ladder, decided by DISCOVERY EVIDENCE:
+1. Discovery (D-phase) proves: does the CURRENTLY DEPLOYED version
+   read ui_step_status at all, and are unknown enum values handled
+   defensively (§16.5)?
+2. Does NOT read the column → record the proof; the compatibility
+   requirement is N/A for that reader path.
+3. Reads it NON-defensively (e.g. two-value enum + Enum.valueOf) →
+   FIRST ship a compatibility release that reads/serializes
+   CANCELLED (or maps unknown values to the sanctioned sentinel)
+   and does NOT write the new value.
+4. Verify the ENTIRE reader fleet is upgraded; only THEN enable
+   the round-11 derivation that WRITES CANCELLED.
+5. Soak + rollback rehearsal precede the M.1-7 contract step.
 ```
 
 ### M.2 Feature flag strategy
@@ -62,6 +85,11 @@ GO-02: dual-write soak with tuple-vs-legacy comparison (report must
 be CLEAN — zero UNEXPLAINED disagreements, each dispositioned;
 EXPECTED CANCELLED semantic deltas are classified, not fixed —
 round 13).
+Catch-up derivation pass (round 14): during dual-run, OLD writers
+may leave ui_step_status NULL; BEFORE the card read switch a batch
+pass re-runs the shared §4 derivation over all obligations (same
+S-08 machinery, idempotent); GO-02 evidence includes ZERO NULL
+rows exposed to the card.
 Derivation shadow: derived ui_step_status/exception vs legacy display
 behavior compared on real traffic before the card reads switch.
 Resolver dry-run mode (recommended, cheap): sweep + query + LOG the

@@ -278,7 +278,8 @@ ui_step_status                  — IN_PROGRESS / COMPLETED / CANCELLED
                                   round 11; the Java enum, the DB
                                   CHECK, and the serialization/API
                                   contract ALL carry the three values
-                                  — CA-4/S-02, rollout-safe per
+                                  — CA-4/S-02/S-05 (the CHECK
+                                  is S-05's — round 13), rollout-safe per
                                   §16.5); NOT_STARTED is virtual —
                                   represented by row absence (§12)
 active_exception_category

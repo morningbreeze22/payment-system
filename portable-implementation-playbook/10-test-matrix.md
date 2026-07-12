@@ -734,7 +734,8 @@ Failure: a removed payment stuck IN_PROGRESS forever (the C-1b
          with a LIVE validation marker showing no exception (the
          round-12 over-suppression — round 13).
 Implemented by: IN-02 (absence fan-out + admission), RG-08
-(CANCELLED derivation), RG-09 (round-12 suppression), RG-10
-(reopening), OB-03 (disappearance alert).
+(CANCELLED derivation), RG-09 (round-13 narrowed suppression),
+RG-10 (reopening), OB-03 (disappearance + validation marker-age
+alerts).
 ```
 

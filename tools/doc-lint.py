@@ -115,7 +115,7 @@ FORBIDDEN = [
      re.compile(r"never|request state|lint", re.I)),
     ("over-broad zero-required suppression (round 13: ONLY historical PROVIDER_REJECTED; validation always visible)",
      re.compile(r"skips? the marker-based ranks|all marker-based|NO marker-based exception|marker-based ranks are skipped|suppresses? (?:all|every) marker", re.I),
-     re.compile(r"round 13|historical|ONLY the historical|lint", re.I)),
+     re.compile(r"historical|ONLY the historical|lint", re.I)),
     ("retired deadline/budget suspension model (round 3)",
      re.compile(r"deadline suspension|deadlines?\s+(?:are\s+)?suspend(?:ed|s)?\b|budgets?\s+(?:are\s+)?(?:suspended|frozen)\b|suspends the (?:retry )?budget", re.I),
      re.compile(r"had no durable|nothing to|nothing needs|never suspend|zero attempts|no wall-clock|REMOVED|lint", re.I)),

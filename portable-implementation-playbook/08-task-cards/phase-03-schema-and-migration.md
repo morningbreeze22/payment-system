@@ -19,7 +19,7 @@
 - **Local placeholder mappings required before starting:** [DB Migration Directory] Confirmed.
 - **Local code areas to discover:** migration numbering/naming convention.
 - **How to locate:** F.17 findings.
-- **Implementation instructions:** write the ordered migration list (numbers reserved, one concern per migration): obligation columns → request columns → inbox table → UNIQUEs/I6 → CHECKs (NOVALIDATE) → triggers → indexes → backfill → VALIDATE. Each entry: DDL summary, rollback note, dual-run compatibility note (old app version must still run — §16.5).
+- **Implementation instructions:** write the ordered migration list (numbers reserved, one concern per migration): obligation columns → request columns → inbox table → UNIQUEs/I6 → CHECKs (NOVALIDATE) → triggers → indexes → backfill → VALIDATE. Each entry: DDL summary, rollback note, dual-run compatibility note (old app version must still run — §16.5). The plan includes the M.1a reader-first ladder decision (round 14): discovery evidence of current-reader behavior for ui_step_status decides N/A vs compatibility-release-first — CANCELLED is never written while an incompatible reader is live.
 - **Do not change:** any existing migration file.
 - **Tests to add:** none (plan task).
 - **Edge cases:** columns that exist with wrong type/semantics (from D-02) get their own expand/contract sub-sequence (add new column → dual-write → migrate readers → drop later, drop deferred to post-rollout).
@@ -202,7 +202,7 @@
 ### S-08 — Backfill factored dimensions for existing rows
 
 - **Task ID:** S-08
-- **Title:** Backfill stage/stage_state/submission_state/outcome (+ anchors where derivable) from the legacy status for existing rows
+- **Title:** Backfill stage/stage_state/submission_state/outcome (+ anchors where derivable) from the legacy status for existing rows; re-derive the obligation read-model status for every existing obligation (round 14)
 - **Classification:** MVP normative implementation
 - **Purpose:** existing rows must satisfy the constraints before VALIDATE and behave correctly under new rules.
 - **Prerequisites:** S-03; D-04 (legacy status meanings memo).
@@ -211,10 +211,10 @@
 - **Local placeholder mappings required before starting:** legacy status value list with meanings (D-04) — if any legacy value has no confident tuple mapping, that value's rows are BLOCKED: report, do not guess.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** write the legacy→tuple mapping table locally (reviewed by the human owner BEFORE running); backfill via idempotent migration or supervised script: dimensions per mapping; submission_state conservatively (any legacy state that could have reached the wire and lacks definitive evidence → MAYBE_SUBMITTED, per §7.1's definitions — fail toward resolver, never toward NOT_SUBMITTED); anchors: maybe_since/submitted_at set to a defensible timestamp (e.g. legacy state-change time if one exists, else backfill run time — record choice); terminal rows normalized per L1 shape.
+- **Implementation instructions:** write the legacy→tuple mapping table locally (reviewed by the human owner BEFORE running); backfill via idempotent migration or supervised script: dimensions per mapping; submission_state conservatively (any legacy state that could have reached the wire and lacks definitive evidence → MAYBE_SUBMITTED, per §7.1's definitions — fail toward resolver, never toward NOT_SUBMITTED); anchors: maybe_since/submitted_at set to a defensible timestamp (e.g. legacy state-change time if one exists, else backfill run time — record choice); terminal rows normalized per L1 shape. OBLIGATION READ-MODEL BACKFILL (round 14): after the dimension backfill, re-derive ui_step_status + active_exception_* for EVERY existing obligation row by RUNNING THE SHARED §4 DERIVATION against canonical state (controlled batches, obligation lock per row, idempotent) — NEVER mapped from the legacy display label where the money predicate is directly evaluable; branch examples: anchor (required NULL, marker live) → IN_PROGRESS + DATA_VALIDATION_FAILED; fully paid → COMPLETED; ordinary partial → IN_PROGRESS; zeroed removal (0/0/0) → CANCELLED; latched overpay → IN_PROGRESS + OVERPAY_DETECTED. GREENFIELD note (§2.4): if the flow's tables started empty, this pass is a cheap no-op — run it anyway; the ZERO-NULL evidence it produces is required either way.
 - **Do not change:** legacy status values themselves (dual-run reads them until P14).
-- **Tests to add:** backfill idempotency (re-run = no-op); per-legacy-value spot checks; post-backfill constraint dry-validate.
-- **Edge cases:** in-flight rows DURING backfill (dual-write not yet on) — run in a quiet window per the S-01 plan; rows whose legacy status contradicts money fields → list for human review, skip, report.
+- **Tests to add:** backfill idempotency (re-run = no-op); per-legacy-value spot checks; post-backfill constraint dry-validate; obligation read-model pass: idempotency + one test per branch example + post-pass ZERO obligation rows with NULL ui_step_status (round 14).
+- **Edge cases:** in-flight rows DURING backfill (dual-write not yet on) — run in a quiet window per the S-01 plan; rows whose legacy status contradicts money fields → list for human review, skip, report; rows written by OLD writers during dual-run may carry NULL ui_step_status until the M.3 catch-up pass — that pass re-runs this derivation BEFORE the card read switch (round 14).
 - **Manual validation:** counts per (legacy value → tuple) reviewed; anomalies list empty or owned.
 - **Expected outcome:** all rows carry valid tuples; S-05 VALIDATE can proceed.
 - **Failure signs:** any row with dimensions violating L2–L8 after backfill.
@@ -235,7 +235,7 @@
 - **Local placeholder mappings required before starting:** real-Oracle test lane available (if D-11 found H2-only, FIRST set up the Oracle lane — that setup is part of this task; split locally if large).
 - **Local code areas to discover:** CI pipeline hooks for migration tests.
 - **How to locate:** D-11 findings.
-- **Implementation instructions:** run/automate: full sequence on clean Oracle; full sequence on a prod-shaped copy (with backfill); OLD application version boots and passes its smoke tests against the NEW schema (dual-run proof — additive columns must not break it); constraint violation suite (S-05/S-06 tests) in CI.
+- **Implementation instructions:** run/automate: full sequence on clean Oracle; full sequence on a prod-shaped copy (with backfill); OLD application version boots and passes its smoke tests against the NEW schema (dual-run proof — additive columns must not break it; incl. READING a CANCELLED row without error, round 13); constraint violation suite (S-05/S-06 tests) in CI; evidence: ZERO obligation rows with NULL ui_step_status after the S-08 read-model pass (round 14).
 - **Do not change:** migrations retroactively — fix-forward with new migrations only.
 - **Tests to add:** the above as repeatable CI jobs where feasible.
 - **Edge cases:** the old version writing rows WITHOUT new dimensions after backfill → those columns must stay nullable until the old version is gone (contract step deferred to P14 — record).

@@ -19,7 +19,7 @@
 - **Local placeholder mappings required before starting:** environment promotion path known.
 - **Local code areas to discover:** feature-flag/config-toggle conventions (Section M's flags need a local mechanism — record which).
 - **How to locate:** deployment repo/config.
-- **Implementation instructions:** write the local rollout plan following Section M's stage order verbatim, with per-stage: owner, checkpoint evidence, rollback trigger + procedure; wire the Section M flags (new-writer dual-write is already structural; scanner enablement, resolver enablement, auto-downgrade enablement as config).
+- **Implementation instructions:** write the local rollout plan following Section M's stage order verbatim, with per-stage: owner, checkpoint evidence, rollback trigger + procedure; wire the Section M flags (new-writer dual-write is already structural; scanner enablement, resolver enablement, auto-downgrade enablement as config); carry the M.1a reader-first ladder stage explicitly (round 14): no release writes CANCELLED until reader-fleet compatibility is verified (discovery-proven N/A, or the compatibility release is deployed fleet-wide).
 - **Do not change:** Section M's ORDER (auto-downgrade last, gated on P8 PASS).
 - **Tests to add:** none (plan); flag-off behavior smoke tests per flag.
 - **Edge cases:** two app versions during each stage (claim compatibility across one release boundary — §16.5).
@@ -47,7 +47,7 @@
 - **Do not change:** production traffic; read-only comparison.
 - **Tests to add:** the comparison tooling's own correctness (seeded disagreement detected).
 - **Edge cases:** rows written by the OLD app version during dual-run (legacy-only) — the S-08 backfill mapping covers them; comparison must tolerate the window.
-- **Manual validation:** soak report clean over the agreed window (owner-defined; record; clean = zero UNEXPLAINED disagreements, expected CANCELLED deltas classified — round 13).
+- **Manual validation:** soak report clean over the agreed window (owner-defined; record; clean = zero UNEXPLAINED disagreements, expected CANCELLED deltas classified — round 13); evidence: NO obligation row exposed to the card path carries NULL ui_step_status — the M.3 catch-up derivation pass ran before the read switch (round 14).
 - **Expected outcome:** factored model trusted.
 - **Failure signs:** "small" disagreement rates waved through — every disagreement has a cause; disposition each.
 - **Common mistakes:** comparing labels only (compare the tuple fields too).
