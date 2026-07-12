@@ -563,11 +563,20 @@ reopening the exact stale-creation hole the table closes):
       enforcement, every claim that leads to enrichment/assembly
       (ENRICH claims, POST claims, the §9.2 downgrade lane)
       carries the term `trade_snapshot_state.last_xml_storage_id
-      IS NOT NULL` in its candidate-selection/claim CAS — a
-      pointer-less request is simply NEVER CLAIMED: it rests at
-      its ordinary READY/RETRY_WAIT, ZERO attempts consumed, no
-      provider call, no budget spent (the same structural-
-      suspension principle as outage gating §7.4/§16.1). No new
+      IS NOT NULL` in the CLAIM TRANSACTION ONLY (round 9 — NOT
+      in candidate selection: excluding pointer-less rows from
+      the scanner's candidate query made the ordinary cutoff
+      transition unreachable). The scanner still SEES a
+      pointer-less due row each cycle and runs its NO-WIRE
+      pre-attempt checks first — a row past its payment cutoff
+      transitions to BLOCKED(CUTOFF_EXPIRED) ordinarily, with no
+      claim, no attempt increment, no assembly, no provider
+      call; a pre-cutoff row simply fails the claim's pointer
+      term and is skipped (rowCount-0 discipline, §4). So a
+      pointer-less request rests at its ordinary
+      READY/RETRY_WAIT, ZERO attempts consumed, no provider
+      call, no budget spent (the same structural-suspension
+      principle as outage gating §7.4/§16.1). No new
       blocked_reason, no new column. RECOVERY IS AUTOMATIC and
       keys on the durable fact, never a label: when the pointer
       completes (next admitted message, adjudicated reprocess,
@@ -578,9 +587,7 @@ reopening the exact stale-creation hole the table closes):
       from the fact (wire-capable trade ∧ pointer NULL); the
       card's exception display may SHOW the label
       SNAPSHOT_POINTER_MISSING as a DERIVED §10.4-class display
-      only — never stored, never a rule input. Cutoff still
-      applies while waiting (a pointer-less row that ages past
-      cutoff blocks as CUTOFF_EXPIRED, ordinarily).
+      only — never stored, never a rule input.
     · GO-LIVE GATE (Q5 evidence): zero NULL-pointer rows among
       WIRE-CAPABLE trades (any active request) before the legacy
       assembly path is removed; each residual individually
@@ -1674,13 +1681,16 @@ unspecified):
   completeness): while a bootstrap row's pointer is NULL, assembly
   uses the flag-gated LEGACY enrichment source; once pointer-only
   enforcement is on, a pointer-less request is STRUCTURALLY
-  UNCLAIMABLE — the enrichment/posting claim gates carry the
-  pointer-presence term (a durable-fact condition, §2.4; never a
-  blocked_reason), so it rests at READY/RETRY_WAIT with zero
-  attempts and no provider call until the pointer completes; then
-  the ordinary due scanner claims the SAME request with the SAME
-  key, re-running repost_permitted first. Never an accidental NULL
-  fetch, never a new BLOCKED reason.
+  UNCLAIMABLE — the CLAIM TRANSACTION carries the pointer-presence
+  term (a durable-fact condition, §2.4; never a blocked_reason;
+  round 9: the term lives in the claim ONLY — candidate selection
+  still surfaces the row so the scanner's no-wire pre-attempt
+  checks, cutoff first among them, keep running), so it rests at
+  READY/RETRY_WAIT with zero attempts and no provider call until
+  the pointer completes; then the ordinary due scanner claims the
+  SAME request with the SAME key, re-running repost_permitted
+  first. Never an accidental NULL fetch, never a new BLOCKED
+  reason.
 - The claim transaction persists the identity (§5.1, first claim) and
   the hash of the assembled instruction (last_sent_hash, §2.2,
   every claim) BEFORE the HTTP call.
@@ -3546,6 +3556,12 @@ payment platform
         duplicate. If TTL < max row lifetime (incl. ops-queue SLA),
         re-POSTs past the TTL are forbidden — repost_permitted
         (§7.0) gains a TTL term — and such rows are ops-only.
+        DECISION HYGIENE (round 9): the TTL outcome is recorded as
+        a NAMED design decision here and in §7.0/§16.6 by the
+        design owner BEFORE any implementation card acts on it —
+        an implementation card (RC-03) implements the resulting
+        FIXED predicate; it never mutates the canonical safety
+        predicate on its own initiative.
      d. re-POST of a key the engine synchronously REJECTED earlier
         (business reject) → settles TL-6's working assumption
         (re-executes vs replays the rejection); either answer is

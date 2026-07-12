@@ -516,7 +516,7 @@ Setup:   seeded rows per dead-end class (BLOCKED·NOT_SUBMITTED,
          tie-conflict (XML storage id + tied ordering) whose STORED
          snapshot has one changed and one identical block; Oracle
          lane with the REAL triggers.
-Action:  run each OP-04 endpoint (+ RG-05 supersede/close) with
+Action:  run each OP-04a..e endpoint/view (+ RG-05 supersede/close) with
          valid and invalid inputs; query the four views.
 Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          reject releases + sets the L9 marker, NOT_SUBMITTED only —
@@ -547,7 +547,7 @@ Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          and list one row per obligation.
 Failure: any dead-end exit that works only via raw SQL, or an
          endpoint whose audit inputs are optional in practice.
-Implemented by: OP-04, RG-05.
+Implemented by: OP-04a..OP-04e (pre-split round 9), RG-05.
 ```
 
 ### T-34 — Claim protocol: lock order, lost races, deadlock freedom
@@ -631,7 +631,7 @@ Failure: any block transaction that applies or creates without
          holding the trade lock and passing the fence IN THAT
          transaction; an abandoned block that is not logged; a tie
          that re-alerts after adjudication.
-Implemented by: S-10, IN-02, OP-04 (reprocess entry path).
+Implemented by: S-10, IN-02, OP-04c (reprocess entry path).
 ```
 
 ### T-36 — trade_snapshot_state bootstrap + mixed-version cutover (round 6)
@@ -672,17 +672,29 @@ Expect:  every existing business_id gets a row with watermark =
          on a label): zero attempts consumed, NO provider call,
          state stays READY/RETRY_WAIT, the §15 derived-fact
          alert fires and the card shows the DERIVED
-         SNAPSHOT_POINTER_MISSING display label; complete the
-         pointer FOUR ways (live admission, approved reprocess,
-         ask-9 bootstrap, restore repair) → the ordinary due
-         scanner claims the SAME request with the SAME
-         idempotency key, repost_permitted re-run before any
-         POST; a pointer-less row aged past cutoff blocks as
-         CUTOFF_EXPIRED ordinarily; pointer-coverage
+         SNAPSHOT_POINTER_MISSING display label; MVP completion
+         path (round 9 — scope split): LIVE ADMISSION completes
+         the pointer → the ordinary due scanner claims the SAME
+         request with the SAME idempotency key, repost_permitted
+         re-run before any POST; CUTOFF REACHABILITY (round 9,
+         the H-1 fix): a pointer-less row aged past cutoff is
+         SEEN by candidate selection and transitions to
+         BLOCKED(CUTOFF_EXPIRED) with NO claim, NO attempt
+         increment, NO assembly, NO provider call (the pointer
+         term lives in the claim CAS only); pointer-coverage
          (wire-capable) metric reported.
+         NON-MVP attributions (round 9): approved-reprocess
+         pointer completion → owned/tested by OP-04c (T-33);
+         ask-9 export completion → CONDITIONAL, tested only if
+         ask 9 is adopted (it is an optional accelerator);
+         restore-repair completion → FUTURE, §5.2 post-MVP DR
+         scope — not a go-live assertion.
 Failure: an older document admitted by a bootstrapped or
-         digest-NULL row, or enforcement enabled with coverage
-         gaps.
-Implemented by: S-11, IN-02.
+         digest-NULL row; enforcement enabled with coverage gaps;
+         a pointer-less past-cutoff row that never reaches
+         CUTOFF_EXPIRED (the unreachable-transition defect this
+         round exists to prevent).
+Implemented by: S-11, IN-02 (MVP core); OP-04c (reprocess
+         completion path, in T-33).
 ```
 

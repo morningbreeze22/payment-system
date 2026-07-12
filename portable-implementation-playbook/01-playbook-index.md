@@ -146,7 +146,7 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 | P8 Contract tests | CT-01..CT-07 | B-02; K-02/K-03 | §18-1 — this phase IS the proof | §18-1 evidence pack | gates GO-03 F4 + GO-04 |
 | P9 Inbound | IN-01..IN-09 | P6, P7 | upstream asks open → comparator pluggable | hardened intake + feed + evidence helper | P10 |
 | P10 Retry/recovery | RC-01..RC-10 | P6, P7, P9; CA-1/CA-3 | §18-2 (cutoff values); P8 PASS gates auto-downgrade ENABLEMENT | resolver machinery | P11 |
-| P11 Operator ops | OP-01..OP-04 | CA-9; S-06; P6/P7 | §18-3 — this phase satisfies it | operation + signed drill + §20 interim surface | P12 |
+| P11 Operator ops | OP-01..OP-03, OP-04a–e (round-9 pre-split) | CA-9; S-06; P6/P7 | §18-3 — this phase satisfies it | operation + signed drill + §20 interim surface | P12 |
 | P12 Drift | OB-01..OB-02 | P7 live; S-07 | none new | drift scan + tripwires | P13 |
 | P13 Observability | OB-03..OB-07 | P6-P12 metric sources | config owners pending → marked | §15 alert surface + config validation | P14 |
 | P14 Rollout | GO-01..GO-05 | ALL phases; P8 PASS; OP-03 | §18-0..3 non-waivable at Q1-Q4/Q28 | live system + signed go/no-go | steady state |

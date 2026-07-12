@@ -11,7 +11,7 @@
 [OB-03] Money/MAYBE alerts
 Read: §15 (list + clock discipline) §13 §2.1 §2.2. Invariant: AGE alerts read episode anchors ONLY (maybe_since, first_at, …), never state_changed_at.
 Placeholders: [Metrics / Alerting Layer]. Mappings: metric conventions.
-Objective: implement the money-facing §15 entries (MAYBE ages+tier-2, stuck reservation, BLOCKED queue, marker + counter alerts, latch alerts+age, MISMATCH/INCONSISTENCY CRITICALs, tie/latched-amendment alerts, live-marker-no-request age, procedure-use every-use alert, latch-integrity alert).
+Objective: implement the money-facing §15 entries (MAYBE ages+tier-2, stuck reservation, BLOCKED queue, marker + counter alerts, latch alerts+age, MISMATCH/INCONSISTENCY CRITICALs, tie/latched-amendment alerts, live-marker-no-request age, operation-use every-use alert, latch-integrity alert).
 Tests: seeded condition per alert. Stop: merged.
 ```
 

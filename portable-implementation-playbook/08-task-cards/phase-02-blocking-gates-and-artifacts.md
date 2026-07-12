@@ -78,7 +78,7 @@
 ### B-04 — Record the §18 item 3 resolution path (MAYBE terminal exit)
 
 - **Task ID:** B-04
-- **Title:** Confirm the MVP MAYBE-row terminal exit: the audited procedure (default) or the TL-10 + TL-5 alternative
+- **Title:** Confirm the MVP MAYBE-row terminal exit: the audited operation (default) or the TL-10 + TL-5 alternative
 - **Classification:** §18 BLOCKING go-live gate
 - **Purpose:** §18-3: without a terminal exit, an unresolvable MAYBE row holds its reservation forever, the scope never completes (§4.1) and I6 blocks successors.
 - **Prerequisites:** B-02 (TL-5/TL-10 answers inform the alternative).
@@ -90,7 +90,7 @@
 - **Implementation instructions:** default decision per spec: BUILD the operation (OP-01..03, CA-9). Only if TL-10 (platform formal reject) AND TL-5 (lookback ≥ max row lifetime incl. ops-queue SLA) are BOTH answered affirmatively in writing may the operation be de-scoped — record whichever path, and note §20's PO decision already REQUIRES the operation at MVP, so de-scoping needs explicit PO re-confirmation.
 - **Do not change:** code.
 - **Tests to add:** none.
-- **Edge cases:** partial alternative (TL-10 yes, TL-5 no) → procedure stays required.
+- **Edge cases:** partial alternative (TL-10 yes, TL-5 no) → the operation stays required.
 - **Manual validation:** decision recorded with approver.
 - **Expected outcome:** OP-xx confirmed in scope (expected default).
 - **Failure signs:** de-scoping the operation on optimistic unwritten answers.
@@ -298,7 +298,7 @@
 - **Classification:** §16.6 companion artifact + §18 BLOCKING item 3 input
 - **Purpose:** OP-01 implements exactly this spec: signature, dual-control enforcement, evidence-flag mechanics, refusal conditions, audit fields, drill script.
 - **Prerequisites:** B-04 (path confirmed); CA-4 (trigger/evidence-flag mechanics defined there must match).
-- **Requirement sections / concepts to read:** §9.3 (full procedure design), §10.1, §10.3 (evidence flag + backstops), §20-8 (audit/ticket rule), §16.6 artifact 8, §18-3.
+- **Requirement sections / concepts to read:** §9.3 (full operation design), §10.1, §10.3 (evidence flag + backstops), §20-8 (audit/ticket rule), §16.6 artifact 8, §18-3.
 - **Placeholder components involved:** [Operator Admin Procedure Area].
 - **Local placeholder mappings required before starting:** none for authoring.
 - **Local code areas to discover:** none.
@@ -309,7 +309,7 @@
 - **Edge cases:** platform amount differs from request amount → NOT applicable here; that is the §8 AMOUNT_MISMATCH defect path (spec is explicit).
 - **Manual validation:** DBA + ops-owner review; the approval store (ops schema) + session-identity plumbing confirmed workable in the real environment (from D-10 — else UNCLEAR flagged); the signed-assertion alternative documented as GATED, not offered to the implementer.
 - **Expected outcome:** implementable spec + drill script.
-- **Failure signs:** dual control specified as runbook convention instead of procedure-enforced.
+- **Failure signs:** dual control specified as runbook convention instead of operation-enforced.
 - **Common mistakes:** allowing outcome values beyond EXECUTED/REJECTED.
 - **Completion criteria:** spec published.
 - **Stop condition:** published; OP-01 unblocked.

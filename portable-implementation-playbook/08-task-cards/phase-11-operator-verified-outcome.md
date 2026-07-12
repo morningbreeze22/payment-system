@@ -1,4 +1,4 @@
-> **Purpose:** Task cards OP-01..OP-04 (apply-platform-verified-outcome audited operation — §18-3 — plus the §20 interim ops surface) (original Section H, phase P11).
+> **Purpose:** Task cards OP-01..OP-03 + OP-04a..OP-04e (apply-platform-verified-outcome audited operation — §18-3 — plus the §20 interim ops surface, pre-split round 9) (original Section H, phase P11).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P11.
@@ -77,39 +77,136 @@
 - **Common mistakes:** skipping the ticket-reference realism (the ticket trail is the restore-surviving record — §20-8).
 - **Completion criteria:** signed drill report.
 - **Stop condition:** report filed; §18-3 marked satisfiable in Section Q.
-- **Next task:** OP-04.
+- **Next task:** OP-04a.
 
-### OP-04 — Guarded interim ops operations + ops queue views
+> **Round-9 note:** the former single OP-04 card was PRE-SPLIT into OP-04a..OP-04e — the split itself contains architectural judgment a small-context agent must not make. Execute strictly in order; each sub-card is one commit-sized unit with its own tests and stop condition.
 
-- **Task ID:** OP-04
-- **Title:** Implement the §20 interim ops surface: retry / reject / annotate / reprocess-snapshot as AUTHORIZED APPLICATION ENDPOINTS + the four ops queue views
-- **Classification:** MVP normative implementation (the §20 interim operation set; complements RG-05's supersede/close and OP-01's verified-outcome operation)
-- **Purpose:** §20's accepted interim model guarantees a controlled exit for exactly THREE dead-end classes (verified-outcome, supersede/close, reprocess-snapshot — §20 exit-honesty note; marker-only and overpay-latched scopes are documented STOP STATES, not covered) — without these exits fail-blocked degrades to fail-forever (failure-recovery-walkthrough: E-2/E-4/P-11 retry, M-6 reject, M-2 annotate, U-9 tie) and the §15 queues page humans who have no lever.
-- **Prerequisites:** OP-01/OP-02 (endpoint auth pattern, restricted role, evidence-flag mechanics proven on real Oracle); RG-05 (release guard + the supersede/close pattern to copy); RG-06 (§6.8 evaluation callable); IN-02 — VERIFY the tie-conflict record carries the identifiers per the REVISED §6.7 executability requirement (business_id, tied ordering, XML storage id, masked diff summary), that the XML fetch-by-id path exists (§6.0 transport note), AND that the §6.1 trade-level ADMISSION gate is implemented (round 5 — reprocess enters through it); if not, reopen IN-02 BEFORE this card.
-- **Requirement sections / concepts to read:** §20 (interim operation set + items 1, 4, 8, 10), §6.1 (ADMISSION — round 5), §6.7 (tie handling incl. executability requirement), §9.3 (consume-at-start for reprocess), §10.1, §10.5 (ops rows), §14, §15 (queue metrics), §12 (read semantics).
-- **Placeholder components involved:** [Operator Admin Procedure Area], [Stored Procedure / Trigger Area], [Obligation Repository], [Metrics / Alerting Layer].
-- **Local placeholder mappings required before starting:** OP-01's role/approver mechanics; view deployment target.
+### OP-04a — Shared ops-endpoint contract + ergonomics endpoints (retry / reject / annotate)
+
+- **Task ID:** OP-04a
+- **Title:** Shared authorized-endpoint contract (auth, audit, §9.3 approval adapter) + the three waivable ergonomics endpoints
+- **Classification:** MVP normative implementation (§20 interim operation set — waivable ergonomics; the shared contract is reused by every OP-04x card)
+- **Purpose:** §20's accepted interim model guarantees a controlled exit for exactly THREE dead-end classes (verified-outcome, supersede/close, reprocess-snapshot — §20 exit-honesty note; marker-only and overpay-latched scopes are documented STOP STATES) — without exits, fail-blocked degrades to fail-forever (walkthrough: E-2/E-4/P-11 retry, M-6 reject, M-2 annotate) and the §15 queues page humans who have no lever.
+- **Prerequisites:** OP-01/OP-02 (endpoint auth pattern, restricted role, evidence-flag mechanics proven on real Oracle); RG-05 (release guard + supersede/close pattern to copy); RG-06 (§6.8 evaluation callable).
+- **Requirement sections / concepts to read:** §20 (items 1, 4, 8), §9.3 (approval workflow), §10.1, §10.5 (ops rows), §14.
+- **Placeholder components involved:** [Operator Admin Procedure Area], [Obligation Repository].
+- **Local placeholder mappings required before starting:** OP-01's role/approver mechanics.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** (a) three request-level AUTHORIZED ENDPOINTS (enterprise-authenticated, restricted ops role — the OP-01 pattern) whose service layer calls the SAME shared CAS/money helpers (never a private UPDATE path): retry-blocked → SAME-stage RETRY_WAIT per L7 (outcome IS NULL ∧ BLOCKED ∧ NOT_SUBMITTED ∧ divergent_payload_at IS NULL; POST-stage exits re-check the remaining repost_permitted terms); reject-blocked → outcome=REJECTED + L9 marker + release via the RG-02 path (release guard: NOT_SUBMITTED only); annotate → ops_annotation write (display-only, no state change). (b) reprocess-snapshot — SERVER-VERIFIED + DIGEST-BOUND + CONSUME-AT-START (rounds 3–5, §6.7/§20-10/§9.3): APPROVAL time fetches + validates the snapshot and binds its canonical payload digest into the §9.3 approval (approver sees digest + masked diff); EXECUTION takes the approval_id, re-fetches, recomputes the digest and HARD-REFUSES on mismatch (+ alert) BEFORE any consumption or lock (a refusal burns nothing), then commits APPROVED→CONSUMED ALONE (round 5: multi-block work cannot share one transaction with its approval; consumption precedes money movement so no replay window exists; a crash mid-fan-out is remedied by a NEW approval of the SAME document — convergence applies only the remainder), verifies the document's business_id, then re-runs the normal §6.1 fan-out THROUGH THE ADMISSION GATE (round 5): the ≥ relaxation is evaluated AT ADMISSION — it applies iff the FETCHED document's own ordering equals trade_snapshot_state.last_accepted_ordering AND its digest differs from the stored one (the §6.7 tie definition); admission then updates the trade row (this update IS the application for a trade-reference-only tie — §20-10) and the §20-10 PER-BLOCK rules decide each obligation — NO caller-supplied ordering exists, so fabrication is impossible; a non-tying document gets the ordinary strictly-newer guard only; a document OLDER than the trade watermark is refused even with a valid approval; re-run after apply finds digest equality at admission and no-ops (single-use by construction); corrected DLT documents arrive as NEW immutable ids (ask 8); every money guard (§6.4/§6.5/§6.8, I6) applies unchanged; 4-eyes ALWAYS. ROUNDS 6–7 — fence + completion evidence: each block transaction carries the §6.1 trade-snapshot FENCE (trade row locked first; overtaken by a newer live snapshot → remaining blocks ABANDONED per §6.1 block-level supersession — the approver display says so, §9.3); after the last block, stamp the approval record (ops schema) with completed_at + a per-block summary (applied/no-op/dropped/abandoned) in its own small transaction; the §15 consumed-without-completion alert fires past SLA (crash OR abandonment — the runbook decides: document now stale → annotate + close; else NEW approval, convergence applies the remainder). (c) Every endpoint enforces IN ITS CONTRACT: operator id, reason, external ticket ref (§20-8), plus the §9.3 two-step approval workflow where 4-eyes applies (retry, reject, reprocess-snapshot — they move or release money via §6.8; approver ≠ initiator, binding + single-use consumption per §9.3); §14 line with trigger_source=MANUAL_OPS:<operator>. (d) Four read-only queue views on the artifact-4 ACTIVE-row-bounded indexes: BLOCKED by reason (ESCALATED ranked first), stuck reservations by age, aged MAYBE by maybe_since + cutoff proximity, overpay latches; §15 alert definitions link to them. Execution-semantics reference: ops-console-proposal.md §6.1; mechanics: 24-implementation-mechanics.md M1/M8 (SHAPE-PROC + SHAPE-READ).
-- **Do not change:** RG-05's supersede/close (already delivered); OP-01's operation; the §10.3 triggers; the §6.7 guard for NON-tied orderings (the ≥ relaxation is SERVER-DERIVED from the fetched document — never caller-supplied; round 3).
-- **Tests to add:** T-33.
-- **Edge cases:** reject attempted on a MAYBE row → refused at BOTH layers (code guard AND trigger — reuse OP-02's raw-SQL demo pattern); reprocess-snapshot re-run under a NEW approval → admission digest-equal, every block no-ops (idempotent); crash AFTER consume BEFORE fan-out → approval burned, NOTHING applied, a new approval succeeds (artifact-6(e) round 5 — never resurrect the consumed one); overtaken MID-fan-out by a newer live snapshot → the next block's fence aborts, remaining blocks abandoned (logged + counted), the alert fires, and a re-approval of the now-stale document is REFUSED at admission (round 6 — that refusal is CORRECT); crash between the last block and the completion stamp → false alert only, the runbook re-run no-ops and stamps; a NON-TYING or wrong-business_id document → refused / ordinary guard only, NO relaxation (the server recomputes the tie — the fabrication case, artifact-6(d)); a document OLDER than the trade watermark → refused whole even with a valid approval (admission, round 5); trade-reference-only tie → blocks no-op, the admission row update IS the application, re-run converges (§20-10); reprocess onto a latched scope → amount applies, NO request created, AMENDMENT_ON_LATCHED_SCOPE fires (§6.5 latch guard unchanged); reprocess of a PURGED xml id → clean refusal + upstream-ask-8 escalation (never a partial apply); queue views on a multi-payment trade list one row per obligation — count is never an error (§12).
-- **Manual validation:** run each endpoint against seeded rows in the OP-02 lane; compare view output against the seeded queue states; attempt each endpoint with a non-restricted role (must fail).
-- **Expected outcome:** the §20 NON-WAIVABLE minimal exit set works (verified-outcome via OP-01, supersede/close via RG-05, reprocess-snapshot here) plus the waivable ergonomics endpoints; exits may be terminal give-ups (§20 exit-honesty note).
-- **Failure signs:** any endpoint with its own UPDATE path instead of the shared helpers; reprocess accepting payload/amounts as parameters; a view keyed on display labels.
-- **Common mistakes:** accepting an ordering parameter on reprocess (the server derives it — round 3); making ticket/approver optional "for now"; exposing the endpoints beyond the enterprise ops role.
-- **Completion criteria:** T-33 green on real Oracle; grants audited.
-- **Stop condition:** merged; SHAPE-PROC + SHAPE-READ ticked in the report; Q29 evidence filed.
-- **Next task:** OB-01.
+- **Implementation instructions:** (a) ONE shared endpoint contract, reused by all OP-04x endpoints: enterprise authentication, restricted ops role, mandatory operator id + reason + external ticket ref (§20-8), the §9.3 two-step approval adapter where 4-eyes applies (execution by approval_id; approver ≠ initiator; binding + single-use consumption per §9.3), §14 line with trigger_source=MANUAL_OPS:<operator>; service layer calls the SAME shared CAS/money helpers — never a private UPDATE path. (b) three request-level endpoints on that contract: retry-blocked → SAME-stage RETRY_WAIT per L7 (outcome IS NULL ∧ BLOCKED ∧ NOT_SUBMITTED ∧ divergent_payload_at IS NULL; POST-stage exits re-check the remaining repost_permitted terms); reject-blocked → outcome=REJECTED + L9 marker + release via the RG-02 path (release guard: NOT_SUBMITTED only); annotate → ops_annotation write (display-only, no state change). Retry and reject are 4-eyes (they move or release money via §6.8). Mechanics: M1/M8 SHAPE-PROC.
+- **Do not change:** RG-05's supersede/close (already delivered); OP-01's operation; the §10.3 triggers.
+- **Tests to add:** T-33 subset: retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches); reject releases + sets the L9 marker, NOT_SUBMITTED only — a MAYBE row refused at code layer AND trigger layer (raw-SQL demo, OP-02 pattern); annotate has zero state effect; missing ticket / unauthorized role / identical identities refused; every call writes the §14 line.
+- **Edge cases:** reject on a MAYBE row → refused at BOTH layers; retry on an ENRICH-blocked row re-enriches, never skips to POST (§10.5).
+- **Manual validation:** run each endpoint against seeded rows in the OP-02 lane; attempt with a non-restricted role (must fail).
+- **Expected outcome:** the shared contract exists and the waivable ergonomics endpoints work.
+- **Failure signs:** any endpoint with its own UPDATE path; approver identity accepted as a parameter.
+- **Common mistakes:** making ticket/approver optional "for now"; exposing endpoints beyond the enterprise ops role.
+- **Completion criteria:** T-33 subset green on real Oracle.
+- **Stop condition:** merged; SHAPE-PROC ticked.
+- **Next task:** OP-04b.
 
+### OP-04b — Reprocess-snapshot APPROVAL side (fetch, validate, digest-bind, display)
+
+- **Task ID:** OP-04b
+- **Title:** Approval-time snapshot fetch + validation + canonical digest binding + approver display (masked diff, supersession notice)
+- **Classification:** MVP normative implementation (NON-WAIVABLE path — §20 minimal exit set)
+- **Purpose:** §9.3 rounds 4–7: the approvers authorize CONTENT, not an opaque id — the approval must bind what they actually reviewed.
+- **Prerequisites:** OP-04a (approval adapter); IN-02 — VERIFY the tie-conflict record carries the identifiers per §6.7 (business_id, tied ordering, XML storage id, masked diff summary), the XML fetch-by-id path exists (§6.0 transport note), AND the §6.1 trade-level ADMISSION gate is implemented; if not, reopen IN-02 BEFORE this card.
+- **Requirement sections / concepts to read:** §9.3 (approval binding), §6.7 (tie + executability), §6.0 (transport), §16.3 (masking).
+- **Placeholder components involved:** [Operator Admin Procedure Area].
+- **Local placeholder mappings required before starting:** XML-store fetch client (IN-02's).
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** the reprocess-snapshot INITIATION endpoint (input: xmlStorageId + reason + ticketRef) FETCHES the snapshot from the store by id, VALIDATES it (schema, business_id), computes the CANONICAL business-payload digest (the ONE shared implementation — same algorithm as §2.4/§6.1), and records the pending §9.3 approval BOUND to (business_id, xml_storage_id/version, digest, ticket, expiry, UNIQUE nonce). The second approver's display shows the digest + the MASKED per-block diff (§16.3 — never raw payload) + the round-7 SUPERSESSION NOTICE (a newer live snapshot admitted mid-execution supersedes the unapplied remainder). No payment state is touched by this card.
+- **Do not change:** the §6.7 tie-record contents; the §16.3 masking rules; the digest algorithm (shared, never a second implementation).
+- **Tests to add:** approval binds the exact digest of the fetched document; a different document → different digest (binding, not attestation); masked diff never contains full account numbers; the supersession notice present; purged/missing xml id at approval time → clean refusal, NO pending approval created; approval expiry set.
+- **Edge cases:** approval created, document corrected upstream (new id) before approval granted → execution (OP-04c) will hard-refuse on digest mismatch — by design, not this card's problem; wrong-business_id document → refused at initiation.
+- **Manual validation:** approver screen review with the ops owner (digest + masked diff + notice visible).
+- **Expected outcome:** approvals that authorize content.
+- **Failure signs:** an approval created without a fetch (id-only attestation — the round-4 H-1 defect class).
+- **Common mistakes:** computing the digest with a second implementation; showing the raw payload to approvers.
+- **Completion criteria:** tests green.
+- **Stop condition:** merged.
+- **Next task:** OP-04c.
+
+### OP-04c — Reprocess-snapshot EXECUTION (consume-at-start, admission entry, fence, completion evidence)
+
+- **Task ID:** OP-04c
+- **Title:** Execution by approval_id: digest hard-refusal → consume-at-start → §6.1 admission (≥ relaxation) → §20-10 per-block rules under the trade-snapshot fence → completion stamp + alerts
+- **Classification:** MVP normative implementation (NON-WAIVABLE — §20 minimal exit set; the U-9 tie exit)
+- **Purpose:** §20-10/§9.3: the server-verified, digest-bound, single-use application of an adjudicated snapshot — with crash and supersession behavior that never fails silently.
+- **Prerequisites:** OP-04b (approvals exist); S-10/IN-02 (admission gate + fence live).
+- **Requirement sections / concepts to read:** §20-10 (whole), §9.3 (consume-at-start + completion evidence), §6.1 (ADMISSION + fence + block-level supersession), §6.7 (tie definition), §6.4/§6.5/§6.8 (money guards).
+- **Placeholder components involved:** [Operator Admin Procedure Area], [Obligation Repository], [Metrics / Alerting Layer].
+- **Local placeholder mappings required before starting:** none beyond OP-04a/b.
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** execution takes the approval_id ONLY: re-fetch the snapshot, recompute the canonical digest, HARD-REFUSE on mismatch (+ alert) BEFORE any consumption or lock (refusal burns nothing); commit APPROVED→CONSUMED ALONE (round 5 — consumption precedes money movement, no replay window; crash mid-fan-out = NEW approval of the SAME document, never resurrect the consumed one); verify document.business_id; enter the §6.1 ADMISSION gate (≥ relaxation AT ADMISSION iff fetched ordering == trade watermark ∧ digest differs; OLDER than the watermark → refused whole even with a valid approval; the admission row update IS the application for a trade-reference-only tie); then the §20-10 PER-BLOCK rules, each block transaction passing the §6.1 trade-snapshot FENCE (overtaken by newer live intake → remaining blocks ABANDONED per block-level supersession, logged + counted); after the last block, stamp the approval record (ops schema) with completed_at + per-block summary (applied/no-op/dropped/abandoned) in its own small transaction; wire the §15 consumed-without-completion alert + runbook (stale document → annotate + close; else NEW approval). Every money guard (§6.4/§6.5/§6.8, I6) applies unchanged; no caller-supplied ordering exists.
+- **Do not change:** the §6.7 guard for NON-tied orderings (the ≥ relaxation is SERVER-DERIVED — never caller-supplied); the §10.3 triggers; the fence.
+- **Tests to add:** T-33 reprocess core: digest mismatch → hard refusal BEFORE consumption (approval NOT burned); crash after consume before fan-out → burned, nothing applied, NEW approval succeeds; overtaken mid-fan-out → fence aborts, abandonment logged, alert fires, re-approval of the stale document refused (CORRECT); crash between last block and stamp → false alert only, re-run no-ops and stamps; non-tying / wrong-business_id → no relaxation (artifact-6(d)); older-than-watermark → refused whole; reference-only tie converges via the admission update; latched scope → amount applies, NO request, AMENDMENT_ON_LATCHED_SCOPE; purged xml id → clean refusal + ask-8 escalation; re-run under a NEW approval → digest-equal, all no-ops. Also the T-36 approved-reprocess pointer-completion case (a digest-NULL bootstrap row completed by an adjudicated reprocess).
+- **Edge cases:** concurrent double-execution → exactly one CONSUMED CAS wins; artifact-6(e) negatives all apply.
+- **Manual validation:** full tie drill on seeded data in the OP-02 lane.
+- **Expected outcome:** the non-waivable tie exit works and never fails silently.
+- **Failure signs:** reprocess accepting payload/amounts/ordering as parameters; consumption sharing a transaction with block work; a consumed approval resurrected.
+- **Common mistakes:** accepting an ordering parameter (server derives it — round 3); skipping the pre-consumption digest check; forgetting the completion stamp's own transaction.
+- **Completion criteria:** T-33 reprocess core green on real Oracle.
+- **Stop condition:** merged; SHAPE-PROC ticked.
+- **Next task:** OP-04d.
+
+### OP-04d — Ops queue views + authorization/index-plan tests
+
+- **Task ID:** OP-04d
+- **Title:** Four read-only queue views on the artifact-4 active-row-bounded indexes + §15 links + plan assertions
+- **Classification:** MVP normative implementation (Q29-waivable ergonomics)
+- **Purpose:** §15's queues must land humans somewhere actionable; views ride the ACTIVE-row-bounded indexes so they stay flat as terminal rows grow.
+- **Prerequisites:** OP-04a (role model); S-07 (index set).
+- **Requirement sections / concepts to read:** §15 (queue metrics), §12 (read semantics), §10.4 (labels display-only).
+- **Placeholder components involved:** [Obligation Repository], [Metrics / Alerting Layer].
+- **Local placeholder mappings required before starting:** view deployment target.
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** four READ-ONLY views: BLOCKED by reason (ESCALATED ranked first), stuck reservations by age, aged MAYBE by maybe_since + cutoff proximity, overpay latches; plus the §2.4 pointer-residue view (wire-capable trade ∧ pointer NULL — the round-8 derived-fact surface); §15 alert definitions link to each view; restricted to the ops role; mechanics M8 SHAPE-READ (no locks, no writes).
+- **Do not change:** any write path (this card is read-only).
+- **Tests to add:** T-33 views subset: views rank ESCALATED first; one row per obligation on a multi-payment trade (count is never an error — §12); EXPLAIN plans ride the artifact-4 indexes on a terminal-heavy seed; unauthorized role refused.
+- **Edge cases:** a view keyed on display labels or blocked_reason as a rule input = FAILURE (display/routing only).
+- **Manual validation:** compare view output against seeded queue states.
+- **Expected outcome:** every §15 queue alert links to a working view.
+- **Failure signs:** a view whose plan degrades with terminal-row growth.
+- **Common mistakes:** sneaking a write or lock into a "view helper".
+- **Completion criteria:** T-33 views subset green.
+- **Stop condition:** merged; SHAPE-READ ticked.
+- **Next task:** OP-04e.
+
+### OP-04e — Interim-surface cross-path integration suite + evidence
+
+- **Task ID:** OP-04e
+- **Title:** Full T-33 on real Oracle: crash / overtake / replay / zombie / concurrency across all OP-04x paths; Q29 evidence filed
+- **Classification:** MVP normative implementation (integration gate for the OP-04x set)
+- **Purpose:** the sub-cards were built separately; money-moving operations need one adversarial pass across their interactions before the phase closes.
+- **Prerequisites:** OP-04a..OP-04d merged.
+- **Requirement sections / concepts to read:** T-33 (whole), T-35 (reprocess entry cases), artifact 6 sets (d)/(e)/(f).
+- **Placeholder components involved:** [Integration Test Suite].
+- **Local placeholder mappings required before starting:** Oracle lane with real triggers.
+- **Local code areas to discover:** none new.
+- **How to locate:** n/a.
+- **Implementation instructions:** run/complete the FULL T-33 suite on real Oracle (all endpoints, valid + invalid inputs, the artifact-6(d) mixed-snapshot set, the (e) dual-control negatives incl. concurrent double-execution, the (f) admission set where OP-owned); the T-35 reprocess-entry cases; file the Q29 evidence pack.
+- **Do not change:** production code except fixes for failures found (failures reopen the owning sub-card).
+- **Tests to add:** any T-33 case not yet covered by OP-04a..d.
+- **Edge cases:** the suite must run with the REAL triggers (a lane without S-06's triggers proves nothing).
+- **Manual validation:** evidence pack reviewed with the ops owner.
+- **Expected outcome:** the §20 NON-WAIVABLE minimal exit set works end to end (verified-outcome via OP-01, supersede/close via RG-05, reprocess-snapshot via OP-04b/c) plus the waivable ergonomics; exits may be terminal give-ups (§20 exit-honesty note).
+- **Failure signs:** green tests with triggers disabled; evidence filed retroactively without run IDs.
+- **Common mistakes:** treating sub-card unit tests as a substitute for the cross-path suite.
+- **Completion criteria:** T-33 green on real Oracle; grants audited; Q29 evidence filed.
+- **Stop condition:** merged; evidence filed.
+- **Next task:** OB-01.
 
 ---
 
 ## Phase handoff summary (P11 → P12)
 
-- **Phase outputs:** the CA-9 audited operation implemented as an authorized application endpoint (dual control via enterprise-authenticated identities, evidence flag, refusals, audit + every-use alert), tested on real Oracle, and DRILLED by real operators (signed report) — §18-3's default path satisfied; PLUS the §20 interim ops surface (retry/reject/annotate/reprocess-snapshot endpoints + four queue views, OP-04).
-- **Blockers to carry forward:** none new; §18-3 marked satisfiable in the go-live checklist (Q4, Q15); Q29 evidence filed with OP-04.
+- **Phase outputs:** the CA-9 audited operation implemented as an authorized application endpoint (dual control via enterprise-authenticated identities, evidence flag, refusals, audit + every-use alert), tested on real Oracle, and DRILLED by real operators (signed report) — §18-3's default path satisfied; PLUS the §20 interim ops surface (retry/reject/annotate + reprocess approval/execution + queue views — OP-04a..OP-04e, pre-split round 9).
+- **Blockers to carry forward:** none new; §18-3 marked satisfiable in the go-live checklist (Q4, Q15); Q29 evidence filed with OP-04e.
 - **Local mapping rows expected filled:** [Operator Admin Procedure Area] CONFIRMED incl. the restricted-role/approver-identity mechanics.
 - **Tests expected to exist:** T-24 suite (outcomes, refusals, guard interplay, raw-SQL-fails demo), T-28 wedge-prevention chain, T-33 interim-surface suite.
-- **Next phase entry condition:** OP-03 drill report signed; OP-04 merged.
+- **Next phase entry condition:** OP-03 drill report signed; OP-04a..OP-04e merged (OP-04e's evidence filed).

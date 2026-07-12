@@ -110,11 +110,15 @@ if tids:
 
 # ---- Rule 6: card-ID parity between task-card files and file 20 ----
 card_ids = set()
+card_id_list = []
 for path in sorted((PORTABLE / "08-task-cards").glob("phase-*.md")):
     for l in lines_of(path):
         m = re.match(r"### ([A-Z]{1,3}-\d+[a-z]?) ", l)
         if m:
+            if m.group(1) in card_ids:
+                errors.append(f"{rel(path)}: DUPLICATE card id {m.group(1)}")
             card_ids.add(m.group(1))
+            card_id_list.append(m.group(1))
 seq = PORTABLE / "20-execution-sequence-and-decision-defaults.md"
 seq_text = "\n".join(lines_of(seq))
 seq_ids = set(re.findall(r"\b([A-Z]{1,3}-\d+[a-z]?)\b", seq_text))
@@ -135,6 +139,26 @@ def norm(s):
 card_n, seq_n = {norm(i) for i in card_ids}, {norm(i) for i in seq_ids}
 for missing in sorted(card_n - seq_n):
     errors.append(f"{rel(seq)}: card {missing} exists but is absent from the execution sequence")
+
+# ---- Rule 6b (round 9): tracker parity — every card has a tracker row, no ghosts ----
+tracker = PORTABLE / "21-progress-tracker-template.md"
+tracker_ids = set()
+for l in lines_of(tracker):
+    m = re.match(r"\|\s*[0-9]+[a-z]?\s*\|\s*([A-Z]{1,3}-\d+[a-z]?)\s*\|", l)
+    if m:
+        if m.group(1) in tracker_ids:
+            errors.append(f"{rel(tracker)}: DUPLICATE tracker row {m.group(1)}")
+        tracker_ids.add(m.group(1))
+tracker_n = {norm(i) for i in tracker_ids}
+for missing in sorted(card_n - tracker_n):
+    errors.append(f"{rel(tracker)}: card {missing} has NO tracker row (the round-9 H-2 defect class)")
+for ghost in sorted(tracker_n - card_n):
+    errors.append(f"{rel(tracker)}: tracker row {ghost} has no task card")
+
+# ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
+P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-11, S-09"
+if P3_ORDER not in seq_text:
+    errors.append(f"{rel(seq)}: canonical P3 order not stated verbatim ({P3_ORDER})")
 
 # ---- Rule 7: every §N(.N) cited in the portable package exists in the spec ----
 spec_lines = lines_of(ROOT / "requirment-v4.md")

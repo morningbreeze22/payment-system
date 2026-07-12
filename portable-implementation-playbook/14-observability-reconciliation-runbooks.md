@@ -214,7 +214,7 @@ Why: two genuine amendments share an ordering value — automation
   refuses to pick; a resend carries the same timestamp and would be
   rejected forever, so a human MUST apply the right one.
 Action: obtain the correct current values from upstream; apply via
-  the supported manual path with the release-guard-safe procedure
+  the supported manual path with the release-guard-safe operation
   (ops-applied amendment is a message-equivalent write, not a raw
   UPDATE — if no tool exists yet, escalate to the tech lead; §20-1).
 Data: both payloads, ordering value, current obligation amounts.

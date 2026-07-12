@@ -1,4 +1,4 @@
-> **Purpose:** Provider / tech-lead / PO contract questions Q-01..Q-20 with priorities (original Section K).
+> **Purpose:** Provider / tech-lead / PO contract questions Q-01..Q-21 with priorities (original Section K).
 > **When to use this file:** When engaging provider/tech-lead/PO/upstream; before any gate decision; keeping the risk register current for checklist item Q25.
 > **Depends on:** requirment-v4.md section 18; 03-requirement-classification.md.
 > **Used by:** B-01..B-04; CT suite configuration; 17-go-live-checklist.md Q25.

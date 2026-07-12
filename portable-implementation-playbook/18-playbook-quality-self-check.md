@@ -33,7 +33,7 @@
     runbook (C18), key-only anchoring (C25), §19.1/19.2/19.3
     (C69-71), ops console (C72) are classified FUTURE/QUESTION;
     the §20 implementation work is the three-operation NON-WAIVABLE
-    exit set + OP-04's waivable ergonomics endpoints (rounds 3–5).
+    exit set + OP-04a–e's waivable ergonomics endpoints (rounds 3–9).
 [x] Every task has requirement-section traceability: each card's
     "Requirement sections / concepts to read" field; classification
     table maps C-items to task IDs.
@@ -64,8 +64,12 @@
     "card >1 obligation = error/alert" phrasing anywhere; (b) no
     UNIQUE-index claim on provider_reference while TL-12 is open;
     (c) no FOR UPDATE SKIP LOCKED in scanner guidance; (d) no rule
-    wired to retry_deadline_at; (e) the task inventory in file 20
-    matches the cards on disk (IDs and count); (f) every §18
+    wired to retry_deadline_at; (e) card-ID SET membership in file
+    20 + duplicate-ID detection + card↔file-21 tracker SET parity
+    + the canonical P3 order stated verbatim in file 20 (round 9;
+    the lint does NOT verify full linear ordering beyond P3 or
+    prerequisite-before-dependent relations — those stay MANUAL
+    review, stated here so the contract matches the script); (f) every §18
     ask/item appears in the K register; (g) no "enforced by the
     procedure" dual-control phrasing (round 3: operation + §9.3
     approval workflow); (h) no deadline/budget-suspension language

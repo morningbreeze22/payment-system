@@ -317,7 +317,7 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
   NON-WAIVABLE minimal exit set is verified-outcome (§9.3, also
   §18-3), supersede/close, and reprocess-snapshot; retry, reject,
   annotation, and the four queue views are Q29-waivable ergonomics
-  (authorized application endpoints, RG-05 + OP-04). Round-4 exit
+  (authorized application endpoints, RG-05 + OP-04a–e). Round-4 exit
   honesty: the exit guarantee covers exactly three classes —
   MAYBE/SUBMITTED rows, provably-unsent ACTIVE requests, ties;
   marker-only scopes (repeat-reject, no active request) and

@@ -176,7 +176,7 @@ const QS = [
  stake:'The cutoff is checked before every send and every retry, and it limits how long automatic recovery may keep trying. A wrong calendar either blocks a whole currency an hour early — or sends payments after the bank has closed.',
  links:['P4'], ref:'§18-B2 · §16.4'},
 {id:'B3',s:'B',t:'A guaranteed exit for permanently-stuck payments',
- ask:'Some payments can end in a permanent “we sent it, but never learned what happened” state: re-sending is no longer allowed (the amount changed, or the cutoff passed), and the engine’s query API has forgotten the key. There must be a guaranteed way out: an audited, two-person database procedure that closes such a payment using the payment platform’s own records as evidence. It must exist AND have been rehearsed before go-live. (Alternative: questions T10 and T5’s long lookback are both answered yes.)',
+ ask:'Some payments can end in a permanent “we sent it, but never learned what happened” state: re-sending is no longer allowed (the amount changed, or the cutoff passed), and the engine’s query API has forgotten the key. There must be a guaranteed way out: an audited, two-person OPERATION — an authorized endpoint of the payment application (decided 2026-07-11: never a raw database procedure) — that closes such a payment using the payment platform’s own records as evidence. It must exist AND have been rehearsed before go-live. (Alternative: questions T10 and T5’s long lookback are both answered yes.)',
  stake:'Money for an in-flight payment is internally reserved and may not be freed while the outcome is unknown — freeing money that may have moved is how double payments happen. Without this exit, a stuck payment holds its reservation FOREVER: the trade can never complete, and the one-active-payment-at-a-time rule blocks any replacement payment for that trade.',
  links:['T5','T10'], ref:'§18-B3 · §9.3 · §16.6-8'},
 // ---- PO ----
@@ -308,7 +308,7 @@ const QS = [
 // ---- OPS ----
 {id:'O1',s:'O',t:'Parked payments: who decides, and with what tool?',
  ask:'Payments can park in a “needs a human” state, each with a reason label (retries exhausted, cutoff passed, contradictory evidence…). For each reason: who decides between retry / reject / close — and what tool executes that decision? Every one of these is a database change with money effects: reject or close releases the payment’s reserved money.',
- stake:'At launch these run as controlled manual database procedures; safety triggers in the database make a wrong write fail loudly instead of silently releasing money. But the real answer is a proper tool with roles and audit.',
+ stake:'At launch these run as authorized, enterprise-authenticated endpoints of the payment application (2026-07-11 boundary — never raw database procedures); safety triggers in the database still make a wrong raw write fail loudly instead of silently releasing money. But the real answer is a proper tool with roles and audit.',
  ref:'§20-1 · §10.1'},
 {id:'O2',s:'O',t:'Releasing a stuck payment’s money is a REQUIRED feature',
  ask:'Confirm and build the release operation: a supersede/close action for a payment that can neither proceed nor resolve.',
@@ -380,7 +380,7 @@ const OPTS = {
  U3:['Formal schema published — link in comment','Draft circulating','Not started'],
  U4:['Confirmed by contract','Verbally agreed only','Upstream cannot guarantee — assess the impact','Not yet asked'],
  U5:['Both halves guaranteed in writing','Within-snapshot half only so far','Verbal only','Not yet asked'],
- O1:['Decision matrix agreed (who decides per reason) — in comment','Interim accepted: DB procedures + on-call approval','Needs a workshop'],
+ O1:['Decision matrix agreed (who decides per reason) — in comment','Interim accepted: authorized application endpoints + on-call approval','Needs a workshop'],
  O2:['Confirmed required — schedule the build','Interim manual procedure accepted for MVP','Disputed — reasoning in comment'],
  O3:['Yes — build the on-demand trigger','No — scheduled sweep only','Revisit later'],
  O4:['Yes — acknowledgment field on the card','No — alert-only is sufficient','Bundle with the returned-funds work'],

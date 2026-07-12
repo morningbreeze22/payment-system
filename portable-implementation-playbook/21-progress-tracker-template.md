@@ -45,10 +45,12 @@ a status; every DONE row has a filed execution report (file 19).
 | 27 | S-02 | TODO | | | |
 | 28 | S-03 | TODO | | | |
 | 29 | S-04 | TODO | | | |
+| 29a | S-10 | TODO | | | (round 5: §2.4 table — runs HERE, before S-05) |
 | 30 | S-05 | TODO | | | |
 | 31 | S-06 | TODO | | | |
 | 32 | S-07 | TODO | | | |
 | 33 | S-08 | TODO | | | |
+| 33a | S-11 | TODO | | | (round 6: bootstrap + enablement gate — before S-09) |
 | 34 | S-09 | TODO | | | |
 | 35 | K-01 | TODO | | | |
 | 36 | K-02 | TODO | | | |
@@ -110,6 +112,11 @@ a status; every DONE row has a filed execution report (file 19).
 | 91 | OP-01 | TODO | | | |
 | 92 | OP-02 | TODO | | | |
 | 93 | OP-03 | TODO | | | (HUMAN drill) |
+| 93a | OP-04a | TODO | | | (round-9 pre-split 1/5) |
+| 93b | OP-04b | TODO | | | |
+| 93c | OP-04c | TODO | | | |
+| 93d | OP-04d | TODO | | | |
+| 93e | OP-04e | TODO | | | (Q29 evidence) |
 | 94 | OB-01 | TODO | | | |
 | 95 | OB-02 | TODO | | | |
 | 96 | OB-03 | TODO | | | |

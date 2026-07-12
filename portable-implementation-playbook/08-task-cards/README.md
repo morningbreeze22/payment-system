@@ -57,7 +57,7 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 | phase-08-provider-contract-tests.md | CT-01..CT-07 | P8 (parallel from P4) |
 | phase-09-inbound-flows-and-status-feed.md | IN-01..IN-09 | P9 |
 | phase-10-retry-recovery-maybe.md | RC-01..RC-10 | P10 |
-| phase-11-operator-verified-outcome.md | OP-01..OP-04 | P11 |
+| phase-11-operator-verified-outcome.md | OP-01..OP-03, OP-04a–e | P11 |
 | phase-12-drift-reconciliation.md | OB-01..OB-02 | P12 |
 | phase-13-observability-and-runbooks.md | OB-03..OB-07 | P13 |
 | phase-14-rollout-and-go-live.md | GO-01..GO-05 | P14 |

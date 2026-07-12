@@ -296,7 +296,7 @@ ann Single UPDATE of payment_obligation.ops_annotation (read-model
 ```
 
 Reads (queues/detail) are lock-free MVCC queries; the canonical
-queue-view SQL ships with playbook card OP-04 (the §20 interim
+queue-view SQL ships with playbook cards OP-04a–e (the §20 interim
 surface — these views exist BEFORE this console). The S3 effect
 preview runs read-only but takes the obligation lock briefly so its
 numbers match what execution would compute.
@@ -305,7 +305,7 @@ numbers match what execution would compute.
 
 | Phase | Scope | Value |
 |---|---|---|
-| — | **Already at MVP, outside this console:** the NON-WAIVABLE §20 minimal exit set — the §9.3 verified-outcome operation + drill (also §18-3), supersede/close, reprocess-snapshot — plus the Q29-waivable ergonomics (ops retry, ops reject, annotation, four queue views) as authorized application endpoints (playbook RG-05 + OP-04); role-controlled posting-freeze toggle (§16.1) | the three covered dead-end classes (MAYBE/SUBMITTED rows, provably-unsent active requests, ties) have audited exits before any console ships; marker-only and latched scopes are documented STOP STATES (§20 round-4 exit honesty) |
+| — | **Already at MVP, outside this console:** the NON-WAIVABLE §20 minimal exit set — the §9.3 verified-outcome operation + drill (also §18-3), supersede/close, reprocess-snapshot — plus the Q29-waivable ergonomics (ops retry, ops reject, annotation, four queue views) as authorized application endpoints (playbook RG-05 + OP-04a-e); role-controlled posting-freeze toggle (§16.1) | the three covered dead-end classes (MAYBE/SUBMITTED rows, provably-unsent active requests, ties) have audited exits before any console ships; marker-only and latched scopes are documented STOP STATES (§20 round-4 exit honesty) |
 | P0 | S1 + S2 read-only (queues, detail, log timeline) | kills "where do I even look"; no approval machinery; can ship first |
 | P1 | O6 resolve-now, O9 TL-10 ask capture, overpay annotation (`ops_annotation`) | non-monetary, single-operator |
 | P2 | O1–O3 with 4-eyes; O7/O8 downgrade lane; O10 as a UI wrapper over the existing audited endpoint; O12 reprocess-snapshot | the money-touching operations; requires the PO decisions below |

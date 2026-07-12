@@ -174,17 +174,22 @@ the claim transaction, committed BEFORE the HTTP call:
 - WHERE additionally carries `divergent_payload_at IS NULL`; code
   re-checks the derived repost_permitted terms (§7.0: cutoff,
   freeze, amount-vs-shortfall staleness for MAYBE rows).
-- ROUND 8 — pointer-presence term (flag-gated with §7.0 pointer-only
-  enforcement; applies to EVERY claim that leads to
+- ROUNDS 8–9 — pointer-presence term (flag-gated with §7.0
+  pointer-only enforcement; applies to EVERY claim that leads to
   enrichment/assembly — ENRICH claims, POST claims, the §9.2
-  downgrade lane): candidate selection and the claim path require
+  downgrade lane): the CLAIM TRANSACTION requires
   `trade_snapshot_state.last_xml_storage_id IS NOT NULL` (§2.4
-  durable fact — NEVER a blocked_reason, never an error string). A
-  pointer-less request is simply never claimed: it rests at
-  READY/RETRY_WAIT, zero attempts, no provider call; the ordinary
-  due scanner picks it up with the SAME key once the pointer
-  completes (structural suspension — same principle as outage
-  gating).
+  durable fact — NEVER a blocked_reason, never an error string).
+  ROUND 9 — the term is NOT in candidate selection: the scanner
+  must still SEE pointer-less due rows so its NO-WIRE pre-attempt
+  checks run — cutoff FIRST (a row past cutoff →
+  BLOCKED(CUTOFF_EXPIRED), no claim, no attempt increment, no
+  assembly, no wire); a pre-cutoff pointer-less row fails the
+  claim's pointer term and is skipped. A pointer-less request is
+  therefore never claimed: it rests at READY/RETRY_WAIT, zero
+  attempts, no provider call; the ordinary due scanner picks it up
+  with the SAME key once the pointer completes (structural
+  suspension — same principle as outage gating).
 - Persist: identity (first claim — idempotency key §5.1),
   `last_sent_hash` of the freshly assembled instruction,
   `divergence_expected` (compare against the PRIOR hash BEFORE

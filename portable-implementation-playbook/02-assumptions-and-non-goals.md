@@ -69,7 +69,7 @@
    endpoints: the THREE non-waivable operations (§9.3
    apply-platform-verified-outcome — §18 BLOCKING item 3;
    supersede/close; reprocess-snapshot) plus the waivable ergonomics
-   endpoints of OP-04. Everything else in §20 is future / PO
+   endpoints of OP-04a–e. Everything else in §20 is future / PO
    discussion.
 7. The old compound status may survive only as a derived display
    label (§10.4); migration of business logic away from any legacy
