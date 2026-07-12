@@ -107,7 +107,7 @@ Tests: none. Stop: stubs published.
 [CA-9] apply-platform-verified-outcome spec
 Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8 §16.6 artifact 8 §18-3. Invariant: execution input = approval_id (identities derived from the record — round 4); the two-step workflow IS the MVP protocol (signed assertion = gated alternative, not offered to implementers); APPROVED→CONSUMED CAS atomic with the transition; guard passed legitimately, never disabled.
 Placeholders: [Operator Admin Procedure Area]. Mappings: none.
-Objective: spec signature (request_id, EXECUTED|REJECTED, ticket ref, two approvers), evidence-flag mechanics, refusals (CLAIMED/terminal/amount mismatch), money effects, audit fields, alert, restricted role, drill script.
+Objective: spec EXECUTION signature = approval_id ONLY (round 4 — the approval record carries the authenticated initiator/approver identities, action binding incl. request_id + EXECUTED|REJECTED + ticket ref + nonce; identities are DERIVED, never inputs), consumption semantics per operation class (§9.3), evidence-flag mechanics, refusals (CLAIMED/terminal/amount mismatch), money effects, audit fields, alert, restricted role, drill script.
 Tests: none (OP-02). Stop: published; OP-01 unblocked.
 ```
 

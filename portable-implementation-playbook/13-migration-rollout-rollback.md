@@ -132,8 +132,11 @@ idempotency keys forever (K-02 rule).
   after the S-11 POINTER-coverage gate (zero NULL-pointer rows
   among wire-capable trades; residuals dispositioned). The legacy
   assembly path is REMOVED only after that gate — removing it
-  early wedges live requests at
-  BLOCKED(SNAPSHOT_POINTER_MISSING).
+  early leaves live requests structurally unclaimable (round 8:
+  pointer absence is a claim-gate term on the §2.4 durable fact,
+  never a blocked_reason; the requests rest at READY/RETRY_WAIT
+  with zero attempts until the pointer completes, surfaced by the
+  §15 derived-fact alert).
 ```
 
 ### M.7 Data compatibility

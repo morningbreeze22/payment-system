@@ -662,14 +662,24 @@ Expect:  every existing business_id gets a row with watermark =
          changes nothing (insert-if-absent); the coverage report +
          shadow metric flag the non-maintaining writer's trades
          before enforcement is enabled; ACTIVE-REQUEST case
-         (round 7): a POST·READY/RETRY_WAIT request on a
-         NULL-pointer trade — under the transitional flag it
-         assembles via the LEGACY source; under §7.0 enforcement
-         NO provider call occurs and the row shows
-         BLOCKED(SNAPSHOT_POINTER_MISSING) + alert; after the
-         pointer completes, the SAME request resumes with the SAME
-         idempotency key; pointer-coverage (wire-capable) metric
-         reported.
+         (rounds 7–8): requests on a NULL-pointer trade in EVERY
+         claimable shape (ENRICH·READY, POST·READY,
+         POST·RETRY_WAIT, §9.2 downgrade lane) — under the
+         transitional flag they assemble via the LEGACY source;
+         under §7.0 enforcement they are NEVER CLAIMED (the claim
+         gates carry the pointer-presence term on the §2.4
+         durable fact — round 8: no new blocked_reason, no rule
+         on a label): zero attempts consumed, NO provider call,
+         state stays READY/RETRY_WAIT, the §15 derived-fact
+         alert fires and the card shows the DERIVED
+         SNAPSHOT_POINTER_MISSING display label; complete the
+         pointer FOUR ways (live admission, approved reprocess,
+         ask-9 bootstrap, restore repair) → the ordinary due
+         scanner claims the SAME request with the SAME
+         idempotency key, repost_permitted re-run before any
+         POST; a pointer-less row aged past cutoff blocks as
+         CUTOFF_EXPIRED ordinarily; pointer-coverage
+         (wire-capable) metric reported.
 Failure: an older document admitted by a bootstrapped or
          digest-NULL row, or enforcement enabled with coverage
          gaps.

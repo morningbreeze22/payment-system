@@ -83,7 +83,7 @@ Tests: idempotency; per-value spot checks; constraint dry-validate. Stop: valida
 [S-11] trade_snapshot_state bootstrap + enablement gate (round 6)
 Read: §2.4 BOOTSTRAP block (normative) §6.1; Section M (13-migration). Invariant: NULL digest = bootstrap-incomplete (older refused; equal-order FAILS CLOSED into the §6.7 tie path; strictly newer installs the complete row); enforcement only after old consumers DRAINED + coverage verified; enabling = rollout POINT OF NO RETURN.
 Placeholders: [DB Migration Directory] [Obligation Repository]. Mappings: quiet window (S-08's).
-Objective: idempotent insert-if-absent bootstrap (watermark = MAX(upstream_ordering) per trade); coverage report incl. POINTER coverage for wire-capable trades (round 7 — §2.4: transitional legacy assembly until complete; BLOCKED(SNAPSHOT_POINTER_MISSING) backstop; ask-9 export optional); shadow metric (trade vs per-obligation watermarks); enablement gate documented.
+Objective: idempotent insert-if-absent bootstrap (watermark = MAX(upstream_ordering) per trade); coverage report incl. POINTER coverage for wire-capable trades (rounds 7–8 — §2.4: transitional legacy assembly until complete; pointer absence = structural CLAIM-GATE term on the durable fact, NEVER a blocked_reason — pointer-less requests rest unclaimed at READY/RETRY_WAIT, zero attempts, §15 derived-fact alert; ask-9 export optional); shadow metric (trade vs per-obligation watermarks); enablement gate documented.
 Tests: T-36. Stop: bootstrap run + coverage filed.
 ```
 

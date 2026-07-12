@@ -554,15 +554,33 @@ reopening the exact stale-creation hole the table closes):
       the LEGACY pre-migration enrichment source its requests
       were built on — the §7.0 pointer-only rule is ENFORCED
       only where its data exists; nothing wedges at cutover.
-    · FAIL-CLOSED BACKSTOP: once §7.0 enforcement is on, a NULL
-      pointer REFUSES assembly with a NAMED reason —
-      BLOCKED(SNAPSHOT_POINTER_MISSING) (blocked_reason is
-      descriptive-only §10.1, so the value is sanctioned) +
-      §15 alert + queue-view visibility + runbook. Never an
-      accidental NULL-fetch failure. When the pointer completes
-      (next admitted message, adjudicated reprocess, or the
-      ask-9 export), the SAME request resumes with the SAME
-      idempotency key.
+    · FAIL-CLOSED BACKSTOP (REDESIGNED round 8 — the round-7
+      BLOCKED(new-reason) form violated two of this design's own
+      axioms: the §2.2 blocked_reason enum is CLOSED behind a
+      CHECK, and NO rule may key on blocked_reason §10.1, so
+      recovery would have been illegal): pointer absence is a
+      STRUCTURAL CLAIM GATE, not a state. Under §7.0
+      enforcement, every claim that leads to enrichment/assembly
+      (ENRICH claims, POST claims, the §9.2 downgrade lane)
+      carries the term `trade_snapshot_state.last_xml_storage_id
+      IS NOT NULL` in its candidate-selection/claim CAS — a
+      pointer-less request is simply NEVER CLAIMED: it rests at
+      its ordinary READY/RETRY_WAIT, ZERO attempts consumed, no
+      provider call, no budget spent (the same structural-
+      suspension principle as outage gating §7.4/§16.1). No new
+      blocked_reason, no new column. RECOVERY IS AUTOMATIC and
+      keys on the durable fact, never a label: when the pointer
+      completes (next admitted message, adjudicated reprocess,
+      ask-9 export, or restore repair), the ordinary due scanner
+      claims the SAME request with the SAME idempotency key —
+      repost_permitted and all §7.0 gates re-run before any
+      POST. OBSERVABILITY: the §15 alert and queue view derive
+      from the fact (wire-capable trade ∧ pointer NULL); the
+      card's exception display may SHOW the label
+      SNAPSHOT_POINTER_MISSING as a DERIVED §10.4-class display
+      only — never stored, never a rule input. Cutoff still
+      applies while waiting (a pointer-less row that ages past
+      cutoff blocks as CUTOFF_EXPIRED, ordinarily).
     · GO-LIVE GATE (Q5 evidence): zero NULL-pointer rows among
       WIRE-CAPABLE trades (any active request) before the legacy
       assembly path is removed; each residual individually
@@ -1652,13 +1670,17 @@ unspecified):
   enrichment steps against it (account mappings and party addresses
   change; nothing about the instruction is cached on payment rows).
   The trade reference is deliberately NOT an obligation column.
-  TRANSITION (round 7 — §2.4 pointer completeness): while a
-  bootstrap row's pointer is NULL, assembly uses the flag-gated
-  LEGACY enrichment source; once pointer-only enforcement is on, a
-  NULL pointer refuses assembly with
-  BLOCKED(SNAPSHOT_POINTER_MISSING) — never an accidental NULL
-  fetch; the request resumes with the SAME key when the pointer
-  completes.
+  TRANSITION (round 7, backstop REDESIGNED round 8 — §2.4 pointer
+  completeness): while a bootstrap row's pointer is NULL, assembly
+  uses the flag-gated LEGACY enrichment source; once pointer-only
+  enforcement is on, a pointer-less request is STRUCTURALLY
+  UNCLAIMABLE — the enrichment/posting claim gates carry the
+  pointer-presence term (a durable-fact condition, §2.4; never a
+  blocked_reason), so it rests at READY/RETRY_WAIT with zero
+  attempts and no provider call until the pointer completes; then
+  the ordinary due scanner claims the SAME request with the SAME
+  key, re-running repost_permitted first. Never an accidental NULL
+  fetch, never a new BLOCKED reason.
 - The claim transaction persists the identity (§5.1, first claim) and
   the hash of the assembled instruction (last_sent_hash, §2.2,
   every claim) BEFORE the HTTP call.
@@ -2972,11 +2994,15 @@ never on blocked_reason as a rule input (§10.1).
                                                  newest-wins
                                                  abandonment —
                                                  runbook decides)
-- BLOCKED(SNAPSHOT_POINTER_MISSING) present
-  (§2.4 pointer completeness, round 7)         → alert (bootstrap
-                                                 residue on a
-                                                 wire-capable
-                                                 trade)
+- Wire-capable trade with NULL snapshot
+  pointer (§2.4 pointer completeness — a
+  DERIVED-fact alert: active request ∧
+  trade_snapshot_state pointer IS NULL;
+  round 8: never a blocked_reason)             → alert (bootstrap
+                                                 residue; requests
+                                                 rest unclaimed
+                                                 until the pointer
+                                                 completes)
 - AMENDMENT_ON_LATCHED_SCOPE (§6.5)            → alert (manual
                                                  handling)
 - Money-truth divergence found (§19.2 policy)  → CRITICAL incident
