@@ -97,10 +97,10 @@ DD-3  RG-06 vs IN-02 (trigger T1): implement evaluate() in RG-06 wired
       when you reach IN-02. Record "T1 pending IN-02" in the tracker
       when finishing RG-06.
 
-DD-4  RC-03 stubs (cutoff clause RETIRED round 10 — no cutoff term exists; the freeze-stub clause below stands): until B-03 values exist, the cutoff term reads a
-      stub that always answers FAIL-BLOCKED (repost forbidden); until
-      RC-09 is done, the freeze term reads a stub that always answers
-      FROZEN. Replace each stub in its named task and re-run RC-03's
+DD-4  RC-03 stubs (round 11 sweep: no cutoff term exists;
+      no cutoff stub may be built — the round-10 closure is total):
+      until RC-09 is done, the freeze term reads a stub that always
+      answers FROZEN. Replace the stub in RC-09 and re-run RC-03's
       term-by-term tests.
 
 DD-5  U-03 feed-side case: defer the feed-event-under-dead-UETR case

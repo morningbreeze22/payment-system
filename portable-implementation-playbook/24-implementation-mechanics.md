@@ -238,8 +238,9 @@ SELECT id FROM payment_request
   2026-07-11 decision) — retry_deadline_at is reserved/unused; wire
   no rule to it. While frozen / breaker OPEN, gated scanners make
   zero attempts, so the attempt budget is structurally safe — there
-  is no suspension mechanism to implement. Cutoff checks still
-  apply at attempt time (never suspend).
+  is no suspension mechanism to implement. (Round 10: NO cutoff
+  check exists at attempt time — the engine owns its calendar and
+  classifies late submissions itself, CA-1.)
 - Every scanner exports a heartbeat (§15: silent 3× interval → page).
 - Expected indexes: the §16.6 artifact-4 ACTIVE-row-bounded function
   indexes (expressions NULL for terminal rows). If a scanner query

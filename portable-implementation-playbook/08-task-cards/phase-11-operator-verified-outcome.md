@@ -67,7 +67,7 @@
 - **Local placeholder mappings required before starting:** drill environment provisioned.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** seed an unresolvable MAYBE row (divergent_payload_at set, cutoff passed — repost_permitted permanently false); operators verify the "platform truth" per the drill script's staged evidence; execute the operation via its authorized endpoint with a real ticket reference (two-step approval per §9.3); verify: outcome applied, alert fired, log line correct, scope re-evaluated; record timings + friction; file the drill report.
+- **Implementation instructions:** seed an unresolvable MAYBE row (divergent_payload_at set — repost_permitted permanently false; round 10: no cutoff exists); operators verify the "platform truth" per the drill script's staged evidence; execute the operation via its authorized endpoint with a real ticket reference (two-step approval per §9.3); verify: outcome applied, alert fired, log line correct, scope re-evaluated; record timings + friction; file the drill report.
 - **Do not change:** the operation based on drill friction without re-running OP-02.
 - **Tests to add:** none (this is the drill).
 - **Edge cases:** operator errors during the drill are FINDINGS (usability of the runbook), not failures — record.

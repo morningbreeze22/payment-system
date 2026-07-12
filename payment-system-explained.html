@@ -489,7 +489,7 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
  <tr><td>Engine settles ALL-OR-NOTHING (confirmed)</td><td>any amount mismatch = defect evidence → CRITICAL park, money never moves</td></tr>
  <tr><td>Collision contract ASSUMED true (sandbox-proven before go-live)</td><td>a known key can never execute twice — every re-POST safety rides on this</td></tr>
  <tr><td>BA-1: scope-field change ⇒ NEW obligation on purpose</td><td>not a duplicate; no cross-scope detector</td></tr>
- <tr><td>BA-2 (amended 2026-07-11): absence from a newer snapshot IS the cancellation signal</td><td>absent payment = amendment to zero — unsent attempts auto-cancel; an already-paid scope hits the overpay latch and STOPS (no clawback; recovery stays a platform-side recall)</td></tr>
+ <tr><td>BA-2 (amended 2026-07-11; lifecycle completed round 11): absence from a newer snapshot IS the cancellation signal</td><td>absent payment = amendment to zero — unsent attempts auto-cancel and the step ends CANCELLED (terminal, never shown as completed); an already-paid scope hits the overpay latch and STOPS (no clawback; recovery stays a platform-side recall). A snapshot can carry ZERO payments for us (we derive our set from the settlement list by role), so even a trade’s only payment is removable; every removal is logged + counted (§15 disappearance alert)</td></tr>
  <tr><td>BA-3: message ordering is upstream's problem</td><td>a skew-misordered amendment dropping as stale is by design</td></tr>
  </table>
 </div>

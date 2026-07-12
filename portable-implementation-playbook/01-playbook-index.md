@@ -63,12 +63,12 @@ P7  Reservation:      RG-01 RG-02 RG-03 RG-04 RG-05 RG-06 RG-07 RG-08 RG-09 RG-1
 P8  Contract tests:   CT-01 CT-02 CT-03 CT-04 CT-05 CT-06 CT-07
 P9  Inbound flows:    IN-01 IN-02 IN-03 IN-04 IN-05 IN-06 IN-07 IN-08 IN-09
 P10 Retry/recovery:   RC-01 RC-02 RC-03 RC-04 RC-05 RC-06 RC-07 RC-08 RC-09 RC-10
-P11 Operator proc:    OP-01 OP-02 OP-03
+P11 Operator proc:    OP-01 OP-02 OP-03 OP-04a..OP-04e
 P12 Drift:            OB-01 OB-02
 P13 Observability:    OB-03 OB-04 OB-05 OB-06 OB-07
 P14 Rollout:          GO-01 GO-02 GO-03 GO-04 GO-05
-Tests (Section J):    T-01 … T-32
-Questions (Section K): Q-01 … Q-20
+Tests (Section J):    T-01 … T-37 (T-21/T-36 retired stubs)
+Questions (Section K): Q-01 … Q-21
 ```
 
 ## Dependency order (phase-level; details in Section D)

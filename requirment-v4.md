@@ -77,7 +77,16 @@ Confirmed contract facts this design relies on:
   MULTIPLE payments. Each upstream message is a FULL-TRADE SNAPSHOT —
   the complete current truth of the trade, carrying ALL of its
   payments; a newer snapshot OVERWRITES the older one in full (a trade
-  has exactly one current XML at a time). Within one snapshot,
+  has exactly one current XML at a time).
+- Role derivation (PO fact, 2026-07-12): the snapshot carries the
+  trade's full SETTLEMENT set — who pays whom, what amount. This
+  system derives ITS OWN payment set from that list by our role in
+  the trade (payer/receiver). The DERIVED set is therefore 0..N: a
+  valid, non-empty snapshot can legitimately contain ZERO payments
+  for this system, and such a snapshot is admissible — it means
+  "the current truth requires no payment from us" and drives the
+  §6.1 absence fan-out over any existing obligations.
+- Within one snapshot,
   (payment_type + debit_account + currency) is UNIQUE per payment
   block — validated at intake (§6.0); across snapshots, an equal
   tuple MEANS the same payment (that identity IS the contract — it is
@@ -137,8 +146,14 @@ BA-2 (AMENDED 2026-07-11 by the PO's PO-9 answer) Upstream's ONE
      clawback; recovery for an executed payment remains a
      platform-side recall (§19.2 family). No OTHER cancellation
      signal exists or is planned: intake keeps rejecting
-     zero/absent amounts. PO-5 (§18) remains purely a DISPLAY
-     question.
+     zero/absent BLOCK amounts (a zero can only be written by the
+     absence path — §4.1). A cleanly unwound removed payment is
+     TERMINAL: the §4.1 CANCELLED branch (round 11), displayed
+     CANCELLED. Removal of a trade's ONLY payment is representable:
+     the derived payment set is 0..N (§1 role derivation — a valid
+     snapshot can carry zero payments for us), so the cancelling
+     snapshot simply has an empty derived set. PO-5 (§18) remains
+     purely a DISPLAY question.
 BA-3 Message-ordering correctness is upstream's
      responsibility. The system trusts the ordering value as
      delivered (§6.7): a genuinely-newer amendment carrying an
@@ -547,10 +562,16 @@ to one this flow itself created. Consequences:
   from day one — there is no drain step and no second point
   of no return.
 - Archival (TL-14): the trade row archives WITH its trade.
-- §5.2 restore note: post-restore the row is stale like all
-  rows (never NULL — pointers reference the immutable store);
-  replay converges it, and a conservative row remains
-  re-derivable from obligations if ever needed.
+- §5.2 restore note (HONEST bounds, round 11 — post-MVP scope):
+  a database restore can REGRESS this row or remove it entirely
+  (trade admitted after the restore point). Kafka replay within
+  retention re-creates/converges it. OUTSIDE the replay window:
+  the conservative ORDERING is re-derivable from the obligations
+  (max upstream_ordering), but last_xml_storage_id and the digest
+  are NOT — they exist only here. Such a trade needs an upstream
+  store lookup or manual reconciliation before tie adjudication /
+  reprocess can run for it; this is an explicit step for the §5.2
+  runbook (post-MVP), not a solved property.
 ```
 
 ------
@@ -663,7 +684,26 @@ step complete ⇔
         (LIVE = marker set AND its ordering >= upstream_ordering,
          §2.1/§6.9 — a stored, ordering-gated marker, NOT the derived
          exception itself, to avoid circular derivation)
+
+step cancelled ⇔                      (round 11 — the zero-required
+    required_amount = 0                terminal branch; PO-9 absence
+    AND committed_amount = 0           = amendment to zero, §6.1)
+    AND confirmed_amount = 0
+    AND no ACTIVE request exists
+    AND overpay_blocked = false
+    AND validation_failed is not LIVE
 ```
+
+The CANCELLED branch is TERMINAL like COMPLETED (displayed as
+CANCELLED, never COMPLETED — §12): a payment removed by upstream
+truth, fully unwound (reservation released, nothing confirmed).
+It is REOPENABLE exactly like COMPLETED is (§6.5): a strictly newer
+snapshot carrying the block again applies normally
+(required_amount := the new positive value) and the derivation
+returns the step to IN_PROGRESS. If money already moved
+(confirmed > 0), the zeroing write instead trips the §6.5/§13
+overpay latch — the row lands BLOCKED, not CANCELLED, and ops
+disposition per §10 governs (the PO's "same as overpay: we stop").
 
 - The first and last terms guard against vacuous completion: an anchor
   obligation created from a failed-validation message (§6.6) has no
@@ -672,6 +712,13 @@ step complete ⇔
   data was rejected. A later valid message makes `validation_failed`
   not-live in the same transaction that applies it, so a recovered
   scope can complete.
+- `required_amount = 0` vs `NULL` is load-bearing (round 11): inbound
+  blocks are strictly POSITIVE (§6.0), so 0 can only be written by the
+  §6.1 absence path — it is the removal tombstone, and it needs no new
+  column or state. NULL remains "no valid data ever applied" (anchor);
+  an anchor can reach the CANCELLED branch only via the §6.1
+  ordering-aware anchor retirement (which zeroes it AND advances the
+  watermark past the failure marker in one write).
 - `committed_amount = confirmed_amount` alone is insufficient: after a
   terminal-negative decrement both can be zero while `required_amount`
   is unpaid. The `confirmed_amount >= required_amount` term is
@@ -1004,11 +1051,24 @@ ui_process_instance_id, ui_step_instance_id
                         — display/reference (§2.1)
 correlation_id          — cross-system tracing (§2.1, §14)
 
-Payment block (one per payment in the trade; 1..N):
+Payment block (one per payment RELEVANT TO THIS SYSTEM; 0..N):
 payment_type, debit_account, currency
                         — scope-key fields (§2.1); with business_id
                           they identify the payment
 required_amount         — positive; currency-scale validated (§16.4)
+
+Derived-set fact (PO, 2026-07-12 — §1 role derivation): the raw
+message carries the trade's full SETTLEMENT set; the payment
+blocks above are what THIS SYSTEM derives from it by role
+(payer/receiver). An EMPTY derived set is VALID — the snapshot
+still passes admission (§6.1) and its emptiness is meaningful:
+every existing non-anchor obligation of the trade is absent from
+it → amendment to zero (§6.1). It creates no obligations — but it
+DOES create/advance the §2.4 trade admission row like any admitted
+snapshot (otherwise a DELAYED OLDER snapshot carrying a payment
+this newer truth removed would find no watermark and pay it — the
+round-5 hole). Display: a trade with only zeroed/no obligations
+renders per §12; it is never an error.
 ```
 
 Intake validation — within-snapshot uniqueness: the tuple
@@ -1020,7 +1080,7 @@ contract: applying such a snapshot would silently merge two payments
 into one obligation, one payment's amount REPLACING the other's.
 
 Payload equality (used by §6.7 tie handling) is defined over the
-CANONICALIZED BUSINESS-FIELD SUBSET — the SET of payment blocks
+CANONICALIZED BUSINESS-FIELD SUBSET — the (possibly empty) SET of payment blocks
 (sorted by scope tuple; each block: scope-key fields +
 required_amount) + trade reference — never over raw bytes or envelope
 fields (message ids, emission timestamps), which would turn every
@@ -1169,32 +1229,67 @@ scope-key unique constraint is the backstop — on `ORA-00001`, retry
 the transaction and re-read.
 
 RESOLVED — absence semantics (PO-9, ANSWERED by the PO 2026-07-11;
-BA-2 amended accordingly, §1.1): a payment that exists as an
-obligation but is ABSENT from a newer ADMITTED snapshot no longer
-exists — ABSENCE = AMENDMENT TO ZERO. After the per-block fan-out,
-the same worker enumerates the trade's obligations NOT carried by
-the document and, per obligation (own transaction, trade-snapshot
-fence + obligation lock, ordinary strictly-newer guard against
-doc.ordering), sets required_amount := 0 and advances
-upstream_ordering. Everything downstream is EXISTING machinery:
-unsent active request → §6.4 auto-cancel + release; in-flight →
-wait-then-decide (§6.4); confirmed > 0 → the §6.5/§13 overpay
-latch — STOP (the PO's "same as overpay"). §6.6 anchor scopes
-(never applied a valid message) are NOT zeroed by absence — their
-marker lifecycle governs (a malformed trade's scopes must not be
-cancelled by the next valid snapshot that predates their fix).
+BA-2 amended accordingly, §1.1; lifecycle completed round 11): a
+payment that exists as an obligation but is ABSENT from a newer
+ADMITTED snapshot no longer exists — ABSENCE = AMENDMENT TO ZERO.
+After the per-block fan-out, the same worker enumerates the trade's
+obligations NOT carried by the document and, per obligation (own
+transaction, trade-snapshot fence + obligation lock, ordinary
+strictly-newer guard against doc.ordering), sets
+required_amount := 0 AND advances upstream_ordering := doc.ordering
+— the zeroing IS an application of the document to that obligation,
+so it advances the watermark like any applied block (round 11: this
+supersedes the older round-5 "no write for absent obligations"
+wording — absence was a no-op then; it is a WRITE now).
+Everything downstream is EXISTING machinery: unsent active request
+→ §6.4 auto-cancel + release; in-flight → wait-then-decide (§6.4);
+confirmed > 0 → the §6.5/§13 overpay latch — STOP (the PO's "same
+as overpay"). A cleanly unwound row (0/0/0, no active request)
+derives the §4.1 CANCELLED terminal branch — displayed CANCELLED,
+never COMPLETED (§12).
+
+Reappearance (round 11): removal is not a tombstone forever — a
+STRICTLY NEWER snapshot carrying the block again applies normally
+(required_amount := the new positive value; the §6.8 trigger
+inventory fires) and the step returns to IN_PROGRESS. Redelivery
+of the zeroing document itself converges: the zeroed obligation
+compares equal (same ordering, same absence) and no-ops.
+
+Anchor retirement (round 11 — replaces the round-10 blanket
+exclusion): a §6.6 anchor scope may be retired by absence ONLY when
+doc.ordering > validation_failed_ordering — a truth STRICTLY NEWER
+than the failure that omits the scope means the payment genuinely
+no longer exists; the same zeroing write applies (required := 0,
+upstream_ordering := doc.ordering), which makes the marker not-LIVE
+and the row derives CANCELLED. A document whose ordering is NOT
+strictly newer than the failure marker still cannot touch the
+anchor (the round-10 protection this rule keeps: a failed snapshot
+never advanced the trade watermark, so a later-ADMITTED document
+can still be older than the failure — a malformed trade's scopes
+must not be cancelled by a valid snapshot that predates their fix).
+
+Zero-payment documents (round 11, PO role-derivation fact §1/§6.0):
+a valid snapshot whose DERIVED payment set is empty is admitted
+normally (it creates/advances the §2.4 trade row) and its fan-out
+is PURE absence — every non-anchor obligation of the trade is
+zeroed as above; anchors follow the ordering-aware rule. This is
+how "the trade no longer requires any payment from us" — including
+removal of the trade's ONLY payment — is represented.
 
 RESOLVED — snapshot ordering-watermark rule (TL-16, §18; ANSWERED
-2026-07-11 round 5): the trade-level ADMISSION gate above is the
-answer. Per-obligation watermarks are NOT advanced for absent
-obligations (no extra no-op writes) — they remain the per-block
-convergence/re-run guard only. Both TL-16 failure traces close at
+2026-07-11 round 5; superseded detail round 11): the trade-level
+ADMISSION gate above is the answer. Round-11 correction: the
+round-5 clause "per-obligation watermarks are not advanced for
+absent obligations" described the PRE-PO-9 no-op world and is
+RETIRED — under absence = amendment to zero, the zeroing write
+advances the per-obligation watermark (see the RESOLVED block
+above); per-block watermarks otherwise remain the per-block
+convergence/re-run guard. Both TL-16 failure traces still close at
 admission: a delayed older snapshot is refused WHOLE, so it can
 neither apply stale amounts to an existing absent-from-newer
-obligation NOR create a never-seen scope (the sharper round-5 trace).
-(PO-9 was answered 2026-07-11 — see the RESOLVED block above; the
-absence-cancel answer additionally terminalizes absent obligations,
-shrinking the old TL-16 window exactly as predicted.)
+obligation NOR create a never-seen scope (the sharper round-5
+trace). The absence answer terminalizes absent obligations via the
+§4.1 CANCELLED branch.
 
 ### 6.2 Zero shortfall
 
@@ -1854,8 +1949,9 @@ The trust-age downgrade (§9.2) has its OWN policy class:
 `attempt_count` RESETS on downgrade — a downgrade starts a new
 episode under a new error class, the old counter belonged to the
 original failure class; small max attempts (suggest 2–3, config
-§16.6); bounded by the payment cutoff via the pre-attempt check
-(§7.4 — no wall-clock deadline exists). Exhaustion
+§16.6) — MAX ATTEMPTS is the ONLY bound (round 10: no cutoff
+pre-check exists, the engine owns its calendar; no wall-clock
+deadline exists). Exhaustion
 → BLOCKED (RETRY_EXHAUSTED) with submission_state still
 MAYBE_SUBMITTED: the row stays in resolver scope (§9.5) and the
 maybe_since escalation clock (§9.3) keeps running, so exhaustion
@@ -2381,8 +2477,8 @@ stage_state — the work cycle within any stage:
      ▲               │
      │               ├─ transient failure ─▶ RETRY_WAIT (L7)
      │               │                          │   ▲
-     │               │            due → re-claim ┘   │ exhaustion /
-     │               │                              │ cutoff → BLOCKED
+     │               │            due → re-claim ┘   │ exhaustion
+     │               │                              │ → BLOCKED
      │               └─ park / unmapped / escalate ─▶ BLOCKED
      │                                    (blocked_reason set, L8)
      └── exits from BLOCKED: ops action (§10.2), §9.2 downgrade,
@@ -2776,7 +2872,13 @@ The card reads; this system never pushes.
 
 ```text
 ui_step_status:      NOT_STARTED → IN_PROGRESS → COMPLETED
-                     (IN_PROGRESS again after reopening, §6.5)
+                                              ↘ CANCELLED
+                     (IN_PROGRESS again after reopening, §6.5 —
+                      from COMPLETED or CANCELLED alike; CANCELLED
+                      = the §4.1 zero-required terminal branch,
+                      round 11: the payment was removed by newer
+                      upstream truth and fully unwound. NEVER
+                      displayed as COMPLETED.)
 
 active exception:    a separate concept from step status; a step can
                      be IN_PROGRESS with an active exception without
@@ -2843,7 +2945,8 @@ BLOCKED (derived)             retryable = false,
                               codes = blocked_reason (§2.2):
                               RETRY_EXHAUSTED, UNMAPPED_CODE,
                               AMOUNT_MISMATCH (CRITICAL, §8),
-                              CUTOFF_EXPIRED (§7.4),
+                              CUTOFF_EXPIRED (RESERVED round 10 —
+                              never produced; §2.2),
                               ENGINE_INCONSISTENCY (§9.2, §7.2),
                               AMENDMENT_PARKED (§6.4),
                               OPS_PARKED, ESCALATED (§9.3 —
@@ -2968,6 +3071,14 @@ never on blocked_reason as a rule input (§10.1).
                                                  runbook decides)
 - AMENDMENT_ON_LATCHED_SCOPE (§6.5)            → alert (manual
                                                  handling)
+- Payment DISAPPEARANCE (round 11 — the §6.1
+  absence fan-out zeroed ≥ 1 obligation)       → metric + mandatory
+  log line (business_id, zeroed scope tuples,
+  doc.ordering); alert on volume/spike. P5:
+  absence-as-cancellation must never be
+  silent — this is the local detector for the
+  accidental-omission class (H-1; upstream
+  complete-set guarantee = ask 5)
 - Money-truth divergence found (§19.2 policy)  → CRITICAL incident
 - Live marker (validation_failed or
   provider_rejected) with NO active request,
@@ -3107,10 +3218,11 @@ so one id greps the whole story.
   While posting is frozen or a breaker is OPEN, gated scanners make
   zero attempts, so the attempt budget structurally cannot burn —
   a 6-hour engine outage leaves the RETRY_WAIT population exactly
-  where it was, ready at recovery, with no BLOCKED flood. Cutoff
-  checks still apply at attempt time in both cases — the cutoff is
-  external business truth and never suspends. An in-flight POST
-  call at flip time completes (drain semantics, §11).
+  where it was, ready at recovery, with no BLOCKED flood. (Round
+  10: NO cutoff check exists at attempt time or anywhere else —
+  the engine owns its calendar and classifies late submissions
+  itself, CA-1.) An in-flight POST call at flip time completes
+  (drain semantics, §11).
 - In-process micro-retries are permitted ONLY for idempotent reads on
   provably-unsubmitted failures (e.g. enrichment lookups) — never on
   the payment POST. Durable retries (§7.4) are the single retry owner
@@ -3594,6 +3706,9 @@ payment platform
    as overpay"). The round-7 RIDER is satisfied: the PO's answer
    RATIFIES the §6.1 BLOCK-LEVEL SUPERSESSION rule (relayed with
    the PO-9 answer by the design owner, 2026-07-11).
+   Round 11: lifecycle COMPLETED — §4.1 CANCELLED terminal branch;
+   0..N derived payment set (§1 role derivation, PO 2026-07-12);
+   ordering-aware anchor retirement; watermark advance (§6.1).
 ```
 
 ### Requiring tech lead review
@@ -3705,9 +3820,10 @@ payment platform
     disjoint concurrent first snapshots serialize on the trade row.
     Option (c) was rejected — it contradicts the stated
     out-of-order condition (§6.7's own motivating trace is a late
-    original). Per-obligation watermarks are NOT advanced for
-    absent obligations. (PO-9 was later ANSWERED 2026-07-11:
-    absence = amendment to zero, §6.1.)
+    original). (PO-9 was later ANSWERED 2026-07-11: absence =
+    amendment to zero, §6.1; round 11 — the zeroing write ADVANCES
+    the per-obligation watermark, superseding the round-5 no-write
+    detail.)
 ```
 
 ### Upstream contract asks
@@ -3725,13 +3841,22 @@ payment platform
 4. Emission contract: confirm a new message is emitted ONLY
    when a business field changed — no blind re-emissions of
    identical snapshots (§6.0 contract fact; bounds the validation
-   reject cycle, §2.1). Under the snapshot model this matters MORE
-   now that PO-9 IS answered "absence = cancel" (2026-07-11): an
-   accidental upstream re-emission missing a payment block WOULD
-   cancel a real unsent payment — this ask is the guard against
-   that producer-bug class, and the §6.4 auto-cancel only touches
-   provably-unsent requests (money never moves wrongly; the
-   payment silently stops until a corrected snapshot restores it).
+   reject cycle, §2.1). HONESTY NOTE (round 11 — this ask is NOT
+   a complete guard): ask 4 prevents blind RE-emissions, but a
+   producer can emit only on real changes and still serialize an
+   INCOMPLETE payment set, and no consumer check can distinguish
+   "intentionally removed" from "accidentally omitted." The
+   controls for that class are: the ask-5 COMPLETE-SET guarantee
+   (below), the §15 disappearance alert (every absence-zeroing
+   fan-out is logged + counted, so a removal is VISIBLE, not
+   silent — P5), §6.4 touching only provably-unsent requests
+   (money never moves wrongly), and reappearance (§6.1 — a
+   corrected snapshot reopens the payment). Residual risk owner:
+   the PO accepted absence-as-cancellation knowing this class
+   (PO-9); if upstream cannot give the complete-set guarantee in
+   writing, the PO must re-confirm or fund an independent
+   reconciliation feed (recorded as OPTIONAL, not built by
+   default).
 5. CONFIRMED verbally 2026-07-11 (design-owner relay) — the
    WRITTEN document remains the go-live evidence (Q1).
    Within-snapshot uniqueness IN WRITING: no two payment blocks in
@@ -3740,7 +3865,11 @@ payment platform
    payment (§1 contract facts, §18 BLOCKING item 0a). We validate
    the within-snapshot half at intake (§6.0); the cross-snapshot
    half is unverifiable at runtime and rests on this written
-   contract alone.
+   contract alone. ROUND-11 ADDITION (goes in the SAME written
+   filing): each snapshot carries the COMPLETE current settlement
+   set of the trade — a GUARANTEE, not "usually" (absence is now
+   the cancellation signal, BA-2; an incomplete serialization
+   cancels real payments, H-1 round 11).
 6. Scope-key provenance IN WRITING: payment_type, debit_account,
    and currency are carried IN the message as stable identifiers
    (§6.0) — none of them is derived by this system via any external
@@ -4059,14 +4188,23 @@ for each payment block of the ADMITTED document,
                                      adjudicated)
   doc.ordering <  watermark       -> drop as stale (guard)
 obligations ABSENT from the document -> AMENDMENT TO ZERO (PO-9
-                                     ANSWERED 2026-07-11): required
-                                     := 0 under fence + obligation
-                                     lock, strictly-newer guard;
-                                     then §6.4 auto-cancel (unsent)
-                                     / wait-then-decide (in-flight)
-                                     / §6.5 overpay latch = STOP
-                                     (confirmed > 0). §6.6 anchor
-                                     scopes are NOT zeroed.
+                                     ANSWERED 2026-07-11; lifecycle
+                                     round 11): required := 0 AND
+                                     upstream_ordering := doc.ordering
+                                     under fence + obligation lock,
+                                     strictly-newer guard; then §6.4
+                                     auto-cancel (unsent) /
+                                     wait-then-decide (in-flight) /
+                                     §6.5 overpay latch = STOP
+                                     (confirmed > 0); cleanly unwound
+                                     row derives §4.1 CANCELLED.
+                                     §6.6 anchors: zeroed ONLY when
+                                     doc.ordering >
+                                     validation_failed_ordering
+                                     (ordering-aware retirement,
+                                     §6.1). An EMPTY derived set is
+                                     valid: the fan-out is pure
+                                     absence (§6.0/§6.1).
 trade-reference-only difference   -> blocks no-op per the rules
                                      above; the ADMISSION update to
                                      trade_snapshot_state (ordering,

@@ -46,5 +46,5 @@ collected retroactively at GO-04.**
 | Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
-| Q29 | §20 interim ops surface live: authorized admin endpoints + four queue views deployed, enterprise-role-restricted, exercised on real Oracle. NON-WAIVABLE line items (§20 minimal exit set, with Q4): supersede/close and reprocess-snapshot. Waivable only by PO with owner + dated plan: retry, reject, annotate, views | §20, RG-05, OP-04, T-33 | | |
+| Q29 | §20 interim ops surface live: authorized admin endpoints + four queue views deployed, enterprise-role-restricted, exercised on real Oracle. NON-WAIVABLE line items (§20 minimal exit set, with Q4): supersede/close and reprocess-snapshot. Waivable only by PO with owner + dated plan: retry, reject, annotate, views | §20, RG-05, OP-04a–e, T-33 | | |
 

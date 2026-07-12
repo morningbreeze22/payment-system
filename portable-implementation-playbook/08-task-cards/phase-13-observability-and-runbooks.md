@@ -19,7 +19,7 @@
 - **Local placeholder mappings required before starting:** metrics stack conventions (D-10).
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** implement, each on its named clock/scope: oldest-MAYBE age (maybe_since) alert before cutoff; MAYBE tier-2 re-page; stuck-reservation age; BLOCKED count+age by blocked_reason (queue metric — display use of the reason is legal, §10.1); provider_rejected set → alert; provider_reject_count=2 → alert; validation_reject_count=3 → alert; overpay latch SET → alert (business hours); overpay-latched count + oldest age; AMOUNT_MISMATCH CRITICAL; ENGINE_INCONSISTENCY CRITICAL; AMENDMENT_TIE_CONFLICT; AMENDMENT_ON_LATCHED_SCOPE; live-marker-no-active-request age (validation_failed on first_at); apply-platform-verified-outcome executed → alert every use; overpay-latched-without-visible-exception integrity alert.
+- **Implementation instructions:** implement, each on its named clock/scope: oldest-MAYBE age (maybe_since) alert on the age threshold (round 10 — no cutoff exists); payment-DISAPPEARANCE metric + mandatory log line (round 11, §15: business_id, zeroed scope tuples, doc.ordering; alert on volume — absence-as-cancellation is never silent); MAYBE tier-2 re-page; stuck-reservation age; BLOCKED count+age by blocked_reason (queue metric — display use of the reason is legal, §10.1); provider_rejected set → alert; provider_reject_count=2 → alert; validation_reject_count=3 → alert; overpay latch SET → alert (business hours); overpay-latched count + oldest age; AMOUNT_MISMATCH CRITICAL; ENGINE_INCONSISTENCY CRITICAL; AMENDMENT_TIE_CONFLICT; AMENDMENT_ON_LATCHED_SCOPE; live-marker-no-active-request age (validation_failed on first_at); apply-platform-verified-outcome executed → alert every use; overpay-latched-without-visible-exception integrity alert.
 - **Do not change:** alert semantics/severities (§13/§15).
 - **Tests to add:** seeded condition per alert (batchable table-driven test).
 - **Edge cases:** none beyond clock discipline (already asserted in ST-07 — here assert the ALERT reads the anchor).
@@ -108,7 +108,7 @@
 - **Task ID:** OB-07
 - **Title:** Externalize the §16.6 configuration inventory; loader REJECTS mis-ordered value sets
 - **Classification:** MVP normative implementation
-- **Purpose:** §16.6: nothing else orders trust_age/cadence/escalation/tier-2/cutoff-margin; a p99-driven trust-age quietly reaching the escalation age silently degrades wait-then-decide into everything-goes-to-ops.
+- **Purpose:** §16.6: nothing else orders trust_age/cadence/escalation/tier-2 (cutoff margin RETIRED round 10); a p99-driven trust-age quietly reaching the escalation age silently degrades wait-then-decide into everything-goes-to-ops.
 - **Prerequisites:** consuming tasks landed (RC-04/05/07/08, RG-xx, IN-xx); B-02/B-03 values where available.
 - **Requirement sections / concepts to read:** §16.6 (inventory + validation rule), §16.5 (externalized config).
 - **Placeholder components involved:** [Metrics / Alerting Layer] (validation failure surfacing), app config.

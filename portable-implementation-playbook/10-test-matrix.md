@@ -1,4 +1,4 @@
-> **Purpose:** Test matrix T-01..T-36 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
+> **Purpose:** Test matrix T-01..T-37 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
 > **When to use this file:** When writing a task card's tests and when assembling GO-04 gate evidence.
 > **Depends on:** requirment-v4.md sections cited per test; 12-companion-artifacts.md (CA-7).
 > **Used by:** All test-bearing task cards; 17-go-live-checklist.md evidence column.
@@ -474,7 +474,9 @@ Setup:   scopes at each §4-derivable state incl. anchors, MAYBE rows,
          latched overpay, reopened steps; a multi-payment trade
          (several obligations under one business_id).
 Action:  read through the card path.
-Expect:  NOT_STARTED = absence; anchors show DATA_VALIDATION_FAILED;
+Expect:  NOT_STARTED = absence; a zeroed removed payment shows
+         CANCELLED, never COMPLETED (round 11 — §4.1 second
+         branch); anchors show DATA_VALIDATION_FAILED;
          MAYBE shows PAYMENT_OUTCOME_UNKNOWN (rank 1, never
          SYSTEM_UNAVAILABLE); labels per §10.4; the multi-payment
          trade returns ALL its obligations, one entry per payment —
@@ -641,5 +643,65 @@ consumes these snapshots. The retired bootstrap / digest-NULL /
 pointer / mixed-version cases have no reachable subject.
 ID kept — IDs are stable; body retained in git history
 (commit 9a53c75). Admission itself is fully covered by T-35.
+```
+
+### T-37 — Absence lifecycle: removal, CANCELLED terminal, anchors, reappearance (round 11)
+
+```text
+Section: §6.1, §4.1, §6.0, §12, §15   Type: INTEGRATION
+Blocking: YES
+Purpose: PO-9's answer is a complete lifecycle, not just a zeroing
+         write: a removed payment TERMINATES (CANCELLED, never
+         COMPLETED, never wedged IN_PROGRESS forever), the trade's
+         ONLY payment is removable (empty derived set — §6.0 role
+         derivation), anchors retire ordering-aware, removal is
+         visible (§15 disappearance alert), and a reappearing
+         payment reopens.
+Setup:   real Oracle; trade with payments A (unsent active request)
+         and B (confirmed = required); a one-payment trade C
+         (unsent); a trade with a MAYBE-parked payment D; a trade
+         with a §6.6 anchor E (validation_failed_ordering = 300);
+         snapshots: S-newer omitting A (ordering above the trade
+         watermark), S-empty with ZERO derived blocks for trade C,
+         S-anchor-old (ordering 250, omits E), S-anchor-new
+         (ordering 350, omits E), S-reappear carrying A again with
+         a new positive amount, plus a REDELIVERY of each zeroing
+         document.
+Action:  deliver each snapshot; for D deliver removal first, then
+         REJECTED evidence, then (separate run) EXECUTED evidence;
+         re-deliver the zeroing documents; read every affected
+         card through the §12 path.
+Expect:  A: required := 0, upstream_ordering advanced, §6.4
+         auto-cancel + release → row derives §4.1 CANCELLED —
+         displayed CANCELLED, NEVER COMPLETED, and the step is
+         TERMINAL (no live exception, no ops queue entry); B:
+         overpay latch fires (confirmed > required(0)) → BLOCKED,
+         never CANCELLED, no clawback; C (only-payment removal):
+         the EMPTY derived set is ADMITTED (trade watermark
+         advances) and C zeroes exactly like A — this is C-1a's
+         trace, the one the 1..N contract could not represent; D:
+         zeroing parks wait-then-decide; REJECTED evidence →
+         release → CANCELLED; EXECUTED evidence → confirmed > 0 →
+         latch (stop); E: S-anchor-old (250 < 300) leaves the
+         anchor UNTOUCHED (marker still LIVE); S-anchor-new
+         (350 > 300) retires it — required := 0, watermark
+         advanced past the marker, row derives CANCELLED (no
+         permanent marker-only wedge); reappearance: S-reappear
+         applies normally (strictly newer), required := the new
+         positive value, step returns to IN_PROGRESS, a fresh
+         request is creatable (§6.8); redelivery of every zeroing
+         document converges (equal ordering + digest → admission
+         no-op; obligations already zeroed → stale-guard no-op);
+         EVERY zeroing fan-out emitted the §15 disappearance
+         metric + log line (business_id, zeroed tuples,
+         doc.ordering) — checked for A, C, D, E-new; NONE fired
+         for refused/no-op documents.
+Failure: a removed payment stuck IN_PROGRESS forever (the C-1b
+         wedge), CANCELLED displayed as COMPLETED, an
+         unretirable anchor (the C-1c wedge), an unrepresentable
+         only-payment removal (C-1a), or a silent disappearance
+         (P5 violation).
+Implemented by: IN-02 (absence fan-out + admission), RG-08
+(CANCELLED derivation), OB-03 (disappearance alert).
 ```
 

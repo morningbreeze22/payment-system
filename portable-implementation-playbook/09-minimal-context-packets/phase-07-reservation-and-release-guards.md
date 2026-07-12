@@ -65,10 +65,10 @@ Tests: every §10.5 cancel/park row; ENRICH·CLAIMED cancellable; POST·CLAIMED 
 
 ```text
 [RG-08] Step-status predicate
-Read: §4.1 (predicate + bullets) §4 §2.1 (liveness incl. anchor clause). Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status.
+Read: §4.1 (predicate + BOTH branches + bullets) §4 §2.1 (liveness incl. anchor clause) §12. Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status; round 11 — required = 0 (writable only by the §6.1 absence path) with 0/0/0 + no active request + markers clear derives CANCELLED, a TERMINAL branch displayed CANCELLED never COMPLETED, reopenable by a strictly newer positive block.
 Placeholders: [Obligation Repository] [Request Status Persistence Layer]. Mappings: ST-02 re-derive hook.
-Objective: implement the predicate exactly (incl. required NOT NULL ∧ >0 and confirmed>=required terms); wire into every re-derivation; remove event-copy writers.
-Tests: each term isolated; recovered anchor completes. Stop: merged.
+Objective: implement BOTH branches exactly (COMPLETED incl. required NOT NULL ∧ >0 and confirmed>=required terms; CANCELLED per round 11); output IN_PROGRESS/COMPLETED/CANCELLED; wire into every re-derivation; remove event-copy writers.
+Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed with confirmed>0 stays latched; reappearance → IN_PROGRESS (T-37). Stop: merged.
 ```
 
 ```text

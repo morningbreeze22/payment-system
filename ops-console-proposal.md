@@ -16,7 +16,7 @@ only guarded admin operations (authorized application endpoints, §20) can execu
 
 | Dead-end state (v4 terms) | Produced by | What must eventually happen |
 |---|---|---|
-| `stage_state = BLOCKED` (label NEEDS_REVIEW; reasons RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH, CUTOFF_EXPIRED, ENGINE_INCONSISTENCY, AMENDMENT_PARKED, OPS_PARKED, ESCALATED — §13) | retry exhaustion, unmapped codes, mismatch defects, amendment parks, §9.3 escalation | retry / reject / supersede — a CAS transition under the §10.1 release guard; reject/supersede release the reservation |
+| `stage_state = BLOCKED` (label NEEDS_REVIEW; reasons RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH, ENGINE_INCONSISTENCY, AMENDMENT_PARKED, OPS_PARKED, ESCALATED; CUTOFF_EXPIRED reserved/never produced, round 10 — §13) | retry exhaustion, unmapped codes, mismatch defects, amendment parks, §9.3 escalation | retry / reject / supersede — a CAS transition under the §10.1 release guard; reject/supersede release the reservation |
 | Stuck reservation | active request not progressing (§3 / §15 stuck-reservation alert) | supersede/close — §3 makes this a *required* capability, NON-WAIVABLE per the §20 minimal exit set (guarded admin operation at MVP, §20-2) |
 | Aged `MAYBE_SUBMITTED` (label UNKNOWN; escalates once per episode to BLOCKED(ESCALATED) on the maybe_since clock, §9.3) | ambiguous POST outcomes, lease expiry, DUPLICATE_REQUEST answers | the §9.3 action set (see O6–O10 below) — **never** a plain release: terminal-negatives on MAYBE/SUBMITTED rows are forbidden unless evidence-driven (§10.1/§9.4) |
 | Overpay latch (`overpay_blocked`, §13) | confirmed > required | today: scope ignored forever (§13 one-way door); ops annotates via the `ops_annotation` field (§2.1, §20-4) — **no state change, no clearing** (clearing is FUTURE, tied to §19.2) |
@@ -45,11 +45,12 @@ audited UI, not about adding capability.
    anyway. The console never disables a trigger or guard.
 3. **repost_permitted gates every re-POST path (§7.0).** Retry,
    un-park, and downgrade actions fire only where the gate passes
-   (divergent_payload_at NULL, pre-cutoff, amount not stale on a MAYBE
-   row, freeze off, active row). DECIDED (closes the old open question
-   5): the payment cutoff always wins; the ONLY overridable term is
-   amount staleness, via the dual-control override (O8). blocked_reason
-   is display/queue-routing only — no action keys on it (§10.1).
+   (divergent_payload_at NULL, amount not stale on a MAYBE row,
+   freeze off, active row — the former cutoff term is RETIRED,
+   round 10: the engine owns its calendar). The ONLY overridable
+   term is amount staleness, via the dual-control override (O8).
+   blocked_reason is display/queue-routing only — no action keys
+   on it (§10.1).
 4. **Fail-safe bias preserved.** Nothing in the console creates or
    submits a payment. The only paths that lead to money moving again
    are the §6.4-retry-guarded retry (O1), the §9.2 downgrade re-POST
@@ -248,8 +249,9 @@ O1  SET stage_state=RETRY_WAIT, blocked_reason=NULL, next_retry_at
     WHERE outcome IS NULL ∧ stage_state='BLOCKED'
       ∧ submission_state='NOT_SUBMITTED' ∧ divergent_payload_at IS NULL.
     POST-stage rows: remaining repost_permitted terms (§7.0 —
-    cutoff, freeze) checked in code; stage NEVER changes (an
-    ENRICH-blocked row re-enriches, §10.5). No money movement.
+    freeze, divergence; round 10: no cutoff term exists) checked
+    in code; stage NEVER changes (an ENRICH-blocked row
+    re-enriches, §10.5). No money movement.
 O2  SET outcome='REJECTED' WHERE outcome IS NULL ∧ stage_state=
     'BLOCKED' ∧ submission_state='NOT_SUBMITTED' (§10.1). Same
     transaction: −committed_amount; provider_rejected marker +
@@ -269,7 +271,8 @@ O7  SET stage='POST', stage_state='RETRY_WAIT', blocked_reason=NULL,
     repost_permitted incl. amount-vs-shortfall.
 O8  Same target write as O7; permitted iff repost_permitted fails
     SOLELY on the amount-staleness term (verified under the lock);
-    strict dual control. Cutoff/divergence/terminal never override.
+    strict dual control. Divergence/terminal never override
+    (round 10: no cutoff term exists to override).
 O9  No payment-table mutation: records the TL-10 ask (console audit
     row + §14 line); the negative, if granted, arrives as normal
     feed/query evidence.
@@ -324,9 +327,10 @@ numbers match what execution would compute.
 3. Which ticket system anchors the audit trail (§20-8), and is the
    reference validated against its API or free-text?
 4. Retention for console approval/action records.
-5. ~~May retry bypass the payment cutoff?~~ **ANSWERED in v4:** the
-   cutoff always wins (§7.0 term); nothing overrides it. The ONLY
-   overridable term is amount staleness (O8, dual-control).
+5. ~~May retry bypass the payment cutoff?~~ **OBSOLETE — no local cutoff exists (round 10):**
+   the engine owns its calendar (§18-2
+   CLOSED); the question has no subject. The ONLY overridable
+   repost_permitted term is amount staleness (O8, dual-control).
 6. Does the overpay acknowledgement need to be visible on the card?
    (`ops_annotation` is a §2.1 read-model field, so surfacing it is a
    card-contract question — TL-2 / §20-4.)

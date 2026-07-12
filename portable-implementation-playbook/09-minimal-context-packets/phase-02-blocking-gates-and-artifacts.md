@@ -91,7 +91,7 @@ Tests: none (K-05). Stop: published.
 [CA-7] Test catalog
 Read: §16.6 artifact 6; playbook Section J. Invariant: stable IDs; every entry §-traceable.
 Placeholders: [Integration Test Suite] [Contract Test Suite]. Mappings: none.
-Objective: adopt Section J (T-01..T-36) + spec-named entries (downgrade-DUPLICATE leaves uetr intact; ambiguous claim-commit; concurrent inbox duplicates); owner per entry.
+Objective: adopt Section J (T-01..T-37) + spec-named entries (downgrade-DUPLICATE leaves uetr intact; ambiguous claim-commit; concurrent inbox duplicates); owner per entry.
 Tests: none. Stop: published.
 ```
 

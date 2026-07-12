@@ -132,7 +132,7 @@ Failure if omitted: divergence_expected is noise → expected
 Section: §16.6 artifact 6.
 Owner type: TEAM, named owner.
 Purpose: single owned index of every required test.
-Required contents: Section J's T-01..T-36; the spec-named entries
+Required contents: Section J's T-01..T-37; the spec-named entries
   (downgrade re-POST answered DUPLICATE_REQUEST leaves prior uetr
   intact; §11 ambiguous claim-commit; §8 concurrent in-flight
   duplicates); per-entry §-traceability, owner type, implementing

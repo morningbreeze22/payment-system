@@ -182,7 +182,7 @@
 - **Classification:** MVP normative implementation
 - **Purpose:** §16.6-4: every scheduled scan's plan independent of terminal-row count — expressions NULL for terminal rows.
 - **Prerequisites:** S-05.
-- **Requirement sections / concepts to read:** §16.6 artifact 4 (index list), §9.5 (sweep order: cutoff first, then oldest maybe_since), §15 (scan scopes).
+- **Requirement sections / concepts to read:** §16.6 artifact 4 (index list), §9.5 (sweep order: oldest maybe_since first — round 10, no cutoff), §15 (scan scopes).
 - **Placeholder components involved:** [DB Migration Directory].
 - **Local placeholder mappings required before starting:** [DB Migration Directory].
 - **Local code areas to discover:** none new.
