@@ -53,7 +53,7 @@
 - **Common mistakes:** comparing labels only (compare the tuple fields too).
 - **Completion criteria:** clean soak report.
 - **Stop condition:** report filed.
-- **Next task:** GO-03.
+- **Next task:** GO-05 (round-19 order: rehearsal → pre-cutover authorization → controlled cutover).
 
 ### GO-03 — Staged enablement
 
@@ -61,37 +61,37 @@
 - **Title:** Enable in Section M order: constraints validated → guards/triggers → scanners → resolver → escalation → (after P8 PASS) auto-downgrade
 - **Classification:** MVP normative implementation
 - **Purpose:** each mechanism observes before it acts; the auto-downgrade (a money-adjacent self-heal) goes last, gated on the §18-1 proof.
-- **Prerequisites:** GO-02 clean; per-stage prerequisites in Section M; P8 gate status for the final stage. Round 18: the stage that enables the NEW intake path additionally requires the CUTOVER_POPULATION_GREENFIELD RUN-2 proof (file 26 T.1 — queries re-run post-fence, counts zero, bound in the manifest) filed as Q5 evidence BEFORE the flag flips.
+- **Prerequisites:** GO-04 CONDITIONAL GO recorded (round 19 — authorization precedes enablement); per-stage prerequisites in Section M; P8 gate status for the final stage. Round 18: enabling the NEW intake traffic (the M.2 F0 gate) requires the CUTOVER_POPULATION_GREENFIELD RUN-2 proof (file 26 T.1 — queries re-run post-fence, counts zero, bound in the manifest) filed as Q5 evidence BEFORE F0 flips.
 - **Requirement sections / concepts to read:** Section M (enablement order + per-stage validation), §9.2 (what the downgrade risks), §18-1.
 - **Placeholder components involved:** all runtime components (config-driven).
 - **Local placeholder mappings required before starting:** GO-01 flags wired.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** per Section M's stage list: enable, run the stage's validation checklist (alerts quiet, metrics sane, sampled rows correct), hold the stage soak, proceed; auto-downgrade stage requires: CT-02..05 PASS evidence on file + observed-lag watchdog live (OB-04) + trust-age configured from TL-5 (not the stub).
-- **Do not change:** stage order; no skipping soaks under schedule pressure (record any waiver with its owner).
+- **Implementation instructions:** execute the M.2 F0 ACTIVATION WINDOW first (round 19, atomic): prevent all legacy/in-scope creation → verify the writer fence → execute the reviewed RUN-2 queries → require ZERO → DBA/TL sign the result → enable F0 (or execute the NAMED external routing action from GO-01's plan) → verify the FIRST admitted row carries watermark + storage pointer + digest; then per Section M's stage list: enable, run the stage's validation checklist (alerts quiet, metrics sane, sampled rows correct), hold the stage soak, proceed; auto-downgrade stage requires: CT-02..05 PASS evidence on file + observed-lag watchdog live (OB-04) + trust-age configured from TL-5 (not the stub); POST-ENABLE VERIFICATION + EVIDENCE CLOSURE (round 19): file the enablement transcript + signed RUN-2 result in the evidence pack, append the post-deployment verification entry to signoffs.md, confirm the §15 surface quiet and the day-1 checks complete.
+- **Do not change:** stage order; a soak or checkpoint feeding a NON-WAIVABLE Q item can NEVER be waived (round 19); any other soak waiver needs its owner recorded.
 - **Tests to add:** none new (checklists execute existing ones).
 - **Edge cases:** a stage's validation failing → its documented rollback (flag off), fix forward, re-enter.
 - **Manual validation:** stage sign-offs recorded.
 - **Expected outcome:** system live in safe order.
 - **Failure signs:** resolver enabled before evidence rules (IN-07) verified in the environment.
 - **Common mistakes:** enabling the downgrade with the conservative stub trust-age (must be TL-5-derived by then).
-- **Completion criteria:** all stages enabled + soaked.
-- **Stop condition:** enablement complete.
-- **Next task:** GO-04.
+- **Completion criteria:** all stages enabled + soaked; post-enable verification filed.
+- **Stop condition:** enablement + evidence closure complete; Phase P14 report. PLAYBOOK IMPLEMENTATION COMPLETE — operate per Section N runbooks.
+- **Next task:** none (steady state — round-19 order: GO-03 is the LAST card).
 
 ### GO-04 — Go-live gate execution
 
 - **Task ID:** GO-04
-- **Title:** Execute the Section Q checklist; assemble gate evidence; obtain go/no-go
+- **Title:** Execute the Section Q checklist; assemble gate evidence; obtain the PRE-CUTOVER go/no-go (round 19 — authorization precedes enablement)
 - **Classification:** §18 BLOCKING gate aggregation
-- **Purpose:** the four §18 BLOCKING items + all Q items PASS before first production payment under the new machinery.
-- **Prerequisites:** GO-03; OP-03 drill; CT suite results; K-03 vectors; open-question register (Section K) current.
+- **Purpose:** the four §18 BLOCKING items + all Q items PASS BEFORE the controlled cutover (GO-03) — round 19: the recorded decision is a CONDITIONAL GO authorizing GO-03's change window, contingent ONLY on the intentionally time-of-cutover item (the RUN-2 population proof returning ZERO inside that window); any other gap = NO-GO. First production payment under the new machinery happens only after GO-03's F0 sequence completes clean.
+- **Prerequisites:** GO-02 clean; GO-05 rollback rehearsal recorded (round 19 — Q23's evidence exists BEFORE this meeting); OP-03 drill; CT suite results; K-03 vectors; open-question register (Section K) current.
 - **Requirement sections / concepts to read:** Section Q; §18 (all BLOCKING items).
 - **Placeholder components involved:** none (evidence task).
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** walk Section Q item by item: PASS with linked evidence / FAIL with owner + plan / BLOCKED with the blocking §18 item; TWO non-waivable classes (round 16): §18 BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set — FAIL or missing evidence = NO-GO; reclassification requires a new architecture/safety review, never a meeting-time waiver); verify manifest.yaml + SHA256SUMS target the exact RC build and environment and the invalidation map shows no stale PASS (round 16) — incl. the Q5 RUN-2 population proof (round 18: bound, fresh, post-fence); deliver to the accountable owner for go/no-go.
+- **Implementation instructions:** walk Section Q item by item: PASS with linked evidence / FAIL with owner + plan / BLOCKED with the blocking §18 item; TWO non-waivable classes (round 16): §18 BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set — FAIL or missing evidence = NO-GO; reclassification requires a new architecture/safety review, never a meeting-time waiver); verify manifest.yaml + SHA256SUMS target the exact RC build and environment and the invalidation map shows no stale PASS (round 16) — incl. the Q5 RUN-2 population proof (round 18: bound, fresh, post-fence); deliver to the accountable owner for the PRE-CUTOVER go/no-go; the recorded GO is CONDITIONAL — it authorizes GO-03's change window contingent only on RUN 2 = zero + a clean F0 sequence, everything else being PASS at this meeting (round 19).
 - **Do not change:** checklist items (additions allowed; removals need the owner).
 - **Tests to add:** none.
 - **Edge cases:** unresolved non-BLOCKING Section K questions → recorded risks with owners, not silent passes.
@@ -101,7 +101,7 @@
 - **Common mistakes:** treating written provider answers as CT evidence (§18-1: the TEST is the proof).
 - **Completion criteria:** decision recorded.
 - **Stop condition:** decision recorded.
-- **Next task:** GO-05.
+- **Next task:** GO-03 (the controlled cutover — round 19: the LAST card).
 
 ### GO-05 — Rollback validation
 
@@ -124,15 +124,15 @@
 - **Failure signs:** a rollback plan that requires down-migrating data.
 - **Common mistakes:** rehearsing only the happy rollback (rehearse the mid-incident one: flags off under load).
 - **Completion criteria:** rehearsals recorded.
-- **Stop condition:** recorded; Phase P14 report. PLAYBOOK IMPLEMENTATION COMPLETE — operate per Section N runbooks.
-- **Next task:** none (steady state).
+- **Stop condition:** rehearsals recorded (round 19: this card runs BEFORE the GO-04 authorization — it is Q23's evidence and a GO-04 prerequisite).
+- **Next task:** GO-04.
 
 
 ---
 
 ## Phase handoff summary (P14 → steady state)
 
-- **Phase outputs:** localized rollout plan executed in the 13-migration-rollout-rollback.md order; clean shadow-soak report; staged enablement with sign-offs (auto-downgrade last, on P8 PASS evidence); go-live checklist executed with linked evidence and a signed go/no-go; rollback rehearsed with the point of no return documented.
+- **Phase outputs:** (round-19 execution order: GO-01 plan → GO-02 shadow → GO-05 rollback rehearsal → GO-04 PRE-CUTOVER conditional go/no-go → GO-03 controlled cutover + staged enablement + post-enable verification) localized rollout plan executed in the 13-migration-rollout-rollback.md order; clean shadow-soak report; rollback rehearsed with the point of no return documented BEFORE authorization; go-live checklist executed with linked evidence and a signed CONDITIONAL go/no-go; F0 activation window executed (fence → RUN-2 zero → sign → enable → first-row verification); post-enable evidence closure filed.
 - **Blockers to carry forward:** none permitted at go-live — §18 items 0–3 (Q1–Q4, Q28) AND the MONEY_SAFETY_BLOCKING class (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-minimal — round 16) are non-waivable; open non-BLOCKING questions become owned risks.
 - **Local mapping rows expected filled:** all rows final; the filled mapping + all execution reports REMAIN ON THE WORK LAPTOP.
 - **Tests expected to exist:** the full catalog green at the release candidate; D-11 baseline green (backwards compatibility, Q22).

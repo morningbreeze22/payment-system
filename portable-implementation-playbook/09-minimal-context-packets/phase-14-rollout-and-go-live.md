@@ -9,9 +9,9 @@
 
 ```text
 [GO-01] Rollout plan
-Read: playbook Section M; §16.5 §18. Invariant: Section M's stage ORDER is fixed; auto-downgrade last, gated on P8 PASS; flags default-off.
+Read: playbook Section M (incl. M.2 F0 + activation window); §16.5 §18. Invariant: Section M's stage ORDER is fixed; auto-downgrade last, gated on P8 PASS; flags default-off; the plan NAMES the F0 activation boundary + its owner (a local traffic gate, or the external routing/production action — round 19) and schedules the CUTOVER_POPULATION_GREENFIELD RUN 2 inside the F0 window (fence → queries → ZERO → sign → enable; nonzero = STOP).
 Placeholders: [DB Migration Directory], pipeline. Mappings: promotion path; flag mechanism.
-Objective: environment-specific plan: per stage owner, checkpoint evidence, rollback trigger/procedure; wire enablement flags.
+Objective: environment-specific plan: per stage owner, checkpoint evidence, rollback trigger/procedure; wire enablement flags incl. F0; round-19 card order: 01 → 02 → 05 → 04 → 03.
 Tests: flag-off smoke per flag. Stop: plan approved.
 ```
 
@@ -24,26 +24,26 @@ Tests: comparator detects seeded disagreement. Stop: clean soak report filed.
 ```
 
 ```text
-[GO-03] Staged enablement
-Read: playbook Section M (order + per-stage validation) §9.2 §18-1. Invariant: auto-downgrade enablement requires CT-02..05 PASS + observed-lag watchdog live + TL-5-derived trust age (not the stub).
-Placeholders: all (config-driven). Mappings: GO-01 flags.
-Objective: enable stage → validate → soak → proceed, per Section M.
-Tests: stage checklists (existing suites). Stop: all stages enabled + soaked; sign-offs recorded.
+[GO-03] Controlled cutover + staged enablement (round 19: LAST card — runs only on GO-04's CONDITIONAL GO)
+Read: playbook Section M (order + per-stage validation + M.2 F0 window) §9.2 §18-1; file 26 T.1. Invariant: the F0 activation window is ATOMIC — prevent legacy/in-scope creation → verify writer fence → reviewed RUN-2 queries → ZERO required → DBA/TL sign → enable F0/named external action → verify the FIRST admitted row carries watermark + pointer + digest; nonzero = STOP/NO-GO, never waive; a soak feeding a non-waivable Q item is never waived; auto-downgrade enablement requires CT-02..05 PASS + observed-lag watchdog live + TL-5-derived trust age (not the stub).
+Placeholders: all (config-driven). Mappings: GO-01 flags incl. F0 owner.
+Objective: F0 window → enable stage → validate → soak → proceed per Section M; then post-enable verification + evidence closure (transcript + signed RUN-2 in the pack; signoffs.md entry).
+Tests: stage checklists (existing suites). Stop: all stages enabled + soaked; post-enable verification filed; PLAYBOOK COMPLETE.
 ```
 
 ```text
 [GO-04] Go-live gates
 Read: playbook Section Q; §18 (BLOCKING items); 25-golive V.2/V.3. Invariant: TWO non-waivable classes (round 16) — §18 items 0–3 AND MONEY_SAFETY_BLOCKING (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-minimal): FAIL or missing evidence = NO-GO, no owner+plan waiver; every PASS carries linked evidence; manifest.yaml + SHA256SUMS must target the exact RC and environment with no stale entries in the invalidation map — incl. the Q5 CUTOVER_POPULATION_GREENFIELD RUN-2 proof (round 18: re-run post-fence at cutover, counts zero, bound; a D-12 snapshot alone is NOT cutover evidence).
 Placeholders: none. Mappings: none.
-Objective: execute Section Q; deliver evidence pack; obtain signed go/no-go.
-Tests: none. Stop: decision recorded.
+Objective: execute Section Q; deliver evidence pack; obtain the signed PRE-CUTOVER go/no-go (round 19: CONDITIONAL on RUN 2 = zero in GO-03's window; GO-05 rehearsal already recorded — Q23). 
+Tests: none. Stop: decision recorded; next card GO-03.
 ```
 
 ```text
 [GO-05] Rollback validation
 Read: playbook Section M (rollback) §16.5. Invariant: rollback is flags-off + state stands; no down-migration of money data; old version must run against final schema.
 Placeholders: [DB Migration Directory], pipeline. Mappings: GO-01 stages.
-Objective: rehearse app-rollback during dual-run, per-stage flag-off (incl. mid-incident under load), document the point of no return.
-Tests: rehearsal scripts where automatable. Stop: rehearsals recorded.
+Objective: rehearse app-rollback during dual-run, per-stage flag-off (incl. mid-incident under load), document the point of no return. Round 19: this card runs BEFORE GO-04 (its report is Q23's evidence and a GO-04 prerequisite).
+Tests: rehearsal scripts where automatable. Stop: rehearsals recorded; next card GO-04.
 ```
 

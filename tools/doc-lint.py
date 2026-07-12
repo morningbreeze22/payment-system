@@ -202,6 +202,24 @@ for n, l in enumerate(lines_of(walk), 1):
         else:
             wids[m.group(1)] = n
 
+# ---- Rule 6e (round 19): safety-critical card tokens must appear in the matching packet ----
+SENTINELS = [
+    ("CUTOVER_POPULATION_GREENFIELD",
+     PORTABLE / "08-task-cards" / "phase-14-rollout-and-go-live.md",
+     PORTABLE / "09-minimal-context-packets" / "phase-14-rollout-and-go-live.md"),
+    ("F0",
+     PORTABLE / "08-task-cards" / "phase-14-rollout-and-go-live.md",
+     PORTABLE / "09-minimal-context-packets" / "phase-14-rollout-and-go-live.md"),
+    ("CUTOVER_POPULATION_GREENFIELD",
+     PORTABLE / "08-task-cards" / "phase-01-discovery.md",
+     PORTABLE / "09-minimal-context-packets" / "phase-01-discovery.md"),
+]
+for token, cardf, packf in SENTINELS:
+    card_text = "\n".join(lines_of(cardf))
+    pack_text = "\n".join(lines_of(packf))
+    if token in card_text and token not in pack_text:
+        errors.append(f"{rel(packf)}: card file carries safety token '{token}' but the packet does not (round-19 propagation rule)")
+
 # ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
 P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"
 if P3_ORDER not in seq_text:

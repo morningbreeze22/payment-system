@@ -73,6 +73,15 @@ Structural changes (dual-write, CAS discipline, derivation) ship as
 code — no flag (they are behavior-preserving against the legacy
 representation and proven by GO-02's shadow comparison).
 Config-flagged enablement (default OFF):
+  F0 NEW-FLOW TRAFFIC GATE (round 19 — the activation boundary the
+     RUN-2 proof anchors to): whether upstream traffic reaches this
+     flow AT ALL (product launch / routing). Default OFF. F0 gates
+     TRAFFIC ONLY and NEVER bypasses admission — once ON, every
+     message enters through the always-on §6.1 admission gate. If
+     routing is controlled OUTSIDE this application (upstream
+     starts producing, topic subscription, gateway), GO-01's plan
+     NAMES that external action and its owner as F0 — never an
+     invented local flag.
   F1 new-machinery scanners (retry scanner in new claim/policy mode)
   F2 resolver sweep (query-based recovery)
   F3 escalation scanner
@@ -81,6 +90,14 @@ Config-flagged enablement (default OFF):
      during early soak — must reach BLOCK before F1..F4 ship traffic)
 Kill behavior: each flag OFF returns that mechanism to inert; rows
 remain valid states (parked/waiting), recoverable when re-enabled.
+
+F0 ACTIVATION WINDOW (round 19 — atomic, inside a change freeze):
+  prevent all legacy/in-scope creation → verify the writer fence →
+  execute the reviewed RUN-2 queries (file 26 T.1) → require ZERO →
+  DBA/TL sign the result → enable F0 / execute the named external
+  routing action → verify the FIRST admitted row carries watermark
+  + storage pointer + digest. Any nonzero count → STOP, NO-GO,
+  architecture review (never proceed, never waive).
 ```
 
 ### M.3 Dual-read / shadow / dry-run

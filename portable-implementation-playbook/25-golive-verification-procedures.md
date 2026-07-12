@@ -55,7 +55,7 @@ Rules of the game:
 | Q20 | T-32 green: every §15 entry fires on its seeded condition ON ITS ANCHOR CLOCK, carries a runbook link; alert rollup groups outage collateral into one incident (breaker-OPEN storm test); dead-gauge alerting (stop a metric source → alert); config-ordering validation rejects a bad set at startup (T-32's mis-ordered-config case — reference corrected 2026-07-11). | run ID; dashboard screenshots; rejected-config boot log | OPS + TL |
 | Q21 | Open every runbook stub from its alert definition link (no 404s); aged-MAYBE runbook walks to an actual exit (O10/TL-10). | link audit note | OPS |
 | Q22 | D-11 baseline suite green on the release candidate; zero unresolved BUSINESS_RULE_CHANGE_REQUIRED reports in the tracker. | run ID; tracker export | DEV + PO |
-| Q23 | Rollback REHEARSED in a pre-prod env (not just documented): execute GO-05's rollback from the mid-rollout state; record timings; point-of-no-return step identified in the plan. | rehearsal report | OPS + TL |
+| Q23 | Rollback REHEARSED in a pre-prod env (not just documented): execute GO-05's rollback from the mid-rollout state; record timings; point-of-no-return step identified in the plan. (Round 19: GO-05 runs BEFORE the GO-04 authorization, so this evidence EXISTS at the meeting.) | rehearsal report | OPS + TL |
 | Q24 | GO-02 shadow soak report: duration per plan, zero unexplained divergences (each divergence dispositioned in writing). | soak report | TL + PO |
 | Q25 | Walk Section K (Q-01..Q-21): every BLOCKING answered (verbatim answer + source + date), every HIGH answered or risk-owned; §16.6 config inventory has an owner per row, no TBD values in the target env. | K register export; config inventory | TL + PO |
 | Q26 | T-31 green incl.: multi-payment trade returns ALL obligations (count never an error); anchors show DATA_VALIDATION_FAILED; MAYBE shows rank-1 PAYMENT_OUTCOME_UNKNOWN never SYSTEM_UNAVAILABLE; unavailable ≠ stale. | run ID | DEV |
@@ -90,7 +90,13 @@ Assemble ONE folder (local, like everything naming local systems):
                           change, restore/seed/data migration,
                           old-writer activity, rollback, or query
                           change → the Q5 CUTOVER_POPULATION_
-                          GREENFIELD proof, round 18)
+                          GREENFIELD proof, round 18; round 19:
+                          a post-activation re-enable uses the
+                          ADMISSION-COVERAGE form, file 26 T.1 —
+                          zero-count applies to INITIAL
+                          activation only; old-writer activity
+                          after RUN 2 = STOP + incident review,
+                          not a rerun)
   test-runs.md          — matrix test ID → run ID/link → date →
                           exact build/env/version
   signoffs.md           — Q → role → name → date (the roles above)
@@ -130,5 +136,9 @@ triggers automatic re-runs.
    channels tested (Q18/Q19 receipts), freeze-toggle access list
    verified, rollback runbook (Q23) at hand.
 6. Record the decision + conditions in signoffs.md. GO requires PO,
-   TL, and OPS signatures on the same dated entry.
+   TL, and OPS signatures on the same dated entry. Round 19: this
+   meeting is PRE-CUTOVER and the GO is CONDITIONAL — it authorizes
+   GO-03's F0 change window contingent only on RUN 2 = zero + a
+   clean activation sequence; GO-03's post-enable verification
+   entry closes the record afterwards.
 ```

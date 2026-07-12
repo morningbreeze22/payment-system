@@ -125,6 +125,6 @@ a status; every DONE row has a filed execution report (file 19).
 | 100 | OB-07 | TODO | | | |
 | 101 | GO-01 | TODO | | | |
 | 102 | GO-02 | TODO | | | |
-| 103 | GO-03 | TODO | | | (F4 needs CT PASS — DD-6) |
-| 104 | GO-04 | TODO | | | (HUMAN go/no-go) |
-| 105 | GO-05 | TODO | | | |
+| 103 | GO-05 | TODO | | | (round 19: rehearsal BEFORE GO-04) |
+| 104 | GO-04 | TODO | | | (HUMAN PRE-CUTOVER conditional go/no-go) |
+| 105 | GO-03 | TODO | | | (LAST: F0 window + RUN-2 zero; F4 needs CT PASS — DD-6) |

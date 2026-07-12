@@ -302,6 +302,6 @@
 
 - **Phase outputs:** Section O mapping table filled for every placeholder (CONFIRMED / PARTIAL / MISSING / UNCLEAR); D-12 discovery report delivered to the human owner; D-11 baseline green bar recorded.
 - **Blockers to carry forward:** §18 BLOCKING items 0–3 still unanswered — B-01..B-04 own them; any locally-BLOCKED mappings listed in D-12.
-- **Local mapping rows expected filled:** ALL rows attempted (all placeholders + 3 core tables + 4 documented services + toggle/calendar/legacy-enum rows).
+- **Local mapping rows expected filled:** ALL rows attempted (all placeholders + 4 core tables incl. trade_snapshot_state + 4 documented services + toggle/calendar/legacy-enum rows + the snapshot-store client).
 - **Tests expected to exist:** none new; the pre-existing suite baseline (incl. named flaky tests) is recorded.
 - **Next phase entry condition:** human owner has reviewed the D-12 report. NO implementation before that review.

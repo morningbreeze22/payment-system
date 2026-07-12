@@ -77,9 +77,9 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 96–100 | OB-03 → OB-07 | AGENT | metric sources from P6–P12 | phase-13-observability-and-runbooks.md |
 | 101 | GO-01 | HUMAN+AGENT | all merges | phase-14-rollout-and-go-live.md |
 | 102 | GO-02 | AGENT | dual-write live in env | phase-14 |
-| 103 | GO-03 | HUMAN+AGENT | GO-02 clean; stage F4 needs CT PASS (DD-6) | phase-14 |
-| 104 | GO-04 | HUMAN | all gates; 17-go-live-checklist.md | phase-14 |
-| 105 | GO-05 | HUMAN+AGENT | GO-01 stages | phase-14 |
+| 103 | GO-05 | HUMAN+AGENT | GO-01 stages; production-like env (round 19: rehearsal BEFORE authorization — Q23's evidence) | phase-14 |
+| 104 | GO-04 | HUMAN | GO-02 clean + GO-05 recorded + all gates; 17-go-live-checklist.md (round 19: PRE-CUTOVER CONDITIONAL go/no-go) | phase-14 |
+| 105 | GO-03 | HUMAN+AGENT | GO-04 CONDITIONAL GO; F0 window (fence → RUN-2 zero → sign → enable); stage F4 needs CT PASS (DD-6) (round 19: LAST row) | phase-14 |
 
 ## Decision defaults (apply mechanically — do not re-judge)
 

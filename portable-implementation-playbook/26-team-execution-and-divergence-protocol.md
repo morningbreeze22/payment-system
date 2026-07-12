@@ -63,6 +63,17 @@ TEST DATA: a non-production fixture demonstrably OUTSIDE the
   production cutover scope does not fail P-B — but its exclusion
   predicate is REVIEWED and RECORDED in the register, never
   improvised by the executor.
+LIFECYCLE (round 19): the ZERO-population form applies to INITIAL
+  activation ONLY. Any post-activation re-enable (rollback
+  recovery, incident restart) instead uses the ADMISSION-COVERAGE
+  form: every in-scope trade/obligation is attributable to an
+  admitted trade whose row carries watermark + storage pointer +
+  digest, and NO row was created by a legacy/out-of-band writer.
+  Old-writer activity discovered AFTER RUN 2 is NOT cured by a
+  rerun: STOP/disable F0, preserve evidence, classify affected
+  rows, incident + architecture review before resumption
+  (uncovered rows may require restoring the retired bootstrap
+  machinery — git 9a53c75).
 ```
 
 If P-A fails (no happy path): STOP after D-12 — the human owner
