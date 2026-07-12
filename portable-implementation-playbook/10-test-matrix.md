@@ -669,12 +669,16 @@ Setup:   real Oracle; trade with payments A (unsent active request)
          document; a payment F with provider_reject_count = 1
          (marker ordering below the removal ordering) and a
          payment G with provider_reject_count = 2, each with
-         removal + reappearance snapshots (round 12).
+         removal + reappearance snapshots (round 12); a payment H
+         removed (zeroed), then targeted by a NEWER snapshot that
+         FAILS validation (H's scope extractable), then by a
+         corrected valid snapshot (round 13).
 Action:  deliver each snapshot; for D deliver removal first, then
          REJECTED evidence, then (separate run) EXECUTED evidence;
          re-deliver the zeroing documents; run removal +
-         reappearance for F and G (round 12); read every affected
-         card through the §12 path.
+         reappearance for F and G (round 12); deliver H's
+         malformed then corrected snapshots (round 13); read
+         every affected card through the §12 path.
 Expect:  A: required := 0, upstream_ordering advanced, §6.4
          auto-cancel + release → row derives §4.1 CANCELLED —
          displayed CANCELLED, NEVER COMPLETED, and the step is
@@ -703,9 +707,18 @@ Expect:  A: required := 0, upstream_ordering advanced, §6.4
          marker not-live → clean CANCELLED; reappearance creates
          a successor normally; G (count 2): the marker stays LIVE
          (ops-only clear) yet the scope derives CANCELLED with NO
-         marker-based exception (§4.2 suppression); reappearance
-         → IN_PROGRESS, PROVIDER_REJECTED resurfaces, NO
-         automatic successor until the ops clear; EVERY zeroing
+         provider exception (round-13 HISTORICAL suppression —
+         the marker's ordering is below the removal watermark);
+         reappearance → IN_PROGRESS, PROVIDER_REJECTED
+         resurfaces, NO automatic successor until the ops clear;
+         H (round 13): the malformed reappearance writes a LIVE
+         validation marker WITHOUT advancing the watermark →
+         required stays 0, the CANCELLED predicate fails →
+         IN_PROGRESS with DATA_VALIDATION_FAILED VISIBLE (never
+         suppressed) and the §15 marker-age alert in scope; NO
+         request exists; the corrected valid snapshot then
+         applies (required := positive, marker not-live) →
+         normal recovery; EVERY zeroing
          fan-out emitted the §15 disappearance metric + log line
          (business_id, zeroed tuples MASKED per §16.3 —
          log-capture assertion proves no raw debit_account —
@@ -716,8 +729,10 @@ Failure: a removed payment stuck IN_PROGRESS forever (the C-1b
          unretirable anchor (the C-1c wedge), an unrepresentable
          only-payment removal (C-1a), a silent disappearance
          (P5 violation), a raw account in the disappearance log,
-         or a reappearance that auto-pays through a live
-         provider_rejected marker (round 12).
+         a reappearance that auto-pays through a live
+         provider_rejected marker (round 12), or a zeroed scope
+         with a LIVE validation marker showing no exception (the
+         round-12 over-suppression — round 13).
 Implemented by: IN-02 (absence fan-out + admission), RG-08
 (CANCELLED derivation), RG-09 (round-12 suppression), RG-10
 (reopening), OB-03 (disappearance alert).

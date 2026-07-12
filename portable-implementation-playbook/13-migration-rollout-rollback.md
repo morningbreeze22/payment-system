@@ -33,7 +33,9 @@ release boundary.
    deferred until after full rollout + soak; a separate,
    individually-approved migration set. The legacy status column
    is dropped LAST, after ST-05 shows zero rule sites and GO-02's
-   soak confirms label parity.
+   soak is clean (round 13: clean = zero UNEXPLAINED disagreements;
+   CANCELLED rows are EXPECTED, classified deltas — legacy display
+   has no such label).
 ```
 
 ### M.2 Feature flag strategy
@@ -57,7 +59,9 @@ remain valid states (parked/waiting), recoverable when re-enabled.
 
 ```text
 GO-02: dual-write soak with tuple-vs-legacy comparison (report must
-be CLEAN, every disagreement dispositioned).
+be CLEAN — zero UNEXPLAINED disagreements, each dispositioned;
+EXPECTED CANCELLED semantic deltas are classified, not fixed —
+round 13).
 Derivation shadow: derived ui_step_status/exception vs legacy display
 behavior compared on real traffic before the card reads switch.
 Resolver dry-run mode (recommended, cheap): sweep + query + LOG the

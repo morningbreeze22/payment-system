@@ -65,15 +65,15 @@ Tests: every §10.5 cancel/park row; ENRICH·CLAIMED cancellable; POST·CLAIMED 
 
 ```text
 [RG-08] Step-status predicate
-Read: §4.1 (predicate + BOTH branches + bullets) §4 §2.1 (liveness incl. anchor clause) §12. Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status; round 11 — required = 0 (writable only by the §6.1 absence path) with 0/0/0 + no active request + markers clear derives CANCELLED, a TERMINAL branch displayed CANCELLED never COMPLETED, reopenable by a strictly newer positive block; provider_rejected never blocks the CANCELLED branch (round 12 — markers stay stored, resurface on reappearance).
+Read: §4.1 (predicate + BOTH branches + bullets) §4 §2.1 (liveness incl. anchor clause) §12. Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status; round 11 — required = 0 (writable only by the §6.1 absence path) with 0/0/0 + no active request + validation_failed not LIVE derives CANCELLED (provider_rejected is NOT a predicate term — round 13), a TERMINAL branch displayed CANCELLED never COMPLETED, reopenable by a strictly newer positive block; provider_rejected never blocks the CANCELLED branch (round 12 — markers stay stored, resurface on reappearance).
 Placeholders: [Obligation Repository] [Request Status Persistence Layer]. Mappings: ST-02 re-derive hook.
 Objective: implement BOTH branches exactly (COMPLETED incl. required NOT NULL ∧ >0 and confirmed>=required terms; CANCELLED per round 11); output IN_PROGRESS/COMPLETED/CANCELLED; wire into every re-derivation; remove event-copy writers.
-Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed with confirmed>0 → IN_PROGRESS + latch + OVERPAY_DETECTED (no request mutation — round 12); reappearance → IN_PROGRESS (T-37). Stop: merged.
+Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed + live provider_rejected (count 2) → still CANCELLED (round 13); zeroed with confirmed>0 → IN_PROGRESS + latch + OVERPAY_DETECTED (no request mutation — round 12); reappearance → IN_PROGRESS (T-37). Stop: merged.
 ```
 
 ```text
 [RG-09] Exception + next-actor derivation
-Read: §4.2 (ranks + round-12 suppression) §4.3 §4.5 §13. Invariant: derived, never accumulated; rank-1 (MAYBE, OVERPAY) never masked; actor never stored; active requests only; required = 0 skips MARKER-BASED ranks only (markers stay stored, resurface on reappearance) — active-request conditions + latch derive normally.
+Read: §4.2 (ranks + round-12 suppression) §4.3 §4.5 §13. Invariant: derived, never accumulated; rank-1 (MAYBE, OVERPAY) never masked; actor never stored; active requests only; required = 0 suppresses ONLY historical PROVIDER_REJECTED (ordering < upstream_ordering, live solely via count >= 2); a LIVE validation_failed is ALWAYS visible (malformed-reappearance signature — round 13); markers stay stored, resurface on reappearance; active-request conditions + latch derive normally.
 Placeholders: [Obligation Repository] [Request Status Persistence Layer]. Mappings: RG-08 hook.
 Objective: precedence evaluation → active_exception_* writes (codes: PAYMENT_OUTCOME_UNKNOWN, OVERPAY_DETECTED, DATA_VALIDATION_FAILED, PROVIDER_REJECTED, BLOCKED-derived, INSUFFICIENT_ACCOUNT_BALANCE, SYSTEM_UNAVAILABLE; content per §12 rules); §4.5 actor as a pure function.
 Tests: precedence; construction-clearing (corrected message); dual-actor rows; PAYMENT_OUTCOME_UNKNOWN never shows as SYSTEM_UNAVAILABLE. Stop: merged.

@@ -49,7 +49,7 @@ Tests: duplicate-insert race clean; FOR UPDATE blocks same-trade, not other trad
 
 ```text
 [S-05] CHECKs, UNIQUEs, I6
-Read: §10.3 (matrix) §2.2 constraints CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified).
+Read: §10.3 (matrix) §2.2 constraints §2.1 (ui_step_status stored set) CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified); the ui_step_status CHECK (IN_PROGRESS/COMPLETED/CANCELLED) lands HERE, not in S-02 (round 13).
 Placeholders: [DB Migration Directory]. Mappings: real-Oracle test lane (STOP if H2-only).
 Objective: enum CHECKs; L2–L8 + L1-shape CHECKs; UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); I6 = unique fn index CASE WHEN outcome IS NULL THEN payment_obligation_id END. NOVALIDATE→VALIDATE per plan.
 Tests: one violation test per constraint; I6 second-active rejected. Stop: validated + green.
@@ -81,7 +81,7 @@ Tests: idempotency; per-value spot checks; constraint dry-validate. Stop: valida
 
 ```text
 [S-09] Migration test pass
-Read: §16.5. Invariant: the OLD app version must run against the NEW schema.
+Read: §16.5. Invariant: the OLD app version must run against the NEW schema — incl. READING a row whose ui_step_status is CANCELLED without error (round 13 dual-run evidence).
 Placeholders: [DB Migration Directory] [Integration Test Suite]. Mappings: Oracle lane (set it up first if missing).
 Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema; constraint suite in CI.
 Tests: the four proofs. Stop: green; report filed.

@@ -17,9 +17,9 @@ Tests: flag-off smoke per flag. Stop: plan approved.
 
 ```text
 [GO-02] Shadow validation
-Read: §10.4; playbook Section M (shadow stage). Invariant: every tuple/legacy disagreement is a bug or mapping error — disposition each, no thresholds waved through.
+Read: §10.4; playbook Section M (shadow stage). Invariant: disagreements fall in TWO classes (round 13) — EXPECTED CANCELLED semantic deltas (legacy has no such value: invariant-check + classify, never "fix") vs UNEXPLAINED (bug or mapping error — disposition each, no thresholds waved through); CLEAN = zero UNEXPLAINED.
 Placeholders: [Metrics / Alerting Layer] [Request Status Persistence Layer]. Mappings: dual-write live.
-Objective: soak-window comparison job (tuple-derived label vs legacy; derived step status vs legacy); itemized disagreement report; fix + re-soak.
+Objective: soak-window comparison job (tuple-derived label vs legacy; derived step status vs legacy); itemized two-class disagreement report; fix + re-soak UNEXPLAINED ones only (round 13).
 Tests: comparator detects seeded disagreement. Stop: clean soak report filed.
 ```
 

@@ -736,9 +736,11 @@ a zeroed scope. Ops disposition per §10/§13 governs (the PO's
   write's watermark advance makes the marker not-live naturally; at
   count >= 2 the marker stays LIVE (§2.1 — ops-only clearing) yet the
   scope STILL derives CANCELLED — the payment no longer exists, so
-  nothing is being refused. While required_amount = 0, §4.2 derives no
-  marker-based exception (markers stay STORED, never cleared by
-  removal). If the payment REAPPEARS (§6.5), required becomes positive,
+  nothing is being refused. While required_amount = 0, §4.2 suppresses
+  ONLY the historical provider-reject exception (round 13 — markers
+  stay STORED, never cleared by removal; a LIVE validation marker
+  still surfaces: it is the malformed-reappearance signature). If the
+  payment REAPPEARS (§6.5), required becomes positive,
   the exception resurfaces, and request creation remains subject to
   ALL §6.8 gates — a live provider_rejected marker still blocks the
   automatic successor, and count >= 2 still requires the ops-only
@@ -767,16 +769,26 @@ particular, a corrected message clears a DATA_VALIDATION_FAILED
 exception by construction (it makes the validation_failed marker
 not-live), which also unblocks the §4.1 completion predicate.
 
-Zero-required suppression (round 12): a scope with
-required_amount = 0 (removed by upstream truth, §6.1) derives NO
-MARKER-BASED exception — the DATA_VALIDATION_FAILED and
-PROVIDER_REJECTED ranks are skipped; a payment that no longer
-exists needs no correction. The markers themselves stay STORED
-(monotonic writes untouched) and resurface when the payment
-reappears (required > 0 again, §6.5). Active-REQUEST conditions
-and the latch derive NORMALLY on a zeroed scope: an in-flight
-MAYBE still shows PAYMENT_OUTCOME_UNKNOWN (money may be moving),
-and OVERPAY_DETECTED still shows when the latch is set.
+Zero-required suppression (round 12; NARROWED round 13 — the
+broad "skip all marker ranks" rule silently hid a malformed
+reappearance): a scope with required_amount = 0 (removed by
+upstream truth, §6.1) suppresses EXACTLY ONE condition:
+PROVIDER_REJECTED, and only while it is HISTORICAL —
+provider_rejected_ordering < upstream_ordering, live solely
+because provider_reject_count >= 2 — a payment that no longer
+exists is not being refused. DATA_VALIDATION_FAILED is NEVER
+suppressed: a LIVE validation marker on a zeroed scope is
+precisely the malformed-reappearance signature (§6.6 recorded a
+failing ordering NEWER than the removal — someone is trying to
+bring the payment back and failing); the step is IN_PROGRESS
+(the §4.1 CANCELLED branch requires the marker not-live) and the
+exception plus the §15 marker-age alert MUST surface it (P5). The
+provider marker stays STORED (monotonic writes untouched) and its
+exception resurfaces when the payment reappears (required > 0,
+§6.5). Active-REQUEST conditions and the latch derive NORMALLY on
+a zeroed scope: an in-flight MAYBE still shows
+PAYMENT_OUTCOME_UNKNOWN (money may be moving), and
+OVERPAY_DETECTED still shows when the latch is set.
 
 Derivation — first live condition wins (precedence order; all request
 conditions consider ACTIVE requests only):
@@ -3142,9 +3154,12 @@ never on blocked_reason as a rule input (§10.1).
 - Live marker (validation_failed or
   provider_rejected) with NO active request,
   older than max age                           → alert
-  (round 12: scopes with required_amount = 0 are EXCLUDED — a
-   removed payment's markers need no correction; they stay stored
-   and resurface only on reappearance, §4.2 suppression.
+  (round 13: on required_amount = 0 scopes, ONLY the historical
+   provider_rejected marker is excluded — ordering <
+   upstream_ordering, live solely via count >= 2; nothing is being
+   refused. A LIVE validation_failed marker on a zeroed scope STAYS
+   IN SCOPE: it is the malformed-reappearance signature and must
+   age into this alert (§4.2 round-13 narrowing).
    Generalizes the anchor alert: covers anchors AND scopes whose
    correction never arrives. For validation_failed the age keys
    on validation_failed_first_at — the re-tag timestamp is refreshed

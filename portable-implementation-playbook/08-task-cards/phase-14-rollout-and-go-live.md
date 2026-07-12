@@ -43,11 +43,11 @@
 - **Local placeholder mappings required before starting:** dual-write live in the environment.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** a comparison job/report over a soak window: per row, tuple-derived label vs legacy status per the reviewed mapping; disagreements → itemized report (each is a dual-write bug or a mapping-table error — fix, re-soak); completion-predicate shadow: RG-08's derived ui_step_status vs the legacy step status where observable.
+- **Implementation instructions:** a comparison job/report over a soak window: per row, tuple-derived label vs legacy status per the reviewed mapping; disagreements fall in TWO CLASSES (round 13): (1) EXPECTED SEMANTIC DELTAS — CANCELLED rows ONLY (legacy display has no such value): verify the row's invariants (required = 0, clean unwind), CLASSIFY in the report, never "fix"; (2) UNEXPLAINED disagreements — each is a dual-write bug or mapping-table error: fix, re-soak. CLEAN = ZERO UNEXPLAINED disagreements — never byte-for-byte legacy label parity. Completion-predicate shadow: RG-08's derived ui_step_status vs the legacy step status where observable.
 - **Do not change:** production traffic; read-only comparison.
 - **Tests to add:** the comparison tooling's own correctness (seeded disagreement detected).
 - **Edge cases:** rows written by the OLD app version during dual-run (legacy-only) — the S-08 backfill mapping covers them; comparison must tolerate the window.
-- **Manual validation:** soak report clean over the agreed window (owner-defined; record).
+- **Manual validation:** soak report clean over the agreed window (owner-defined; record; clean = zero UNEXPLAINED disagreements, expected CANCELLED deltas classified — round 13).
 - **Expected outcome:** factored model trusted.
 - **Failure signs:** "small" disagreement rates waved through — every disagreement has a cause; disposition each.
 - **Common mistakes:** comparing labels only (compare the tuple fields too).
