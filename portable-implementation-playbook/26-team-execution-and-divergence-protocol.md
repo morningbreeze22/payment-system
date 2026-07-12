@@ -9,27 +9,50 @@
 
 ## T.1 What you are starting from (the handover premise)
 
-This kit assumes — and discovery (F.3/F.4/F.24) verifies — that:
+This kit rests on TWO INDEPENDENT premises (round 17 — do not
+conflate them); discovery verifies both (F.3/F.4/F.24 for the
+first, the D-12 population proof for the second):
 
 ```text
-- A HAPPY-PATH payment flow already EXISTS and pays today: intake,
-  enrichment, construction, POST, some status handling. This kit
-  does not rebuild it.
-- The BUSINESS LOGIC (what to pay, whom, account/party resolution,
-  validation rules, payment construction) is YOURS and is PRESERVED
-  — no card changes it (rule 6; BUSINESS_RULE_CHANGE_REQUIRED).
-- What is likely THIN or MISSING is what this kit adds: failure
-  paths (crash, timeout, ambiguous outcomes, out-of-order and
-  absent upstream data), money invariants, duplicate-payment
-  defenses, recovery machinery, tests for all of it, an ops surface,
-  and go-live evidence.
-- The playbook's schema and service names are a REFERENCE MODEL
-  (T.2), not a demand that your codebase look like it.
+PREMISE P-A (code): happy-path payment CODE already EXISTS and pays
+  today — intake, enrichment, construction, POST, some status
+  handling. This kit does not rebuild it. The BUSINESS LOGIC (what
+  to pay, whom, account/party resolution, validation, construction)
+  is YOURS and is PRESERVED — no card changes it (rule 6). What is
+  likely THIN or MISSING is what this kit adds: failure paths,
+  money invariants, duplicate-payment defenses, recovery, tests,
+  an ops surface, go-live evidence. The playbook's schema and
+  service names are a REFERENCE MODEL (T.2), not a demand that
+  your codebase look like it.
+PREMISE P-B (population — the §2.4 greenfield fact; NOT implied by
+  P-A): the target cutover POPULATION for this flow contains ZERO
+  pre-existing trades and obligations in the snapshot-admission
+  scope — trade_snapshot_state deploys EMPTY and no obligation in
+  scope predates its trade's first admitted message. "Existing
+  happy path" means existing CODE (and possibly OTHER/legacy
+  populations covered by the S-08 status backfill); it NEVER means
+  pre-existing trades in this flow's admission scope. The retired
+  bootstrap/pointer machinery (rounds 6–9; git 9a53c75) was removed
+  BECAUSE of P-B — P-B failing silently would reopen the
+  stale-snapshot money hole the machinery guarded.
 ```
 
-If discovery contradicts the premise itself (e.g. no happy path
-exists), STOP after D-12 — the human owner re-scopes; the card
-sequence assumes an enhancing refactor, not a greenfield build.
+PROOF REQUIRED (round 17): D-12 files the
+CUTOVER_POPULATION_GREENFIELD evidence — the named queries over the
+mapped obligation/trade tables scoped to this flow, per target
+environment, with query text, timestamps, RESULT COUNTS (zero
+expected), owner, reviewer, date — recorded in the facts sheet
+(T.3) and referenced by the Q5 go-live evidence.
+
+If P-A fails (no happy path): STOP after D-12 — the human owner
+re-scopes; the card sequence assumes an enhancing refactor, not a
+greenfield build. If P-B fails (ANY pre-existing in-scope
+population): that is DIV-4 — STOP for an architecture review;
+ordinary S-08 status backfill is NOT sufficient (existing trades
+would lack the admission watermark, storage pointer, and digest),
+and the retired bootstrap/export/pointer-coverage machinery may
+need restoration from git history. A weak executor must never
+classify a P-B failure as routine local divergence.
 
 ## T.2 The reference model and the divergence protocol
 
@@ -56,13 +79,26 @@ DIV-1 NAME-ONLY      Same meaning, same shape, different identifier.
                      → Map it (mapping template row / register
                      entry). Translate every snippet at execution.
                      No approval needed.
-DIV-2 TYPE/SHAPE     Same meaning, different representation (type,
-                     scale, nullable, separate table, denormalized
-                     copy). → Record in the register with the exact
-                     local DDL; adapt the snippet per M0 (file 24);
-                     the card's tests must still prove the spec
-                     invariant against the REAL shape. Reviewer of
-                     the phase sees the register entry.
+DIV-2 TYPE/SHAPE     Same meaning, different representation. →
+                     Record in the register with the exact local
+                     DDL; adapt the snippet per M0 (file 24); the
+                     card's tests must still prove the spec
+                     invariant against the REAL shape; the phase
+                     reviewer sees the entry. Round 17 — DIV-2
+                     WITHOUT approval is allowed ONLY when the
+                     executor proves ALL of: exact precision AND
+                     rounding preserved; equivalent NULL
+                     semantics; same atomic transaction;
+                     equivalent lockability (FOR UPDATE on the
+                     same row scope); ONE authoritative writer;
+                     NO independently mutable copy. ANY
+                     scale/rounding change, cross-table atomicity
+                     change, additional writer, or denormalized-
+                     ownership ambiguity AUTO-PROMOTES the item to
+                     DIV-3 (recorded approval) or DIV-4 (stop)
+                     BEFORE implementation — money, identity, and
+                     lock columns are never "cosmetically"
+                     reshaped.
 DIV-3 SEMANTIC REUSE A local column/mechanism EXISTS with similar
                      but not identical semantics (e.g. a "reserved"
                      counter that actually means "sent to engine" —
@@ -142,6 +178,9 @@ and treat them as the input to the §16.6 configuration values
   retry-owner rule.
 - Connection pool sizes per service; Kafka partitions per topic.
   Feeds: §16.1 pool math, concurrency settings (§16.2).
+- CUTOVER_POPULATION_GREENFIELD proof (premise P-B, T.1): query
+  text, environment, timestamps, result counts (ZERO expected),
+  owner, reviewer, date. Nonzero = DIV-4 stop.
 ```
 
 Numbers you cannot measure locally (engine-side TTLs, quotas,
@@ -164,16 +203,24 @@ STREAM 0  P1 discovery. D-02..D-11 are read-only and MAY be split
 Then, concurrently:
 STREAM A  "Spine": P3 schema (S-01..S-10) → P4 identity (K) →
           P5 UETR (U). DBA involvement in P3. One owner per phase.
-STREAM B  "Provider proof": P8 contract tests (CT-01..07) — needs
-          sandbox access, independent of the spine. HUMAN+AGENT.
-          Start any time after D-12; results feed CA-1/2/3 and the
-          P8 PASS gate consumed much later (auto-downgrade, GO-03).
+STREAM B  "Provider proof": P8 contract tests. HUMAN+AGENT. TWO
+          SUB-STAGES (round 17): B-prep — sandbox access requests,
+          credentials, test-plan DRAFTING — may start right after
+          D-12; B-execute — the CT-01 harness build and CT-02..07
+          runs — WAITS for its card prerequisites on merged main
+          (CT-01 requires B-02 and K-02/K-03: provider "proof"
+          collected against a temporary or invented identity
+          derivation is VOID evidence). Results feed CA-1/2/3 and
+          the P8 PASS gate consumed much later (GO-03).
 STREAM C  "Papers": P2 B-cards (external asks/filings) + CA
           artifact drafts. Human-driven; agents may draft. Start
           immediately (B-01..B-03 "ask immediately" rows).
 
-After STREAM A's P3 merges to main:
-STREAM A continues P4 → P5.
+After STREAM A's P3 merges to main, STREAM A continues P4 → P5.
+After P3 → P4 → P5 have ALL merged to main (round 17: P6 sits
+downstream of identity/persistence work in the authoritative
+order; no "safe early P6 subset" is enumerated, so none is
+offered — do not invent one):
 STREAM D  "State & money": P6 factored state → P7 guards. STRONGLY
           recommended: ONE owner for both phases — the CAS helpers
           and the guards that ride them are one mental model; the
@@ -185,9 +232,13 @@ STREAM E  "Inbound": P9 (IN-01..09) → P10 (RC). IN-02 is ONE CARD,
           semantics must not be split across sessions or people.
           P10 starts only after IN-07 (the shared evidence helper)
           is on main.
-STREAM F  "Ops surface": P11 (OP cards + CA-9 store) — parallel
-          with STREAM E once P6/P7 are on main; its T-33 suite
-          joins with reprocess paths from OP-04b/c.
+STREAM F  "Ops surface": P11 — parallel with STREAM E once P6/P7
+          are on main, but ONLY the cards whose prerequisites are
+          already merged: OP-01..OP-03, the CA-9 store, OP-04a.
+          OP-04b/c WAIT for S-10 + IN-02 on merged main (their
+          cards say so — the stream map never overrides a card);
+          OP-04d/e follow their own prerequisites; T-33 joins
+          after the reprocess paths exist.
 STREAM G  "Watch": P12 drift + P13 observability scaffolding —
           parallel after P7; FINAL alert wiring (OB-03..07) waits
           for the metric sources of E/F to exist.
@@ -199,8 +250,19 @@ every stream's phases are merged and reviewed.
 Binding constraints (rule 22 in file 16):
 
 ```text
-- One stream = one phase integration branch = one owner at a time.
-  "One card at a time" (rule 3) applies PER STREAM.
+- AUTHORITY (round 17): card prerequisites + file 20's gates are
+  the ONLY scheduling authority. This stream map is an
+  OPTIMIZATION HINT constrained by them — wherever this section
+  and a card's prerequisites seem to disagree, the CARD wins and
+  the stream waits. (A machine-readable dependency manifest was
+  considered and remains NOT adopted — round-9 decision:
+  lint-enforced parity + file-20 authority instead; this
+  AUTHORITY rule is the compensating control.)
+- One stream holds ONE ACTIVE phase integration branch at a time
+  (a stream spanning phases opens the next phase's branch only
+  after the previous phase passed its rule-19 review and merged);
+  one owner per active branch. "One card at a time" (rule 3)
+  applies PER STREAM.
 - Streams consume each other's outputs ONLY via merged main —
   never cherry-picks, never shared WIP branches. The shared-helper
   interface points are: ST-02 (CAS helper), IN-04 (marker helper),

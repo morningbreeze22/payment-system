@@ -88,7 +88,7 @@ unless the task is a discovery card.
 | Section F | 06-local-discovery-workflow.md |
 | Section G | 07-placeholder-glossary.md |
 | Section H (task cards — the file-20 execution sequence is the authoritative ID inventory; do not trust hard-coded counts) | 08-task-cards/ (14 phase files + README) |
-| Section I (95 packets) | 09-minimal-context-packets/ (14 phase files + README) |
+| Section I (minimal-context packets — card↔packet parity is lint-enforced; do not trust hard-coded counts) | 09-minimal-context-packets/ (14 phase files + README) |
 | Section J | 10-test-matrix.md |
 | Section K | 11-provider-techlead-po-questions.md |
 | Section L | 12-companion-artifacts.md |

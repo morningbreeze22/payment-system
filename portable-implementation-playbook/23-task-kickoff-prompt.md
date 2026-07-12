@@ -46,13 +46,30 @@ Load ONLY, in this order:
    "the scanner" in the card MEAN those recipes.
 
 Then execute the card's implementation instructions. Do not read the
-whole repository. Do not touch anything the card's "Do not change"
-field names. Do not change business rules (if a business-rule change
-seems required → report BUSINESS_RULE_CHANGE_REQUIRED and stop).
-Do not create new tables (report SPEC_CONFLICT and stop). If the
-team runs parallel work streams (file 26 T.4): confirm <TASK-ID>
-belongs to YOUR stream and every cross-stream prerequisite (shared
-helper) is on merged main — not on another stream's branch.
+whole repository — EXCEPT that when the card uses inventory/audit
+wording ("every site", "all writers", "grep"), repository-wide
+READ-ONLY SEARCH is mandatory (rule 4): search wide, LOAD only the
+hits, MODIFY only the card's scope. Do not touch anything the card's
+"Do not change" field names. Do not change business rules (if a
+business-rule change seems required → report
+BUSINESS_RULE_CHANGE_REQUIRED and stop). Do not create new tables
+(report SPEC_CONFLICT and stop) — SINGLE exception, per rule 13:
+the CA-9 ops-schema pending-approval store, permitted ONLY when the
+current card explicitly requires it (CA-9 / OP cards); every other
+new table remains forbidden. If the team runs parallel work streams
+(file 26 T.4): confirm <TASK-ID> belongs to YOUR stream and every
+cross-stream prerequisite (shared helper) is on merged main — not
+on another stream's branch; card prerequisites always outrank the
+stream map. If this card touches snapshot admission, obligations,
+or trade_snapshot_state and the CUTOVER_POPULATION_GREENFIELD proof
+(file 26 T.1, premise P-B) is not on record in the facts sheet, the
+task is BLOCKED — report and stop.
+
+Instruction precedence when sources seem to disagree (round 17):
+requirment-v4.md → the card's prerequisites/invariants → the
+24-implementation-mechanics recipes → recorded divergence-register
+resolutions → the file-26 stream map (an optimization hint) → this
+prompt's wording. Lower never overrides higher.
 
 Finish by:
 - running the card's "Tests to add" and the surrounding suite,

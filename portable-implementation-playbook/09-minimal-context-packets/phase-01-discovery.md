@@ -99,7 +99,7 @@ Tests: baseline run. Stop: inventory + baseline recorded.
 [D-12] Discovery report
 Read: playbook Section F status codes; Playbook Index BLOCKED list; file 26 T.1–T.3. Invariant: no "probably" — IMPLEMENTED/PARTIAL/MISSING/UNCLEAR only; DIV-3/DIV-4 register rows highlighted (they block cards, rule 21).
 Placeholders: all. Mappings: all D-xx rows filled.
-Objective: per F.1–F.26 concept assign a status + one-line evidence; summarize the divergence register + facts sheet; confirm the T.1 premise (happy path exists — else stop for re-scoping); update locally-BLOCKED task list; deliver to human owner.
+Objective: per F.1–F.26 concept assign a status + one-line evidence; summarize the divergence register + facts sheet; confirm BOTH T.1 premises — P-A happy path exists (else stop for re-scoping) AND P-B zero pre-existing in-scope population, filed as the CUTOVER_POPULATION_GREENFIELD proof (queries + counts + reviewer in the facts sheet; nonzero = DIV-4 stop); update locally-BLOCKED task list; deliver to human owner.
 Tests: none. Stop: report delivered; WAIT for human review before implementation.
 ```
 

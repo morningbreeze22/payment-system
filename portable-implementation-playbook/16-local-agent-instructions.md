@@ -57,6 +57,14 @@ the sections that govern it.
 12. If a task needs more context than you can hold, split it locally
     into sub-tasks (Task-ID.1, .2, …), each with its own report; the
     ST-05 card is explicitly designed to be split per rule site.
+    EXCEPTIONS (round 17 — rule 22's no-split list WINS over this
+    rule): IN-02 is NEVER split across sessions or owners — if it
+    cannot fit your context, STOP and escalate to a larger-context
+    executor; S-08/S-09 and the GO sequence keep one owner, and any
+    split inside them needs an invariant-preserving boundary with
+    human approval. Any other split that would cross a transaction
+    boundary, a spec invariant, or a rule-20 review boundary
+    requires a human-approved subtask plan BEFORE splitting.
 13. Never invent tables, journals, outboxes, parked-event tables,
     attempt-history tables, or audit-history tables. If an
     implementation seems to need one, report SPEC_CONFLICT.
