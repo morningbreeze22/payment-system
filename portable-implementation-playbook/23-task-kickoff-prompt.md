@@ -39,6 +39,10 @@ Load ONLY, in this order:
    touching this card's tables/components — apply their recorded
    resolutions when translating names/types. An OPEN DIV-3/DIV-4
    row on this card's scope = the task is BLOCKED — report and stop.
+   If ANY relevant DIV-2 row exists: also load file 26 T.2 (the
+   DIV-2 six-item proof checklist) and record the six-item proof in
+   the execution report for every unapproved DIV-2 adaptation —
+   missing proof blocks implementation (round 18).
 7. If <TASK-ID> is an implementation card (writes code):
    portable-implementation-playbook/24-implementation-mechanics.md —
    the M1–M6 recipe(s) the card's shape needs plus the matching M8

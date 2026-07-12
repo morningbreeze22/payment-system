@@ -25,7 +25,7 @@ collected retroactively at GO-04.**
 | Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 item 2 CLOSED (round 10 — the engine owns its cutoff calendar; verify the CA-1 table carries the engine's late-submission response class + the written any-time-submission line) | §18-2 (closed), CA-1 | | |
 | Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome OPERATION (authorized application endpoint) EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |
-| Q5 | Schema at CA-4 target: constraints VALIDATED, triggers live, indexes in place; migration test pass green (incl. dual-run) | S-05..09 | | |
+| Q5 | Schema at CA-4 target: constraints VALIDATED, triggers live, indexes in place; migration test pass green (incl. dual-run); CUTOVER_POPULATION_GREENFIELD proof RUN 2 (round 18 — file 26 T.1): the D-12 population queries re-run at the controlled cutover AFTER in-scope writer drain/fence, counts ZERO, bound in manifest.yaml (env, scope predicate, query checksum, RC version, owner, reviewer) — an empty trade_snapshot_state alone proves nothing about pre-existing in-scope obligations | S-05..09, GO-03, file 26 T.1 | | |
 | Q6 | Factored state model implemented: dual-write live, CAS discipline audited, legality suite green | ST-01..03 | | |
 | Q7 | Legacy status not used for business rules: ST-05 inventory empty or fully dispositioned; display via derived labels only | ST-04/05 | | |
 | Q8 | Idempotency key generation deterministic + persisted write-ahead; K-06 crash/retry/restore set green | K-01..06, T-03/08/09/10 | | |

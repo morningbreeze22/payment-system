@@ -278,7 +278,7 @@
 - **Classification:** local discovery task only
 - **Purpose:** the single artifact Phase P2+ planning reads; converts findings into per-task readiness.
 - **Prerequisites:** D-02 … D-11 all complete.
-- **Requirement sections / concepts to read:** playbook Section F status codes; Playbook Index BLOCKED list.
+- **Requirement sections / concepts to read:** playbook Section F status codes; Playbook Index BLOCKED list; requirment-v4.md §2.4 (round 18 — the CANONICAL greenfield fact incl. its bootstrap-restoration condition: the executor proving P-B must read the fact itself, not only the file-26 paraphrase; the report records that §2.4 was read and that the query scope matches its exact population claim).
 - **Placeholder components involved:** all.
 - **Local placeholder mappings required before starting:** all D-xx rows filled.
 - **Local code areas to discover:** none (consolidation).

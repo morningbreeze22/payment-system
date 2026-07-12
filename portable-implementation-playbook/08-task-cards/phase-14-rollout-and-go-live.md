@@ -19,7 +19,7 @@
 - **Local placeholder mappings required before starting:** environment promotion path known.
 - **Local code areas to discover:** feature-flag/config-toggle conventions (Section M's flags need a local mechanism — record which).
 - **How to locate:** deployment repo/config.
-- **Implementation instructions:** write the local rollout plan following Section M's stage order verbatim, with per-stage: owner, checkpoint evidence, rollback trigger + procedure; wire the Section M flags (new-writer dual-write is already structural; scanner enablement, resolver enablement, auto-downgrade enablement as config); carry the M.1a reader-first ladder stage explicitly (round 14): no release writes CANCELLED until reader-fleet compatibility is verified (discovery-proven N/A, or the compatibility release is deployed fleet-wide).
+- **Implementation instructions:** write the local rollout plan following Section M's stage order verbatim, with per-stage: owner, checkpoint evidence, rollback trigger + procedure; wire the Section M flags (new-writer dual-write is already structural; scanner enablement, resolver enablement, auto-downgrade enablement as config); carry the M.1a reader-first ladder stage explicitly (round 14): no release writes CANCELLED until reader-fleet compatibility is verified (discovery-proven N/A, or the compatibility release is deployed fleet-wide); the plan schedules the CUTOVER_POPULATION_GREENFIELD RUN 2 (round 18 — file 26 T.1) at the stage enabling the new intake path, after in-scope writer drain/fence.
 - **Do not change:** Section M's ORDER (auto-downgrade last, gated on P8 PASS).
 - **Tests to add:** none (plan); flag-off behavior smoke tests per flag.
 - **Edge cases:** two app versions during each stage (claim compatibility across one release boundary — §16.5).
@@ -61,7 +61,7 @@
 - **Title:** Enable in Section M order: constraints validated → guards/triggers → scanners → resolver → escalation → (after P8 PASS) auto-downgrade
 - **Classification:** MVP normative implementation
 - **Purpose:** each mechanism observes before it acts; the auto-downgrade (a money-adjacent self-heal) goes last, gated on the §18-1 proof.
-- **Prerequisites:** GO-02 clean; per-stage prerequisites in Section M; P8 gate status for the final stage.
+- **Prerequisites:** GO-02 clean; per-stage prerequisites in Section M; P8 gate status for the final stage. Round 18: the stage that enables the NEW intake path additionally requires the CUTOVER_POPULATION_GREENFIELD RUN-2 proof (file 26 T.1 — queries re-run post-fence, counts zero, bound in the manifest) filed as Q5 evidence BEFORE the flag flips.
 - **Requirement sections / concepts to read:** Section M (enablement order + per-stage validation), §9.2 (what the downgrade risks), §18-1.
 - **Placeholder components involved:** all runtime components (config-driven).
 - **Local placeholder mappings required before starting:** GO-01 flags wired.
@@ -91,7 +91,7 @@
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** walk Section Q item by item: PASS with linked evidence / FAIL with owner + plan / BLOCKED with the blocking §18 item; TWO non-waivable classes (round 16): §18 BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set — FAIL or missing evidence = NO-GO; reclassification requires a new architecture/safety review, never a meeting-time waiver); verify manifest.yaml + SHA256SUMS target the exact RC build and environment and the invalidation map shows no stale PASS (round 16); deliver to the accountable owner for go/no-go.
+- **Implementation instructions:** walk Section Q item by item: PASS with linked evidence / FAIL with owner + plan / BLOCKED with the blocking §18 item; TWO non-waivable classes (round 16): §18 BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set — FAIL or missing evidence = NO-GO; reclassification requires a new architecture/safety review, never a meeting-time waiver); verify manifest.yaml + SHA256SUMS target the exact RC build and environment and the invalidation map shows no stale PASS (round 16) — incl. the Q5 RUN-2 population proof (round 18: bound, fresh, post-fence); deliver to the accountable owner for go/no-go.
 - **Do not change:** checklist items (additions allowed; removals need the owner).
 - **Tests to add:** none.
 - **Edge cases:** unresolved non-BLOCKING Section K questions → recorded risks with owners, not silent passes.

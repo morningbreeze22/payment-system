@@ -37,12 +37,33 @@ PREMISE P-B (population — the §2.4 greenfield fact; NOT implied by
   stale-snapshot money hole the machinery guarded.
 ```
 
-PROOF REQUIRED (round 17): D-12 files the
-CUTOVER_POPULATION_GREENFIELD evidence — the named queries over the
-mapped obligation/trade tables scoped to this flow, per target
-environment, with query text, timestamps, RESULT COUNTS (zero
-expected), owner, reviewer, date — recorded in the facts sheet
-(T.3) and referenced by the Q5 go-live evidence.
+PROOF REQUIRED — RUN TWICE (rounds 17–18; a discovery snapshot is
+NOT a cutover invariant — populations change between D-12 and
+go-live):
+
+```text
+RUN 1 (D-12, architectural eligibility): the named queries over
+  the mapped obligation/trade tables scoped to this flow, per
+  target environment — query text, timestamps, RESULT COUNTS
+  (zero expected), owner, reviewer, date — recorded in the facts
+  sheet (T.3).
+RUN 2 (controlled cutover, go-live evidence): the SAME queries
+  re-run at GO-03 IMMEDIATELY BEFORE enabling the new intake
+  path, AFTER old in-scope writers are drained/fenced (or inside
+  an equivalent change freeze) so no row can appear between the
+  query and enablement. Filed as Q5 evidence.
+BINDING (both runs, in the evidence manifest): exact environment,
+  the schema/service SCOPE PREDICATE used, query checksum,
+  timestamp, RC/config version, owner, reviewer.
+INVALIDATION (evidence goes STALE, rerun forced): target-
+  environment change; scope-predicate change; any restore, seed,
+  or data migration; old-writer activity after RUN 2; deployment
+  rollback; query change.
+TEST DATA: a non-production fixture demonstrably OUTSIDE the
+  production cutover scope does not fail P-B — but its exclusion
+  predicate is REVIEWED and RECORDED in the register, never
+  improvised by the executor.
+```
 
 If P-A fails (no happy path): STOP after D-12 — the human owner
 re-scopes; the card sequence assumes an enhancing refactor, not a

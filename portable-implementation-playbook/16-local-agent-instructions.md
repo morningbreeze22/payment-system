@@ -125,11 +125,22 @@ the sections that govern it.
     BUSINESS_RULE_CHANGE_REQUIRED, stop. Cards and snippets are
     NEVER edited to local names — translate at execution time via
     the mapping + register. An OPEN DIV-3/DIV-4 row BLOCKS every
-    card touching it.
+    card touching it. DIV-2 WITHOUT approval requires proving ALL
+    SIX (round 18 — the file-26 T.2 checklist, repeated here
+    because this file is in every session's context): exact
+    precision + rounding preserved; equivalent NULL semantics;
+    same atomic transaction; equivalent lockability; ONE
+    authoritative writer; NO independently mutable copy — record
+    the six-item proof in the execution report; any failure
+    AUTO-PROMOTES to DIV-3/DIV-4 BEFORE implementation.
 22. TEAM PARALLELISM (file 26 T.4): rule 3's "one card at a time"
-    applies PER WORK STREAM. One stream = one phase integration
-    branch = one owner; streams consume each other's helpers ONLY
-    via merged main (never cherry-picks or shared WIP branches).
+    applies PER WORK STREAM. A stream holds ONE ACTIVE phase
+    integration branch at a time (round 18 — the next phase's
+    branch opens only after the previous phase's rule-19 review +
+    merge); one owner per active branch; card prerequisites +
+    file-20 gates ALWAYS outrank the stream map. Streams consume
+    each other's helpers ONLY via merged main (never cherry-picks
+    or shared WIP branches).
     The quality-over-parallelism list is binding: IN-02 in one
     sitting by one owner; P6+P7 same owner recommended; S-08+S-09
     together; GO cards one owner. Rule-20 reviews are never waived
