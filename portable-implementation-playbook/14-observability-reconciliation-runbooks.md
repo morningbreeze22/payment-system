@@ -21,7 +21,7 @@ root-cause incident.
   §7.2)                                → metric; alert on volume
 - divergent-payload attempts (collision responses; expected vs
   anomalous split, §7.2)               → metric; anomalous = CRITICAL
-- MAYBE_SUBMITTED count + age (maybe_since; tier-1 before cutoff,
+- MAYBE_SUBMITTED count + age (maybe_since; tier-1 age threshold,
   tier-2 re-page, §9.3)                → alert / re-page
 - rows approaching provider query-lookback expiry (created/attempt age
   vs TL-5 lookback)                    → alert (act before
@@ -34,7 +34,7 @@ root-cause incident.
   requires an engine-side report/API (MUST_VERIFY_LOCALLY); if
   unavailable, the drift scanner + terminal-evidence tripwire are the
   MVP coverage                         → CRITICAL on divergence
-- retry scanner outcomes (per class: retried/exhausted/cutoff-blocked)
+- retry scanner outcomes (per class: retried/exhausted)
                                        → metric; exhaustion spikes alert
 - resolver failure reasons (INDETERMINATE rates, query errors)
                                        → metric; alert on sustained
@@ -71,7 +71,7 @@ Safe stop: root cause identified; correction plan through sanctioned
 ```text
 PAYMENT_OUTCOME_UNKNOWN ESCALATED (MAYBE age tier-1/tier-2)
 Trigger: BLOCKED(ESCALATED) write + CRITICAL alert (maybe_since age).
-Severity: CRITICAL (money may be moving; cutoff approaching).
+Severity: CRITICAL (money may be moving).
 Why: a payment's fate is unknown and automation has not resolved it.
 Action: per §9.3 offered actions ONLY: trigger resolve-via-query;
   after trust-age + repost_permitted → ops-triggered downgrade;
@@ -80,7 +80,7 @@ Action: per §9.3 offered actions ONLY: trigger resolve-via-query;
   after verifying the fate in platform records. NEVER manually
   release/cancel (release guard will refuse — that is correct).
 Data: request id, key, uetr, maybe_since, last_post_attempt_at,
-  divergent_payload_at, cutoff time, resolver's recent answers.
+  divergent_payload_at, resolver's recent answers.
 Escalate: tier-2 age → incident + payments duty manager.
 Safe stop: outcome applied via evidence or the verified-outcome operation; scope
   re-derived; reservation confirmed or released.

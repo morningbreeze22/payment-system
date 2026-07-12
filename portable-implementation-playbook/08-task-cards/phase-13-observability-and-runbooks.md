@@ -115,7 +115,7 @@
 - **Local placeholder mappings required before starting:** local config conventions.
 - **Local code areas to discover:** config binding/validation infrastructure.
 - **How to locate:** application properties structure.
-- **Implementation instructions:** one config namespace holding every §16.6 entry (trust age, confirmation age, escalation ages, downgrade class, cadences, lease durations, retry policies, thresholds, batch sizes, retentions, cutoff calendar ref, sweep budget, backoff, damping, recency window, freeze propagation bound, escalation cutoff margin); startup validation: reject unless trust_age + query cadence < escalation age < tier-2 age < cutoff margin; document each entry's owner column (§16.6 — owners at kickoff; record what's known).
+- **Implementation instructions:** one config namespace holding every §16.6 entry (trust age, confirmation age, escalation ages, downgrade class, cadences, lease durations, retry policies, thresholds, batch sizes, retentions, sweep budget, backoff, damping, recency window, freeze propagation bound — the cutoff-calendar ref and cutoff margin were RETIRED round 10, engine-owned calendar); startup validation: reject unless trust_age + query cadence < escalation age < tier-2 age; document each entry's owner column (§16.6 — owners at kickoff; record what's known).
 - **Do not change:** suggested values into hard values without owners (PO-2/PO-3/TL-8 pending — use suggestions, mark pending).
 - **Tests to add:** loader rejects each mis-ordering; accepts a valid set; missing mandatory entry fails startup.
 - **Edge cases:** per-error-class retry policies validated for completeness against CA-1's classes.

@@ -134,9 +134,9 @@ Identify:     F.9, F.19.
 Responsibilities: §11 claim protocol (lock-free candidate selection,
               obligation-first per-item claim CAS), DB-time due
               comparisons, per-item transactions; per-class retry
-              policy (bounds = attempts + cutoff, §7.4 2026-07-11);
+              policy (bound = max attempts, §7.4 round 10);
               repost_permitted before POST-bound work (§7.0);
-              exhaustion/cutoff → BLOCKED; breaker/freeze gating
+              exhaustion → BLOCKED; breaker/freeze gating
               (zero attempts while gated — §16.1).
 Do not change: scheduling infrastructure conventions.
 Tests:        seeded-row scanner tests; zero-attempt outage-window tests.

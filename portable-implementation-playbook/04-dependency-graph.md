@@ -19,7 +19,7 @@ Section E). Arrows read "must be settled before".
         │ P2 §18 BLOCKING GATES + COMPANION ARTIFACTS                │
         │  B-01 snapshot residue (§18-0) ── blocks IN-02 (§6 flow)   │
         │  B-02 sandbox access (§18-1) ── blocks P8 execution        │
-        │  B-03 cutoff calendar (§18-2) ── blocks cutoff config      │
+        │  B-03 §18-2 CLOSED r10 — engine owns the cutoff calendar   │
         │  B-04 MAYBE exit decision (§18-3) ── default = P11         │
         │  CA-1..9 artifact authoring (owners per §16.6)             │
         └───────┬───────────────────────────────────────────────────┘
@@ -60,7 +60,7 @@ Section E). Arrows read "must be settled before".
         ┌──────────────────────────────┐
         │ P10 RETRY / RECOVERY /       │  needs P6 legality, P7 money,
         │ MAYBE RESOLVER (§7.4, §9)    │  P8 PASS before auto-downgrade
-        └───────┬──────────────────────┘  reliance; B-03 for cutoffs
+        └───────┬──────────────────────┘  reliance (§18-2 closed r10)
                 ▼
         ┌──────────────────────────────┐
         │ P11 APPLY-PLATFORM-VERIFIED- │  MAYBE-row terminal exit must
@@ -91,8 +91,9 @@ Section E). Arrows read "must be settled before".
    tuple unique within a snapshot → NO discriminator), so the
    scope-key/identity/schema freeze is NOT gated here. The §6
    consumer (IN-02) waits on the B-01 residue: written uniqueness
-   guarantee (upstream ask 5), intake validation (§6.0), PO-9
-   (absence). (TL-16 answered round 5: §6.1 admission + §2.4.)
+   guarantee (upstream ask 5 — confirmed, paper pending), intake
+   validation (§6.0). (PO-9 ANSWERED: absence = zero; TL-16
+   answered round 5: §6.1 admission + §2.4.)
 2. Schema BEFORE state-machine persistence: the four dimension
    columns, CHECK constraints, I6, and triggers (§2.2, §10.3) are the
    substrate every CAS in P6 writes against; code written before the

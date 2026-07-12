@@ -165,9 +165,9 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
  <div class="card"><h3>The one sentence</h3><p>Kafka messages and engine responses are only <b>evidence</b>. Every state or money change is a conditional UPDATE on Oracle whose <b>row-count decides</b> — nothing trusts a message twice, nothing trusts memory. (§4, §11)</p></div>
  <div class="card"><h3>Go-live gates (§18 BLOCKING)</h3>
  <table>
-  <tr><td><b>0</b></td><td>snapshot-contract residue (model settled: multi-payment trades, snapshot messages — §1): uniqueness in writing · intake validation · PO-9 absence · store contract (ask 8) — TL-16 watermark answered round 5 (trade-level admission)</td></tr>
+  <tr><td><b>0</b></td><td>snapshot-contract residue (model settled: multi-payment trades, snapshot messages — §1): WRITTEN filings of asks 5 + 8 (both confirmed verbally 2026-07-11) · intake validation — PO-9 answered (absence = amendment to zero) · TL-16 answered round 5 (trade-level admission)</td></tr>
   <tr><td><b>1</b></td><td>engine idempotency sandbox TEST (dedupe / collision-reject / key-retention TTL)</td></tr>
-  <tr><td><b>2</b></td><td>cutoff calendar: source, owner, timezone/holidays, fail direction</td></tr>
+  <tr><td><b>2</b></td><td>CLOSED (round 10): the payment engine owns its own cutoff calendar — we initiate at any time; no local calendar</td></tr>
   <tr><td><b>3</b></td><td>ops "apply-platform-verified-outcome" operation exists &amp; drilled</td></tr>
  </table></div>
 </div>
@@ -316,12 +316,12 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
   <line x1="200" y1="65" x2="370" y2="65" stroke="#555" stroke-width="2" marker-end="url(#a4)"/><text x="285" y="56" text-anchor="middle" class="s11 m">claim (lease)</text></g>
  <g class="smrule" data-r="Success → the NEXT stage at READY. An expired POST claim never returns to POST — it goes to CONFIRM·MAYBE: the worker may have died mid-call and re-POSTing blindly is the double-payment path (§11).">
   <line x1="520" y1="55" x2="700" y2="55" stroke="#1e7d5a" stroke-width="2" marker-end="url(#a4)"/><text x="610" y="46" text-anchor="middle" class="s11" fill="#1e7d5a">success → next stage · READY</text></g>
- <g class="smrule" data-r="Transient failure → RETRY_WAIT with next_retry_at (L7). Retry bounds = max attempts + payment cutoff (§7.4, 2026-07-11); while posting is frozen or the breaker is open, scanners make zero attempts — the budget structurally cannot burn (§16.1).">
+ <g class="smrule" data-r="Transient failure → RETRY_WAIT with next_retry_at (L7). Retry bound = MAX ATTEMPTS (§7.4 — the engine owns the cutoff calendar, round 10); while posting is frozen or the breaker is open, scanners make zero attempts — the budget structurally cannot burn (§16.1).">
   <line x1="445" y1="90" x2="445" y2="170" stroke="#b26a00" stroke-width="2" marker-end="url(#a4)"/><text x="455" y="135" class="s11" fill="#b26a00">transient failure</text></g>
  <g class="smrule" data-r="Scanner claims a due row via the §11 claim protocol: lock-free candidate selection, then a per-item transaction locking the obligation FIRST before the claim CAS (DB time only).">
   <path d="M370,195 C250,195 165,130 135,92" fill="none" stroke="#555" stroke-width="2" marker-end="url(#a4)"/><text x="235" y="165" class="s11 m">due → re-claim</text></g>
- <g class="smrule" data-r="Retry exhaustion or the payment cutoff passed → BLOCKED(RETRY_EXHAUSTED / CUTOFF_EXPIRED). Parks (amendment, escalation, unmapped code…) also land here — always with blocked_reason set (L8) and an alert. Fail-blocked, never silent.">
-  <line x1="520" y1="195" x2="700" y2="195" stroke="#b3261e" stroke-width="2" marker-end="url(#a4)"/><text x="610" y="186" text-anchor="middle" class="s11" fill="#b3261e">exhaust / cutoff / park</text></g>
+ <g class="smrule" data-r="Retry exhaustion → BLOCKED(RETRY_EXHAUSTED) (CUTOFF_EXPIRED is RESERVED — the engine owns the calendar, round 10). Parks (amendment, escalation, unmapped code…) also land here — always with blocked_reason set (L8) and an alert. Fail-blocked, never silent.">
+  <line x1="520" y1="195" x2="700" y2="195" stroke="#b3261e" stroke-width="2" marker-end="url(#a4)"/><text x="610" y="186" text-anchor="middle" class="s11" fill="#b3261e">exhaust / park</text></g>
  <g class="smrule" data-r="Exits from BLOCKED are all GUARDED: ops actions (§10.2), the §9.2 downgrade, or late authoritative evidence. POST-bound exits pass repost_permitted; terminal exits pass the release guard (§10.1). blocked_reason is descriptive only — no rule keys on it.">
   <path d="M700,180 C600,120 300,105 200,80" fill="none" stroke="#555" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a4)"/><text x="480" y="118" text-anchor="middle" class="s11 m">guarded exits (click me)</text></g>
 </svg>
@@ -489,7 +489,7 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
  <tr><td>Engine settles ALL-OR-NOTHING (confirmed)</td><td>any amount mismatch = defect evidence → CRITICAL park, money never moves</td></tr>
  <tr><td>Collision contract ASSUMED true (sandbox-proven before go-live)</td><td>a known key can never execute twice — every re-POST safety rides on this</td></tr>
  <tr><td>BA-1: scope-field change ⇒ NEW obligation on purpose</td><td>not a duplicate; no cross-scope detector</td></tr>
- <tr><td>BA-2: upstream cannot cancel</td><td>a cancelled trade still pays; recovery is a platform-side recall (open PO-9: whether a payment ABSENT from a newer snapshot cancels its unsent attempts — a deliberate BA-2 amendment question)</td></tr>
+ <tr><td>BA-2 (amended 2026-07-11): absence from a newer snapshot IS the cancellation signal</td><td>absent payment = amendment to zero — unsent attempts auto-cancel; an already-paid scope hits the overpay latch and STOPS (no clawback; recovery stays a platform-side recall)</td></tr>
  <tr><td>BA-3: message ordering is upstream's problem</td><td>a skew-misordered amendment dropping as stale is by design</td></tr>
  </table>
 </div>
@@ -520,7 +520,7 @@ button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
 <table>
  <tr><th>Situation</th><th>Result</th></tr>
  <tr><td>toggle absent / grid unreachable / check timeout</td><td><b>FROZEN</b> — a grid outage pauses payments (PO signed off)</td></tr>
- <tr><td>freeze active</td><td>POSTs stop; feed, resolver queries, card reads continue; zero attempts made, so the retry budget cannot burn (same during breaker-open; bounds = attempts + cutoff, §7.4)</td></tr>
+ <tr><td>freeze active</td><td>POSTs stop; feed, resolver queries, card reads continue; zero attempts made, so the retry budget cannot burn (same during breaker-open; bound = max attempts, §7.4 round 10)</td></tr>
  <tr><td>flipping it</td><td>separate role control exists today; every effective freeze without an acknowledged ticket → page</td></tr>
 </table></div>
 <div class="card"><h3>Kafka rules that protect money (§16.2)</h3>
@@ -736,7 +736,7 @@ const EV={
  syncrej:{n:'sync definitive reject',f(){ if(S.out)return[0,FROZEN]; if(S.stage!=='POST'||S.ss!=='CLAIMED')return[0,'Needs POST·CLAIMED.'];
   S.out='REJECTED';S.ss='READY';S.com-=S.amt;return[1,'Provably not executed (§7.1) → outcome=REJECTED, reservation released, provider_rejected marker (L9). ≥2 rejects on one scope = ops-only.'];}},
  transient:{n:'transient failure',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='CLAIMED'||S.stage==='CONFIRM')return[0,'Needs a CLAIMED work stage.'];
-  S.ss='RETRY_WAIT';return[1,'Connect-level failure = NOT_SUBMITTED (nothing reached the engine) → RETRY_WAIT with next_retry_at (L7). Bounds = attempts + cutoff (§7.4); freeze/breaker-open windows make zero attempts (§16.1).'];}},
+  S.ss='RETRY_WAIT';return[1,'Connect-level failure = NOT_SUBMITTED (nothing reached the engine) → RETRY_WAIT with next_retry_at (L7). Bound = max attempts (§7.4, round 10 — engine owns the calendar); freeze/breaker-open windows make zero attempts (§16.1).'];}},
  retrydue:{n:'retry due',f(){ if(S.out)return[0,FROZEN]; if(S.ss!=='RETRY_WAIT')return[0,'No RETRY_WAIT row is due.'];
   S.ss='CLAIMED';return[1,'Scanner claims the due row (§11 claim protocol: obligation-first claim CAS, DB time). Same key — retries never mint new identity.'];}},
  feedsettle:{n:'feed settlement',f(){ if(S.out)return[0,'Zero rows matched an ACTIVE request → new event_id against a TERMINAL row = CRITICAL anomaly (§8; the §5.2 tripwire).'];
@@ -800,7 +800,7 @@ function hc1(a){ if(a==='resend')say('hc1o','bad','💸 DOUBLE PAYMENT. New key 
  else say('hc1o','ok','✅ The designed move (§9): status-query by our persisted key → answer says EXECUTED → apply as evidence, confirm the 100. Ambiguity is resolved by ASKING, never by re-sending.');}
 function hc2(a){ if(a==='cancel')say('hc2o','bad','FORBIDDEN by the release guard (§10.1): the 100 may already be at the engine. Cancel + pay 80 = potentially 180 out the door. The auto-cancel CAS requires NOT_SUBMITTED and hits row-count 0 here.');
  else if(a==='repost')say('hc2o','bad','The re-POST would knowingly send a STALE amount (100 ≠ 80). repost_permitted fails on the staleness term — only a dual-control human override may consciously do this (§9.3).');
- else say('hc2o','ok','✅ WAIT-THEN-DECIDE (§9.2): park BLOCKED(AMENDMENT_PARKED), resolver keeps querying, the feed can settle it any time, escalation (once per episode, on maybe_since) brings ops in before cutoff. If it turns out EXECUTED → overpay latch handles it; NOT executed → §9.3 REJECTED → pay 80 fresh.');}
+ else say('hc2o','ok','✅ WAIT-THEN-DECIDE (§9.2): park BLOCKED(AMENDMENT_PARKED), resolver keeps querying, the feed can settle it any time, escalation (once per episode, on maybe_since) brings ops in on age. If it turns out EXECUTED → overpay latch handles it; NOT executed → §9.3 REJECTED → pay 80 fresh.');}
 function hc3(k){ if(k)say('hc3o','ok','✅ EXPECTED divergence: prior attempt hash ≠ current hash (we re-enriched newer details). The rejection is EVIDENCE — the original DID arrive. Stay MAYBE, set divergent_payload_at (no more re-POSTs — futile), let the query recover the outcome. No park, no alarm (§7.2).');
  else say('hc3o','bad','⚠ ANOMALOUS: we sent the SAME bytes and the engine says "different payload" — either a DR-replay divergence (empty attempt history) or the engine disagrees with itself. BLOCKED(ENGINE_INCONSISTENCY) + CRITICAL. Never overwrite, never retry (§7.2).');}
 function hc4(i){ const m=[

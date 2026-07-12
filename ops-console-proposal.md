@@ -162,7 +162,8 @@ corrected message     U-3, U-6, E-3, P-9, M-7 — upstream is the fix;
 dimension columns; blocked_reason used for grouping/display only:
 BLOCKED by reason with the **ESCALATED (money-critical) class ranked
 first** (§2.2); stuck reservations by age; MAYBE_SUBMITTED by
-maybe_since age (with cutoff proximity); overpay latches. Each row:
+maybe_since age; overpay latches (round 10: no cutoff proximity —
+the engine owns the calendar). Each row:
 scope key, business_id, amount, age (episode-anchor clocks, §15),
 last error, §10.4 label chip, deep-link to S2. This is the screen the
 §15 alerts link to. (Parked-events queue removed.) Tie-conflict note

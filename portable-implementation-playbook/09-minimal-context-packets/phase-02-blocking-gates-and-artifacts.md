@@ -11,7 +11,7 @@
 [B-01] §18-0 snapshot-contract residue
 Read: §1 contract facts (trade-payment cardinality), §6.0, §6.1, §12, §18 item 0. Model (§1 fact): multiple payments per trade; snapshot messages (newer overwrites older); tuple unique within snapshot → NO discriminator; schema/identity freeze not gated here.
 Placeholders: none. Mappings: none.
-Objective (residue): written upstream confirmation of snapshot schema + uniqueness (ask 5); §6.0 intake uniqueness validation in IN-02; PO-9 (absence semantics, BA-2 amendment) answered before IN-02 freeze (TL-16 answered round 5 — §6.1 admission gate + §2.4); TL-2 gains the step-granularity clause.
+Objective (residue): FILE the written confirmations for asks 5 + 8 (both confirmed verbally 2026-07-11 — the paper is the Q1 evidence); §6.0 intake uniqueness validation in IN-02; TL-2 gains the step-granularity clause. (PO-9 ANSWERED: absence = amendment to zero; TL-16 answered round 5.)
 Tests: within-snapshot collision → whole-snapshot validation failure; mid-fan-out crash + redelivery converges. Stop: residue closed (or IN-02 stays BLOCKED).
 ```
 
@@ -24,11 +24,11 @@ Tests: none. Stop: all recorded; CT-01 unblocked.
 ```
 
 ```text
-[B-03] Cutoff calendar sourcing
-Read: §18 item 2, §16.4, §7.4. Invariant: tz-aware local-time+zone representation; never fixed UTC constants.
-Placeholders: config. Mappings: none.
-Objective: record calendar source, named owner, per-currency/market+holiday semantics, refresh cadence, stale/missing fail direction (recommend fail-blocked per payment_type).
-Tests: none. Stop: six attributes recorded (or RC-04 cutoff config stays BLOCKED).
+[B-03] §18-2 closure record (round 10 — engine owns the calendar)
+Read: §18 item 2 (CLOSED), §7.4. Invariant: NO local cutoff calendar, config, or tz machinery exists or may be built; late submissions classify through CA-1 like any engine response.
+Placeholders: none. Mappings: none.
+Objective: record the PO's 2026-07-11 closure; file the engine's WRITTEN any-time-submission line + late-submission response code (if any) into the CA-1 table (Q-08).
+Tests: none. Stop: the §18-2 CLOSED fact + the CA-1 late-submission ask recorded (round 10 — no calendar attributes exist to source).
 ```
 
 ```text

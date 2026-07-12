@@ -58,7 +58,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C30 | §7.1 | submission_state definitions (NOT/MAYBE/SUBMITTED — "cannot execute" is the criterion) | MVP | RC-02 | — | no | yes | TL-6 via §18-1(d) |
 | C31 | §7.2 | POST-failure classification (closed taxonomy; MAYBE fail-closed; collision branch on divergence_expected; UETR not persisted on rejects) | MVP + ARTIFACT (CA-1) | RC-01, RC-02 | CA-1 | yes | yes | yes (code table) |
 | C32 | §7.3 | Enrichment outcome classification (all NOT_SUBMITTED) | MVP | RC-01 | — | no | yes | no |
-| C33 | §7.4 | Retry policy per error class (externalized config); exhaustion → BLOCKED; cutoff pre-checks; downgrade policy class (attempt reset) | MVP | RC-04 | B-03 (cutoff) | partially | yes | no |
+| C33 | §7.4 | Retry policy per error class (externalized config); exhaustion → BLOCKED; downgrade policy class (attempt reset); bound = max attempts (round 10 — no cutoff) | MVP | RC-04 | — | partially | yes | no |
 | C34 | §8 | Feed consumption transaction order (inbox → resolve → evidence CAS → commit → ack); unmatched = log+count+ack; amount equality; marker totality; anomaly disambiguation | MVP | IN-05..08 | S-04, ST-02 | yes | yes | no |
 | C35 | §8 | provider_reference fallback — fail closed (single active match + amount + recency) until uniqueness confirmed | MVP + QUESTION (TL-12) | IN-06 | U-02 | no | yes | yes |
 | C36 | §9.1 | Status-query outcome mapping (EXECUTED/REJECTED/NOT_FOUND/INDETERMINATE/ACCEPTED) | MVP + ARTIFACT (CA-3) | RC-06 | CA-3 | no | yes | yes |
@@ -75,9 +75,9 @@ provider / tech-lead / PO / upstream confirmation.
 | C47 | §16.1 | Resiliency: timeouts, breakers (business rejects = success), scanner gating, poison-row cap, bulkheads, Hazelcast posting freeze fail-safe (absent/unreachable/timeout = FROZEN; only FROZEN cached), freeze/breaker windows make zero attempts (structural — no wall-clock deadline exists, §7.4 2026-07-11) | MVP | RC-09, RC-10 | — | yes | yes | no |
 | C48 | §16.2 | Kafka rules: manual ack after commit, earliest, ErrorHandlingDeserializer, DLT for poison only, no retry topics for money events, partition keying, retention-chain check | MVP + RUNBOOK | IN-09, OB-05 | — | yes | yes | no |
 | C49 | §16.3 | Security: read-surface auth, account masking in encoder, no instruction content persisted, secrets vaulted, topic ACLs | MVP | cross-cutting (IN, U, OB) | — | no | yes | no |
-| C50 | §16.4 | Amount/time hygiene: currency-scale validation, BigDecimal.compareTo, no tolerance, UTC + DB time, tz-aware cutoff calendar | MVP | IN-01, RC-04 | B-03 | no | yes | no |
-| C51 | §16.5 | Expand/contract migrations (Flyway/Liquibase); volume NFR ~3k trades/day; contract tests for 3 external contracts; defensive enum reads (UNKNOWN sentinel); 4 dimension enums CLOSED | MVP | S-01..11, GO-01 | — | yes | yes | no |
-| C52 | §16.6 | Configuration inventory + config-load ordering validation (trust_age + cadence < escalation < tier-2 < cutoff margin) | MVP | OB-07 | B-03, TL-5, TL-13 | no | yes | values needed |
+| C50 | §16.4 | Amount/time hygiene: currency-scale validation, BigDecimal.compareTo, no tolerance, UTC + DB time (cutoff-calendar clause retired round 10) | MVP | IN-01, RC-04 | — | no | yes | no |
+| C51 | §16.5 | Expand/contract migrations (Flyway/Liquibase); volume NFR ~3k trades/day; contract tests for 3 external contracts; defensive enum reads (UNKNOWN sentinel); 4 dimension enums CLOSED | MVP | S-01..10, GO-01 | — | yes | yes | no |
+| C52 | §16.6 | Configuration inventory + config-load ordering validation (trust_age + cadence < escalation < tier-2; cutoff margin retired round 10) | MVP | OB-07 | TL-5, TL-13 | no | yes | values needed |
 | C53 | §16.6-1 | Engine error-code → classification table (incl. replay-original-response class) | ARTIFACT | CA-1 | provider | YES (feeds RC-01) | no | yes |
 | C54 | §16.6-2 | Engine status vocabulary + precedence/evidence mapping + feed event schema | ARTIFACT | CA-2 | provider | YES (feeds IN-07) | no | yes |
 | C55 | §16.6-3 | Status-query response → §9.1 outcome mapping | ARTIFACT | CA-3 | provider | YES (feeds RC-06) | no | yes |
@@ -87,11 +87,11 @@ provider / tech-lead / PO / upstream confirmation.
 | C59 | §16.6-6 | Test catalog aligned to the spec | ARTIFACT | CA-7 | — | YES | yes | no |
 | C60 | §16.6-7 | Runbook stubs (one per §15 alert; aged-MAYBE runbook) | ARTIFACT + RUNBOOK | CA-8 | OB-xx | YES | no | no |
 | C61 | §16.6-8 | apply-platform-verified-outcome OPERATION spec (authorized application endpoint — 2026-07-11 boundary) + drill script | ARTIFACT + GATE (§18-3) | CA-9, OP-01..03 | B-04 | YES | yes | no |
-| C62 | §18-0 | BLOCKING residue of the snapshot contract (model = §1 contract fact: multiple payments; snapshot messages; tuple unique within snapshot; no discriminator — schema freeze not gated): upstream ask 5 in writing, §6.0 intake validation, PO-9 — gates IN-02 (TL-16 answered round 5: §6.1 admission) | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
+| C62 | §18-0 | BLOCKING residue of the snapshot contract: WRITTEN filing of asks 5 + 8 (confirmed verbally 2026-07-11) + §6.0 intake validation — gates IN-02 (PO-9 ANSWERED: absence = zero; TL-16 answered round 5) | GATE | B-01 | upstream/UI teams + PO | YES | no | YES |
 | C63 | §18-1 | BLOCKING: engine idempotency-collision contract proven by sandbox test (a–d), re-run on engine releases | GATE | B-02, CT-01..05 | sandbox access | YES | no | YES |
-| C64 | §18-2 | BLOCKING: payment cutoff calendar (source, owner, semantics, tz-aware, refresh, fail direction) | GATE | B-03 | calendar owner | YES | no | YES |
+| C64 | §18-2 | CLOSED 2026-07-11: the engine owns its cutoff calendar — no local calendar work; B-03 records the fact + the CA-1 late-submission ask | CLOSED | B-03 | — | no | no | no |
 | C65 | §18-3 | BLOCKING: MVP MAYBE-row terminal exit (operation EXISTS + DRILLED, or TL-10 ∧ TL-5 alternative) | GATE | B-04, OP-01..03 | CA-9 | YES | yes | possibly |
-| C66 | §18 PO 1–8 | PO items: ask-then-retry approval, query cadence, escalation age, cutoff-passed-while-MAYBE, cancelled-trade display, deferral latency, retry-after-reject concept, fresh-assembly consequence | QUESTION | Section K | — | no | no | YES |
+| C66 | §18 PO 1–8 | PO items: ask-then-retry approval, query cadence, escalation age, cutoff-passed-while-MAYBE (closed round 10), cancelled-trade display, deferral latency, retry-after-reject concept, fresh-assembly consequence | QUESTION | Section K | — | no | no | YES |
 | C67 | §18 TL 1–15 | Tech-lead items: event_id stability, card read contract, RPO/RTO, collision contract, ingest lag + lookback, re-execute-after-reject, key-only anchoring, confirmation age, artifact owners, TL-10 platform reject, SDK contract, provider_reference, rate limits, archival, downgrade telemetry | QUESTION | Section K | — | TL-4/5 feed gates | no | YES |
 | C68 | §18 upstream 1–4 | Upstream asks: strict ordering, business_id as Kafka key, schema formalization, emission contract | QUESTION | Section K | — | no | no | YES |
 | C69 | §19.1 | Outbound completion signal | FUTURE | none | — | no | no | no |

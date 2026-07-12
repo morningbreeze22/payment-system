@@ -1,4 +1,4 @@
-> **Purpose:** Task cards S-01..S-11 (schema and migration foundation; S-10/S-11 = trade_snapshot_state + its round-6 bootstrap/enablement gate) (original Section H, phase P3).
+> **Purpose:** Task cards S-01..S-10 (schema and migration foundation; S-10 = trade_snapshot_state; the former S-11 bootstrap was RETIRED round 10 — §2.4 greenfield fact) (original Section H, phase P3).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P3.
@@ -221,30 +221,7 @@
 - **Common mistakes:** optimistic NOT_SUBMITTED backfills (the pay-twice direction — §7.1's criterion is "provably cannot execute").
 - **Completion criteria:** backfill complete; anomaly list dispositioned; constraints validated.
 - **Stop condition:** validated.
-- **Next task:** S-11.
-
-### S-11 — trade_snapshot_state bootstrap + enablement gate (round 6)
-
-- **Task ID:** S-11
-- **Title:** Bootstrap trade_snapshot_state from existing obligations; define the mixed-version cutover and the enforcement enablement gate
-- **Classification:** MVP normative implementation (migration-critical — without it the empty table reads every existing trade as "first contact", reopening the stale-creation hole for never-seen scopes)
-- **Prerequisites:** S-10 (table exists); S-08 (backfill pattern + quiet-window mechanics).
-- **Requirement sections / concepts to read:** §2.4 BOOTSTRAP block (whole — the semantics are normative there), §6.1 (admission — the consumer), Section M / 13-migration-rollout-rollback.md (enablement gate + point of no return).
-- **Placeholder components involved:** [DB Migration Directory], [Obligation Repository].
-- **Local placeholder mappings required before starting:** [DB Migration Directory]; quiet-window scheduling (S-08's).
-- **Local code areas to discover:** none new.
-- **How to locate:** n/a.
-- **Implementation instructions:** (a) bootstrap job (idempotent, quiet window, consistent read): for every existing business_id, insert-if-absent a row with last_accepted_ordering = MAX(upstream_ordering) over its obligations; storage id + digest stay NULL (a NULL digest IS the bootstrap-incomplete marker — no extra column). (b) verify IN-02 implements the digest-NULL semantics: OLDER → refuse as normal; EQUAL-order → FAIL CLOSED into the §6.7 tie path (equality unprovable without a digest; human adjudicates, reprocess installs the full row); STRICTLY NEWER → replaces with a complete row (bootstrap completes organically). (c) coverage report: every active business_id has a row AND — round 7 — POINTER coverage: zero NULL-pointer rows among WIRE-CAPABLE trades (any active request) before the legacy assembly path is removed, each residual individually dispositioned (§2.4 pointer completeness; the ask-9 export is an optional accelerator); shadow metric compares the trade watermark against per-obligation watermarks (zero regressions expected before enablement). (d) enablement gate (Section M): additive schema → bootstrap → DRAIN old consumers (a version that does not maintain the row must NEVER process snapshots under enforcement) → coverage verified → enable; record as a ROLLOUT POINT OF NO RETURN — rollback to a non-maintaining version invalidates the table; re-enabling requires re-running bootstrap + coverage.
-- **Do not change:** obligation rows (read-only input); the §2.4 column set.
-- **Tests to add:** T-36 (bootstrap + mixed-version set incl. the round-7 active-request pointer case).
-- **Edge cases:** trades whose obligations all have NULL upstream_ordering (§6.6 anchors that never applied a valid message) → row with NULL ordering = pure first-contact semantics, correct; trades created BETWEEN bootstrap and enforcement → the first-contact path handles them (new trades need no bootstrap); bootstrap re-run must not regress an already-complete row (insert-if-absent only).
-- **Manual validation:** coverage report reviewed; shadow metric flat before enablement.
-- **Expected outcome:** admission enforcement safe to enable on a brownfield database.
-- **Failure signs:** any existing trade admitting an ordering below its obligations' max after enablement.
-- **Common mistakes:** treating "old version still boots" as dual-run proof (it is NOT — the old version must be DRAINED, not merely schema-compatible); overwriting bootstrap rows on re-run; enabling enforcement before the drain completes.
-- **Completion criteria:** bootstrap run + coverage filed; enablement gate documented in the rollout plan.
-- **Stop condition:** merged; evidence filed.
-- **Next task:** S-09.
+- **Next task:** S-09. (S-11 was RETIRED round 10 — §2.4 greenfield fact: nothing to bootstrap.)
 
 ### S-09 — Migration test pass
 
@@ -252,7 +229,7 @@
 - **Title:** Full migration test pass: clean schema, prod-shaped schema, dual-run compatibility
 - **Classification:** MVP normative implementation
 - **Purpose:** prove the whole P3 sequence per §16.5 before any behavior change lands on it.
-- **Prerequisites:** S-02..S-08 + S-10 + S-11 merged.
+- **Prerequisites:** S-02..S-08 + S-10 merged.
 - **Requirement sections / concepts to read:** §16.5 (expand/contract, claim compatibility across one release boundary).
 - **Placeholder components involved:** [DB Migration Directory], [Integration Test Suite].
 - **Local placeholder mappings required before starting:** real-Oracle test lane available (if D-11 found H2-only, FIRST set up the Oracle lane — that setup is part of this task; split locally if large).
@@ -275,7 +252,7 @@
 
 ## Phase handoff summary (P3 → P4)
 
-- **Phase outputs:** four-table schema at the CA-4 target: columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum + L1-shape + L2–L8 CHECKs (VALIDATED), freeze + release-guard triggers with evidence-flag mechanics, active-row-bounded index set, inbox table + purge, trade_snapshot_state (S-10, §2.4) + its bootstrap/enablement gate (S-11), backfilled dimensions.
+- **Phase outputs:** four-table schema at the CA-4 target: columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum + L1-shape + L2–L8 CHECKs (VALIDATED), freeze + release-guard triggers with evidence-flag mechanics, active-row-bounded index set, inbox table + purge, trade_snapshot_state (S-10, §2.4 — greenfield: starts empty, no bootstrap), backfilled dimensions.
 - **Blockers to carry forward:** §18-1/2/3 unchanged; any staged-NOVALIDATE constraint has a dated follow-up.
 - **Local mapping rows expected filled:** [DB Migration Directory], [Stored Procedure / Trigger Area] CONFIRMED; index expressions recorded for later scanner queries (S-07 note).
 - **Tests expected to exist:** migration apply (clean + prod-shaped), constraint violation suite, trigger backstop suite (incl. pool non-leakage), backfill idempotency, S-09 dual-run proof (old version runs on new schema).

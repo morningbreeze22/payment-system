@@ -87,7 +87,7 @@ Two standing facts frame everything:
 | U-12 | Amendment lowers amount while request MAYBE_SUBMITTED | AMENDMENT_PARKED + alert; rank-1 exception on card | Wait-then-decide: resolver keeps querying; feed/query settles it; §9.3 escalation brings ops in (dual-control stale re-POST, TL-10, or §9.3 operation) | T1 → T3 |
 | U-13 | Amendment raises amount while request in flight | — | Deferred successor: §6.8 creates it when the active request resolves (PO-6). Never lost. | T1 |
 | U-14 | Scope-key field changes (payment_type / debit_account / currency) | New obligation appears (card shows both) | BA-1: NEW obligation paid under new info — agreed business behavior, NOT a duplicate. Old scope follows its own lifecycle. | Settled (§1.1) |
-| U-15 | Payment absent from a newer snapshot | Nothing (interim) | OPEN — PO-9 (§18): interim absence = NO-OP; if PO answers "absence = cancel", §6.4 machinery handles it | T4 (pending PO) |
+| U-15 | Payment absent from a newer snapshot | Unsent attempts auto-cancel; paid scopes latch + alert | RESOLVED round 10 (PO-9 ANSWERED: absence = amendment to zero, BA-2 amended): §6.4 auto-cancel (unsent) / wait-then-decide (in-flight) / §6.5 overpay latch = STOP (paid — "same as overpay"); anchor scopes never zeroed | T1/T2 |
 | U-16 | Delayed older snapshot hits an obligation absent from newer snapshots — or carries a NEVER-SEEN scope (round-5 sharper variant) | Stale-amount application / stale-scope-creation risk | RESOLVED round 5 (TL-16 answered): the §6.1 trade-level admission gate refuses the delayed older document whole — no stale amounts, no created scope; T-35 proves both traces | T1 (structural) |
 | U-17 | Upstream data wrong but valid (wrong amount/account that passes validation) | Not detectable locally — data is the contract | Corrected message (amendment machinery §6.3–§6.8); if already executed: platform recall (§19.2 family) | T4 |
 | U-18 | Poison pill breaks deserialization loop | ErrorHandlingDeserializer + DLT page (§16.2) | Fix producer / replay DLT preserving keys | T3 |
@@ -255,7 +255,7 @@ major-incident procedure with the engine's records as truth.
 | B-3 | Client double-funded / duplicate payment suspicion | Deterministic identity chain (§5): one key per logical attempt, engine dedup proven by §18-1 sandbox gate | Evidence available by construction: key + UETR + platform records | T4 |
 | B-4 | Business wants payment despite engine reject (transient beneficiary-side condition) | provider_rejected marker + alert | Today: one newer upstream message (§6.8) or wait; FUTURE §19.3 ops retry-after-reject (4-eyes) pending PO-7 | T3/T4 (partly FUTURE) |
 | B-5 | Funds returned to our account (post-settlement return) | CRITICAL log-only event (§8) | §19.2 future workstream — detection, RETURNED outcome, confirmed decrement all deliberately absent today; platform owns the truth | T4 |
-| B-6 | Cutoff passes while payment unresolved | CUTOFF_EXPIRED / escalation sized to land BEFORE cutoff (§9.3, §16.6 ordering) | Ops decision next window; PO-4 tracks the policy | T3 |
+| B-6 | Bank cutoff passes while payment unresolved | Nothing local — the ENGINE owns its calendar (round 10, §18-2 CLOSED); a late submission returns as an ordinary engine response (CA-1) | Engine response classifies normally; escalation stays age-based (§9.3); §9.3 operation for stuck MAYBE (PO-4 closed with §18-2) | T1/T3 |
 
 ------
 
@@ -305,10 +305,12 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
 **Already tracked (no change needed — verified still open and correctly owned):**
 
 ```text
-- §18 BLOCKING 0–3: snapshot residue; collision-contract sandbox proof;
-  cutoff calendar; MAYBE terminal exit (operation + drill).
-- PO-9: absence semantics (U-15). (TL-16 snapshot watermark rule ANSWERED
-  2026-07-11 round 5 — U-16: §6.1 admission + §2.4.)
+- §18 BLOCKING: snapshot residue (asks 5/8 WRITTEN filings — confirmed
+  verbally 2026-07-11); collision-contract sandbox proof; MAYBE terminal
+  exit (operation + drill). (§18-2 cutoff calendar: CLOSED round 10 —
+  engine-owned.)
+- PO-9 ANSWERED 2026-07-11 (U-15: absence = amendment to zero). (TL-16
+  ANSWERED round 5 — U-16: §6.1 admission + §2.4.)
 - TL-5 / Q-10: query lookback ≥ max row lifetime (R-3).
 - TL-10 / Q-12: platform formal reject — the cleanest parked-MAYBE exit.
 - PO-7 / §19.3: ops retry-after-provider-reject (B-4) — FUTURE.

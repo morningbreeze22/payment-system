@@ -52,7 +52,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 23 | CA-7 | HUMAN+AGENT | none | phase-02 |
 | 24 | CA-8 | HUMAN+AGENT | Section-N seeds (14-observability file) | phase-02 |
 | 25 | CA-9 | HUMAN+AGENT | B-04; CA-4 | phase-02 |
-| 26–34+34a/34b | P3 — EXACT ORDER (round 9, normative): S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-11, S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts); S-10 = §2.4 table (round 5, after S-04); S-11 = bootstrap + enablement gate (round 6, after S-08); S-09 proof pass runs LAST | phase-03-schema-and-migration.md |
+| 26–34+34a | P3 — EXACT ORDER (round 9, normative; S-11 RETIRED round 10 — greenfield): S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts); S-10 = §2.4 table (round 5, after S-04); S-09 proof pass runs LAST | phase-03-schema-and-migration.md |
 | 35–40 | K-01 → K-06 | AGENT | S-09 green; CA-5 for K-02/K-03 | phase-04-identity-and-idempotency.md |
 | 41–47 | CT-01 → CT-07 | HUMAN+AGENT | B-02 sandbox access; K-02/K-03 (see DD-6 if access missing) | phase-08-provider-contract-tests.md |
 | 48–50 | U-01 → U-03 | AGENT | S-03; K-04 path | phase-05-uetr-response-persistence.md |
@@ -97,7 +97,7 @@ DD-3  RG-06 vs IN-02 (trigger T1): implement evaluate() in RG-06 wired
       when you reach IN-02. Record "T1 pending IN-02" in the tracker
       when finishing RG-06.
 
-DD-4  RC-03 stubs: until B-03 values exist, the cutoff term reads a
+DD-4  RC-03 stubs (cutoff clause RETIRED round 10 — no cutoff term exists; the freeze-stub clause below stands): until B-03 values exist, the cutoff term reads a
       stub that always answers FAIL-BLOCKED (repost forbidden); until
       RC-09 is done, the freeze term reads a stub that always answers
       FROZEN. Replace each stub in its named task and re-run RC-03's

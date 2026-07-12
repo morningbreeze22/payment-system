@@ -18,10 +18,10 @@
 - **Implementation instructions (residue):** (1) obtain the WRITTEN upstream confirmation of the snapshot schema + within-snapshot uniqueness (upstream ask 5) — the cross-snapshot identity half is unverifiable at runtime and rests on this document; (2) ensure IN-02 implements the §6.0 within-snapshot uniqueness intake validation (whole-snapshot validation failure, fail closed); (3) drive PO-9 (absence semantics — a BA-2 amendment, PO-only) to an answer BEFORE the IN-02 consumer freeze — it shapes §6.1's fan-out (TL-16 was ANSWERED 2026-07-11 round 5: the §6.1 trade-level admission gate + §2.4 — no longer a residue item); (4) TL-2's read contract now must also answer step granularity (per-payment vs per-trade rollup, §12); (5) upstream ask 8 IN WRITING (round 4 — §18-0(d)): sanctioned fetch-by-id, stable unique versioned ids, consistent reads, IMMUTABILITY (corrections = new id/version), retention ≥ the ops/tie SLA.
 - **Do not change:** code.
 - **Tests to add:** intake test — snapshot with two blocks sharing a tuple → whole-snapshot validation failure + anchors (§6.0/§6.6); fan-out convergence test — kill consumer mid-fan-out, redeliver, assert per-obligation ordering guard converges (§6.1).
-- **Edge cases:** "usually unique" is NOT an answer for ask 5 — the identity contract needs a guarantee; PO-9 unanswered means absence = NO-OP (BA-2 stands), which knowingly leaves a genuinely-removed payment paying.
-- **Manual validation:** written confirmation attributed and filed; the PO-9 answer recorded in §18 (TL-16 already answered round 5).
+- **Edge cases:** "usually unique" is NOT an answer for ask 5 — the identity contract needs a guarantee (confirmed verbally 2026-07-11; the WRITTEN filing is what closes the item); PO-9 is ANSWERED (absence = amendment to zero, §1.1/§6.1) — the residual risk is a producer bug dropping a block, guarded by ask 4 (emission-only-on-change) and by §6.4 touching only provably-unsent requests.
+- **Manual validation:** written confirmations for asks 5 + 8 attributed and FILED (verbal confirmations recorded 2026-07-11); PO-9/TL-16 answers already in §18.
 - **Expected outcome:** B-01 fully closed; IN-02 consumer freeze unblocked.
-- **Failure signs:** IN-02 frozen while PO-9 is open; treating a verbal model confirmation as the written contract.
+- **Failure signs:** treating the 2026-07-11 verbal confirmations as the written contract — the FILED paper is the Q1 evidence.
 - **Common mistakes:** re-litigating the §1 contract fact instead of driving its open edges.
 - **Completion criteria:** all four residue items closed; blocked-task list updated.
 - **Stop condition:** residue items closed (or explicitly pending — then IN-02 stays BLOCKED).
@@ -51,28 +51,28 @@
 - **Stop condition:** recorded; CT-01 unblocked.
 - **Next task:** B-03 (parallel); CT-01.
 
-### B-03 — Resolve cutoff calendar sourcing (§18 item 2)
+### B-03 — Record the §18-2 CLOSURE (engine owns the cutoff calendar — round 10)
 
 - **Task ID:** B-03
-- **Title:** Identify cutoff-calendar source system, owner, semantics, refresh, fail direction
-- **Classification:** §18 BLOCKING go-live gate
-- **Purpose:** repost_permitted (§7.0), §7.4 deadlines, §9.2 lookback guard, and escalation sizing all consume the calendar; a wrong calendar blocks a currency early or re-POSTs after bank close (§18-2).
+- **Title:** Record the PO's calendar answer + file the engine's any-time-submission line into CA-1
+- **Classification:** §18 item — CLOSED (record-keeping task only, round 10)
+- **Purpose:** §18-2 was ANSWERED by the PO 2026-07-11: the payment ENGINE owns its cutoff calendar; this system initiates at any time and carries NO local calendar, cutoff gate, or cutoff config. This card records that fact and secures the residual written line.
 - **Prerequisites:** none (human task).
-- **Requirement sections / concepts to read:** §18 BLOCKING item 2, §16.4 (tz-aware representation), §7.4, §16.6 (config entry).
-- **Placeholder components involved:** [Retry Resolver Job] (consumer), config.
+- **Requirement sections / concepts to read:** §18 item 2 (CLOSED text), §7.4 (retry bound = max attempts), CA-1 (where the late-submission response class lands).
+- **Placeholder components involved:** none.
 - **Local placeholder mappings required before starting:** none.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** record: source system; named owner; per-currency/market semantics incl. holidays; timezone-aware representation (local time + zone id, DST-correct — §16.4, never fixed UTC constants); refresh cadence; stale/missing-calendar fail direction (spec recommends fail-blocked per payment_type).
-- **Do not change:** code.
-- **Tests to add:** none here (RC-04 tests consume it).
-- **Edge cases:** no source system exists → the owner question escalates to the PO; RC-04 cutoff config stays BLOCKED; interface work proceeds with fail-blocked default.
-- **Manual validation:** owner has acknowledged ownership in writing.
-- **Expected outcome:** calendar contract recorded; RC-04 config unblocked.
-- **Failure signs:** hardcoded UTC cutoff constants anywhere ("wrong twice a year per market", §16.4).
-- **Common mistakes:** accepting a calendar without holiday semantics.
-- **Completion criteria:** all six attributes recorded.
-- **Stop condition:** recorded (or explicitly pending — RC-04 cutoff config remains BLOCKED).
+- **Implementation instructions:** (1) record the closure fact with date + source (PO, 2026-07-11); (2) obtain the engine's WRITTEN line that submission is accepted at any time; (3) ask whether a distinct late-submission response code exists and file the answer into the CA-1 table (Q-08 conversation).
+- **Do not change:** code; no calendar interface, stub, or config may be built (retired round 10).
+- **Tests to add:** none.
+- **Edge cases:** the engine names a distinct late-submission response code → it lands in the CA-1 table with a classification; the engine has NO such code → record that fact (every response classifies through the existing CA-1 rows).
+- **Manual validation:** the written any-time-submission line filed with the CA-1 evidence.
+- **Expected outcome:** §18-2 closure durable on paper; CA-1 carries the late-submission class (or the recorded absence of one).
+- **Failure signs:** any local cutoff constant, calendar config, or tz machinery appearing anywhere (retired round 10 — the engine owns the calendar).
+- **Common mistakes:** rebuilding any local cutoff machinery "just in case" (SPEC_CONFLICT — retired round 10).
+- **Completion criteria:** closure fact + written line + CA-1 disposition recorded.
+- **Stop condition:** the closure fact + CA-1 ask recorded.
 - **Next task:** B-04.
 
 ### B-04 — Record the §18 item 3 resolution path (MAYBE terminal exit)
@@ -321,7 +321,7 @@
 ## Phase handoff summary (P2 → P3)
 
 - **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-9 authored, owned, versioned.
-- **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0's residue blocks IN-02 ONLY (the §6 consumer freeze; the scope model is a settled §1 contract fact, so S-02/S-03/S-05, K-02/K-03 and the CA-4/CA-5 freeze are NOT gated — normalized 2026-07-11); §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 blocks RC-04 cutoff config; §18-3 default path = OP-01..03.
+- **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0's residue blocks IN-02 ONLY (the §6 consumer freeze; the scope model is a settled §1 contract fact, so S-02/S-03/S-05, K-02/K-03 and the CA-4/CA-5 freeze are NOT gated — normalized 2026-07-11); §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 is CLOSED (round 10 — engine owns the calendar); §18-3 default path = OP-01..03.
 - **Local mapping rows expected filled:** none new (document phase).
 - **Tests expected to exist:** none new; CA-5 golden vectors DRAFTED (executed as tests in P4); CA-7 catalog seeded from the test matrix.
 - **Next phase entry condition:** CA-4 published (DBA-reviewed) → schema freeze may proceed (S-01). B-01's residue continues in parallel and gates IN-02, not schema (normalized 2026-07-11).

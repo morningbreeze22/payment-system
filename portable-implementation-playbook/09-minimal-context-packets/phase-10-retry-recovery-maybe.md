@@ -27,15 +27,15 @@ Tests: one per row; write-once; mirror rule; totality. Stop: merged.
 [RC-03] repost_permitted
 Read: §7.0 (predicate + both ends + override) §6.4 §11. Invariant: ONE function; checked by every POST-routing writer AND the posting claim; blocked_reason plays no part; override = staleness term only, dual-control.
 Placeholders: [Request Status Persistence Layer] [Retry Resolver Job] [Status Query Resolver] [Provider POST Client]. Mappings: claim site; writer list.
-Objective: divergent_payload_at IS NULL ∧ pre-cutoff ∧ ¬(stale ∧ MAYBE) ∧ freeze OFF ∧ outcome IS NULL; wire both ends.
+Objective: divergent_payload_at IS NULL ∧ ¬(stale ∧ MAYBE) ∧ freeze OFF ∧ outcome IS NULL (round 10: NO cutoff term); wire both ends.
 Tests: term-by-term; both-ends (laundered reason can't re-POST); override scope. Stop: merged.
 ```
 
 ```text
 [RC-04] Retry scanner
-Read: §7.4 (whole — bounds = attempts + cutoff, 2026-07-11) §16.1 (scanner + clock semantics + poison) §16.6; mechanics M5. Invariant: the DB scanner is the ONLY retry owner on the POST; §11 claim protocol (lock-free select → obligation-first claim CAS); while frozen/breaker-OPEN scanners make ZERO attempts (structural — nothing wired to retry_deadline_at); cutoff checks still apply at attempt time.
+Read: §7.4 (whole — bound = MAX ATTEMPTS, round 10; engine owns the calendar) §16.1 (scanner + clock semantics + poison) §16.6; mechanics M5. Invariant: the DB scanner is the ONLY retry owner on the POST; §11 claim protocol (lock-free select → obligation-first claim CAS); while frozen/breaker-OPEN scanners make ZERO attempts (structural — nothing wired to retry_deadline_at); no cutoff checks exist.
 Placeholders: [Retry Resolver Job] [Metrics / Alerting Layer]. Mappings: job infra; S-07 expressions; stacked-retry inventory (remove).
-Objective: breaker-gated bounded claims; per-class policy; exhaustion → BLOCKED (MAYBE rows keep submission_state); downgrade class (reset, now, small max, cutoff pre-check); poison cap.
+Objective: breaker-gated bounded claims; per-class policy; exhaustion → BLOCKED (MAYBE rows keep submission_state); downgrade class (reset, now, small max); poison cap.
 Tests: schedule math; exhaustion-with-MAYBE; simulated 6h outage → zero attempts + zero BLOCKED conversions; poison cap. Stop: merged.
 ```
 
@@ -43,7 +43,7 @@ Tests: schedule math; exhaustion-with-MAYBE; simulated 6h outage → zero attemp
 [RC-05] Resolver sweep
 Read: §9.5 (whole) §9 intro §16.6. Invariant: scope = ACTIVE ∧ (MAYBE any-stage/state ∪ SUBMITTED older than confirmation age), NEVER stage/history-scoped; MAYBE branch never damps; sweeps never overlap.
 Placeholders: [Status Query Resolver] [Metrics / Alerting Layer]. Mappings: query client; job infra.
-Objective: prioritized bounded sweep (cutoff first, oldest maybe_since), per-row next_query_at backoff, budget from rate limit, overrun metric, SUBMITTED damping vs feed-lag, ops-triggered explicit-key mode.
+Objective: prioritized bounded sweep (oldest maybe_since first — round 10: no cutoff knowledge), per-row next_query_at backoff, budget from rate limit, overrun metric, SUBMITTED damping vs feed-lag, ops-triggered explicit-key mode.
 Tests: scope table; budget under herd; overlap; damping. Stop: merged.
 ```
 
@@ -81,7 +81,7 @@ Tests: three fail-safe conditions; no unfrozen caching; frozen blocks claim+POST
 
 ```text
 [RC-10] Breakers + structural outage safety
-Read: §16.1 (breaker/clock semantics/bulkheads/timeouts) §7.4 (bounds = attempts + cutoff, 2026-07-11) §16.6. Invariant: business rejects are breaker SUCCESSES; scanners gate on breaker; while OPEN/frozen scanners make ZERO attempts (structural — no suspension mechanism exists, nothing wired to retry_deadline_at); per-dependency breakers + timeouts.
+Read: §16.1 (breaker/clock semantics/bulkheads/timeouts) §7.4 (bound = max attempts, round 10) §16.6. Invariant: business rejects are breaker SUCCESSES; scanners gate on breaker; while OPEN/frozen scanners make ZERO attempts (structural — no suspension mechanism exists, nothing wired to retry_deadline_at); per-dependency breakers + timeouts.
 Placeholders: [Provider POST Client] [Retry Resolver Job] [Status Query Resolver] [Metrics / Alerting Layer]. Mappings: breaker conventions.
 Objective: breakers per dependency; scanner gating; VERIFY zero attempts + zero BLOCKED conversions across an OPEN window; bulkhead verification.
 Tests: reject-as-success; zero claims while OPEN; attempt_count unchanged across a simulated 6h outage; query-breaker → INDETERMINATE. Stop: merged. NOTE: auto-downgrade production enablement stays gated on P8 PASS.

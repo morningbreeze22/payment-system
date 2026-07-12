@@ -61,13 +61,13 @@
 - **Title:** Implement §7.0's repost_permitted as ONE function, checked by every POST-routing writer AND by the posting claim
 - **Classification:** MVP normative implementation
 - **Purpose:** the single normative re-POST gate; both-ends checking kills the park⇄un-park livelock class structurally; blocked_reason plays NO part.
-- **Prerequisites:** RC-02 (divergent_payload_at written); B-03 (cutoff source — else the cutoff term reads from a stub that returns BLOCKED/fail-closed and the task is PARTIALLY BLOCKED, record); RC-09 (freeze check — can stub as FROZEN-safe until RC-09 lands).
+- **Prerequisites:** RC-02 (divergent_payload_at written); RC-09 (freeze check — can stub as FROZEN-safe until RC-09 lands). (The former B-03/cutoff prerequisite was RETIRED round 10 — no cutoff term exists, §7.4.)
 - **Requirement sections / concepts to read:** §7.0 (predicate + both-ends + override), §6.4 (staleness term), §11 (claim carries the durable term).
 - **Placeholder components involved:** [Request Status Persistence Layer], [Retry Resolver Job], [Status Query Resolver], [Provider POST Client].
 - **Local placeholder mappings required before starting:** claim CAS site; POST-routing writers list (ops actions later).
 - **Local code areas to discover:** none new.
 - **How to locate:** ST-09/K-04 sites.
-- **Implementation instructions:** repost_permitted(request) = divergent_payload_at IS NULL ∧ now < cutoff ∧ NOT(amount stale vs current shortfall ∧ MAYBE_SUBMITTED) ∧ freeze OFF ∧ outcome IS NULL; called by: §9.2 downgrade writer (RC-07), ops re-POST writers (OP scope + §10.5 ops rows), retry scanner pre-claim (RC-04); AND the posting-claim CAS carries divergent_payload_at IS NULL in its WHERE + re-checks derived terms pre-launch (K-04/ST-09 site); dual-control override wired to override ONLY the staleness term (consumed by the future ops action; expose the parameter, no UI).
+- **Implementation instructions:** repost_permitted(request) = divergent_payload_at IS NULL ∧ NOT(amount stale vs current shortfall ∧ MAYBE_SUBMITTED) ∧ freeze OFF ∧ outcome IS NULL (round 10: NO cutoff term — the engine owns the calendar, §7.4); called by: §9.2 downgrade writer (RC-07), ops re-POST writers (OP scope + §10.5 ops rows), retry scanner pre-claim (RC-04); AND the posting-claim CAS carries divergent_payload_at IS NULL in its WHERE + re-checks derived terms pre-launch (K-04/ST-09 site); dual-control override wired to override ONLY the staleness term (consumed by the future ops action; expose the parameter, no UI).
 - **Do not change:** the term list except CT-04's recorded TTL consequence (if that follow-up exists, add the TTL term HERE with its own test).
 - **Tests to add:** term-by-term falsification; both-ends test (a laundered blocked_reason cannot enable a forbidden re-POST — writer refuses AND claim hits row-count 0/refuses); override overrides staleness ONLY.
 - **Edge cases:** amount staleness evaluated under the obligation lock (shortfall is I5 — lock-bound).
@@ -82,18 +82,18 @@
 ### RC-04 — Retry scanner + policy
 
 - **Task ID:** RC-04
-- **Title:** Retry scanner per §7.4: per-error-class policy from config, exhaustion → BLOCKED, cutoff pre-checks, downgrade policy class, zero-attempt outage windows (structural)
+- **Title:** Retry scanner per §7.4: per-error-class policy from config, exhaustion → BLOCKED, downgrade policy class, zero-attempt outage windows (structural; round 10 — no cutoff pre-checks, the engine owns the calendar)
 - **Classification:** MVP normative implementation
 - **Purpose:** exactly one retry owner (the DB scanner); §16.1's zero-attempt gating prevents an outage from converting the RETRY_WAIT population to BLOCKED.
-- **Prerequisites:** ST-09 (claims), RC-03 (gate), RC-01/02 (classification + application), B-03 (cutoff config — else BLOCKED for the cutoff term's real values, fail-blocked stub meanwhile).
+- **Prerequisites:** ST-09 (claims), RC-03 (gate), RC-01/02 (classification + application). (B-03 prerequisite RETIRED round 10.)
 - **Requirement sections / concepts to read:** §7.4 (whole incl. downgrade class), §16.1 (scanner rules, clock semantics, poison cap), §16.6 (config entries).
 - **Placeholder components involved:** [Retry Resolver Job], [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** job infra; S-07 index expressions (queries must match).
 - **Local code areas to discover:** in-process retry wrappers on the POST path (from D-05 — REMOVE them here, the single-owner rule).
 - **How to locate:** D-05/D-08 inventories.
-- **Implementation instructions:** scanner: breaker-gated, §11 claim protocol (lock-free bounded candidate selection, jittered backoff; per candidate a NEW transaction locks the OBLIGATION first then runs the claim CAS — mechanics M5); per row: cutoff pre-check (violation → BLOCKED(CUTOFF_EXPIRED); retry bounds are attempts + cutoff ONLY — §7.4 2026-07-11, nothing wired to retry_deadline_at; ROUND 9: candidate selection includes pointer-less rows precisely so THIS no-wire check still fires for them — the §2.4 pointer term lives in the claim CAS only, and a pre-cutoff pointer-less row is skipped when the claim returns rowCount 0); repost_permitted for POST-stage rows (retry-guard branch per RG-07); execute stage work; failure → policy: next_retry_at per class config (base/multiplier/max/cutoff), attempt_count++; exhaustion → BLOCKED(RETRY_EXHAUSTED) (+ MAYBE rows keep submission_state — stay in resolver scope, maybe_since keeps running — §7.4); downgrade policy class: next_retry_at=now, attempt_count RESET, small max (config 2–3), bounded by the cutoff pre-check; while freeze effective or breaker OPEN → zero attempts (structural safety — no budget mechanism exists to build; cutoff checks still apply at attempt time); poison-row cap → BLOCKED + alert; remove stacked in-process retries on the POST.
+- **Implementation instructions:** scanner: breaker-gated, §11 claim protocol (lock-free bounded candidate selection, jittered backoff; per candidate a NEW transaction locks the OBLIGATION first then runs the claim CAS — mechanics M5); per row (ROUND 10: the local cutoff pre-check is RETIRED — the engine owns the calendar §7.4, MAX ATTEMPTS is the only retry bound, nothing wired to retry_deadline_at; the round-8/9 pointer claim-gate was likewise REMOVED with the §2.4 greenfield fact): repost_permitted for POST-stage rows (retry-guard branch per RG-07); execute stage work; failure → policy: next_retry_at per class config (base/multiplier/max), attempt_count++; exhaustion → BLOCKED(RETRY_EXHAUSTED) (+ MAYBE rows keep submission_state — stay in resolver scope, maybe_since keeps running — §7.4); downgrade policy class: next_retry_at=now, attempt_count RESET, small max (config 2–3); while freeze effective or breaker OPEN → zero attempts (structural safety — no budget mechanism exists to build); poison-row cap → BLOCKED + alert; remove stacked in-process retries on the POST.
 - **Do not change:** enrichment micro-retries for idempotent reads (§16.1 permits those).
-- **Tests to add:** policy schedule math; exhaustion → BLOCKED with MAYBE preserved; cutoff pre-check; 6-hour simulated outage → zero attempts made, attempt_count unchanged, zero BLOCKED conversions (the §16.1 scenario, structural); poison cap; single-owner (no nested retry on POST — structural assert/test where feasible).
+- **Tests to add:** policy schedule math; exhaustion → BLOCKED with MAYBE preserved; 6-hour simulated outage → zero attempts made, attempt_count unchanged, zero BLOCKED conversions (the §16.1 scenario, structural); poison cap; single-owner (no nested retry on POST — structural assert/test where feasible).
 - **Edge cases:** downgrade-class rows re-posting immediately (next_retry_at=now) — L7 satisfied by the explicit write (§9.2).
 - **Manual validation:** seeded RETRY_WAIT population through a scripted breaker-OPEN window.
 - **Expected outcome:** one disciplined retry owner.
@@ -166,7 +166,7 @@
 - **Implementation instructions:** NOT_FOUND handler: age from last_post_attempt_at (MAYBE) / submitted_at (SUBMITTED) — NEVER state_changed_at; before trust-age → INDETERMINATE; after: MAYBE (any stage/stage_state) + repost_permitted → CAS to stage=POST, stage_state=RETRY_WAIT, next_retry_at=now, attempt_count reset (downgrade class), blocked_reason cleared, SUB stays MAYBE; MAYBE + gate fails → stay parked (wait-then-decide); if the failing term is amount staleness and the row is NOT already parked → resolver applies AMENDMENT_PARKED itself (idempotent, non-CLAIMED only — the deferred §6.4 park always lands); SUBMITTED + NOT_FOUND after trust-age → CONFIRM·BLOCKED(ENGINE_INCONSISTENCY) + CRITICAL, single answer suffices (no counter column exists — deliberate), row STAYS in resolver scope; downgrade's own POST response settles SUB per §9.2's list.
 - **Do not change:** §9.4 (a query answer NEVER releases).
 - **Tests to add:** age anchors (attempt restarts MAYBE clock; churn doesn't); pre-trust-age NOT_FOUND → reschedule only; permitted downgrade full tuple (add the pending ST-03 legality case: the sanctioned backward move); gate-fail stays parked (each failing term); deferred-park application; SUBMITTED park + reversibility (next successful query resolves it); downgraded row claimable by RC-04 immediately; escalated row downgrade doesn't cycle (with RC-08 — pending case there).
-- **Edge cases:** cutoff-expired aged rows never downgraded (the §9.2 lookback guard — cutoff term); DUPLICATE_REQUEST answering the downgrade re-POST → MAYBE + query (hidden earlier attempt surfaced; prior uetr intact — the §16.6-6 named test).
+- **Edge cases:** rows aged past the engine's query lookback ride the §18-1(c) retention proof / named TTL decision (round 10 — no local cutoff guard exists); DUPLICATE_REQUEST answering the downgrade re-POST → MAYBE + query (hidden earlier attempt surfaced; prior uetr intact — the §16.6-6 named test).
 - **Manual validation:** scripted ingest-outage simulation: population NOT_FOUND → downgrades fire only where permitted.
 - **Expected outcome:** self-healing MAYBE machinery, livelock-free.
 - **Failure signs:** downgrade firing on a blocked_reason condition (must be gate-only).
@@ -180,8 +180,8 @@
 - **Task ID:** RC-08
 - **Title:** §9.3 escalation on the maybe_since clock: once per episode (escalated_at gate), non-CLAIMED writes, already-BLOCKED alert-only, tier-2 re-page
 - **Classification:** MVP normative implementation
-- **Purpose:** bounded human hand-off for unresolved MAYBE rows, early enough to act before cutoff; never a downgrade⇄escalate cycle.
-- **Prerequisites:** ST-07 (anchors + escalated_at contract), RC-07 (downgrade interplay), config (escalation age PO-3; tier-2; cutoff margin).
+- **Purpose:** bounded human hand-off for unresolved MAYBE rows, early enough to act while the payment still matters (age-based — round 10); never a downgrade⇄escalate cycle.
+- **Prerequisites:** ST-07 (anchors + escalated_at contract), RC-07 (downgrade interplay), config (escalation age PO-3; tier-2).
 - **Requirement sections / concepts to read:** §9.3 (whole), §2.2 (escalated_at), §13 (ESCALATED code), §16.6 (ordering validation).
 - **Placeholder components involved:** [Retry Resolver Job] family (scanner), [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** scanner infra; S-07 escalation index.
@@ -228,7 +228,7 @@
 - **Task ID:** RC-10
 - **Title:** Circuit breaker per dependency (business rejects = successes); scanner gating; structural attempt-budget safety across freeze/breaker windows
 - **Classification:** MVP normative implementation
-- **Purpose:** §16.1: an outage becomes quiet waiting; a 6-hour engine outage must not flood the ops queue at recovery. SIMPLIFIED by the 2026-07-11 retry-bounds decision (§7.4): retry limits are max attempts + cutoff — there is NO wall-clock deadline, so there is NO suspension mechanism to build; suspension is structural (gated scanners make zero attempts).
+- **Purpose:** §16.1: an outage becomes quiet waiting; a 6-hour engine outage must not flood the ops queue at recovery. SIMPLIFIED by the 2026-07-11 retry-bounds decision (§7.4; cutoff retired round 10 — engine owns the calendar): the retry limit is MAX ATTEMPTS — there is NO wall-clock deadline and NO cutoff, so there is NO suspension mechanism to build; suspension is structural (gated scanners make zero attempts).
 - **Prerequisites:** RC-04 (retry scanner), RC-09 (freeze state).
 - **Requirement sections / concepts to read:** §16.1 (breaker + clock semantics + bulkheads + timeouts), §7.4 (bounds decision), §16.6 (thresholds config).
 - **Placeholder components involved:** [Provider POST Client], [Retry Resolver Job], [Status Query Resolver], [Metrics / Alerting Layer].
@@ -253,7 +253,7 @@
 ## Phase handoff summary (P10 → P11)
 
 - **Phase outputs:** CA-1-driven fail-closed classifier; §7.2 tuple transitions (incl. collision branch on the claim-time flag); repost_permitted checked at BOTH ends; §7.4 retry scanner with structural outage safety + poison cap; §9.5 submission-keyed shaped resolver sweep; §9.1 outcome application via the shared helper; §9.2 trust-age + downgrade + SUBMITTED park; §9.3 once-per-episode tiered escalation; fail-safe Hazelcast freeze; per-dependency breakers.
-- **Blockers to carry forward:** PRODUCTION ENABLEMENT of the §9.2 auto-downgrade stays gated on P8 PASS + TL-5-derived trust age (rollout stage F4); §18-2 cutoff values needed for real cutoff config; TL-13 rate limit for the real sweep budget.
+- **Blockers to carry forward:** PRODUCTION ENABLEMENT of the §9.2 auto-downgrade stays gated on P8 PASS + TL-5-derived trust age (rollout stage F4); TL-13 rate limit for the real sweep budget (§18-2 CLOSED round 10 — engine owns the calendar).
 - **Local mapping rows expected filled:** [Retry Resolver Job], [Status Query Resolver] rows complete; stacked-retry removals recorded.
 - **Tests expected to exist:** classifier fixtures, §7.2 row tests, gate term-by-term + both-ends (T-23), zero-attempt outage rehearsals (part of T-32), sweep scope/budget tests, T-22 lifecycle set, escalation cycle-gate tests, freeze fail-safe tests.
 - **Next phase entry condition:** RC-10 done; phase report filed.

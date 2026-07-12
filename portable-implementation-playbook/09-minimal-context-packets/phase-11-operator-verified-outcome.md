@@ -52,14 +52,14 @@ Tests: digest binds the fetched document; purged id at initiation → clean refu
 Read: §20-10 (whole) §9.3 (consume-at-start + completion evidence) §6.1 (ADMISSION + fence + supersession) §6.4/§6.5/§6.8. Invariant: input = approval_id ONLY; digest re-verified → HARD refusal BEFORE consumption or locks (refusal burns nothing); CONSUMED committed ALONE before fan-out (crash = NEW approval, never resurrect); §6.1 admission entry (≥ relaxation iff == trade watermark ∧ digest differs; older refused even approved; admission update IS the application for reference-only ties); every block passes the trade-snapshot FENCE (overtaken → abandoned per block-level supersession, logged + counted); completed_at + per-block summary stamped after the last block (own tx); §15 consumed-without-completion alert + runbook; money guards unchanged; no caller-supplied ordering.
 Placeholders: [Operator Admin Procedure Area] [Obligation Repository] [Metrics / Alerting Layer]. Mappings: none beyond OP-04a/b.
 Objective: the non-waivable tie exit, crash-safe and never silent.
-Tests: T-33 reprocess core (digest mismatch pre-consumption; crash-after-consume → NEW approval; overtaken → fence abort + alert + stale re-approval refused; stamp-crash → false alert only; artifact-6(d)/(e); latch; purged id; re-run no-ops) + the T-36 approved-reprocess pointer-completion case. Stop: merged; SHAPE-PROC ticked.
+Tests: T-33 reprocess core (digest mismatch pre-consumption; crash-after-consume → NEW approval; overtaken → fence abort + alert + stale re-approval refused; stamp-crash → false alert only; artifact-6(d)/(e); latch; purged id; re-run no-ops). Stop: merged; SHAPE-PROC ticked.
 ```
 
 ```text
 [OP-04d] Queue views + authz/plan tests (round-9 pre-split 4/5)
 Read: §15 (queues) §12 (read semantics) §10.4; mechanics M8 SHAPE-READ. Invariant: READ-ONLY; artifact-4 ACTIVE-row-bounded indexes; never keyed on display labels or blocked_reason-as-rule; restricted role.
 Placeholders: [Obligation Repository] [Metrics / Alerting Layer]. Mappings: view deployment target.
-Objective: BLOCKED-by-reason (ESCALATED first) / stuck reservations / aged MAYBE (+cutoff proximity) / overpay latches + the §2.4 pointer-residue view; §15 alerts link to each.
+Objective: BLOCKED-by-reason (ESCALATED first) / stuck reservations / aged MAYBE / overpay latches (round 10: cutoff-proximity column + pointer-residue view both REMOVED); §15 alerts link to each.
 Tests: T-33 views subset — ranking, one-row-per-obligation (§12), EXPLAIN plans on terminal-heavy seed, unauthorized role refused. Stop: merged; SHAPE-READ ticked.
 ```
 

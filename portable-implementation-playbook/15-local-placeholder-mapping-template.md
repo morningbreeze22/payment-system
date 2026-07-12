@@ -42,6 +42,5 @@ BLOCKED.
 | PaymentNotificationConsumerService (documented service) | | | | | | front matter | | | UNMAPPED | |
 | Upstream trade-message consumer | | | | | | §6.0–6.9, §16.2 | | | UNMAPPED | |
 | Hazelcast posting-freeze toggle | | | | | | §16.1 | | | UNMAPPED | |
-| Cutoff calendar source | | | | | | §18-2, §16.4 | | | UNMAPPED | |
 | Legacy compound status enum | | | | | | §10.4, ST-05 | | | UNMAPPED | |
 

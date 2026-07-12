@@ -50,7 +50,6 @@ a status; every DONE row has a filed execution report (file 19).
 | 31 | S-06 | TODO | | | |
 | 32 | S-07 | TODO | | | |
 | 33 | S-08 | TODO | | | |
-| 33a | S-11 | TODO | | | (round 6: bootstrap + enablement gate — before S-09) |
 | 34 | S-09 | TODO | | | |
 | 35 | K-01 | TODO | | | |
 | 36 | K-02 | TODO | | | |

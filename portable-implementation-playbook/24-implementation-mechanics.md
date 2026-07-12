@@ -172,24 +172,13 @@ POSTING claim additions (§11 — the last gate before the wire), all in
 the claim transaction, committed BEFORE the HTTP call:
 
 - WHERE additionally carries `divergent_payload_at IS NULL`; code
-  re-checks the derived repost_permitted terms (§7.0: cutoff,
-  freeze, amount-vs-shortfall staleness for MAYBE rows).
-- ROUNDS 8–9 — pointer-presence term (flag-gated with §7.0
-  pointer-only enforcement; applies to EVERY claim that leads to
-  enrichment/assembly — ENRICH claims, POST claims, the §9.2
-  downgrade lane): the CLAIM TRANSACTION requires
-  `trade_snapshot_state.last_xml_storage_id IS NOT NULL` (§2.4
-  durable fact — NEVER a blocked_reason, never an error string).
-  ROUND 9 — the term is NOT in candidate selection: the scanner
-  must still SEE pointer-less due rows so its NO-WIRE pre-attempt
-  checks run — cutoff FIRST (a row past cutoff →
-  BLOCKED(CUTOFF_EXPIRED), no claim, no attempt increment, no
-  assembly, no wire); a pre-cutoff pointer-less row fails the
-  claim's pointer term and is skipped. A pointer-less request is
-  therefore never claimed: it rests at READY/RETRY_WAIT, zero
-  attempts, no provider call; the ordinary due scanner picks it up
-  with the SAME key once the pointer completes (structural
-  suspension — same principle as outage gating).
+  re-checks the derived repost_permitted terms (§7.0:
+  freeze, amount-vs-shortfall staleness for MAYBE rows — round 10:
+  no cutoff term, the engine owns the calendar).
+- (The rounds-8/9 pointer-presence claim-gate was REMOVED in
+  round 10 — §2.4 greenfield fact: every trade row is born from an
+  admitted message with its pointer populated, so a NULL pointer
+  is unreachable; git history at 9a53c75.)
 - Persist: identity (first claim — idempotency key §5.1),
   `last_sent_hash` of the freshly assembled instruction,
   `divergence_expected` (compare against the PRIOR hash BEFORE
@@ -244,7 +233,8 @@ SELECT id FROM payment_request
   (submission_state='SUBMITTED' AND submitted_at < :now - :confirmation_age))`
   — ANY stage, ANY stage_state, including BLOCKED. Never scope by
   stage or by how a row got somewhere (§9.5).
-- Retry bounds are max attempts + payment cutoff ONLY (§7.4,
+- The retry bound is MAX ATTEMPTS ONLY (round 10 — the engine
+  owns the cutoff calendar; §7.4,
   2026-07-11 decision) — retry_deadline_at is reserved/unused; wire
   no rule to it. While frozen / breaker OPEN, gated scanners make
   zero attempts, so the attempt budget is structurally safe — there
@@ -314,8 +304,8 @@ poll → for each record:
     completion boundary is compareTo == 0. JPY scale 0 / BHD scale 3
     must survive round-trips.
 3.  Time: every due/age comparison uses DATABASE time
-    (SYS_EXTRACT_UTC), never application-node time. Cutoffs are
-    tz-aware calendar values converted at comparison time (§16.4).
+    (SYS_EXTRACT_UTC), never application-node time. (No local
+    cutoff calendar exists — round 10, §7.4.)
 4.  Retries: durable retry state on the row is the ONLY retry owner
     per operation (§7.4/§16.1). No @Retryable, no resilience4j
     retry, no client-library retry on the payment POST. In-process
@@ -379,7 +369,7 @@ named exceptions) in the report (19). Rule 18 makes this mandatory.
 [ ] breaker-gated before claiming; jittered backoff
 [ ] DB time everywhere; AGE rules on set-once anchors
 [ ] freeze/breaker windows: zero attempts made (attempt budget
-    structurally safe); cutoff checked at attempt time, never
+    structurally safe); no cutoff exists to check (round 10), never
     suspended; nothing wired to retry_deadline_at
 [ ] poison-row cap → BLOCKED + alert (no infinite loop)
 [ ] heartbeat metric exported; overrun behavior defined (no overlap)

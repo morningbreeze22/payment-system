@@ -83,6 +83,15 @@ FORBIDDEN = [
     ("unqualified 'two approvers' as a signature/input (round 8: approval_id only)",
      re.compile(r"two approvers", re.I),
      re.compile(r"derived|record|approval_id|lint", re.I)),
+    ("PO-9 phrased as still open (round 10: answered — absence = amendment to zero)",
+     re.compile(r"PO-9 (?:is |remains |stays |unanswered|open\b)|absence is a no-op|absence = a? ?NO-OP|INTERIM (?:until PO-9|absence)|PO-9 interim|until PO-9 is answered", re.I),
+     re.compile(r"answered|amended|lint|was\b", re.I)),
+    ("local cutoff machinery (round 10: the engine owns its calendar)",
+     re.compile(r"cutoff calendar|cutoff pre-?check|cutoff term|cutoff margin|cutoff config|before (?:the )?cutoff|past the payment cutoff|cutoff proximity|cutoff-blocked", re.I),
+     re.compile(r"retired|closed|engine|owns|lint|history|round 10|no cutoff|no local", re.I)),
+    ("retired bootstrap/pointer machinery (round 10: greenfield)",
+     re.compile(r"BOOTSTRAP_INCOMPLETE|bootstrap-incomplete|digest-NULL|pointer-residue|pointer[ -]coverage|\bS-11\b", re.I),
+     re.compile(r"retired|removed|greenfield|lint|history|cannot exist|unreachable", re.I)),
     ("retired deadline/budget suspension model (round 3)",
      re.compile(r"deadline suspension|deadlines?\s+(?:are\s+)?suspend(?:ed|s)?\b|budgets?\s+(?:are\s+)?(?:suspended|frozen)\b|suspends the (?:retry )?budget", re.I),
      re.compile(r"had no durable|nothing to|nothing needs|never suspend|zero attempts|no wall-clock|REMOVED|lint", re.I)),
@@ -156,7 +165,7 @@ for ghost in sorted(tracker_n - card_n):
     errors.append(f"{rel(tracker)}: tracker row {ghost} has no task card")
 
 # ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
-P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-11, S-09"
+P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"
 if P3_ORDER not in seq_text:
     errors.append(f"{rel(seq)}: canonical P3 order not stated verbatim ({P3_ORDER})")
 

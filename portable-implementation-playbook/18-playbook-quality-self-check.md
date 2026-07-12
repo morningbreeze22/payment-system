@@ -73,8 +73,8 @@
     ask/item appears in the K register; (g) no "enforced by the
     procedure" dual-control phrasing (round 3: operation + §9.3
     approval workflow); (h) no deadline/budget-suspension language
-    (round 3: bounds = attempts + cutoff; gated scanners make zero
-    attempts). The monolithic
+    (round 3, cutoff retired round 10: bound = max attempts; gated
+    scanners make zero attempts). The monolithic
     implementation-playbook.md is an ARCHIVED SNAPSHOT and is
     exempt (never edited, never loaded for execution).
 ```

@@ -83,10 +83,10 @@ Confirmed contract facts this design relies on:
   tuple MEANS the same payment (that identity IS the contract — it is
   how amendments are recognized). Written upstream confirmation of
   the snapshot schema and the uniqueness guarantee is tracked as §18
-  upstream ask 5. One consequence remains OPEN: absence semantics
-  (PO-9, §18 — interacts with BA-2). The snapshot ordering-watermark
-  rule (TL-16) was ANSWERED 2026-07-11 round 5: trade-level
-  admission (§6.1, §2.4).
+  upstream ask 5. Both consequences are now ANSWERED: absence
+  semantics (PO-9, 2026-07-11 — absence = amendment to zero, BA-2
+  amended §1.1) and the snapshot ordering-watermark rule (TL-16,
+  round 5 — trade-level admission §6.1/§2.4).
 ```
 
 Assumed contract facts — the design ASSUMES these are true and
@@ -123,19 +123,22 @@ BA-1 Scope-key mutability is agreed business behavior, not a
      scope's request already executed. No scope-migration mechanism,
      no upstream immutability ask, and no cross-scope detector is
      required.
-BA-2 Upstream CANNOT cancel a payment. No cancellation signal
-     exists or is planned: intake keeps rejecting zero/absent
-     amounts, and a trade cancelled upstream after the payment step
-     started still pays; recovery for an executed payment is a
-     platform-side recall (§19.2 family). Accepted by the PO. PO-5
-     (§18) remains purely a DISPLAY question.
-     Snapshot-model interaction (§1 contract facts): a payment
-     ABSENT from a newer snapshot is a candidate cancellation
-     signal. Whether absence means "cancelled" (for provably-unsent
-     payments only) is PO-9 (§18): a deliberate BA-2 amendment
-     question, routed to the BA owner. Until the PO answers,
-     absence is treated as NO-OP (BA-2 stands unamended) — see
-     §6.1.
+BA-2 (AMENDED 2026-07-11 by the PO's PO-9 answer) Upstream's ONE
+     cancellation signal is ABSENCE FROM A NEWER SNAPSHOT: a
+     payment absent from a newer admitted snapshot NO LONGER
+     EXISTS — treated as an amendment to ZERO (§6.1/§6.3), which
+     the existing machinery resolves with no new rules:
+     provably-unsent active request → §6.4 auto-cancel +
+     reservation release; in-flight/MAYBE → wait-then-decide (§6.4
+     — posted requests are never auto-amended) until the outcome
+     is known; payment already CONFIRMED → confirmed > required(0)
+     → the §6.5/§13 OVERPAY LATCH fires naturally — WE STOP (PO:
+     "same as overpay"): trade ignored, alert, annotation only, no
+     clawback; recovery for an executed payment remains a
+     platform-side recall (§19.2 family). No OTHER cancellation
+     signal exists or is planned: intake keeps rejecting
+     zero/absent amounts. PO-5 (§18) remains purely a DISPLAY
+     question.
 BA-3 Message-ordering correctness is upstream's
      responsibility. The system trusts the ordering value as
      delivered (§6.7): a genuinely-newer amendment carrying an
@@ -314,7 +317,10 @@ payment_obligation_id
 amount              — IMMUTABLE after creation (§6.3)
 blocked_reason      — set iff stage_state = BLOCKED (§13 codes:
                       RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH,
-                      CUTOFF_EXPIRED, ENGINE_INCONSISTENCY,
+                      CUTOFF_EXPIRED (RESERVED round 10 — never
+                      produced; the engine owns the calendar, §7.4;
+                      kept to avoid CHECK churn),
+                      ENGINE_INCONSISTENCY,
                       AMENDMENT_PARKED, OPS_PARKED, ESCALATED —
                       ESCALATED is the §9.3 max-age escalation of a
                       MAYBE_SUBMITTED row, kept distinct from
@@ -330,7 +336,8 @@ claim fields        — claimed_by, claim_expires_at
 retry fields        — attempt_count, next_retry_at, last_error_code
                       (retry_deadline_at exists but is RESERVED/
                       unused — the 2026-07-11 bounds decision, §7.4:
-                      attempts + cutoff are the retry limits)
+                      MAX ATTEMPTS is the retry limit; the engine
+                      owns the cutoff calendar)
 resolver fields     — next_query_at (per-row query backoff, §9.5). NO consecutive-answer counter exists
                       (a column whose only job is answer
                       validation was rejected as over-design — the
@@ -517,93 +524,33 @@ rule as upstream_ordering). This table is payment data (§16.5 schema
 contract) — it is NOT the §9.3 ops-schema approval store, which
 remains a separate, sanctioned, non-payment store.
 
-BOOTSTRAP (round 6 — this table is deployed into a system with
-EXISTING trades, and a missing row would read as "first contact",
-reopening the exact stale-creation hole the table closes):
+GREENFIELD FACT (PO, 2026-07-11 — supersedes the round-6..9
+bootstrap/pointer machinery): this flow is a NEW FEATURE — no
+pre-existing trades or obligations exist at cutover, and any
+received message is by definition a new trade or an amendment
+to one this flow itself created. Consequences:
 
 ```text
-- Before admission ENFORCEMENT is enabled, a bootstrap job
-  initializes one row per existing business_id:
-  last_accepted_ordering := MAX(upstream_ordering) over the
-  trade's obligations (quiet window, consistent read);
-  last_xml_storage_id and last_payload_digest stay NULL — a
-  NULL digest IS the bootstrap-incomplete marker (no extra
-  column).
-- BOOTSTRAP-INCOMPLETE row semantics (digest IS NULL): OLDER
-  documents are refused exactly as normal; an EQUAL-ordering
-  document CANNOT be proven a redelivery (no digest to compare)
-  → FAIL CLOSED into the §6.7 tie-conflict path (human
-  adjudicates; the adjudicated reprocess installs the full row);
-  a STRICTLY NEWER valid document replaces the row with complete
-  id + digest — bootstrap completes organically.
-- MIXED-VERSION rule (Section M): an application version that
-  does not maintain this row must NEVER process upstream
-  snapshots while admission enforcement is on. Enablement order:
-  deploy additive schema → run bootstrap → drain old consumers →
-  verify coverage (every active business_id has a row; shadow
-  metric compares the proposed trade watermark against
-  per-obligation watermarks) → enable enforcement. Enabling the
-  gate is a ROLLOUT POINT OF NO RETURN: rolling back to a
-  non-maintaining version invalidates the table — re-enabling
-  later requires re-running bootstrap + coverage.
-- POINTER COMPLETENESS (round 7 — §7.0 makes last_xml_storage_id
-  the ONLY instruction-assembly source, so a watermark-only row
-  is not enough for a trade that can still reach the wire):
-    · TRANSITIONAL ASSEMBLY (flag-gated, expand/contract): until
-      a trade's pointer is complete, instruction assembly uses
-      the LEGACY pre-migration enrichment source its requests
-      were built on — the §7.0 pointer-only rule is ENFORCED
-      only where its data exists; nothing wedges at cutover.
-    · FAIL-CLOSED BACKSTOP (REDESIGNED round 8 — the round-7
-      BLOCKED(new-reason) form violated two of this design's own
-      axioms: the §2.2 blocked_reason enum is CLOSED behind a
-      CHECK, and NO rule may key on blocked_reason §10.1, so
-      recovery would have been illegal): pointer absence is a
-      STRUCTURAL CLAIM GATE, not a state. Under §7.0
-      enforcement, every claim that leads to enrichment/assembly
-      (ENRICH claims, POST claims, the §9.2 downgrade lane)
-      carries the term `trade_snapshot_state.last_xml_storage_id
-      IS NOT NULL` in the CLAIM TRANSACTION ONLY (round 9 — NOT
-      in candidate selection: excluding pointer-less rows from
-      the scanner's candidate query made the ordinary cutoff
-      transition unreachable). The scanner still SEES a
-      pointer-less due row each cycle and runs its NO-WIRE
-      pre-attempt checks first — a row past its payment cutoff
-      transitions to BLOCKED(CUTOFF_EXPIRED) ordinarily, with no
-      claim, no attempt increment, no assembly, no provider
-      call; a pre-cutoff row simply fails the claim's pointer
-      term and is skipped (rowCount-0 discipline, §4). So a
-      pointer-less request rests at its ordinary
-      READY/RETRY_WAIT, ZERO attempts consumed, no provider
-      call, no budget spent (the same structural-suspension
-      principle as outage gating §7.4/§16.1). No new
-      blocked_reason, no new column. RECOVERY IS AUTOMATIC and
-      keys on the durable fact, never a label: when the pointer
-      completes (next admitted message, adjudicated reprocess,
-      ask-9 export, or restore repair), the ordinary due scanner
-      claims the SAME request with the SAME idempotency key —
-      repost_permitted and all §7.0 gates re-run before any
-      POST. OBSERVABILITY: the §15 alert and queue view derive
-      from the fact (wire-capable trade ∧ pointer NULL); the
-      card's exception display may SHOW the label
-      SNAPSHOT_POINTER_MISSING as a DERIVED §10.4-class display
-      only — never stored, never a rule input.
-    · GO-LIVE GATE (Q5 evidence): zero NULL-pointer rows among
-      WIRE-CAPABLE trades (any active request) before the legacy
-      assembly path is removed; each residual individually
-      dispositioned by ops. Row coverage alone is NOT the gate —
-      POINTER coverage is.
-    · Optional accelerator: upstream ask 9 — a one-time
-      current-snapshot-id export per business_id to complete
-      rows up front. An accelerator, never a dependency.
+- trade_snapshot_state legitimately starts EMPTY; every row is
+  created by its trade's FIRST ADMITTED message WITH storage id
+  and digest populated. A NULL digest/pointer row CANNOT exist.
+- Considered and REMOVED (drivers gone with the greenfield
+  fact; retained in git history at commit 9a53c75 — restore
+  ONLY if a future deployment inherits pre-existing trades):
+  the S-11 bootstrap job (retired) + digest-NULL semantics (retired),
+  the transitional legacy-assembly flag (retired), the
+  pointer-presence claim-gate term (retired), the pointer-coverage
+  gate + pointer-residue alert/view (both retired), and upstream
+  ask 9 (WITHDRAWN — nothing to export).
+- Mixed-version note (Section M): no prior application version
+  consumes these snapshots, so admission enforcement is ON
+  from day one — there is no drain step and no second point
+  of no return.
 - Archival (TL-14): the trade row archives WITH its trade.
-- §5.2 restore note (corrected round 7): post-restore the row is
-  stale like all rows; replay converges trades WITH messages in
-  the retention window; a quiet active trade whose source
-  message is OUTSIDE retention falls back to the same
-  pointer-completeness ladder above (bootstrap job as repair
-  tool → watermark-only row → transitional/fail-closed assembly
-  rules apply).
+- §5.2 restore note: post-restore the row is stale like all
+  rows (never NULL — pointers reference the immutable store);
+  replay converges it, and a conservative row remains
+  re-derivable from obligations if ever needed.
 ```
 
 ------
@@ -829,8 +776,7 @@ actor := outcome set                          → nobody (terminal)
          SUBMITTED, active, older than
            confirmation age                   → resolver sweep (§9.5)
          stage_state = BLOCKED                → ops (§20)
-         stage_state = RETRY_WAIT, due,
-           cutoff not passed                  → retry scanner (§7.4)
+         stage_state = RETRY_WAIT, due       → retry scanner (§7.4)
          stage_state = READY                  → the stage's worker
          stage_state = CLAIMED                → nobody (lease rules §11)
 ```
@@ -1168,8 +1114,8 @@ BEFORE any per-block work, in its own transaction):
    live intake; rebalance-zombie consumers).
 5. BLOCK-LEVEL SUPERSESSION — the explicit business rule
    (round 7, replacing an INCORRECT round-6 sequential-
-   equivalence claim; ratified by the design owner 2026-07-11,
-   PO ratification rides PO-9): a strictly newer ADMITTED
+   equivalence claim; ratified by the design owner 2026-07-11;
+   PO RATIFIED with the PO-9 answer, same day): a strictly newer ADMITTED
    snapshot supersedes the UNAPPLIED remainder of an older
    fan-out; obligations the older fan-out already created remain
    and are governed by BA-2 and the PO-9 absence semantics. This
@@ -1222,15 +1168,21 @@ concurrent first messages can race the obligation insert; the
 scope-key unique constraint is the backstop — on `ORA-00001`, retry
 the transaction and re-read.
 
-OPEN — absence semantics (PO-9, §18): a payment that exists as an
-obligation but is ABSENT from a newer snapshot. Candidate meaning
-under overwrite semantics: "this payment no longer exists" →
-amendment to zero → §6.4 auto-cancel if provably unsent,
-wait-then-decide if it may have been sent. But BA-2 (§1.1) currently
-records that NO cancellation signal exists — answering "absence =
-cancel" amends BA-2 and is therefore the PO's call, not a default.
-INTERIM (until PO-9 is answered): absence is a NO-OP — the absent
-payment's obligation is left untouched.
+RESOLVED — absence semantics (PO-9, ANSWERED by the PO 2026-07-11;
+BA-2 amended accordingly, §1.1): a payment that exists as an
+obligation but is ABSENT from a newer ADMITTED snapshot no longer
+exists — ABSENCE = AMENDMENT TO ZERO. After the per-block fan-out,
+the same worker enumerates the trade's obligations NOT carried by
+the document and, per obligation (own transaction, trade-snapshot
+fence + obligation lock, ordinary strictly-newer guard against
+doc.ordering), sets required_amount := 0 and advances
+upstream_ordering. Everything downstream is EXISTING machinery:
+unsent active request → §6.4 auto-cancel + release; in-flight →
+wait-then-decide (§6.4); confirmed > 0 → the §6.5/§13 overpay
+latch — STOP (the PO's "same as overpay"). §6.6 anchor scopes
+(never applied a valid message) are NOT zeroed by absence — their
+marker lifecycle governs (a malformed trade's scopes must not be
+cancelled by the next valid snapshot that predates their fix).
 
 RESOLVED — snapshot ordering-watermark rule (TL-16, §18; ANSWERED
 2026-07-11 round 5): the trade-level ADMISSION gate above is the
@@ -1240,7 +1192,9 @@ convergence/re-run guard only. Both TL-16 failure traces close at
 admission: a delayed older snapshot is refused WHOLE, so it can
 neither apply stale amounts to an existing absent-from-newer
 obligation NOR create a never-seen scope (the sharper round-5 trace).
-PO-9 (absence semantics) remains open and is unchanged by this.
+(PO-9 was answered 2026-07-11 — see the RESOLVED block above; the
+absence-cancel answer additionally terminalizes absent obligations,
+shrinking the old TL-16 window exactly as predicted.)
 
 ### 6.2 Zero shortfall
 
@@ -1677,20 +1631,11 @@ unspecified):
   enrichment steps against it (account mappings and party addresses
   change; nothing about the instruction is cached on payment rows).
   The trade reference is deliberately NOT an obligation column.
-  TRANSITION (round 7, backstop REDESIGNED round 8 — §2.4 pointer
-  completeness): while a bootstrap row's pointer is NULL, assembly
-  uses the flag-gated LEGACY enrichment source; once pointer-only
-  enforcement is on, a pointer-less request is STRUCTURALLY
-  UNCLAIMABLE — the CLAIM TRANSACTION carries the pointer-presence
-  term (a durable-fact condition, §2.4; never a blocked_reason;
-  round 9: the term lives in the claim ONLY — candidate selection
-  still surfaces the row so the scanner's no-wire pre-attempt
-  checks, cutoff first among them, keep running), so it rests at
-  READY/RETRY_WAIT with zero attempts and no provider call until
-  the pointer completes; then the ordinary due scanner claims the
-  SAME request with the SAME key, re-running repost_permitted
-  first. Never an accidental NULL fetch, never a new BLOCKED
-  reason.
+  GREENFIELD (round 10 — PO fact, §2.4): this flow starts with no
+  pre-existing trades, so every obligation's trade row was created
+  by an admitted message with the pointer populated — a NULL
+  pointer is unreachable and the former transitional/claim-gate
+  ladder is REMOVED (git history, 9a53c75).
 - The claim transaction persists the identity (§5.1, first claim) and
   the hash of the assembled instruction (last_sent_hash, §2.2,
   every claim) BEFORE the HTTP call.
@@ -1723,13 +1668,19 @@ repost_permitted — the single normative re-POST gate:
 ```text
 repost_permitted(request) =
       divergent_payload_at IS NULL      (stored, write-once — §7.2)
-  AND now < payment cutoff              (derived — §7.4 calendar)
   AND NOT (request amount stale against the current shortfall
            AND submission_state = MAYBE_SUBMITTED)
                                         (derived — §6.4 retry-guard /
                                          wait-then-decide)
   AND the posting freeze is OFF         (Hazelcast — §16.1)
   AND outcome IS NULL                   (terminal rows: never)
+
+(The former cutoff term was RETIRED 2026-07-11 — PO calendar
+answer, §7.4: the engine owns its calendar, initiation is valid at
+any time; a late submission is the engine's ordinary business
+response, classified per CA-1. The §18-1(c) TTL contingency may
+ADD a key-age term here — recorded as a named design decision by
+the design owner BEFORE RC-03 implements it, never by a card.)
 ```
 
 Checked at BOTH ends (defense in depth):
@@ -1871,22 +1822,26 @@ so terminal-negative outcomes are unrestricted here (§10.1).
 
 ### 7.4 Retry policy
 
-Retry exhaustion (bounds decided 2026-07-11 — max attempts + the
-payment cutoff are THE retry limits; the independent wall-clock
-retry deadline is REMOVED from the rules because its §16.1
-suspension requirement had no durable implementation — instance-local
-breakers, absolute timestamps, no outage-history storage): when a
+Retry exhaustion (bounds decided 2026-07-11; REVISED same day by
+the PO's calendar answer — the PAYMENT ENGINE owns its own cutoff
+calendar, this system may initiate at ANY time, so the local cutoff
+ceased to be a rule input: MAX ATTEMPTS is THE retry limit; the
+independent wall-clock retry deadline was already REMOVED — its
+§16.1 suspension requirement had no durable implementation): when a
 retryable failure hits its max attempts, the request goes
 stage_state = BLOCKED (RETRY_EXHAUSTED); the derived exception
-becomes non-retryable with `manual_action_required = true`. The
-cutoff check runs BEFORE each attempt; cutoff violation blocks with
-reason CUTOFF_EXPIRED. This makes suspension STRUCTURAL: a gated or
-frozen scanner makes zero attempts, so the attempt budget cannot
-burn during an outage, and the cutoff deliberately never suspends
-(external business truth).
+becomes non-retryable with `manual_action_required = true`.
+Suspension is STRUCTURAL: a gated or frozen scanner makes zero
+attempts, so the attempt budget cannot burn during an outage. A
+submission the engine deems late under ITS calendar comes back as
+an ordinary engine response and is classified per CA-1 — no local
+calendar, no local cutoff gate, no special handling. CUTOFF_EXPIRED
+remains in the blocked_reason enum as RESERVED/never produced (the
+RESERVED-column retry_deadline_at precedent — no schema churn); the retired local
+calendar machinery is retained only in git history.
 
 Retry policy is explicit per error class (base interval, multiplier,
-max attempts, cutoff), lives in externalized config (§16.6); retry
+max attempts), lives in externalized config (§16.6); retry
 *state* (`attempt_count`, `next_retry_at`, `last_error_code`) lives
 on the request row (`retry_deadline_at` remains as a RESERVED,
 unused column — kept to avoid schema churn after the 2026-07-11
@@ -2070,7 +2025,7 @@ status/stage):
     downgrade policy class (L7 is satisfied by this explicit write);
     submission_state REMAINS MAYBE_SUBMITTED; blocked_reason cleared.
   Rows failing repost_permitted — divergent payload (§7.2 key
-  collision), past the payment cutoff, or a stale amount on a MAYBE
+  collision) or a stale amount on a MAYBE
   row (amendment-parked, §6.4) — are NOT downgraded: they resolve
   via status query, authoritative feed evidence, or ops
   (wait-then-decide), with §9.3 escalation on the maybe_since clock
@@ -2095,9 +2050,14 @@ status/stage):
   reject → NOT_SUBMITTED; DUPLICATE_REQUEST → MAYBE_SUBMITTED +
   query (§7.2: a hidden earlier attempt surfaced); timeout →
   MAYBE_SUBMITTED again.
-- Cutoff guard: the pre-attempt cutoff check (§7.4) blocks the
-  re-POST of an aged request that only looks NOT_FOUND because it
-  fell out of the engine's query lookback window.
+- Lookback aging (REVISED round 10 — the local cutoff was retired
+  with the PO's calendar answer, §7.4): a request that only looks
+  NOT_FOUND because it aged past the engine's query lookback has
+  NO local calendar guard anymore; its safety is carried by the §1
+  assumed collision contract AT THE RETENTION EDGE — §18-1(c)
+  proves TTL ≥ max row lifetime, or repost_permitted gains the
+  named TTL term (decision hygiene, §18-1(c)) and such aged rows
+  become ops-only.
 ```
 
 Why the auto-downgrade exists at all (recorded): a query answer
@@ -2134,7 +2094,8 @@ If a MAYBE_SUBMITTED row is unresolved within a bounded age —
 measured on maybe_since (§2.2), NEVER on state_changed_at, which
 dimension churn resets — set stage_state = BLOCKED
 (blocked_reason = ESCALATED, §2.2) with a CRITICAL alert, early
-enough for ops to act before the payment cutoff. The STATE WRITE is
+early enough for ops to act while the payment still matters
+(age-based — the engine owns the cutoff calendar, §7.4). The STATE WRITE is
 gated twice: only if escalated_at IS NULL (set it in the same
 transaction — escalation fires ONCE per MAYBE episode; without this
 gate, a §9.2 downgrade un-parking an ESCALATED row against an
@@ -2359,7 +2320,8 @@ stage_state, or how a row got where it is:
 ```
 
 Sweep load shaping (normative): the sweep queries in BOUNDED,
-prioritized batches — nearest payment cutoff first, then oldest
+prioritized batches — oldest first (round 10: no local cutoff
+knowledge exists; the engine owns the calendar)
 maybe_since — under a per-sweep query budget derived from the
 engine's stated query-API rate limit (§18 tech-lead ask; that number
 is as load-bearing as the ingest lag). Each row carries its own
@@ -2485,7 +2447,7 @@ SUPERSEDED — automated or manual) is PERMITTED only when:
     OR the transition is driven by an authoritative engine negative
        (status-feed reject, resolver REJECTED)
     OR it is executed by the §9.3 apply-platform-verified-outcome
-       procedure (platform-records evidence, dual-control — the
+       operation (platform-records evidence, dual-control — the
        single sanctioned manual path; §9.4, §10.3).
 Releasing a reservation whose money may have moved is forbidden (§9.4).
 ```
@@ -2495,7 +2457,7 @@ blocked_reason rule (mirrors the §10.4 display-label rule, one
 layer down): blocked_reason is DESCRIPTIVE ONLY — queue label, alert
 routing, ops display. NO rule may key on it. Every load-bearing
 re-POST exemption lives in repost_permitted (§7.0), on durable or
-derived facts (divergent_payload_at, cutoff, amount staleness,
+derived facts (divergent_payload_at, amount staleness,
 outcome) — so overwriting or clearing a reason can never launder a
 safety rule. Automation never overwrites the reason of an
 already-BLOCKED row (§9.3: escalation alerts without touching parked
@@ -2544,7 +2506,7 @@ stage_state  READY → CLAIMED    worker claim (lease, §11)
              CLAIMED → (via stage/submission change) per §7.2
              RETRY_WAIT → CLAIMED  scanner claim when due; the claim
                                 checks repost_permitted (§7.0 —
-                                cutoff, retry-guard §6.4, divergent
+                                retry-guard §6.4, divergent
                                 payload, freeze)
              any → BLOCKED      fail-closed events, exhaustion,
                                 amendment-park, escalation, anomaly
@@ -2688,7 +2650,7 @@ apply):
 | Resolver NOT_FOUND after trust-age, MAYBE row (incl. BLOCKED), repost_permitted §7.0 passes (safety = the §1 assumed collision contract; proven before go-live, §18 item 1) | any·any·MAYBE → POST·RETRY_WAIT·MAYBE (sanctioned backward move; next_retry_at = now, attempt_count reset per §7.4 downgrade class; blocked_reason cleared). repost_permitted failing → row stays parked, wait-then-decide | — |
 | NOT_FOUND-for-SUBMITTED after trust-age | CONFIRM·READY·SUBMITTED → CONFIRM·BLOCKED(ENGINE_INCONSISTENCY); stays in resolver scope (a lag-caused false park self-heals) | — |
 | MAYBE escalation (max age on maybe_since, §9.3; once per episode: escalated_at IS NULL) | non-BLOCKED·non-CLAIMED·MAYBE → same stage·BLOCKED(ESCALATED), escalated_at set; already-BLOCKED or CLAIMED rows: alert only, state write deferred/skipped; resolver continues | — |
-| Retry exhaustion / cutoff | POST·RETRY_WAIT → POST·BLOCKED(RETRY_EXHAUSTED / CUTOFF_EXPIRED) | — |
+| Retry exhaustion | POST·RETRY_WAIT → POST·BLOCKED(RETRY_EXHAUSTED) (CUTOFF_EXPIRED: RESERVED, round 10) | — |
 | Auto-cancel (§6.4) | ENRICH·any / POST·(READY,RETRY_WAIT) · NOT_SUBMITTED, not BLOCKED → O=CANCELLED | −committed |
 | Amendment-down vs MAYBE row, ANY stage incl. CONFIRM (§6.4 row-count 0) | → same·BLOCKED(AMENDMENT_PARKED) + alert; wait-then-decide — no auto-downgrade while the amount is stale (§7.0) | — |
 | Ops retry (NOT_SUBMITTED rows; POST-stage exits gated by repost_permitted §7.0, next_retry_at set per policy — L7) | any·BLOCKED·NOT → SAME-stage·RETRY_WAIT (an ENRICH-blocked row re-enriches; it never skips to POST with unresolved data) | — |
@@ -2975,7 +2937,7 @@ never on blocked_reason as a rule input (§10.1).
 - Drift scanner mismatches (I1/I2, L9)         → page
 - Stuck reservation age (active request, no
   progress)                                    → alert
-- Oldest MAYBE_SUBMITTED age (maybe_since)     → alert before cutoff
+- Oldest MAYBE_SUBMITTED age (maybe_since)     → alert (age threshold)
 - MAYBE_SUBMITTED past tier-2 age (maybe_since,
   §9.3)                                     → re-page / incident
 - BLOCKED count and age (by blocked_reason)    → ops queue metric
@@ -3004,15 +2966,6 @@ never on blocked_reason as a rule input (§10.1).
                                                  newest-wins
                                                  abandonment —
                                                  runbook decides)
-- Wire-capable trade with NULL snapshot
-  pointer (§2.4 pointer completeness — a
-  DERIVED-fact alert: active request ∧
-  trade_snapshot_state pointer IS NULL;
-  round 8: never a blocked_reason)             → alert (bootstrap
-                                                 residue; requests
-                                                 rest unclaimed
-                                                 until the pointer
-                                                 completes)
 - AMENDMENT_ON_LATCHED_SCOPE (§6.5)            → alert (manual
                                                  handling)
 - Money-truth divergence found (§19.2 policy)  → CRITICAL incident
@@ -3148,7 +3101,8 @@ so one id greps the whole story.
   while posting is frozen, and consumption must never be stopped.
 - Freeze/outage clock semantics (simplified by the 2026-07-11 retry
   bounds decision, §7.4): retry limits are max attempts + the
-  payment cutoff — there is NO wall-clock retry deadline, so there
+  attempt budget (round 10: max attempts only — the engine
+  owns the cutoff calendar) — there is NO wall-clock retry deadline, so there
   is nothing to "suspend" and no outage bookkeeping to persist.
   While posting is frozen or a breaker is OPEN, gated scanners make
   zero attempts, so the attempt budget structurally cannot burn —
@@ -3224,8 +3178,8 @@ so one id greps the whole story.
   engine settles all-or-nothing; any mismatch is a defect signal →
   BLOCKED (AMOUNT_MISMATCH) + CRITICAL alert (§8).
 - All timestamps UTC; every due-time comparison uses database time,
-  never application-node time. EXCEPTION: payment cutoffs are
-  local-market business times. The cutoff calendar (§7.4, §18
+  never application-node time. (The former local-cutoff timezone
+  exception is RETIRED — round 10, the engine owns its calendar (§7.4, §18
   BLOCKING item) represents them timezone-aware — local time + zone
   id, DST-correct, per currency/market including holidays —
   converted to UTC at comparison time, never stored as fixed UTC
@@ -3287,13 +3241,13 @@ MAYBE escalation max age       §9.3   suggested 30m (§18 PO-3);
                                       keyed on maybe_since
 MAYBE tier-2 escalation age    §9.3   re-page/incident threshold
 downgrade retry class          §7.4   next_retry_at = now, max
-                                      attempts 2–3, deadline =
-                                      payment cutoff
+                                      attempts 2–3 (no deadline —
+                                      attempts only, round 10)
 validation reject alert count  §2.1   suggest 3 (alert only,
                                       no gate)
 status-query cadence           §9     suggested 2m (§18 PO-2)
 claim lease durations          §11    per stage
-retry policy per error class   §7.4   base, multiplier, max, cutoff
+retry policy per error class   §7.4   base, multiplier, max
 anchor / live-marker max age   §15    alert threshold
 stale-message volume threshold §6.7   alert threshold
 stale-marker-write volume      §6.9   alert threshold
@@ -3307,11 +3261,6 @@ inbox purge retention          §2.3   > kafka retention ≥ replay
                                       window (§16.2 owner)
 log retention                  §14    ≥ floor
 max.poll.interval.ms           §16.2
-cutoff calendar                §7.4   BLOCKING open item §18-2:
-                                      source, owner, per-currency/
-                                      market + holidays, tz-aware
-                                      (§16.4), refresh cadence,
-                                      stale-calendar fail direction
 resolver sweep query budget    §9.5   from the engine query-API rate
                                       limit (§18 tech-lead ask)
 per-row query backoff          §9.5   next-query-at schedule
@@ -3319,11 +3268,6 @@ feed-lag damping threshold     §9.5   = confirmation age
 provider_reference match
   recency window               §8     fail-closed fallback
 freeze propagation bound       §16.1  cluster-wide flip latency
-escalation cutoff margin       §9.3   escalation must land this far
-                                      before the payment cutoff
-                                      (names the "cutoff
-                                      margin" term the ordering
-                                      validation below checks)
 DR key-enumeration stop count  §5.2   FALLBACK only: the
                                       step-5b bound is log-derived;
                                       K consecutive NOT_FOUNDs
@@ -3334,8 +3278,9 @@ DR key-enumeration stop count  §5.2   FALLBACK only: the
 
 Config-load validation: the loader REJECTS a configuration set
 whose ordering is inconsistent —
-`trust_age + query cadence < escalation age < tier-2 age
-< cutoff margin`. Nothing else orders these values; a p99-driven
+`trust_age + query cadence < escalation age < tier-2 age`
+(the former cutoff-margin ceiling is RETIRED — round 10). Nothing
+else orders these values; a p99-driven
 trust-age quietly reaching the escalation age would silently degrade
 wait-then-decide into everything-goes-to-ops.
 
@@ -3394,7 +3339,9 @@ tests point at them):
    lock (round 4 — never merely "inside the ordering guard");
    plus the §20-10 mixed-snapshot per-block set: one changed tied
    block + one identical tied block + one new block + one
-   already-newer obligation + one absent obligation +
+   already-newer obligation + one absent obligation (round 10:
+   asserts the PO-9 amendment-to-zero consequences — cancel /
+   wait / latch) +
    trade-reference-only difference (round 5: converges via the
    admission update — re-run digest-equal, no-op) +
    crash-mid-reprocess re-run under a NEW approval (round 5:
@@ -3419,9 +3366,8 @@ tests point at them):
    fence and creates nothing (abandoned blocks logged + counted,
    round 7); kill the paused worker — redelivery/alert
    recovers; zombie consumer re-applying an already-converged
-   document → all no-ops; bootstrap set: digest-NULL row refuses
-   older, fails equal-order CLOSED into the tie path, and is
-   completed by the first strictly-newer document.
+   document → all no-ops. (The former bootstrap/digest-NULL set was REMOVED round 10 —
+   greenfield fact, §2.4.)
 7. Runbook stubs, one per §15 alert; the §5.2 restore runbook; the
    unqueryable aged MAYBE row (past the engine lookback — §9.3): platform-side lookup → TL-10 rejection or the
    apply-platform-verified-outcome operation.
@@ -3529,10 +3475,9 @@ payment platform
         this contract.
      b. The within-snapshot uniqueness intake validation (§6.0)
         implemented — the runtime-checkable half.
-     c. PO-9 (absence semantics — amends BA-2) answered — it shapes
-        §6.1's fan-out behavior. (TL-16 was ANSWERED 2026-07-11
-        round 5: the §6.1 trade-level admission gate + §2.4; no
-        longer blocking.)
+     c. CLOSED 2026-07-11: PO-9 ANSWERED (absence = amendment to
+        zero; BA-2 amended §1.1) and TL-16 ANSWERED round 5 (§6.1
+        admission + §2.4). Nothing in 0(c) remains open.
      d. Upstream ask 8 IN WRITING (added round 4 — elevated from
         the ask list because intake itself fetches by id and the
         NON-WAIVABLE reprocess-snapshot operation depends on it):
@@ -3571,14 +3516,15 @@ payment platform
    behavior. Because nothing is live until it passes, TL-4's
    revert-to-payload-freeze clause remains executable while it
    matters.
-2. The payment cutoff calendar: source system, named
-   owner, per-currency/market semantics including holidays,
-   timezone-aware representation (§16.4), refresh cadence, and the
-   stale/missing-calendar fail direction (recommend: fail-blocked
-   per payment_type). Consumed by repost_permitted (§7.0), the §7.4
-   retry bounds (attempts + cutoff), §9.2's lookback guard, and escalation sizing —
-   a wrong calendar blocks a whole currency an hour early or
-   re-POSTs after bank close.
+2. CLOSED 2026-07-11 (PO answer): the PAYMENT ENGINE owns its own
+   cutoff calendar (engine-owned, round 10) — this system initiates at any time and carries
+   NO local calendar, cutoff gate, or cutoff config. A late
+   submission returns as an ordinary engine response, classified
+   per CA-1. Residual ask (folded into the CA-1/Q-08 provider
+   asks): the engine confirms IN WRITING that submission is
+   accepted at any time, and names the late-submission response
+   code (if one exists) for the CA-1 table. CUTOFF_EXPIRED stays
+   RESERVED in the blocked_reason enum (§2.2).
 3. MVP MAYBE-row terminal exit: the §9.3
    apply-platform-verified-outcome audited operation (an authorized
    application endpoint — execution boundary decided 2026-07-11;
@@ -3587,7 +3533,7 @@ payment platform
    row lifetime (incl. ops-queue SLA) are both answered
    affirmatively. Without one of these, an unresolvable
    MAYBE_SUBMITTED row (repost_permitted permanently false — stale
-   amount, passed cutoff, or divergent payload — plus a key aged
+   amount or divergent payload — plus a key aged
    past the query lookback) holds its reservation FOREVER: the
    scope can never complete (§4.1) and I6 blocks any successor.
 ```
@@ -3599,9 +3545,10 @@ payment platform
    API (§9).
 2. Status-query cadence (suggested: every 2 minutes).
 3. Maximum MAYBE_SUBMITTED age before BLOCKED escalation (suggested:
-   30 minutes; must clear the payment cutoff).
-4. Behavior when the payment cutoff passes while a request is still
-   MAYBE_SUBMITTED.
+   30 minutes).
+4. CLOSED 2026-07-11 (calendar answer, §18-2): no local cutoff
+   exists to "pass"; a late submission is the engine's ordinary
+   business response.
 5. Step display for a trade cancelled after the payment step started
    (currently "completed" — acceptable?).
 6. Deferred successor creation (§6.8): when an amendment increases
@@ -3639,16 +3586,14 @@ payment platform
    for "cancelled"; BA-2 currently records that no cancellation
    signal exists. Risk either way: "cancelled" lets a producer bug
    (accidentally dropped block) cancel real unsent payments;
-   "unchanged" leaves a genuinely-removed payment paying. INTERIM
-   until answered: absence is a no-op (BA-2 stands). (TL-16, once
-   its co-decision partner, was answered round 5 — the §6.1
-   admission gate; PO-9 stands alone now and is NOT changed by it.)
-   RIDER (round 7): when PO-9 is answered, the PO also RATIFIES
-   the §6.1 BLOCK-LEVEL SUPERSESSION rule (a newer admitted
-   snapshot supersedes the unapplied remainder of an older
-   fan-out) — the two are the same question: what does the newest
-   snapshot mean for payments it does not carry / has not yet
-   applied. Design-owner ratification recorded 2026-07-11.
+   "unchanged" leaves a genuinely-removed payment paying.
+   ANSWERED BY THE PO 2026-07-11: absence = CANCELLED — an
+   amendment to zero (BA-2 amended, §1.1; §6.1 RESOLVED block).
+   Unsent → §6.4 auto-cancel; in-flight → wait-then-decide;
+   already-paid → the §6.5 overpay latch, WE STOP (the PO's "same
+   as overpay"). The round-7 RIDER is satisfied: the PO's answer
+   RATIFIES the §6.1 BLOCK-LEVEL SUPERSESSION rule (relayed with
+   the PO-9 answer by the design owner, 2026-07-11).
 ```
 
 ### Requiring tech lead review
@@ -3761,7 +3706,8 @@ payment platform
     Option (c) was rejected — it contradicts the stated
     out-of-order condition (§6.7's own motivating trace is a late
     original). Per-obligation watermarks are NOT advanced for
-    absent obligations. PO-9 remains open and unchanged.
+    absent obligations. (PO-9 was later ANSWERED 2026-07-11:
+    absence = amendment to zero, §6.1.)
 ```
 
 ### Upstream contract asks
@@ -3779,10 +3725,16 @@ payment platform
 4. Emission contract: confirm a new message is emitted ONLY
    when a business field changed — no blind re-emissions of
    identical snapshots (§6.0 contract fact; bounds the validation
-   reject cycle, §2.1). Under the snapshot model this matters MORE:
-   if PO-9 answers "absence = cancel", an accidental re-emission
-   missing a payment block would cancel a real unsent payment.
-5. Within-snapshot uniqueness IN WRITING: no two payment blocks in
+   reject cycle, §2.1). Under the snapshot model this matters MORE
+   now that PO-9 IS answered "absence = cancel" (2026-07-11): an
+   accidental upstream re-emission missing a payment block WOULD
+   cancel a real unsent payment — this ask is the guard against
+   that producer-bug class, and the §6.4 auto-cancel only touches
+   provably-unsent requests (money never moves wrongly; the
+   payment silently stops until a corrected snapshot restores it).
+5. CONFIRMED verbally 2026-07-11 (design-owner relay) — the
+   WRITTEN document remains the go-live evidence (Q1).
+   Within-snapshot uniqueness IN WRITING: no two payment blocks in
    one snapshot share (payment_type + debit_account + currency),
    and an equal tuple across snapshots always denotes the SAME
    payment (§1 contract facts, §18 BLOCKING item 0a). We validate
@@ -3813,7 +3765,9 @@ payment platform
    periodic trade-count signal this system's reconciliation can
    check. No local machinery is proposed: the detector belongs
    where the data is.
-8. XML snapshot store contract (§6.0 transport note — added
+8. CONFIRMED verbally 2026-07-11 (design-owner relay) — the
+   WRITTEN document remains the go-live evidence (Q1). XML snapshot
+   store contract (§6.0 transport note — added
    2026-07-11; IMMUTABILITY clause added round 3): confirm IN
    WRITING (a) fetch-by-id from the store by this service is a
    sanctioned interface (not an internal we happen to reach);
@@ -3837,12 +3791,9 @@ payment platform
    re-emission capability (fresh notification, fresh ordering
    value) would let ties resolve through the fully ordinary path
    with no ordering relaxation at all.
-9. One-time current-snapshot-id export per business_id (round 7,
-   OPTIONAL accelerator — never a dependency): completes the §2.4
-   bootstrap rows' pointers up front so the pointer-coverage
-   go-live gate is reached without waiting for organic amendments;
-   without it the transitional legacy-assembly + fail-closed
-   ladder (§2.4/§7.0) carries the cutover on its own.
+9. WITHDRAWN 2026-07-11: greenfield (PO — this flow is a new
+   feature; no pre-existing trades, nothing to bootstrap or
+   export; §2.4 GREENFIELD FACT).
 ```
 
 ### Resolved: workflow advancement
@@ -4107,8 +4058,15 @@ for each payment block of the ADMITTED document,
                                      block IS the tie being
                                      adjudicated)
   doc.ordering <  watermark       -> drop as stale (guard)
-obligations ABSENT from the document -> untouched (PO-9 interim
-                                     no-op; revisit with PO-9)
+obligations ABSENT from the document -> AMENDMENT TO ZERO (PO-9
+                                     ANSWERED 2026-07-11): required
+                                     := 0 under fence + obligation
+                                     lock, strictly-newer guard;
+                                     then §6.4 auto-cancel (unsent)
+                                     / wait-then-decide (in-flight)
+                                     / §6.5 overpay latch = STOP
+                                     (confirmed > 0). §6.6 anchor
+                                     scopes are NOT zeroed.
 trade-reference-only difference   -> blocks no-op per the rules
                                      above; the ADMISSION update to
                                      trade_snapshot_state (ordering,

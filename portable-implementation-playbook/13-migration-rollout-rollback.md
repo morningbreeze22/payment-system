@@ -116,27 +116,12 @@ idempotency keys forever (K-02 rule).
   reverse-migration. Schema stays; drops were deferred anyway (M.1.7).
 - Never roll back the schema VALIDATE/trigger steps while the new
   code runs — the code assumes the backstops exist.
-- TRADE-ADMISSION ENABLEMENT GATE (round 6, §2.4 BOOTSTRAP): the
-  §6.1 admission enforcement has its OWN enablement order — additive
-  schema (S-10) → bootstrap job (S-11) → DRAIN every consumer
-  version that does not maintain trade_snapshot_state → coverage
-  report + shadow metric verified → enable. Enabling it is a
-  SECOND point of no return: rolling back to a non-maintaining
-  version invalidates the table; re-enabling later requires
-  re-running S-11 bootstrap + coverage. "The old version still
-  boots against the schema" is NOT sufficient here — the old
-  version must be GONE from snapshot consumption, not merely
-  compatible.
-- §7.0 POINTER-ONLY ASSEMBLY has its own flag (round 7): OFF =
-  transitional legacy assembly for NULL-pointer trades; ON only
-  after the S-11 POINTER-coverage gate (zero NULL-pointer rows
-  among wire-capable trades; residuals dispositioned). The legacy
-  assembly path is REMOVED only after that gate — removing it
-  early leaves live requests structurally unclaimable (round 8:
-  pointer absence is a claim-gate term on the §2.4 durable fact,
-  never a blocked_reason; the requests rest at READY/RETRY_WAIT
-  with zero attempts until the pointer completes, surfaced by the
-  §15 derived-fact alert).
+- TRADE-ADMISSION (round 10 — §2.4 GREENFIELD FACT): this flow is
+  a NEW feature; no prior application version consumes its
+  snapshots and no pre-existing trades exist. Admission enforcement
+  is ON from day one — no bootstrap, no drain step, no §7.0
+  assembly flag, no second point of no return. (The round-6..9
+  gate/ladder lives in git history at 9a53c75.)
 ```
 
 ### M.7 Data compatibility

@@ -312,19 +312,14 @@ Failure: lost deferral (underpayment), or a MAYBE release
 Implemented by: RG-06, RG-07.
 ```
 
-### T-21 — Cutoff passed
+### T-21 — RETIRED (round 10 — the engine owns the cutoff calendar)
 
 ```text
-Section: §7.4, §7.0, §16.4   Type: INTEGRATION   Blocking: YES
-Purpose: cutoff blocks attempts and downgrades; tz-aware comparison.
-Setup:   cutoff calendar fixture with a market past cutoff (tz-aware,
-         incl. a DST boundary case).
-Action:  retry scanner + §9.2 downgrade candidates against it.
-Expect:  attempts blocked (CUTOFF_EXPIRED); downgrade gate fails;
-         comparisons correct across the DST case.
-Failure: post-cutoff POST (bank-close violation) or a whole currency
-         blocked an hour early (§18-2's warning).
-Implemented by: RC-04, RC-03; config from B-03.
+RETIRED 2026-07-11 (PO calendar answer, §7.4/§18-2): no local
+cutoff, calendar, or tz machinery exists to test. A late
+submission is an ordinary engine response classified per CA-1
+(covered by T-13/T-16 classification tests). ID kept — IDs are
+stable; body retained in git history.
 ```
 
 ### T-22 — MAYBE_SUBMITTED recovery (full lifecycle)
@@ -344,12 +339,13 @@ Failure: any MAYBE class with no exit → wedge (see T-28); scope
 Implemented by: RC-05..08.
 ```
 
-### T-23 — Repost forbidden by staleness or cutoff
+### T-23 — Repost forbidden by staleness / divergence / freeze
 
 ```text
 Section: §7.0, §6.4, §9.2   Type: INTEGRATION   Blocking: YES
 Purpose: repost_permitted's terms hold at BOTH ends; no livelock.
-Setup:   MAYBE rows with: stale amount; passed cutoff; set
+         (cutoff term RETIRED round 10 — engine owns the calendar.)
+Setup:   MAYBE rows with: stale amount; set
          divergent_payload_at; freeze ON.
 Action:  attempt downgrade, ops-style un-park, and direct claim.
 Expect:  each denied at the writer AND (if forced) at the claim; rows
@@ -425,7 +421,7 @@ Implemented by: RG-03, RG-08.
 ```text
 Section: §18-3, §9.3, §4.1, §6.8   Type: INTEGRATION   Blocking: YES
 Purpose: NO MAYBE row is permanently wedged at MVP.
-Setup:   the worst row: divergent_payload_at set + cutoff passed +
+Setup:   the worst row: divergent_payload_at set +
          stale amount + (simulated) key past query lookback.
 Action:  walk the escalation path to the OP-01 operation; apply a
          platform-verified REJECTED; then a remaining shortfall.
@@ -634,67 +630,16 @@ Failure: any block transaction that applies or creates without
 Implemented by: S-10, IN-02, OP-04c (reprocess entry path).
 ```
 
-### T-36 — trade_snapshot_state bootstrap + mixed-version cutover (round 6)
+### T-36 — RETIRED (round 10 — greenfield: no bootstrap exists)
 
 ```text
-Section: §2.4 BOOTSTRAP, §6.1, Section M   Type: MIGRATION
-Blocking: YES
-Purpose: an EXISTING production trade must never read as "first
-         contact"; bootstrap-incomplete rows fail closed; the
-         enablement gate is enforced.
-Setup:   prod-shaped copy: trades with obligations at various
-         upstream_ordering values and NO trade rows; one §6.6
-         anchor-only trade (all NULL ordering); XML store seeded
-         with a delayed older snapshot carrying a never-seen scope.
-Action:  run the S-11 bootstrap; deliver the delayed older snapshot
-         to a bootstrapped trade; deliver an equal-order snapshot
-         to a digest-NULL row; deliver a strictly newer snapshot;
-         re-run the bootstrap job; simulate the mixed-version
-         window (a writer that does not maintain the trade row).
-Expect:  every existing business_id gets a row with watermark =
-         MAX(upstream_ordering) (anchor-only trade: NULL ordering =
-         first-contact semantics); the delayed older snapshot is
-         REFUSED — the never-seen scope is NOT created (the H-2
-         first-contact trace); equal-order onto digest-NULL →
-         FAILS CLOSED into the tie-conflict path (no silent apply,
-         no silent drop); strictly newer → applied AND the row
-         completed (id + digest populated); bootstrap re-run
-         changes nothing (insert-if-absent); the coverage report +
-         shadow metric flag the non-maintaining writer's trades
-         before enforcement is enabled; ACTIVE-REQUEST case
-         (rounds 7–8): requests on a NULL-pointer trade in EVERY
-         claimable shape (ENRICH·READY, POST·READY,
-         POST·RETRY_WAIT, §9.2 downgrade lane) — under the
-         transitional flag they assemble via the LEGACY source;
-         under §7.0 enforcement they are NEVER CLAIMED (the claim
-         gates carry the pointer-presence term on the §2.4
-         durable fact — round 8: no new blocked_reason, no rule
-         on a label): zero attempts consumed, NO provider call,
-         state stays READY/RETRY_WAIT, the §15 derived-fact
-         alert fires and the card shows the DERIVED
-         SNAPSHOT_POINTER_MISSING display label; MVP completion
-         path (round 9 — scope split): LIVE ADMISSION completes
-         the pointer → the ordinary due scanner claims the SAME
-         request with the SAME idempotency key, repost_permitted
-         re-run before any POST; CUTOFF REACHABILITY (round 9,
-         the H-1 fix): a pointer-less row aged past cutoff is
-         SEEN by candidate selection and transitions to
-         BLOCKED(CUTOFF_EXPIRED) with NO claim, NO attempt
-         increment, NO assembly, NO provider call (the pointer
-         term lives in the claim CAS only); pointer-coverage
-         (wire-capable) metric reported.
-         NON-MVP attributions (round 9): approved-reprocess
-         pointer completion → owned/tested by OP-04c (T-33);
-         ask-9 export completion → CONDITIONAL, tested only if
-         ask 9 is adopted (it is an optional accelerator);
-         restore-repair completion → FUTURE, §5.2 post-MVP DR
-         scope — not a go-live assertion.
-Failure: an older document admitted by a bootstrapped or
-         digest-NULL row; enforcement enabled with coverage gaps;
-         a pointer-less past-cutoff row that never reaches
-         CUTOFF_EXPIRED (the unreachable-transition defect this
-         round exists to prevent).
-Implemented by: S-11, IN-02 (MVP core); OP-04c (reprocess
-         completion path, in T-33).
+RETIRED 2026-07-11 (PO fact, §2.4 GREENFIELD): this flow starts
+with no pre-existing trades — trade_snapshot_state legitimately
+begins empty, every row is born from an admitted message with
+pointer + digest populated, and no old application version
+consumes these snapshots. The retired bootstrap / digest-NULL /
+pointer / mixed-version cases have no reachable subject.
+ID kept — IDs are stable; body retained in git history
+(commit 9a53c75). Admission itself is fully covered by T-35.
 ```
 

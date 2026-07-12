@@ -41,7 +41,7 @@ Tests: masking capture test; MDC through an async hop. Stop: merged.
 
 ```text
 [OB-07] Config inventory + validation
-Read: §16.6 (inventory + ordering rule) §16.5. Invariant: loader REJECTS unless trust_age + cadence < escalation < tier-2 < cutoff margin; load-bearing values never silently default.
+Read: §16.6 (inventory + ordering rule) §16.5. Invariant: loader REJECTS unless trust_age + cadence < escalation < tier-2 (cutoff margin retired round 10); load-bearing values never silently default.
 Placeholders: config, [Metrics / Alerting Layer]. Mappings: config conventions.
 Objective: one namespace for every §16.6 entry with owner notes; startup ordering validation; retry-policy completeness vs CA-1 classes.
 Tests: each mis-ordering rejected; valid set accepted; missing entry fails startup. Stop: merged.

@@ -59,9 +59,9 @@ Edge cases:      CA-4/CA-5 freeze is NOT gated on §18-0 — no
                  payments per trade; snapshot messages; tuple unique
                  within snapshot). §12 lookup returns ALL of the
                  trade's obligations. IN-02 residue: upstream ask 5
-                 (written uniqueness), §6.0 intake validation, PO-9
-                 (absence). (TL-16 answered round 5: §6.1
-                 admission + §2.4.)
+                 (written uniqueness — confirmed, paper pending),
+                 §6.0 intake validation. (PO-9 ANSWERED: absence =
+                 zero; TL-16 answered round 5.)
 Common mistakes: treating a written "yes" as closing TL-4/TL-6 (only
                  the §18-1 sandbox test closes them); letting artifact
                  authoring drift unowned; promoting PO-discussion
@@ -83,8 +83,8 @@ Goal:            Bring the four-table model to the §2/§10.3 target
                  L-shape CHECKs, UNIQUE keys, I6 function-based unique
                  index, L1-freeze + release-guard triggers,
                  active-row-bounded index set, inbox table + purge,
-                 trade_snapshot_state (S-10, §2.4 — round 5) + its
-                 S-11 bootstrap/enablement gate (round 6).
+                 trade_snapshot_state (S-10, §2.4 — round 5;
+                 greenfield, no bootstrap — round 10).
 Why here:        D graph #2 — schema before state-machine persistence.
 Sections:        §2.1, §2.2, §2.3, §10.3, §16.5, §16.6-4, §3 (I6).
 Classification:  MVP normative.
@@ -391,8 +391,8 @@ Goal:            POST classifier per CA-1 (closed taxonomy, fail
                  closed); submission_state branches incl. collision
                  handling on divergence_expected; repost_permitted
                  implemented once, checked at both ends; retry scanner
-                 with per-class policy, exhaustion, cutoff pre-checks
-                 (bounds = attempts + cutoff, §7.4 2026-07-11 — no
+                 with per-class policy, exhaustion
+                 (bound = MAX ATTEMPTS, §7.4 round 10 — no cutoff, no
                  wall-clock deadline; gated scanners make zero
                  attempts, so nothing needs suspending); resolver sweep
                  (submission-keyed scope, bounded prioritized batches,
@@ -439,7 +439,7 @@ Completion:      RC-01..RC-10 done; config values wired to §16.6
 Verify locally:  existing retry ownership (exactly one owner per
                  operation/error class — find and, if stacked retries
                  exist on the POST path, inventory them for removal).
-Go-live blocking: YES (MAYBE recovery tests, cutoff config, Q items).
+Go-live blocking: YES (MAYBE recovery tests, Q items).
 ```
 
 ### Phase P11 — MVP apply-platform-verified-outcome audited operation (+ interim ops surface)
@@ -549,7 +549,8 @@ State-transition deps: none.
 Tests required:  each alert fires on a seeded condition; rollup
                  groups under breaker-OPEN/freeze; config loader
                  REJECTS mis-ordered values (trust_age + cadence <
-                 escalation < tier-2 < cutoff margin); dead-gauge
+                 escalation < tier-2 — cutoff margin retired
+                 round 10); dead-gauge
                  alerting.
 Edge cases:      freeze is silent by design — the freeze-effective-
                  without-ticket page is the ONLY signal; duplicate-skip
