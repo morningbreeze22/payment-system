@@ -269,3 +269,34 @@ Engine-side count comparison: conditional on an engine report/API
 (N.1 note) — decide at kickoff with the provider answer.
 ```
 
+
+## RB-F0 — F0 re-enable after rollback / incident (round 20)
+
+The executable form of the ADMISSION-COVERAGE proof (file 26 T.1
+lifecycle): used for ANY post-activation re-enable of the F0 traffic
+gate — rollback recovery, incident restart, deployment reversal. The
+initial-activation ZERO-POPULATION form is NEVER reused here.
+
+```text
+OWNER: OPS executes; DBA + TL approve. F0 stays OFF until PASS.
+PRECONDITION: the triggering event is closed (rollback complete /
+  incident stabilized); writer fence re-verified.
+CHECKS (evidence retained in the go-live pack, manifest updated):
+1. COVERAGE: every in-scope trade joins to a trade_snapshot_state
+   row whose last_accepted_ordering, last_xml_storage_id, and
+   last_payload_digest are ALL non-NULL; every in-scope obligation
+   belongs to such a trade. Query text + results retained.
+2. PROVENANCE: no in-scope row was created since the fence by a
+   legacy/out-of-band writer (compare writer audit against the
+   deployment inventory of fenced versions).
+3. THRESHOLD: ZERO uncovered rows. No percentage passes; no
+   sampling.
+PASS: DBA + TL sign; manifest records the admission-coverage run
+  (environment, queries, checksums, counts, signatures, date);
+  re-enable F0 through the M.2 window semantics (fence rules
+  still apply).
+FAIL (any uncovered row): F0 stays OFF; classify each uncovered
+  row; incident + architecture review (file 26 T.1 — restoring the
+  retired bootstrap machinery, git 9a53c75, is on the table);
+  re-run only after remediation, never "accept and monitor".
+```

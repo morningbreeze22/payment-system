@@ -16,7 +16,7 @@ Rules of the game:
   the matrix says INTEGRATION/OPERATIONAL.
 - TWO non-waivable classes (round 16):
   (1) §18 BLOCKING (Q1–Q4, Q28) — the external contract proofs.
-  (2) MONEY_SAFETY_BLOCKING — Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set:
+  (2) MONEY_SAFETY_BLOCKING — Q5a, Q5b, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set:
       the duplicate-payment / wrong-release / unrecoverable-
       uncertainty controls. A FAIL or MISSING EVIDENCE in either
       class is NO-GO. No owner+plan waiver exists for them;
@@ -37,7 +37,8 @@ Rules of the game:
 | Q2 | Confirm CT-02..05 executed against the REAL sandbox (not mocks): (a) same-payload dedupe, (b) different-payload reject with distinguishable code, (c) retention-TTL edge with the TTL stated in writing, (d) post-reject re-POST behavior recorded. Confirm the re-run procedure for engine releases is scheduled (calendar/pipeline entry). ROUND-16 EVIDENCE STANDARD: every CT record carries redacted RAW request/response bytes, canonical payload hash, idempotency key, timestamps, correlation/provider reference, environment + endpoint/API/SDK/engine versions, provider-side EXECUTION COUNT (a status query showing one visible payment is NOT execution-count proof — provider dedup/query semantics can collapse records; obtain an execution/audit count or settlement-ledger equivalent), status-query result, expected/actual outcome, reviewer signature; raw evidence preserved immutably, never prose transcript or screenshot alone. Plus the provider PRODUCTION-PARITY statement: which idempotency/TTL/error-code/query-retention behaviors are identical to production, with exceptions listed; provider + TL sign off on the CA-1/2/3 mappings produced from the observations. | CT run transcript + RAW captures + execution-count proof; TTL letter; parity statement; re-run schedule link | TL + EXT(provider) |
 | Q3 | CLOSED round 10 (engine-owned calendar, §18-2): verify the engine's WRITTEN any-time-submission line is filed, the CA-1 table carries the late-submission response class (or its recorded absence), and NO local cutoff config/constants exist in the target env (grep the deployed config). | written line filed; CA-1 row; config grep output | TL |
 | Q4 | Verify the OP-01 audited operation deployed (endpoint restricted to the enterprise ops role — attempt it with an unauthorized identity, must fail; 2026-07-11 boundary: authorized application endpoint), OP-02 suite green on real Oracle (incl. the marker-blocks-successor case AND the §9.3 approval-workflow negative set), OP-03 drill report SIGNED by the ops owner with real operators + real ticket. Alternative path only with TL-10 ∧ TL-5 letters + PO re-confirmation. | endpoint authz config + refused-attempt log; T-24 run ID; signed drill report | OPS + TL |
-| Q5 | Diff deployed schema vs CA-4 DDL (constraints VALIDATED state, both triggers live, artifact-4 index list present). Run the migration test incl. dual-run (old+new app versions concurrently). EXPLAIN one scanner query per standing scan → each rides its ACTIVE-row-bounded index. GREENFIELD (round 10 — the bootstrap/pointer evidence set was RETIRED: T-36, S-11 coverage, the enablement gate, and pointer coverage may NOT be required here): instead verify trade_snapshot_state deploys EMPTY, the S-10 creation path is live, and T-35 + T-37 are green (admission + fence + absence lifecycle). ROUND 18 — CUTOVER_POPULATION_GREENFIELD RUN 2 (file 26 T.1): re-run the D-12 population queries at the controlled cutover, AFTER old in-scope writers are drained/fenced (or under change freeze), IMMEDIATELY before enabling the new intake path; counts must be ZERO; bind in the manifest: environment, scope predicate, query checksum, timestamp, RC/config version, owner, reviewer; stale on env/predicate/restore/seed/old-writer-activity/rollback/query change. A nonzero count = NO-GO + architecture review (the retired bootstrap machinery may need restoration — git 9a53c75). | schema diff output; migration test run; captured plans; T-35/T-37 run IDs; RUN-2 population proof bound in manifest.yaml | DEV + DBA |
+| Q5a | Diff deployed schema vs CA-4 DDL (constraints VALIDATED state, both triggers live, artifact-4 index list present). Run the migration test incl. dual-run (old+new app versions concurrently). EXPLAIN one scanner query per standing scan → each rides its ACTIVE-row-bounded index. GREENFIELD (round 10 — the bootstrap/pointer evidence set was RETIRED: T-36, S-11 coverage, the enablement gate, and pointer coverage may NOT be required here): instead verify trade_snapshot_state deploys EMPTY, the S-10 creation path is live, and T-35 + T-37 are green (admission + fence + absence lifecycle). Round 20: verify the RUN-2 queries + scope predicate are REVIEWED and manifest-bound (query checksum recorded) — Q5a must be fully PASS before GO-04 can issue the conditional authorization. | schema diff output; migration test run; captured plans; T-35/T-37 run IDs; reviewed RUN-2 query pack in manifest.yaml | DEV + DBA |
+| Q5b | CUTOVER_POPULATION_GREENFIELD RUN 2 (file 26 T.1): inside GO-03's F0 activation window — after old in-scope writers are drained/fenced (or under change freeze) — re-run the reviewed population queries IMMEDIATELY before enabling F0; counts must be ZERO; DBA/TL sign; manifest closure (environment, scope predicate, query checksum, timestamp, RC/config version, owner, reviewer); stale on env/predicate/restore/seed/old-writer-activity/rollback/query change; post-activation re-enables use the ADMISSION-COVERAGE form instead (runbook RB-F0). At GO-04 this row is PENDING-CUTOVER (legal only with Q5a PASS — round 20); a nonzero count or missing signature ABORTS the change window: NO-GO + architecture review (bootstrap restoration considered — git 9a53c75). | RUN-2 result + signatures bound in manifest.yaml; abort record if triggered | DEV + DBA |
 | Q6 | ST-01..03 suites green; run the legality verification (the artifact-6 property-based L1–L8 sweep — every illegal tuple write refused by CHECK/trigger — plus T-25 for the trigger layer; reference corrected 2026-07-11 — T-15 is UETR persistence, not legality); audit: grep merged code for UPDATEs on the two tables outside the shared CAS helpers (must be none). | test run IDs; grep/audit note in report format | DEV + TL |
 | Q7 | ST-05 inventory: every legacy-status rule site listed with disposition (removed / display-only). Grep release build for business logic keyed on display labels or blocked_reason — zero hits. | ST-05 inventory doc; grep output | DEV + TL |
 | Q8 | T-03/08/09/10 green (write-ahead identity, crash/retry/restore identity stability). Kill-test evidence: worker killed between claim-commit and HTTP call → row lands MAYBE, resolver recovers (T-08 trace). | run IDs + T-08 trace log | DEV |
@@ -81,7 +82,7 @@ Assemble ONE folder (local, like everything naming local systems):
   SHA256SUMS            — checksum of EVERY retained artifact
   invalidation-map.md   — input change → Q items whose evidence is
                           STALE (app SHA → code/integration tests;
-                          migration checksum → Q5 + captured plans;
+                          migration checksum → Q5a + captured plans;
                           provider/SDK/engine version → CT
                           evidence; retry/trust-age config →
                           resolver tests; authz/deployment →
@@ -89,14 +90,14 @@ Assemble ONE folder (local, like everything naming local systems):
                           Q18–Q21; environment/scope-predicate
                           change, restore/seed/data migration,
                           old-writer activity, rollback, or query
-                          change → the Q5 CUTOVER_POPULATION_
+                          change → the Q5b CUTOVER_POPULATION_
                           GREENFIELD proof, round 18; round 19:
                           a post-activation re-enable uses the
-                          ADMISSION-COVERAGE form, file 26 T.1 —
-                          zero-count applies to INITIAL
-                          activation only; old-writer activity
-                          after RUN 2 = STOP + incident review,
-                          not a rerun)
+                          ADMISSION-COVERAGE form, file 26 T.1 /
+                          runbook RB-F0 — zero-count applies to
+                          INITIAL activation only; old-writer
+                          activity after RUN 2 = STOP + incident
+                          review, not a rerun)
   test-runs.md          — matrix test ID → run ID/link → date →
                           exact build/env/version
   signoffs.md           — Q → role → name → date (the roles above)
@@ -118,9 +119,14 @@ triggers automatic re-runs.
 
 ```text
 1. Walk Q1–Q4 + Q28 first (§18 class). Any gap → NO-GO, stop here.
-2. Walk the MONEY_SAFETY_BLOCKING class next (round 16): Q5, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set. Any FAIL or missing
+2. Walk the MONEY_SAFETY_BLOCKING class next (round 16): Q5a, Q5b, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set. Any FAIL or missing
    evidence → NO-GO, stop here — this class has NO owner+plan
    waiver; reclassification needs a safety review, not this meeting.
+   ONE defined exception (round 20): Q5b ALONE may stand as
+   PENDING-CUTOVER when Q5a is PASS — the meeting then issues the
+   CONDITIONAL GO (step 6) and GO-03 converts Q5b to PASS inside
+   the F0 window; any OTHER missing/non-PASS non-waivable item is
+   still NO-GO.
 3. Walk the remaining Qs in order; for each FAIL read the owner+plan
    aloud and record explicit PO acceptance (or NO-GO).
 4. Evidence integrity (round 16): validate manifest.yaml against the

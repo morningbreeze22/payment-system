@@ -66,7 +66,7 @@ P10 Retry/recovery:   RC-01 RC-02 RC-03 RC-04 RC-05 RC-06 RC-07 RC-08 RC-09 RC-1
 P11 Operator proc:    OP-01 OP-02 OP-03 OP-04a..OP-04e
 P12 Drift:            OB-01 OB-02
 P13 Observability:    OB-03 OB-04 OB-05 OB-06 OB-07
-P14 Rollout:          GO-01 GO-02 GO-03 GO-04 GO-05
+P14 Rollout:          GO-01 GO-02 GO-05 GO-04 GO-03
 Tests (Section J):    T-01 … T-37 (T-21/T-36 retired stubs)
 Questions (Section K): Q-01 … Q-21
 ```
@@ -150,4 +150,4 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 | P11 Operator ops | OP-01..OP-03, OP-04a–e (round-9 pre-split) | CA-9; S-06; P6/P7 | §18-3 — this phase satisfies it | operation + signed drill + §20 interim surface | P12 |
 | P12 Drift | OB-01..OB-02 | P7 live; S-07 | none new | drift scan + tripwires | P13 |
 | P13 Observability | OB-03..OB-07 | P6-P12 metric sources | config owners pending → marked | §15 alert surface + config validation | P14 |
-| P14 Rollout | GO-01..GO-05 | ALL phases; P8 PASS; OP-03 | §18-0..3 (Q1-Q4/Q28) + MONEY_SAFETY_BLOCKING (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-min, round 16) non-waivable | live system + signed go/no-go | steady state |
+| P14 Rollout | GO-01..GO-05 (round-19 execution order: 01→02→05→04→03) | ALL phases; P8 PASS; OP-03 | §18-0..3 (Q1-Q4/Q28) + MONEY_SAFETY_BLOCKING (Q5a+Q5b/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-min; Q5b may be PENDING-CUTOVER at GO-04 — round 20) non-waivable | live system + signed go/no-go | steady state |

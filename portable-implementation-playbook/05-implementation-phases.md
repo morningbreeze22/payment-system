@@ -590,9 +590,13 @@ Edge cases:      what cannot be rolled back once money-affecting
 Common mistakes: enabling the auto-downgrade before P8 PASS; VALIDATE
                  constraints before backfill; dropping legacy columns
                  while the old version can still run.
-Completion:      GO-01..GO-05 done; Section Q all PASS (or explicitly
-                 accepted BLOCKED→waiver by the accountable owner —
-                 §18 BLOCKING items are NOT waivable).
+Completion:      all five GO cards done in the round-19 order
+                 (GO-01 → GO-02 → GO-05 → GO-04 → GO-03); Section Q
+                 all PASS — waivers exist ONLY outside the two
+                 non-waivable classes (§18 BLOCKING and
+                 MONEY_SAFETY_BLOCKING, rounds 16/20; Q5b's
+                 PENDING-CUTOVER converts to PASS inside GO-03's
+                 F0 window, never stays open).
 Verify locally:  release process, environment promotion path.
 Go-live blocking: this phase IS the gate.
 ```

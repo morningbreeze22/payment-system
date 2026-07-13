@@ -202,23 +202,48 @@ for n, l in enumerate(lines_of(walk), 1):
         else:
             wids[m.group(1)] = n
 
-# ---- Rule 6e (round 19): safety-critical card tokens must appear in the matching packet ----
-SENTINELS = [
-    ("CUTOVER_POPULATION_GREENFIELD",
-     PORTABLE / "08-task-cards" / "phase-14-rollout-and-go-live.md",
-     PORTABLE / "09-minimal-context-packets" / "phase-14-rollout-and-go-live.md"),
-    ("F0",
-     PORTABLE / "08-task-cards" / "phase-14-rollout-and-go-live.md",
-     PORTABLE / "09-minimal-context-packets" / "phase-14-rollout-and-go-live.md"),
-    ("CUTOVER_POPULATION_GREENFIELD",
-     PORTABLE / "08-task-cards" / "phase-01-discovery.md",
-     PORTABLE / "09-minimal-context-packets" / "phase-01-discovery.md"),
+# ---- Rule 6e (rounds 19-20): safety-critical tokens checked PER TASK block, card vs packet ----
+def _card_block(path, task_id):
+    txt = "\n".join(lines_of(path))
+    m = re.search(r"^### " + re.escape(task_id) + r" .*?(?=^### |\Z)", txt, re.M | re.S)
+    return m.group(0) if m else ""
+
+def _packet_block(path, task_id):
+    txt = "\n".join(lines_of(path))
+    m = re.search(r"^\[" + re.escape(task_id) + r"\].*?(?=^```\s*$)", txt, re.M | re.S)
+    return m.group(0) if m else ""
+
+P14C = PORTABLE / "08-task-cards" / "phase-14-rollout-and-go-live.md"
+P14P = PORTABLE / "09-minimal-context-packets" / "phase-14-rollout-and-go-live.md"
+P01C = PORTABLE / "08-task-cards" / "phase-01-discovery.md"
+P01P = PORTABLE / "09-minimal-context-packets" / "phase-01-discovery.md"
+SENTINEL_PAIRS = [
+    ("GO-01", "F0", P14C, P14P),
+    ("GO-01", "CUTOVER_POPULATION_GREENFIELD", P14C, P14P),
+    ("GO-03", "F0", P14C, P14P),
+    ("GO-03", "CUTOVER_POPULATION_GREENFIELD", P14C, P14P),
+    ("GO-04", "CUTOVER_POPULATION_GREENFIELD", P14C, P14P),
+    ("D-12", "CUTOVER_POPULATION_GREENFIELD", P01C, P01P),
 ]
-for token, cardf, packf in SENTINELS:
-    card_text = "\n".join(lines_of(cardf))
-    pack_text = "\n".join(lines_of(packf))
-    if token in card_text and token not in pack_text:
-        errors.append(f"{rel(packf)}: card file carries safety token '{token}' but the packet does not (round-19 propagation rule)")
+for task_id, token, cardf, packf in SENTINEL_PAIRS:
+    cb, pb = _card_block(cardf, task_id), _packet_block(packf, task_id)
+    if not cb:
+        errors.append(f"{rel(cardf)}: card block {task_id} not found (rule 6e)")
+        continue
+    if token in cb and token not in pb:
+        errors.append(f"{rel(packf)}: {task_id} card carries safety token '{token}' but the {task_id} PACKET block does not (round-20 per-task rule)")
+
+# ---- Rule 6f (round 20): canonical P14 execution order stated in index + file 20 ----
+P14_ORDER = "GO-01 GO-02 GO-05 GO-04 GO-03"
+idx_text = "\n".join(lines_of(PORTABLE / "01-playbook-index.md"))
+if P14_ORDER not in idx_text:
+    errors.append(f"01-playbook-index.md: canonical P14 order not stated verbatim ({P14_ORDER})")
+
+# ---- Rule 6g (round 20): no trailing whitespace in maintained files ----
+for path in MAINTAINED:
+    for n, line in enumerate(lines_of(path), 1):
+        if re.search(r"[ \t]+$", line):
+            errors.append(f"{rel(path)}:{n}: trailing whitespace (breaks git diff --check)")
 
 # ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
 P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"

@@ -131,26 +131,43 @@ would-be action without writing, one soak window, before F2 flips to
 write mode — validates scope + mapping against production answers.
 ```
 
-### M.4 Safe enablement order (GO-03 executes)
+### M.4 Safe enablement order (GO-03 executes — round-20 THREE SEGMENTS)
 
 ```text
+ENTRY CONDITION (round 20): the GO-04 PRE-CUTOVER CONDITIONAL GO is
+recorded — every gate PASS, Q5b alone PENDING-CUTOVER. GO-04 is a
+PREREQUISITE of this sequence, not a step inside it.
+
+SEGMENT 1 — PRE-TRAFFIC (F0 OFF; real traffic CANNOT arrive):
 1. Schema through VALIDATE + triggers live (M.1) — raw-SQL guard
    demonstrated in the environment.
 2. Dual-write code + CAS discipline + derivation live (structural).
 3. GO-02 shadow soak → clean.
-4. Card/display readers on derived labels (ST-04) — display-only risk.
-5. F5 freeze enforcement → BLOCK mode; freeze-effective page live.
-6. Observability pack (OB-03..07) + runbook links live.
-7. F1 retry scanner (new mode). Soak: retry outcomes sane, no
+4. Card/display readers on derived labels (ST-04) — display-only
+   risk; reader compatibility + M.3 catch-up complete.
+5. F5 freeze enforcement → BLOCK mode AND tested; freeze-effective
+   page live.
+6. Observability pack (OB-03..07) + runbook links + on-call alert
+   routing live.
+7. OP-01 operation deployed + OP-03 drill done.
+
+SEGMENT 2 — ATOMIC ACTIVATION (the M.2 F0 window):
+8. Prevent all legacy/in-scope creation → verify the writer fence →
+   execute the reviewed RUN-2 queries → require ZERO → convert Q5b
+   to PASS + DBA/TL sign → enable F0 (or the named external routing
+   action) → verify the FIRST admitted row carries watermark +
+   storage pointer + digest. Nonzero or missing signature → ABORT
+   the window (F0 stays OFF), NO-GO, architecture review.
+
+SEGMENT 3 — POST-TRAFFIC (traffic flowing; each stage soaked):
+9. F1 retry scanner (new mode). Soak: retry outcomes sane, no
    stacked-retry double-fires.
-8. F2 resolver (dry-run → write). Soak: query volume within budget,
-   outcomes applied correctly.
-9. F3 escalation. Soak: no false escalation storms.
-10. F4 auto-downgrade — ONLY after CT-02..05 PASS on file, TL-5-derived
-    trust age configured, observed-lag watchdog live.
-11. OP-01 operation deployed + OP-03 drill done (any time after step
-    1; MUST be before go-live).
-12. GO-04 gates → go-live.
+10. F2 resolver (dry-run → write). Soak: query volume within budget,
+    outcomes applied correctly.
+11. F3 escalation. Soak: no false escalation storms.
+12. F4 auto-downgrade — LAST; ONLY after CT-02..05 PASS on file,
+    TL-5-derived trust age configured, observed-lag watchdog live.
+13. Post-enable verification + evidence closure (GO-03 card).
 ```
 
 ### M.5 Existing rows and backfill

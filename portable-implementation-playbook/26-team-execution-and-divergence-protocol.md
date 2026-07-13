@@ -51,7 +51,8 @@ RUN 2 (controlled cutover, go-live evidence): the SAME queries
   re-run at GO-03 IMMEDIATELY BEFORE enabling the new intake
   path, AFTER old in-scope writers are drained/fenced (or inside
   an equivalent change freeze) so no row can appear between the
-  query and enablement. Filed as Q5 evidence.
+  query and enablement. Converts Q5b from PENDING-CUTOVER to
+  PASS (round 20); filed as Q5b evidence.
 BINDING (both runs, in the evidence manifest): exact environment,
   the schema/service SCOPE PREDICATE used, query checksum,
   timestamp, RC/config version, owner, reviewer.
@@ -73,7 +74,9 @@ LIFECYCLE (round 19): the ZERO-population form applies to INITIAL
   rerun: STOP/disable F0, preserve evidence, classify affected
   rows, incident + architecture review before resumption
   (uncovered rows may require restoring the retired bootstrap
-  machinery — git 9a53c75).
+  machinery — git 9a53c75). The EXECUTABLE procedure for the
+  admission-coverage form is runbook RB-F0 (file 14) — owner,
+  queries, zero-uncovered threshold, sign-offs, evidence (round 20).
 ```
 
 If P-A fails (no happy path): STOP after D-12 — the human owner

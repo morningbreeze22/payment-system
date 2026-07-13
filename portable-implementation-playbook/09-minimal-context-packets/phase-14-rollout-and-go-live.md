@@ -25,17 +25,17 @@ Tests: comparator detects seeded disagreement. Stop: clean soak report filed.
 
 ```text
 [GO-03] Controlled cutover + staged enablement (round 19: LAST card — runs only on GO-04's CONDITIONAL GO)
-Read: playbook Section M (order + per-stage validation + M.2 F0 window) §9.2 §18-1; file 26 T.1. Invariant: the F0 activation window is ATOMIC — prevent legacy/in-scope creation → verify writer fence → reviewed RUN-2 queries → ZERO required → DBA/TL sign → enable F0/named external action → verify the FIRST admitted row carries watermark + pointer + digest; nonzero = STOP/NO-GO, never waive; a soak feeding a non-waivable Q item is never waived; auto-downgrade enablement requires CT-02..05 PASS + observed-lag watchdog live + TL-5-derived trust age (not the stub).
+Read: playbook Section M (M.4 THREE SEGMENTS + M.2 F0 window) §9.2 §18-1; file 26 T.1. Invariant: M.4's segment order is BINDING (round 20) — PRE-TRAFFIC with F0 OFF (F5 freeze in BLOCK mode + tested; observability/runbooks/on-call live; readers + catch-up complete) BEFORE the ATOMIC ACTIVATION window (prevent legacy creation → verify writer fence → reviewed RUN-2 queries → ZERO → Q5b := PASS + DBA/TL sign → enable F0/named external action → verify the FIRST admitted row carries watermark + pointer + digest) BEFORE the POST-TRAFFIC stages (F1 → F2 → F3 → F4 last, each soaked); F0 never opens on a zero count alone; nonzero = ABORT the window, never waive; a soak feeding a non-waivable Q item is never waived.
 Placeholders: all (config-driven). Mappings: GO-01 flags incl. F0 owner.
-Objective: F0 window → enable stage → validate → soak → proceed per Section M; then post-enable verification + evidence closure (transcript + signed RUN-2 in the pack; signoffs.md entry).
+Objective: M.4 segments in order → post-enable verification + evidence closure (transcript + signed RUN-2 in the pack; signoffs.md entry; CUTOVER_POPULATION_GREENFIELD Q5b closed).
 Tests: stage checklists (existing suites). Stop: all stages enabled + soaked; post-enable verification filed; PLAYBOOK COMPLETE.
 ```
 
 ```text
 [GO-04] Go-live gates
-Read: playbook Section Q; §18 (BLOCKING items); 25-golive V.2/V.3. Invariant: TWO non-waivable classes (round 16) — §18 items 0–3 AND MONEY_SAFETY_BLOCKING (Q5/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-minimal): FAIL or missing evidence = NO-GO, no owner+plan waiver; every PASS carries linked evidence; manifest.yaml + SHA256SUMS must target the exact RC and environment with no stale entries in the invalidation map — incl. the Q5 CUTOVER_POPULATION_GREENFIELD RUN-2 proof (round 18: re-run post-fence at cutover, counts zero, bound; a D-12 snapshot alone is NOT cutover evidence).
+Read: playbook Section Q; §18 (BLOCKING items); 25-golive V.2/V.3. Invariant: TWO non-waivable classes (round 16) — §18 items 0–3 AND MONEY_SAFETY_BLOCKING (Q5a/Q5b/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-minimal): FAIL or missing evidence = NO-GO, no owner+plan waiver — EXCEPT Q5b, which may stand as PENDING-CUTOVER when Q5a is PASS (the defined pre-cutover state, round 20; GO-03 converts it to PASS inside the F0 window); every PASS carries linked evidence; manifest.yaml + SHA256SUMS must target the exact RC and environment with no stale entries in the invalidation map — incl. the Q5 CUTOVER_POPULATION_GREENFIELD RUN-2 proof (round 18: re-run post-fence at cutover, counts zero, bound; a D-12 snapshot alone is NOT cutover evidence).
 Placeholders: none. Mappings: none.
-Objective: execute Section Q; deliver evidence pack; obtain the signed PRE-CUTOVER go/no-go (round 19: CONDITIONAL on RUN 2 = zero in GO-03's window; GO-05 rehearsal already recorded — Q23). 
+Objective: execute Section Q; deliver evidence pack; obtain the signed PRE-CUTOVER go/no-go (round 19: CONDITIONAL on RUN 2 = zero in GO-03's window — Q5b PENDING-CUTOVER → PASS there; GO-05 rehearsal already recorded — Q23).
 Tests: none. Stop: decision recorded; next card GO-03.
 ```
 
