@@ -180,7 +180,7 @@
 - **Task ID:** ST-08
 - **Title:** Emit the §14 structured INFO line on every successful dimension-changing CAS
 - **Classification:** MVP normative implementation
-- **Purpose:** §14: the only local forensic record (no journal): request_id, idempotency_key, request_seq, correlation_id, (stage, stage_state, submission_state, outcome) before → after, display label, trigger_source, trigger_event_id; restore-surviving record of every issued/POSTed key (§5.2 step 5b leans on it).
+- **Purpose:** §14: the transition record — no TRANSITION-HISTORY journal replaces it (the switch-gated §14.1 attempt-content journal is a separate audit sink, never a log replacement — review 2b697fb M2): request_id, idempotency_key, request_seq, correlation_id, (stage, stage_state, submission_state, outcome) before → after, display label, trigger_source, trigger_event_id, plus post_attempt_seq + event type on ATTEMPT-class lines (§14); the ONLY restore-surviving forensic record (§5.2 step 5b leans on it).
 - **Prerequisites:** ST-02 (all writers CAS'd), ST-04 (label).
 - **Requirement sections / concepts to read:** §14 (whole), §16.3 (masking — no account data in the line).
 - **Placeholder components involved:** [Request Status Persistence Layer], [Metrics / Alerting Layer].

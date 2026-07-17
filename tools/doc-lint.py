@@ -128,9 +128,19 @@ FORBIDDEN = [
     ("journal absolute failure wording (c8a92f1 H1: the narrow guarantee is canon)",
      re.compile(r"never pause, fail, or gate|NEVER pauses posting|no journal (?:condition|failure) (?:may|can) (?:pause|fail)|any insert error", re.I),
      re.compile(r"money-safety gate|incorrect payment outcome|statement-local|lint", re.I)),
+]
+
+# ---- Multiline semantic rules (2b697fb L1): matched against the WHOLE
+# file text so line-wrapping cannot hide a forbidden clause; the allow
+# tokens are checked within the matched span's covering lines only
+# (never the rest of the file) ----
+MULTILINE_FORBIDDEN = [
     ("timeout classified as statement-local (928341a H2: timeouts are FATAL by default)",
-     re.compile(r"statement timeout.{0,60}(?:swallow|local|continues|proceeds)|(?:swallow|statement-local).{0,60}statement timeout", re.I | re.S),
+     re.compile(r"statement\s+timeout[^.]{0,140}?(?:swallow|statement-local|continues|proceeds)|(?:swallow(?:ed)?|statement-local)[^.]{0,140}?statement\s+timeout", re.I | re.S),
      re.compile(r"NOT here|FATAL|are not|never|lint", re.I)),
+    ("unqualified 'no journal' (2b697fb M2: say no TRANSITION-HISTORY journal; the 14.1 attempt-content journal exists)",
+     re.compile(r"\bno\s+journal\b(?!\s+(?:failure|error|condition|gap))", re.I),
+     re.compile(r"transition-history|console keeps|attempt-content|lint", re.I)),
 ]
 
 for path in MAINTAINED:
@@ -140,6 +150,15 @@ for path in MAINTAINED:
         for name, trip, allow in FORBIDDEN:
             if trip.search(line) and not allow.search(line):
                 errors.append(f"{rel(path)}:{n}: forbidden phrase [{name}]: {line.strip()[:120]}")
+    text = "\n".join(lines_of(path))
+    file_lines = text.split("\n")
+    for name, trip, allow in MULTILINE_FORBIDDEN:
+        for m in trip.finditer(text):
+            start_line = text.count("\n", 0, m.start()) + 1
+            end_line = text.count("\n", 0, m.end()) + 1
+            span = "\n".join(file_lines[start_line - 1:end_line])
+            if not allow.search(span):
+                errors.append(f"{rel(path)}:{start_line}: forbidden multiline phrase [{name}]: {m.group(0)[:100]}")
 
 # ---- Rule 5: test-matrix header range matches the actual max test id ----
 matrix = PORTABLE / "10-test-matrix.md"

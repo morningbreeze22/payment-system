@@ -475,8 +475,9 @@ episode anchor (`maybe_since`, `escalated_at`, `submitted_at`,
 `last_post_attempt_at`, `validation_failed_first_at` §2.1 — and
 `divergent_payload_at`, consumed as IS-NULL by repost_permitted §7.0
 rather than as an age) because the last-write clock churns. No per-dimension `*_changed_at` columns exist: transition
-history lives in the §14 log line, not in columns (the no-journal
-decision). Terminal time needs no column — the frozen-row convention
+history lives in the §14 log line, not in columns (the
+no-TRANSITION-HISTORY-journal decision; the §14.1 attempt-content
+journal is a separate audit sink, not transition history). Terminal time needs no column — the frozen-row convention
 (L1) freezes `state_changed_at` at the outcome transition, so for
 terminal rows `state_changed_at` IS the outcome time (the future
 terminal-row retention/archival design — §18 tech-lead item —
@@ -1569,12 +1570,23 @@ ratified as the DEFINED behavior, not a gap):
     Neither outcome moves money incorrectly; the difference is
     successor gating and display until the next valid message.
     Tests assert BOTH as allowed end states, never convergence.
-    Observability: the accepted lower-order-valid window is made
-    visible by an OFFLINE reconciliation rule (§15/N.1 — a scope
-    whose creating_ordering is below a sibling's live
-    validation_failed_ordering), not by runtime gating: without a
-    trade-level watermark it is not detectable online, and that
-    limitation is documented, accepted, and monitored.
+    Observability (revised 2026-07-17, review 2b697fb M1 — a
+    CANDIDATE report, deliberately NOT a classifier): OB-01's
+    reconciliation emits
+    VALID_SCOPE_CREATED_BELOW_KNOWN_VALIDATION_FAILURE_ORDERING
+    candidates via an explicit join — for each obligation M with a
+    LIVE validation_failed marker, flag sibling payment_request
+    rows r (same business_id, different scope) where
+    r.creating_ordering < M.validation_failed_ordering AND
+    r.created_at > M.validation_failed_first_at (§2.1 — the
+    chronology term excludes ordinary requests that predate the
+    failure). Candidates require MANUAL review: persisted state
+    CANNOT distinguish this intentional window from a
+    missed-marker crash, and the marker fields carry no source
+    discriminator (whole-snapshot vs enrichment vs engine
+    invalid-data share them) — none is added, BY DECISION (schema
+    churn for an observability aid). Not detectable online without
+    a trade-level watermark; documented, accepted, monitored.
 PRECISE SCOPE OF THE STOP, restated: what stops is new request
 creation on scopes KNOWN OR EXTRACTABLE when the invalid document
 is processed; scopes introduced afterwards by VALID documents
