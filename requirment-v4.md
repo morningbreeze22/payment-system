@@ -1520,11 +1520,14 @@ precisely: in-flight requests are UNTOUCHED (the marker is not a
 state-machine input); terminal evidence still applies (§10.1);
 retries of existing requests continue (the marker gates creation,
 not retry); what stops is NEW request creation (§6.8's
-validation-marker condition) across the whole trade, until a newer
-valid snapshot clears the markers by ordering. One corrupt
-trade-mate delays its siblings' NEW work — never their in-flight
-work. Partial application of a document that violated its own
-contract would be worse.
+validation-marker condition) on every scope KNOWN OR EXTRACTABLE
+when the invalid document is processed (the ratified scope — see
+the consistency semantics below; NOT literally "the whole trade":
+scopes introduced later by VALID documents may proceed), until a
+newer valid snapshot clears the markers by ordering. One corrupt
+trade-mate delays its known siblings' NEW work — never their
+in-flight work. Partial application of a document that violated
+its own contract would be worse.
 
 Consistency semantics (clarified 2026-07-11 after external review):
 this is EVENTUAL TRADE-WIDE VALIDATION VISIBILITY, not an atomic
@@ -1548,9 +1551,30 @@ ratified as the DEFINED behavior, not a gap):
     invalid document says nothing about B, so blocking B protects
     nothing money-real. A itself stays marker-blocked until a
     valid document newer than 200 clears it BY ORDERING.
-(b) ENUMERATION RACE: a concurrent valid fan-out may create a
-    scope after the invalid path enumerated existing scopes — the
-    same window as (a), converging identically.
+(b) ENUMERATION RACE — SCHEDULE-DEPENDENT BY DECISION (corrected
+    2026-07-17, review 928341a H1: the earlier "converges
+    identically" claim was FALSE — the invalid path holds no
+    trade-row lock across its per-scope marking pass, so no
+    deterministic order exists): a concurrent valid fan-out may
+    create scope B before OR after the invalid path enumerates
+    existing scopes. BOTH outcomes are RATIFIED as correct:
+    - B created AFTER enumeration → B carries NO marker (window
+      (a) exactly); its requests and successors proceed normally;
+    - B created BEFORE enumeration → B IS in the enumerated set
+      and receives the LIVE marker: its already-created request is
+      UNTOUCHED (markers never alter in-flight work), but
+      SUCCESSOR creation on B is marker-blocked until a valid
+      document newer than the failure ordering clears it — and the
+      UI shows DATA_VALIDATION_FAILED on B meanwhile.
+    Neither outcome moves money incorrectly; the difference is
+    successor gating and display until the next valid message.
+    Tests assert BOTH as allowed end states, never convergence.
+    Observability: the accepted lower-order-valid window is made
+    visible by an OFFLINE reconciliation rule (§15/N.1 — a scope
+    whose creating_ordering is below a sibling's live
+    validation_failed_ordering), not by runtime gating: without a
+    trade-level watermark it is not detectable online, and that
+    limitation is documented, accepted, and monitored.
 PRECISE SCOPE OF THE STOP, restated: what stops is new request
 creation on scopes KNOWN OR EXTRACTABLE when the invalid document
 is processed; scopes introduced afterwards by VALID documents
@@ -3344,9 +3368,14 @@ as was the over-broad "any error is harmless" claim):
   STATEMENT-LEVEL isolation: a plain try/catch around the single
   INSERT, with NO inner transaction boundary (an inner
   @Transactional participation would mark the host rollback-only —
-  the exact trap this rule forbids). STATEMENT-LOCAL failures —
-  unique/CHECK violations, space/tablespace errors, statement
-  timeout — are swallowed: the gap is recorded in memory/metrics
+  the exact trap this rule forbids). STATEMENT-LOCAL means ONLY
+  the pinned, T-38-proven Oracle vendor-code signatures —
+  ORA-00001, ORA-02290, the two journal-trigger codes, the
+  evidenced space-error family; TIMEOUTS AND EVERY UNKNOWN OR
+  AMBIGUOUS TRANSLATION ARE FATAL BY DEFAULT (2026-07-17, review
+  928341a H2 — a timeout does not prove the session is usable).
+  Allowed failures are swallowed: the gap is recorded in
+  memory/metrics
   and the host transaction proceeds; the AUDIT-GAP alert is
   emitted AFTER the host COMMIT (side effects after commit, §11 —
   a rolled-back host must never report a phantom gap).

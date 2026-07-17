@@ -686,8 +686,14 @@ Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          obligation AND request ARE created (from valid-150 state —
          §6.6 consistency window (a)), and A remains marker-blocked
          until a valid document newer than 200; the concurrent
-         invalid-200/valid-150 race (both lock orders) converges to
-         the same end state;
+         invalid-200/valid-150 race is SCHEDULE-DEPENDENT BY
+         DECISION (review 928341a H1 — no serialization exists):
+         BOTH end states are asserted as ALLOWED — (i) B created
+         after enumeration → B unmarked, proceeds; (ii) B created
+         before enumeration → B carries the live marker, its
+         in-flight request untouched, successors blocked + UI shows
+         DATA_VALIDATION_FAILED until a newer valid document; the
+         test runs both schedules and rejects any THIRD state;
          reference-only tie: detected at admission (digest differs),
          approved reprocess updates ONLY the trade row (blocks
          no-op), §7.0 assembly reads the new reference, re-run is
@@ -836,8 +842,10 @@ Cases:
      T-38 H; byte-for-byte completeness is provable only here).
   F  failure isolation on the REAL JDBC/Spring stack, BOTH riders
      (review d00ef6a H3 - the narrow guarantee):
-     (i) statement-local classes - tablespace-full, unique/CHECK/
-         trigger violation, statement timeout: posting CONTINUES
+     (i) allowlisted statement-local signatures ONLY - the pinned
+         ORA codes (00001 unique, 02290 check, 20141/20142 journal
+         triggers, evidenced space-error family; timeouts are NOT
+         here - review 928341a H2): posting CONTINUES
          (wire calls proceed, money outcomes identical), the gap is
          recorded, and the AUDIT-GAP alert fires AFTER the host
          COMMIT (a rolled-back host reports nothing); assert NO

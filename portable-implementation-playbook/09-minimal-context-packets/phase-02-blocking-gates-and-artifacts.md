@@ -83,7 +83,7 @@ Tests: none (K-03). Stop: spec + vectors published.
 [CA-6] Canonical instruction serialization / last_sent_hash
 Read: §7.0 §2.2 §5.1 (hash paragraph) §16.6 artifact 5. Invariant: business content only — envelope fields excluded or every attempt looks divergent.
 Placeholders: [Provider POST Client] [Request Status Persistence Layer]. Mappings: D-05 field inventory (kept local).
-Objective: define hashed field set, canonical order, canonicalization, algorithm, version; content never persisted, hash only.
+Objective: define hashed field set, canonical order, canonicalization, algorithm, version. Persistence rule (QUALIFIED, review 928341a M1): content never stored in payment tables/logs/traces — the ONLY permitted persistence is the switch-gated §14.1 journal; otherwise hash only. CA-6 produces BOTH the canonical bytes (consumed by the §14.1 rider) and the hash derived from those exact bytes.
 Tests: none (K-05). Stop: published.
 ```
 

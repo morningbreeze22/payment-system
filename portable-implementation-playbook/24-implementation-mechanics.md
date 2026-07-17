@@ -520,9 +520,11 @@ per review d00ef6a H3): every rider is SWITCH-GATED (§14.1 switch
 OFF → skip entirely, no error) and STATEMENT-ISOLATED — a plain
 try/catch around the single INSERT with NO inner @Transactional
 boundary (inner participation would mark the host rollback-only:
-the exact Spring trap this rule forbids). Statement-local failures
-(unique/CHECK/trigger violations, space errors, statement timeout)
-are swallowed: record the gap in memory/metrics and CONTINUE; the
+the exact Spring trap this rule forbids). Statement-local means
+ONLY the pinned ORA-code allowlist (00001, 02290, 20141/20142,
+evidenced space-error family) — TIMEOUTS AND UNKNOWN TRANSLATIONS
+ARE FATAL BY DEFAULT (review 928341a H2). Allowed failures are
+swallowed: record the gap in memory/metrics and CONTINUE; the
 AUDIT-GAP alert is emitted AFTER the host COMMIT (side effects
 after commit — a rolled-back host never reports a phantom gap).
 FATAL failures (connection loss, session kill, commit failure) are

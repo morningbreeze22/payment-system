@@ -132,7 +132,14 @@ Purpose: make hash comparisons across attempts and DR replays
   meaningful; the §7.2 branch discriminator's foundation.
 Required contents: hashed field set (business content only; envelope
   excluded); canonical order; canonicalization; algorithm; version;
-  the content-never-persisted rule.
+  the QUALIFIED persistence rule (review 928341a M1): canonical
+  instruction content is never stored in payment tables, logs,
+  traces, or any other local store — the ONLY permitted
+  persistence is the switch-gated §14.1 journal under its security
+  and retention controls; otherwise only last_sent_hash is
+  persisted. CA-6 therefore produces BOTH outputs: the canonical
+  bytes the §14.1 rider consumes AND the hash derived from those
+  exact bytes (one serialization, two consumers).
 Validation: same instruction → same hash; one business-field change →
   different hash; K-05 tests green.
 Dependent tasks: K-05, RC-02 (collision branch), ST-08/§14 line.
@@ -225,10 +232,11 @@ Driver (PO-recorded 2026-07-16): the request actually sent to the
   form; status is queryable, content is not) — incidents and audit
   need a RELIABLE local record of what each posting attempt
   intended to send.
-Purpose: the implementable spec of §14.1 — the RUNNABLE DDL, the
+Purpose: the implementable spec of §14.1 — the TYPED DDL TEMPLATE
+  (AUD-01 produces the resolved runnable migration), the
   two riders, the simplicity + narrow-guarantee rules, the security
-  package, retention. AUD-01 deploys the DDL; K-04, RC-02, and
-  ST-10 carry the riders.
+  package, retention. AUD-01 deploys the resolved DDL; K-04,
+  RC-02, and ST-10 carry the riders.
 Required contents:
   - THE DDL TEMPLATE (review 4d5cb83 M1 — this is formally a
     TEMPLATE with typed <placeholders>; the RESOLVED migration is

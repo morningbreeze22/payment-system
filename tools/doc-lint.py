@@ -128,6 +128,9 @@ FORBIDDEN = [
     ("journal absolute failure wording (c8a92f1 H1: the narrow guarantee is canon)",
      re.compile(r"never pause, fail, or gate|NEVER pauses posting|no journal (?:condition|failure) (?:may|can) (?:pause|fail)|any insert error", re.I),
      re.compile(r"money-safety gate|incorrect payment outcome|statement-local|lint", re.I)),
+    ("timeout classified as statement-local (928341a H2: timeouts are FATAL by default)",
+     re.compile(r"statement timeout.{0,60}(?:swallow|local|continues|proceeds)|(?:swallow|statement-local).{0,60}statement timeout", re.I | re.S),
+     re.compile(r"NOT here|FATAL|are not|never|lint", re.I)),
 ]
 
 for path in MAINTAINED:

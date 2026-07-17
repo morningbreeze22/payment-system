@@ -55,6 +55,16 @@ root-cause incident.
   than one lease window                 → alert (crash evidence;
   planned §14.1 switch transitions — freeze-gated — are recorded
   and EXCLUDED by triage)
+- §6.6 accepted-window visibility (review 928341a L2 — OFFLINE
+  reconciliation, not runtime gating): a scope whose
+  creating_ordering is below a sibling scope's LIVE
+  validation_failed_ordering → metric/log event
+  VALID_SCOPE_CREATED_BELOW_KNOWN_VALIDATION_FAILURE_ORDERING
+  (masked trade/scope ids + both orderings). Not detectable
+  online without a trade-level watermark (none exists BY
+  DECISION) — the reconciliation query is the documented,
+  accepted mechanism; it distinguishes the intentional window
+  from a missed-marker defect          → metric + review
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)
