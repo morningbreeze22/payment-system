@@ -83,8 +83,8 @@ Tests: double-claim race; stale-worker fence; L6. Stop: merged.
 [ST-10] Lease-expiry recovery
 Read: §11 (expiry + rationale) §10.2. Invariant: expired POST claim → CONFIRM·READY·MAYBE + maybe_since; NEVER re-claimed for posting; no "provably not launched" carve-out.
 Placeholders: [Retry Resolver Job] (or expiry sweep). Mappings: ST-09 shape.
-Objective: expiry handling: ENRICH → READY in place; POST → CONFIRM·READY·MAYBE (+maybe_since), claim fields cleared.
-Tests: both paths; slow-worker fence; expired POST row structurally unclaimable for posting. Stop: merged.
+Objective: expiry handling: ENRICH → READY in place; POST → CONFIRM·READY·MAYBE (+maybe_since), claim fields cleared. §14.1 rider: POST-expiry CAS inserts ATTEMPT_RESOLVED outcome LEASE_EXPIRED_MAYBE, same transaction, rowCount==1 only.
+Tests: both paths; slow-worker fence; expired POST row structurally unclaimable for posting; T-38 (one RESOLVED per attempt under the race). Stop: merged.
 ```
 
 ```text

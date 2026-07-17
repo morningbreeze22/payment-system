@@ -1,4 +1,4 @@
-> **Purpose:** Task cards S-01..S-10 (schema and migration foundation; S-10 = trade_snapshot_state; the former S-11 bootstrap was RETIRED round 10 — §2.4 greenfield fact) (original Section H, phase P3).
+> **Purpose:** Task cards S-01..S-10 + AUD-01 (schema and migration foundation; S-10 = trade_snapshot_state; AUD-01 = the §14.1 attempt-journal schema, off-chain; the former S-11 bootstrap was RETIRED round 10 — §2.4 greenfield fact) (original Section H, phase P3).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P3.
@@ -246,6 +246,30 @@
 - **Completion criteria:** all four proof points green.
 - **Stop condition:** green; report filed.
 - **Next task:** K-01.
+
+### AUD-01 — Deploy the §14.1 attempt-journal schema (ops/audit schema)
+
+- **Task ID:** AUD-01
+- **Title:** payment_attempt_journal DDL + grants + partitioning + DB audit, exactly per §14.1/CA-10 (outside the §2 model and the S-chain; runs any time in/after P3)
+- **Classification:** MVP normative implementation (§14.1).
+- **Purpose:** the deployed store for the content write-ahead; K-04/RC-02/ST-10's riders insert into it.
+- **Prerequisites:** CA-10 published (DBA + security review recorded); CA-4 alignment; NOT part of the S-01..S-09 chain (own schema; the §2 model is untouched).
+- **Requirement sections / concepts to read:** §14.1 (all), §2.2 (post_attempt_seq), §16.3 (security package), file 24 M9.
+- **Placeholder components involved:** [DB Migration Directory].
+- **Local placeholder mappings required before starting:** ops/audit schema name + tablespace; audit-role name; TDE availability (DBA answer).
+- **Local code areas to discover:** none (new objects).
+- **How to locate:** n/a.
+- **Implementation instructions:** create the §14.1 table (UNIQUE(request_id, post_attempt_seq, event_type); monthly interval partitioning on occurred_at; local index on idempotency_key; own tablespace); GRANTS: INSERT to the application role, SELECT to the restricted audit role ONLY, NO UPDATE/DELETE to anyone; enable DB audit on reads of the table; retention job = partition drop per the compliance answer (until answered: retain); document restore posture (the journal lives outside the payment DB restore set). Also add post_attempt_seq to payment_request per §2.2 (a NUMBER default 0 — the ONE §2 column this task touches, coordinated with CA-4).
+- **Do not change:** the four §2 tables beyond the §2.2 post_attempt_seq column; any payment-path code (riders belong to K-04/RC-02/ST-10).
+- **Tests to add:** T-38 schema slice: INSERT-only enforced (UPDATE/DELETE refused for every role); unique-pair constraint; partition-drop rehearsal; app role cannot SELECT.
+- **Edge cases:** SECUREFILE compression is a licensing decision — record it, never assume; lower environments get the TABLE but never production data.
+- **Manual validation:** DBA review of deployed objects + grants; security sign-off recorded (Q30 evidence).
+- **Expected outcome:** journal deployed; riders unblocked.
+- **Failure signs:** FK to payment_request; UPDATE grants; app role with SELECT; journal inside the payment schema.
+- **Common mistakes:** putting the table in the §2 schema "for convenience"; skipping the DB-audit-on-reads step.
+- **Completion criteria:** T-38 schema slice green; grants verified.
+- **Stop condition:** merged; K-04/RC-02/ST-10 riders unblocked.
+- **Next task:** none (off-chain; the S-chain and K-01 proceed independently).
 
 
 ---

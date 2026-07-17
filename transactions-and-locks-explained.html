@@ -392,7 +392,7 @@
   <span class="kw">AND</span>  outcome <span class="kw">IS NULL</span>
   <span class="kw">AND</span>  divergent_payload_at <span class="kw">IS NULL</span>
 <span class="cm">-- rowCount 1 = claim won · 0 = lost race, skip</span></pre>
-        <p>Before TX1 commits, the row also records the <strong>write-ahead facts</strong>: <code>last_sent_hash</code>, <code>divergence_expected</code>, <code>last_post_attempt_at</code>. (The deterministic idempotency key itself exists from row creation, §5.1/§6.8 — never minted at send time.) The DB durably knows what may be sent before any byte leaves. The audit journal's ATTEMPT_STARTED insert rides this same commit; ATTEMPT_RESOLVED rides TX2's.</p>
+        <p>Before TX1 commits, the row also records the <strong>write-ahead facts</strong>: <code>last_sent_hash</code>, <code>divergence_expected</code>, <code>last_post_attempt_at</code>, <code>post_attempt_seq</code>. (The deterministic key is computed and stored at row creation — K-02 — and re-verified/persisted-if-absent at the first posting claim — K-04/§11; never minted at send time.) The DB durably knows what may be sent before any byte leaves. The §14.1 journal's ATTEMPT_STARTED insert (the content write-ahead) rides this same commit; ATTEMPT_RESOLVED rides the episode-ending commit.</p>
       </div>
     </details>
 
@@ -802,7 +802,7 @@
   /* ==================================================================
      SCENARIOS — ordered by the rule they prove: A, B1 B2 B3, C1 C2
      ================================================================== */
-  var REQ_LINES_READY = ["stage POST · READY · NOT_SUBMITTED", "key PK-7f21…c4 (set at creation, §5.1)", "attempt_count 0"];
+  var REQ_LINES_READY = ["stage POST · READY · NOT_SUBMITTED", "key PK-7f21…c4 (stored at creation, K-02)", "attempt_count 0"];
   function obLines() { return ["scope: TRADE-42 · EUR · ACC-1", "committed 100 · confirmed 0"]; }
 
   var scenarios = [
@@ -942,7 +942,7 @@
             S.rows.b.lines = ["stage POST · CLAIMED", "key PK-7f21…c4", "attempt_count 1"];
             S.rows.b.lease = 1; S.rows.b.leaseLabel = "lease 90s";
         } },
-        { d: 3.6, cap: "Still in TX1: assemble the instruction <strong>fresh</strong> from the latest admitted snapshot, then persist the <strong>write-ahead facts</strong>: <code>last_sent_hash</code>, <code>divergence_expected</code>, <code>last_post_attempt_at</code>. (The idempotency key is NOT minted here — it has existed since the row was created, §5.1/§6.8. Identity is never invented at send time.)", set: function () {
+        { d: 3.6, cap: "Still in TX1: assemble the instruction <strong>fresh</strong> from the latest admitted snapshot, then persist the <strong>write-ahead facts</strong>: <code>last_sent_hash</code>, <code>divergence_expected</code>, <code>last_post_attempt_at</code>, and the §14.1 content record. (The key was computed and stored at row creation — K-02; this first claim re-verifies it and persists it if absent — K-04/§11. Identity is never invented at send time.)", set: function () {
             S.rows.b.lines = ["stage POST · CLAIMED", "key PK-7f21…c4 · hash a41c…9e", "divergence_expected false"];
             fxAt(0.4, "write-ahead: hash + flags", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--accent");
         } },
@@ -1117,7 +1117,7 @@
         S.engine.visible = false; S.wire = false;
       },
       beats: [
-        { d: 3.4, cap: "<strong>Rule C, part 2.</strong> The same trade's snapshot is being processed twice (redelivery + a concurrent consumer). Each worker must touch <strong>both</strong> obligations. First: a world <strong>without</strong> a lock-order rule.", set: function () {} },
+        { d: 3.4, cap: "<strong>Rule C, part 2.</strong> The same trade's snapshot is being processed twice (redelivery + a concurrent consumer). Each worker must apply blocks for <strong>both</strong> obligations. First: a world that breaks the design's rules — <strong>one transaction spanning both obligations</strong> (§6.1 forbids exactly this).", set: function () {} },
         { d: 3.0, cap: "W1 grabs the EUR lock. W2 grabs the USD lock. Both succeed — so far so good…", set: function () {
             tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
             tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
@@ -1132,7 +1132,7 @@
             ];
             fxAt(0.75, "ORA-00060 deadlock ✗", DB.x + DB.w / 2, 165, "--red", 2.4);
         } },
-        { d: 3.0, cap: "Rewind. Now the fix — <strong>one global order</strong>: trade → obligations in <em>sorted tuple order</em> → request. Everyone walks the same direction; here that means <strong>EUR before USD, always</strong>.", set: function () {
+        { d: 3.8, cap: "Rewind. The real design kills this world <strong>twice over</strong> (§6.1): a <strong>global lock order</strong> (trade fence → obligation → request) AND <strong>one block per transaction</strong> — no transaction EVER holds two obligation locks. Consumers serialize at the trade fence; blocks run in <em>sorted tuple order</em>, one short transaction each.", set: function () {
             S.arrows = [];
             S.workers.w1.tx = false; S.workers.w2.tx = false;
             S.workers.w1.note = ""; S.workers.w2.note = "";
@@ -1140,26 +1140,28 @@
             tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
             tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
         } },
-        { d: 3.4, cap: "Both start at EUR. W1 wins the lock; W2 <strong>queues</strong>. Waiting is fine — cycles are not.", set: function () {
+        { d: 3.6, cap: "Both consumers hit the <strong>trade fence</strong> first; W1 wins it. W1's first transaction touches ONLY EUR: fence check → EUR lock → apply → <span class='k'>COMMIT</span>, lock released. W2 waits at the fence — waiting is fine, cycles are not.", set: function () {
             tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y - 24 });
             tw(S.workers.w2, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y + 18 });
-            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "waiting…";
-            S.rows.a.waitText = "W2 queued";
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "at the fence…";
+            fxAt(0.8, "TX(EUR) COMMIT ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
         } },
-        { d: 3.6, cap: "W1 proceeds EUR → USD, finishes, commits, releases both. No one ever held USD while waiting for EUR.", set: function () {
+        { d: 3.8, cap: "W1's SECOND transaction touches ONLY USD: fence re-check → USD lock → apply → COMMIT. Note what never existed: <strong>a moment where W1 held both obligation locks.</strong> With single-obligation transactions there is no two-lock state — a cycle can't even be drawn.", set: function () {
+            S.rows.a.lock = null;
             tw(S.workers.w1, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
             S.rows.b.lock = "W1";
-            fxAt(0.85, "COMMIT ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y + ROW_B.h + 16, "--green");
+            fxAt(0.8, "TX(USD) COMMIT ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
         } },
-        { d: 3.6, cap: "W2's turn: same path, same order, no conflict. <strong>When every path locks in the same order, a cycle can never form — deadlock is impossible by construction, not by luck.</strong>", set: function () {
-            S.workers.w1.tx = false; S.rows.a.lock = "W2"; S.rows.b.lock = null; S.rows.a.waitText = null;
+        { d: 3.6, cap: "W2's turn at the fence: same order, one block per transaction — and its redelivered blocks simply <strong>drop as already-applied</strong> (the ordering tag). <strong>Deadlock impossible by construction, twice over: fixed order AND no cross-obligation transaction.</strong>", set: function () {
+            S.workers.w1.tx = false; S.rows.b.lock = null;
             S.workers.w2.tx = true; S.workers.w2.note = "";
             tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
             tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            fxAt(0.7, "already applied → skip ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--violet");
         } },
         { d: 3.8, cap: "This is also why <span class='k'>FOR UPDATE SKIP LOCKED</span> is <strong>forbidden</strong> here: it silently reorders lock acquisition, quietly re-creating the deadlock world. <strong>Next: the Σ scenarios — whole lifecycles, where all the rules run at once.</strong>", set: function () {
-            tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
-            S.rows.a.lock = null; S.rows.b.lock = "W2";
+            S.workers.w2.tx = false;
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
         } }
       ]
     },
@@ -1355,15 +1357,14 @@
             S.workers.rs.note = "waiting out the trust-age…";
             fxAt(0.5, "trust-age: not yet actionable", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--violet");
         } },
-        { d: 3.6, cap: "Trust-age elapsed; still NOT FOUND. <strong>Now</strong> the §9.2 downgrade CAS runs: MAYBE_SUBMITTED → NOT_SUBMITTED, stage CONFIRM back to <span class='k'>POST · READY</span> (the one sanctioned stage regression in the system). Same row, <strong>same idempotency key</strong>, attempt history intact. No new identity is ever minted for a retry.", set: function () {
+        { d: 3.8, cap: "Trust-age elapsed; still NOT FOUND. <strong>Now</strong> the §9.2 downgrade CAS runs: stage CONFIRM back to <span class='k'>POST · RETRY_WAIT</span> (the one sanctioned stage regression; <code>next_retry_at = now</code>; the retry-budget <code>attempt_count</code> resets — <code>post_attempt_seq</code> does NOT). <strong>Submission REMAINS MAYBE_SUBMITTED</strong> — honest: it may have landed; the re-POST's <em>response</em> is what settles it. Same row, <strong>same idempotency key</strong>.", set: function () {
             S.workers.rs.note = "resolver";
             tw(S.workers.rs, { x: HOME3.x, y: HOME3.y });
             S.engine.flash = null;
-            S.rows.b.lines = ["stage POST · READY", "sub NOT_SUBMITTED", "key PK-…-seq1  ← SAME key"];
-            S.rows.b.hlBorder = null;
+            S.rows.b.lines = ["stage POST · RETRY_WAIT", { t: "sub MAYBE_SUBMITTED (still)", c: "--violet" }, "key PK-…-seq1  ← SAME key"];
             fxAt(0.4, "downgrade ✓ (same key)", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
         } },
-        { d: 3.2, cap: "A scanner re-claims it like any READY row and posts attempt 2 — carrying the same key.", set: function () {
+        { d: 3.2, cap: "When <code>next_retry_at</code> is due, the retry scanner claims it (RETRY_WAIT → CLAIMED) and posts attempt 2 — carrying the same key, submission still honestly MAYBE.", set: function () {
             tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
             S.workers.w2.tx = true; S.rows.a.lock = "W2";
             S.rows.b.lines = ["stage POST · CLAIMED · attempt 2", "key PK-…-seq1"];
@@ -1371,7 +1372,7 @@
             S.packet.x = DB.x + DB.w; S.packet.y = ENG.y + ENG.h / 2;
             tw(S.packet, { x: ENG.x + 10 });
         } },
-        { d: 4.4, cap: "Worst case: the query was wrong and attempt 1 <em>did</em> land. The engine dedups by our key: <span class='k'>DUPLICATE_REQUEST</span> — a hidden earlier attempt just surfaced. Classification (§7.2): back to <span class='k'>MAYBE_SUBMITTED</span> + status query — never “assume accepted”, and the response's UETR is not even persisted (it names a submission under which nothing executes, §5).", set: function () {
+        { d: 4.4, cap: "Worst case: the query was wrong and attempt 1 <em>did</em> land. The engine dedups by our key: <span class='k'>DUPLICATE_REQUEST</span> — a hidden earlier attempt just surfaced. Classification (§7.2): <span class='k'>MAYBE_SUBMITTED</span> (it never stopped being MAYBE) + status query — never “assume accepted”, and the response's UETR is not even persisted (it names a submission under which nothing executes, §5).", set: function () {
             S.engine.flash = "DUPLICATE_REQUEST"; S.engine.flashColor = "--violet";
             S.packet.active = false;
             S.workers.w2.tx = false; S.rows.a.lock = null;

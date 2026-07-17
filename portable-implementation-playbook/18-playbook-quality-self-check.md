@@ -29,10 +29,11 @@
     attempt-history/manual-action/audit-history tables: Section B
     non-goal 5 + P-13 SPEC_CONFLICT rule; IN-06/S-04 explicitly
     guard the parked-event trap. The two rule-13 ops-schema
-    exceptions (CA-9 approval store; OPTIONAL CA-10 attempt-audit
-    journal, 2026-07-16) are sanctioned, spec'd, and never
-    payment-state; CA-10 is INSERT-only and never read at runtime,
-    so the V11-17 rejection scope stays intact.
+    exceptions (CA-9 approval store; the §14.1 attempt journal —
+    CA-10/AUD-01, 2026-07-16) are sanctioned, spec'd at requirement
+    level, and never payment-state; the journal is INSERT-only and
+    never read at runtime, so the V11-17 rejection scope stays
+    intact.
 [x] No future/post-MVP/PO-discussion work promoted to MVP: §5.2 DR
     runbook (C18), key-only anchoring (C25), §19.1/19.2/19.3
     (C69-71), ops console (C72) are classified FUTURE/QUESTION;

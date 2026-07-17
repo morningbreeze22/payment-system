@@ -41,7 +41,8 @@ a status; every DONE row has a filed execution report (file 19).
 | 23 | CA-7 | TODO | | | |
 | 24 | CA-8 | TODO | | | |
 | 25 | CA-9 | TODO | | | |
-| 25a | CA-10 | TODO | | | (OPTIONAL — record adopt/decline here; never gates) |
+| 25a | CA-10 | TODO | | | (§14.1 attempt-journal spec) |
+| 25b | AUD-01 | TODO | | | (§14.1 journal DDL — off-chain, in/after P3) |
 | 26 | S-01 | TODO | | | |
 | 27 | S-02 | TODO | | | |
 | 28 | S-03 | TODO | | | |

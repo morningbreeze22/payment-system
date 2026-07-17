@@ -64,8 +64,9 @@ mutation, under the lock, LAST before COMMIT:
 
 LOG LINE (§14): every attempt/transition emits one structured line —
 idempotency_key, request_seq, correlation_id, dimensions
-before→after, payload hash, trigger_source. [CA-10 riders mirror the
-attempt lines into the audit journal IF adopted — file 24 M9.]
+before→after, payload hash, trigger_source. The §14.1 journal riders
+mirror the ATTEMPT lines into the content journal — file 24 M9
+(two sinks of one attempt; the journal adds the bytes).
 
 EXCEPTION TAXONOMY — every catch block classifies; silent catch =
 review-failing defect:
@@ -161,8 +162,11 @@ onTradeSnapshot(record):
                                                  // alert; STOP (no auto-refund) §13
         ob.ordering_tag := doc.ordering
         reevaluate_6_8()                         // may INSERT request +
-                                                 // committed += amount (same TX,
-                                                 // identity §5.1 minted AT CREATION)
+                                                 // committed += amount (same TX;
+                                                 // identity §5.1: key computed and
+                                                 // stored at creation (K-02), then
+                                                 // re-verified/persisted-if-absent
+                                                 // at the first posting claim (K-04))
         derive(ob)                               // frontend updated atomically
         COMMIT
 
@@ -309,6 +313,10 @@ postAttempt(id):
     n = CAS request SET stage_state='CLAIMED', claimed_by=me,
         claim_expires_at=now+LEASE,
         attempt_count = attempt_count + 1,
+        post_attempt_seq = post_attempt_seq + 1,   // monotonic §14.1
+                                                   // identity — NEVER
+                                                   // reset (attempt_count
+                                                   // resets on §9.2)
         last_post_attempt_at = now
         WHERE id AND stage='POST' AND stage_state='READY'
           AND outcome IS NULL AND divergent_payload_at IS NULL
@@ -320,7 +328,9 @@ postAttempt(id):
                                     AND last_sent_hash != hash)
     request.last_sent_hash := hash               // write-ahead: the DB knows what
                                                  // may be sent BEFORE any byte leaves
-    [CA-10 rider 1: INSERT ATTEMPT_STARTED — same TX, if adopted]
+    [§14.1 rider 1: INSERT ATTEMPT_STARTED — same TX ALWAYS; the
+     content write-ahead (full bytes iff hash changed, else
+     content_ref — dedup); no byte leaves without this committed]
     COMMIT
   on commit-outcome-UNKNOWN (connection died mid-commit):
     DO NOT POST. Walk away. Either the claim never landed (row still
@@ -367,7 +377,7 @@ postAttempt(id):
       UNMAPPED:
         sub := MAYBE_SUBMITTED; stage_state := BLOCKED(UNMAPPED_CODE)
         + alert                                    // fail closed
-    [CA-10 rider 2: INSERT ATTEMPT_RESOLVED on rowCount 1, if adopted]
+    [§14.1 rider 2: INSERT ATTEMPT_RESOLVED on rowCount 1]
     derive(ob)                                     // frontend sees the outcome AND
                                                    // its exception atomically
     COMMIT
@@ -390,7 +400,7 @@ sweepExpiredClaims():
             sub := MAYBE_SUBMITTED, maybe_since := coalesce(existing, now)
         // NEVER back to POST·READY: the payload may be at the engine;
         // re-POSTing here is the double-payment path (§11)
-        [CA-10 rider 2: ATTEMPT_RESOLVED outcome=LEASE_EXPIRED_MAYBE]
+        [§14.1 rider 2: ATTEMPT_RESOLVED outcome=LEASE_EXPIRED_MAYBE]
       derive(ob)
       COMMIT
 ```
@@ -414,9 +424,16 @@ resolve(row):                                     // MAYBE rows (any stage_state
         // never downgrade an acknowledged payment (§9.1)
       else if withinTrustAge(last_post_attempt_at): keep MAYBE; requery
         // "not found" may mean "not yet" — patience is correctness (§9.2)
-      else if pastTrustAge and lookbackStillValid (§7.4 aging):
-        TX: CAS sub MAYBE→NOT_SUBMITTED, stage CONFIRM→POST·READY
+      else if pastTrustAge and lookbackStillValid (§7.4 aging)
+              and repost_permitted:
+        TX: CAS stage CONFIRM→POST, stage_state := RETRY_WAIT
+            (next_retry_at = now; attempt_count resets,
+             post_attempt_seq does NOT)
             // the ONE sanctioned stage regression; SAME key (§9.2)
+            // sub REMAINS MAYBE_SUBMITTED — honest: it may have
+            // landed; the re-POST's RESPONSE settles it
+            // (acceptance → SUBMITTED; sync reject → NOT_SUBMITTED;
+            //  DUPLICATE_REQUEST → MAYBE + query)
     INDETERMINATE (query failed): keep MAYBE; jittered backoff
 
 [SCHEDULER]

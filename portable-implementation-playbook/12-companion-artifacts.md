@@ -1,4 +1,4 @@
-> **Purpose:** Companion artifact plan CA-1..CA-10: owner type, required contents, validation, dependents, go-live relevance, failure-if-omitted (original Section L; CA-10 is OPTIONAL and team-internal).
+> **Purpose:** Companion artifact plan CA-1..CA-10: owner type, required contents, validation, dependents, go-live relevance, failure-if-omitted (original Section L; CA-10 implements the §14.1 attempt journal — 2026-07-16).
 > **When to use this file:** When authoring or validating any section-16.6 companion artifact; checking whether implementation may start before an artifact exists (see also 18-playbook-quality-self-check.md complement).
 > **Depends on:** requirment-v4.md section 16.6; 08-task-cards/phase-02-blocking-gates-and-artifacts.md.
 > **Used by:** CA-consuming tasks (RC-01, IN-07, RC-06, S-xx, K-xx, OP-xx, OB-xx).
@@ -7,11 +7,12 @@
 
 # L. Companion artifact plan
 
-CA-1..CA-9 are first-class deliverables with task cards (Section H,
-Phase P2); CA-10 is an OPTIONAL tenth artifact (team-internal audit,
-never go-live gated — adopt or decline explicitly). Owner types:
-PROVIDER-FACING (needs provider input), TEAM (authored locally from
-the spec), DBA (schema authority), OPS (operations authority).
+All ten are first-class deliverables with task cards (Section H,
+Phase P2); CA-10 (added 2026-07-16) is the implementable spec of the
+§14.1 attempt journal — the nine §16.6 artifacts plus one §14.1
+artifact. Owner types: PROVIDER-FACING (needs provider input), TEAM
+(authored locally from the spec), DBA (schema authority), OPS
+(operations authority).
 
 ### CA-1 — Engine error-code classification table
 
@@ -199,70 +200,74 @@ Failure if omitted: unresolvable MAYBE rows hold reservations forever;
   scopes never complete; I6 blocks successors (§18-3's wedge).
 ```
 
-### CA-10 — OPTIONAL: payment attempt-audit journal (team-internal)
+### CA-10 — Attempt-journal spec (§14.1 content write-ahead)
 
 ```text
-Section: NONE — team-internal, outside requirment-v4.md by design
-  (the §2 model is untouched; §14 unchanged: the log line and the
-  journal row are the SAME record with two sinks). Rule-13 second
-  sanctioned ops-schema exception (recorded 2026-07-16). NOT a
-  §16.6 artifact; NEVER go-live gated.
-Owner type: TEAM + DBA + OPS (grants/retention authority).
-Driver (PO-recorded 2026-07-16): team-internal tracking and audit of
-  POSTING attempts, DB-grade — SQL-joinable and retained beyond the
-  §14 90-day log floor. Without this driver the artifact is DECLINED;
-  the pre-CA-10 designed state (log-only forensics) stays valid.
-Purpose: one durable event-pair per POST attempt (what we intended to
-  send, and how the attempt ended); an audit sink, NEVER state.
+Section: §14.1 (added 2026-07-16); §2.2 (post_attempt_seq); §16.3
+  (the controlled content exception). Rule-13 second sanctioned
+  ops-schema store — the §2 payment model remains exactly four
+  tables.
+Owner type: TEAM + DBA + OPS (grants/retention) + compliance
+  (retention answer).
+Driver (PO-recorded 2026-07-16): the request actually sent to the
+  engine is NOT visible to this team (SDK/platform own the wire
+  form; status is queryable, content is not) — incidents and audit
+  need a RELIABLE local record of what each posting attempt
+  intended to send.
+Purpose: the implementable spec of §14.1 — DDL, the two riders, the
+  dedup rule, the security package, retention. AUD-01 deploys the
+  DDL; K-04, RC-02, and ST-10 carry the riders.
 Required contents:
-  - DDL (ops/audit schema; names adapt per file 24 M0):
+  - DDL exactly per §14.1 (names adapt per file 24 M0):
     payment_attempt_journal — journal_id identity PK; request_id
-    (NO foreign key, deliberately — archival stays unblocked);
-    idempotency_key denormalized (rows self-contained);
-    attempt_no; event_type ATTEMPT_STARTED | ATTEMPT_RESOLVED;
-    occurred_at UTC = monthly interval-partition key; trigger_source;
-    correlation_id; payload_hash (= last_sent_hash, CA-6 algorithm);
-    payload_json (STARTED rows — the full engine message);
-    outcome (RESOLVED rows — the §7.2 classes VERBATIM plus
-    LEASE_EXPIRED_MAYBE; vocabulary is never invented);
+    (NO foreign key); idempotency_key denormalized;
+    post_attempt_seq (from the request row §2.2 — NEVER
+    attempt_count: it resets on the §9.2 downgrade and would
+    collide on the recovery re-POST); event_type ATTEMPT_STARTED |
+    ATTEMPT_RESOLVED; occurred_at UTC = monthly interval-partition
+    key; trigger_source; correlation_id; payload_hash (CA-6);
+    payload_content (STARTED; nullable) + content_ref (dedup);
+    outcome (§7.2 classes VERBATIM + LEASE_EXPIRED_MAYBE);
     error_code; error_detail; response_excerpt;
-    UNIQUE(request_id, attempt_no, event_type); local index on
-    idempotency_key.
-  - The TWO riders (no new commit points, no new locks):
-    ATTEMPT_STARTED inserted in the posting-claim transaction beside
-    the §2.2 write-ahead fields; ATTEMPT_RESOLVED inserted in
-    WHICHEVER transaction ends the attempt episode — the worker's
-    §7.2 classification OR the lease-expiry takeover (outcome
-    LEASE_EXPIRED_MAYBE). The dimension CAS already arbitrates that
-    race, so exactly one RESOLVED per attempt; the UNIQUE constraint
-    backstops. An unmatched STARTED older than one lease window is
-    an alertable anomaly (see N.1).
-  - Coupling rule: same-transaction inserts — a journal failure fails
-    the posting transaction (fail-safe: payments pause, money is
-    never at risk); own tablespace + a write-failure alert;
-    AUTONOMOUS TRANSACTIONS FORBIDDEN (they commit phantom STARTED
-    rows when the claim rolls back).
-  - Guardrails (all four normative): OUTSIDE the §2 model (ops/audit
-    schema); INSERT-only forever (retention = partition drop, never
-    DELETE/UPDATE); NO runtime rule, scanner, gate, resolver, or
-    derivation may EVER read it (audit, never state — it replaces
-    NOTHING: divergence_expected, last_sent_hash, and the §14 line
-    all stay, so the V11-17 rejection scope is intact); grants
-    restricted to the ops/audit role (payload_json duplicates
-    account data; §16.3 masking deliberately does NOT apply — this
-    is an access-restricted audit table, not an alert surface).
-  - Scope: POSTING attempts ONLY — not ENRICH retries (repeatable
-    reads), not resolver settlements, not request lifecycle (those
-    live in §14 and on the rows).
-Validation: DBA + ops review; the adopt/decline decision recorded in
-  the tracker row; if adopted, the rider tests live with the
-  posting-path cards (duplicate/replayed event → journal unchanged
-  beyond its single pair; TX1 rollback leaves no STARTED row).
-Dependent tasks: none blocked by it (OPTIONAL); the riders attach to
-  the posting-claim and outcome-recording implementations (file 24
-  M9) if adopted.
-Go-live relevance: NO — gates nothing, waives nothing.
-Failure if omitted: attempt forensics remain log-only (§14, 90-day
-  floor) — acceptable; that is the designed default.
+    UNIQUE(request_id, post_attempt_seq, event_type); local index
+    on idempotency_key; own tablespace.
+  - The TWO riders (§14.1): ATTEMPT_STARTED in the posting-claim
+    transaction (K-04) — the RELIABILITY RULE: no byte leaves
+    unless the content record for its hash is durably committed;
+    ATTEMPT_RESOLVED in whichever transaction ends the episode —
+    RC-02's §7.2 classification or ST-10's lease-expiry recovery
+    (LEASE_EXPIRED_MAYBE) — only on rowCount==1.
+  - Coupling: same-transaction ALWAYS — a journal failure fails the
+    posting transaction (fail-safe; §15 alert; own tablespace);
+    AUTONOMOUS TRANSACTIONS FORBIDDEN.
+  - Content + performance (ISO 20022-class payloads): FULL content
+    (PO 2026-07-16), CA-6 canonical serialization; DEDUP — content
+    stored once per distinct hash per request (else content_ref);
+    recorded concerns per §14.1 (LOB latency in the claim tx —
+    measure via the file 26 facts sheet WITH the journal on;
+    redo/backup volume; SECUREFILE compression = DBA/licensing;
+    partition maintenance) — never resolved by weakening the
+    same-transaction rule.
+  - Security (§16.3 exception): restricted audit role only;
+    DB-audited reads; encryption at rest per DBA standard; never
+    replicated to lower environments; retention = partition drop
+    per the compliance answer (§14.1 open ask).
+  - Guardrails: INSERT-only forever; NO runtime rule, scanner,
+    gate, resolver, or derivation may EVER read it (replaces
+    NOTHING — divergence_expected, last_sent_hash, §14 line all
+    stay; the V11-17 rejection scope is intact); POSTING attempts
+    only.
+Validation: DBA + security/privacy + ops review; PO driver on
+  record (2026-07-16); T-38 green (rollback, downgrade-reset
+  identity, expiry race, duplicate delivery, journal-outage pause).
+Dependent tasks: AUD-01 (DDL); K-04 (rider 1); RC-02 + ST-10
+  (rider 2); OB-05 (the two N.1 journal alerts); Q30 evidence
+  (protection controls), Q31 (capacity).
+Go-live relevance: YES — gated like any MVP scope (it is part of
+  the posting path; the old "never gates" framing died with the
+  optional framing).
+Failure if omitted: no local record of sent content exists anywhere
+  (the engine's copy is not visible to us) — incident forensics and
+  audit cannot answer "what did we actually send".
 ```
 

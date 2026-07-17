@@ -315,36 +315,36 @@
 - **Stop condition:** published; OP-01 unblocked.
 - **Next task:** CA-10 (OPTIONAL — or straight to S-01, Phase P3, if the team declines it).
 
-### CA-10 — Author the OPTIONAL attempt-audit journal spec (team-internal)
+### CA-10 — Author the §14.1 attempt-journal spec
 
 - **Task ID:** CA-10
-- **Title:** OPTIONAL team-internal attempt-audit journal (payment_attempt_journal, ops/audit schema): spec + DDL + the two insert riders (rule-13 second sanctioned exception, recorded 2026-07-16)
-- **Classification:** OPTIONAL companion artifact — team-internal audit; NOT §16.6; NEVER go-live gated.
-- **Purpose:** DB-grade, SQL-joinable audit of POSTING attempts beyond the §14 90-day log floor; an audit sink, NEVER state — the §14 log line and the journal row are the same record with two sinks.
-- **Prerequisites:** the PO-recorded driver (2026-07-16 — without it, DECLINE and record the decision); CA-4 (schema authority alignment); CA-6 (payload_hash = the last_sent_hash algorithm).
-- **Requirement sections / concepts to read:** §14, §7.0, §7.2 (outcome classes), §2.2 (write-ahead fields), §11 (claim/lease + expiry takeover), file 12 CA-10 spec, file 24 M9.
+- **Title:** §14.1 attempt journal (payment_attempt_journal, ops/audit schema): implementable spec + DDL + the two insert riders + security package (content write-ahead; 2026-07-16 driver: the sent request is not visible to us)
+- **Classification:** §14.1 companion artifact — MVP normative input (AUD-01 deploys it; K-04/RC-02/ST-10 carry the riders).
+- **Purpose:** the reliable local record of what each posting attempt intended to send; an audit sink, NEVER state — the §14 log line and the journal are two sinks of one attempt.
+- **Prerequisites:** §14.1 (the normative design); CA-4 (schema authority alignment); CA-6 (payload_hash + the canonical serialization payload_content stores).
+- **Requirement sections / concepts to read:** §14.1 (all), §2.2 (post_attempt_seq — NEVER attempt_count), §16.3 (the controlled content exception), §7.2 (outcome classes), §11 (claim/lease + expiry takeover), file 12 CA-10 spec, file 24 M9.
 - **Placeholder components involved:** none (DBA-owned ops/audit schema).
 - **Local placeholder mappings required before starting:** none for authoring.
-- **Local code areas to discover:** none for authoring (the riders name their sites: posting claim + episode-ending transactions).
+- **Local code areas to discover:** none for authoring (rider sites are named: K-04, RC-02, ST-10).
 - **How to locate:** n/a.
-- **Implementation instructions:** author the spec exactly per file 12 CA-10 (DDL incl. UNIQUE(request_id, attempt_no, event_type) and monthly partitioning; the two same-transaction riders — STARTED in the posting claim, RESOLVED in whichever transaction ends the episode incl. LEASE_EXPIRED_MAYBE; fail-safe coupling with a write-failure alert; autonomous transactions FORBIDDEN; INSERT-only; restricted grants; POSTING attempts only). Record the team's adopt/decline decision in the tracker row.
-- **Do not change:** the four §2 tables; the §14 line; divergence_expected/last_sent_hash (the journal REPLACES NOTHING — the V11-17 rejection scope is intact); the no-runtime-read guardrail.
-- **Tests to add:** none here (rider tests live with the posting-path cards if adopted).
-- **Edge cases:** unmatched STARTED older than one lease window = alert, not defect-silence; TX1 rollback removes the STARTED row with the claim — correct, never "fixed" with an autonomous transaction.
-- **Manual validation:** DBA + ops review; PO driver on record.
-- **Expected outcome:** published spec + recorded adopt/decline decision.
-- **Failure signs:** any scanner/gate/derivation reading the journal; UPDATE/DELETE grants; autonomous transactions; journal rows for ENRICH retries.
-- **Common mistakes:** inventing outcome vocabulary (must mirror §7.2 verbatim + LEASE_EXPIRED_MAYBE); journaling the whole request lifecycle (scope = POST attempts only).
-- **Completion criteria:** spec published; decision recorded.
-- **Stop condition:** published (or DECLINED and recorded).
-- **Next task:** S-01 (Phase P3).
+- **Implementation instructions:** author the spec exactly per §14.1 / file 12 CA-10: DDL with UNIQUE(request_id, post_attempt_seq, event_type) and monthly partitioning; the two same-transaction riders (STARTED in the posting claim = the reliability rule; RESOLVED in the episode-ending transaction incl. LEASE_EXPIRED_MAYBE, rowCount==1 only); full-content + dedup-by-hash (content once per distinct hash per request, else content_ref); fail-safe coupling + write-failure alert; AUTONOMOUS TRANSACTIONS FORBIDDEN; INSERT-only; the §16.3 security package (restricted audit role, DB-audited reads, encryption at rest per DBA standard, no lower-env replication, retention per the compliance ask); POSTING attempts only.
+- **Do not change:** the four §2 tables; the §14 line; divergence_expected/last_sent_hash (the journal REPLACES NOTHING — the V11-17 rejection scope is intact); the no-runtime-read guardrail; the same-transaction rule (performance concerns are managed per §14.1, never solved by weakening it).
+- **Tests to add:** none here (T-38 lives with AUD-01/K-04/RC-02/ST-10).
+- **Edge cases:** unmatched STARTED older than one lease window = alert, not defect-silence; claim rollback removes the STARTED row with the claim — correct, never "fixed" with an autonomous transaction; §9.2 downgrade resets attempt_count but NOT post_attempt_seq (the identity).
+- **Manual validation:** DBA + security/privacy + ops review; PO driver on record (2026-07-16).
+- **Expected outcome:** published spec; AUD-01 unblocked.
+- **Failure signs:** any scanner/gate/derivation reading the journal; UPDATE/DELETE grants; autonomous transactions; attempt_count used as journal identity; journal rows for ENRICH retries.
+- **Common mistakes:** inventing outcome vocabulary (must mirror §7.2 verbatim + LEASE_EXPIRED_MAYBE); journaling the whole request lifecycle (scope = POST attempts only); "optimizing" the same-transaction rule away.
+- **Completion criteria:** spec published, reviews recorded.
+- **Stop condition:** published; AUD-01 unblocked.
+- **Next task:** S-01 (Phase P3); AUD-01 runs in/after P3.
 
 
 ---
 
 ## Phase handoff summary (P2 → P3)
 
-- **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-9 authored, owned, versioned; CA-10 (OPTIONAL attempt-audit journal) explicitly adopted or declined, decision recorded.
+- **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-10 authored, owned, versioned (CA-10 = the §14.1 attempt-journal spec; AUD-01 deploys its DDL in/after P3).
 - **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0's residue blocks IN-02 ONLY (the §6 consumer freeze; the scope model is a settled §1 contract fact, so S-02/S-03/S-05, K-02/K-03 and the CA-4/CA-5 freeze are NOT gated — normalized 2026-07-11); §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 is CLOSED (round 10 — engine owns the calendar); §18-3 default path = OP-01..03.
 - **Local mapping rows expected filled:** none new (document phase).
 - **Tests expected to exist:** none new; CA-5 golden vectors DRAFTED (executed as tests in P4); CA-7 catalog seeded from the test matrix.

@@ -235,9 +235,9 @@
 - **Local placeholder mappings required before starting:** ST-09 claim shape.
 - **Local code areas to discover:** where expiry detection best lives locally.
 - **How to locate:** D-08.
-- **Implementation instructions:** expiry sweep (or claim-time check): CLAIMED + claim_expires_at < DB now → ENRICH: CAS back to READY (clear claim fields); POST: CAS to stage=CONFIRM, stage_state=READY, submission_state=MAYBE_SUBMITTED, clear claim fields, stamp maybe_since (ST-07 helper). No exceptions, no carve-outs.
+- **Implementation instructions:** expiry sweep (or claim-time check): CLAIMED + claim_expires_at < DB now → ENRICH: CAS back to READY (clear claim fields); POST: CAS to stage=CONFIRM, stage_state=READY, submission_state=MAYBE_SUBMITTED, clear claim fields, stamp maybe_since (ST-07 helper). No exceptions, no carve-outs. §14.1 rider: the POST-expiry CAS also INSERTs ATTEMPT_RESOLVED with outcome LEASE_EXPIRED_MAYBE in the SAME transaction (rowCount==1 only — the CAS arbitrates the race with a slow-but-alive worker).
 - **Do not change:** CONFIRM-stage rows' claim semantics (resolver rows are not CLAIMED workers — §4.4 note).
-- **Tests to add:** ENRICH expiry → re-claimable, work repeats safely (read-only); POST expiry → MAYBE row, resolver-owned; expired POST row NEVER selectable by the posting claim query (assert the claim WHERE excludes it structurally).
+- **Tests to add:** ENRICH expiry → re-claimable, work repeats safely (read-only); POST expiry → MAYBE row, resolver-owned; expired POST row NEVER selectable by the posting claim query (assert the claim WHERE excludes it structurally); T-38: exactly one ATTEMPT_RESOLVED per attempt when sweep and worker race (loser inserts nothing).
 - **Edge cases:** worker still alive but slow past expiry — its completion CAS hits row-count 0 (fenced); test explicitly.
 - **Manual validation:** kill a worker mid-POST locally (stub hang) → observe the row land CONFIRM·READY·MAYBE.
 - **Expected outcome:** crash recovery per spec.

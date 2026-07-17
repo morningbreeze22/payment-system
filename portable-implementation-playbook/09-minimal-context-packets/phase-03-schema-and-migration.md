@@ -1,4 +1,4 @@
-> **Purpose:** Minimal context packets S-01..S-10 — paste-alone briefs for a small-context local agent (S-11 RETIRED round 10) (original Section I, phase P3).
+> **Purpose:** Minimal context packets S-01..S-10 + AUD-01 (§14.1 journal schema) — paste-alone briefs for a small-context local agent (S-11 RETIRED round 10) (original Section I, phase P3).
 > **When to use this file:** Paired with the matching task-card file 08-task-cards/03-schema-and-migration.md — one packet per task, used as the working brief.
 > **Depends on:** 09-minimal-context-packets/README.md; the matching task card; the requirement sections each packet cites; 07-placeholder-glossary.md.
 > **Used by:** The local coding agent executing phase P3.
@@ -87,3 +87,11 @@ Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version 
 Tests: the four proofs. Stop: green; report filed.
 ```
 
+
+```text
+[AUD-01] Deploy the §14.1 attempt-journal schema
+Read: §14.1 (all) §2.2 (post_attempt_seq) §16.3; file 12 CA-10; file 24 M9. Invariant: ops/audit schema OUTSIDE the §2 model; INSERT-only (no UPDATE/DELETE grants to ANY role); SELECT = restricted audit role only, reads DB-audited; never read at runtime; own tablespace; not part of the S-01..S-09 chain.
+Placeholders: [DB Migration Directory]. Mappings: audit schema/tablespace/role names; TDE availability.
+Objective: create payment_attempt_journal per §14.1 (UNIQUE(request_id, post_attempt_seq, event_type); monthly interval partitions on occurred_at; local index on idempotency_key); grants + DB audit; retention = partition drop per compliance answer; ALSO add post_attempt_seq NUMBER DEFAULT 0 to payment_request (§2.2 - the one §2 column here, coordinated with CA-4).
+Tests: T-38 schema slice (INSERT-only enforced; unique pair; partition-drop rehearsal; app role cannot SELECT). Stop: merged; K-04/RC-02/ST-10 riders unblocked.
+```

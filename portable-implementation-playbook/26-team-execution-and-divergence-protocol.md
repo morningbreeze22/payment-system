@@ -196,7 +196,9 @@ and treat them as the input to the §16.6 configuration values
   existing enrichment performs, each with typical + p99 latency.
   Feeds: ENRICH claim-lease duration, per-dependency timeouts
   (§16.1), and the bulkhead/pool sizing.
-- POST call p50/p99 latency + current timeout. Feeds: POST lease,
+- POST call p50/p99 latency + current timeout — measured WITH the
+  §14.1 journal riders enabled (the LOB write is part of the claim
+  transaction; §14.1 records this as a managed concern). Feeds: POST lease,
   timeout budget, breaker thresholds (§16.1).
 - Feed volume + typical ingest lag. Feeds: §15 lag thresholds,
   Q-08's ingest-lag ask cross-check.

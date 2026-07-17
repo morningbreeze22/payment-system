@@ -508,54 +508,65 @@ triggers stay as the DB backstop:**
 [ ] no rule/decision logic keyed on display labels (§10.4)
 ```
 
-## M9. OPTIONAL attempt-audit journal riders (CA-10 — only if adopted)
+## M9. §14.1 attempt-journal riders (content write-ahead — K-04 / RC-02 / ST-10)
 
-Skip this section entirely unless the tracker records CA-10 as
-ADOPTED. The journal is an audit sink, never state: INSERT-only,
-ops/audit schema, and NO runtime rule, scanner, gate, resolver, or
-derivation may ever read it (rule 13(b); spec in file 12 CA-10).
-The riders are single INSERT statements added INSIDE two
-transactions that already exist — no new commit points, no new
-locks, no SHAPE changes (each rider is one more statement inside an
-existing SHAPE-CAS transaction).
+The journal (§14.1; deployed by AUD-01) is an audit sink, never
+state: INSERT-only, ops/audit schema, and NO runtime rule, scanner,
+gate, resolver, or derivation may ever read it (rule 13(b)). The
+riders are single INSERT statements added INSIDE two transactions
+that already exist — no new commit points, no new locks, no SHAPE
+changes (each rider is one more statement inside an existing
+SHAPE-CAS transaction). RELIABILITY RULE (§14.1): no byte leaves
+for the engine unless the content record for its hash is durably
+committed.
 
-Rider 1 — ATTEMPT_STARTED, in the posting-claim transaction (M1/M4),
-beside the §2.2 write-ahead fields:
+Rider 1 — ATTEMPT_STARTED, in the posting-claim transaction (M1/M4,
+card K-04), beside the §2.2 write-ahead fields. The claim CAS also
+increments post_attempt_seq (monotonic — NEVER attempt_count, which
+resets on the §9.2 downgrade and would collide):
 
 ```sql
+-- inside the claim CAS UPDATE:  post_attempt_seq = post_attempt_seq + 1
 INSERT INTO audit.payment_attempt_journal
-  (request_id, idempotency_key, attempt_no, event_type, occurred_at,
-   trigger_source, correlation_id, payload_hash, payload_json)
+  (request_id, idempotency_key, post_attempt_seq, event_type,
+   occurred_at, trigger_source, correlation_id, payload_hash,
+   payload_content, content_ref)
 VALUES
-  (:id, :key, :attemptNo, 'ATTEMPT_STARTED',
-   SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash, :payload);
--- :attemptNo = the post-bump attempt_count of THIS claim
+  (:id, :key, :postSeq, 'ATTEMPT_STARTED',
+   SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash,
+   :contentOrNull, :refOrNull);
+-- :postSeq = the post-increment post_attempt_seq of THIS claim
+-- DEDUP (§14.1): :contentOrNull = the CA-6 canonical bytes iff
+-- :hash differs from the request's previously journaled hash;
+-- otherwise NULL with :refOrNull = the seq that carries the bytes
 ```
 
 Rider 2 — ATTEMPT_RESOLVED, in WHICHEVER transaction ends the
-attempt episode: the worker's §7.2 classification CAS, OR the
+attempt episode: RC-02's §7.2 classification CAS, OR ST-10's
 lease-expiry takeover (then outcome = 'LEASE_EXPIRED_MAYBE'). The
 dimension CAS arbitrates the race — insert ONLY on rowCount 1:
 
 ```sql
 INSERT INTO audit.payment_attempt_journal
-  (request_id, idempotency_key, attempt_no, event_type, occurred_at,
-   trigger_source, correlation_id, outcome, error_code, error_detail,
-   response_excerpt)
+  (request_id, idempotency_key, post_attempt_seq, event_type,
+   occurred_at, trigger_source, correlation_id, outcome, error_code,
+   error_detail, response_excerpt)
 VALUES
-  (:id, :key, :attemptNo, 'ATTEMPT_RESOLVED',
+  (:id, :key, :postSeq, 'ATTEMPT_RESOLVED',
    SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :outcome,
    :errCode, :errDetail, :responseExcerpt);
 -- :outcome = the §7.2 class VERBATIM (+ LEASE_EXPIRED_MAYBE);
 -- never an invented vocabulary
 ```
 
-Binding rules (SHAPE — tick with the host card's checklist):
+Binding rules (SHAPE — tick with the host card's checklist; T-38):
 
 ```text
 [ ] both riders run in the SAME transaction as their host CAS —
     NEVER an autonomous transaction (phantom STARTED on rollback),
     NEVER a separate commit
+[ ] pairing identity = post_attempt_seq, NEVER attempt_count (it
+    resets on the §9.2 downgrade — the T-38 case B regression)
 [ ] rider 2 executes only on the host CAS rowCount == 1
 [ ] journal failure fails the host transaction (fail-safe: posting
     pauses, money never at risk) — own tablespace + the N.1

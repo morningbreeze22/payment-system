@@ -355,6 +355,14 @@ uetr                — SDK/engine-assigned, persisted from the
                       see §5
 version             — CAS counter
 claim fields        — claimed_by, claim_expires_at
+post_attempt_seq    — monotonic posting-claim counter (added
+                      2026-07-16, §14.1): +1 in EVERY posting-claim
+                      CAS, NEVER reset — the §9.2 downgrade resets
+                      attempt_count (a retry BUDGET) but not this
+                      column (an IDENTITY): it pairs the §14.1
+                      journal's STARTED/RESOLVED events, and a
+                      resettable counter would collide on the
+                      post-downgrade re-POST
 retry fields        — attempt_count, next_retry_at, last_error_code
                       (retry_deadline_at exists but is RESERVED/
                       unused — the 2026-07-11 bounds decision, §7.4:
@@ -396,10 +404,14 @@ divergence_expected — persisted in the claim transaction BEFORE the
                       the only record of what may be executing; the
                       send instant is last_post_attempt_at (below) —
                       one clock, not two. The instruction CONTENT is
-                      never persisted — details are re-resolved
-                      fresh per attempt (§7.0) and the engine's copy
-                      is the authoritative content, reachable by
-                      query. A DR-replay-recreated row has no prior
+                      never persisted ON THE PAYMENT TABLES — details
+                      are re-resolved fresh per attempt (§7.0). The
+                      engine's copy is authoritative but (recorded
+                      2026-07-16, PO) NOT VISIBLE to this team —
+                      status is queryable, content is not — so the
+                      local content record lives in the §14.1
+                      attempt journal, written in this same claim
+                      transaction. A DR-replay-recreated row has no prior
                       hash → divergence_expected false → a collision
                       correctly classifies ANOMALOUS (§5.1/§7.2).
                       (Considered and REJECTED: replacing these two columns
@@ -408,7 +420,11 @@ divergence_expected — persisted in the claim transaction BEFORE the
                       and correct, a schema change is not justified
                       by elegance, and the forensics gap is closed
                       by the sent hash on the posting-claim log
-                      line, §14)
+                      line, §14. That NARROW rejection stands
+                      unchanged: the §14.1 journal replaces neither
+                      column, is never read at runtime, and exists
+                      for the 2026-07-16 content-visibility driver,
+                      not for elegance.)
 divergent_payload_at — write-once; set when the engine reports a
                       known-key-different-payload collision (§7.2 —
                       expected or anomalous). Meaning: the engine
@@ -2007,7 +2023,9 @@ The trust-age downgrade (§9.2) has its OWN policy class:
 `next_retry_at = now` (trust-age already provided the waiting);
 `attempt_count` RESETS on downgrade — a downgrade starts a new
 episode under a new error class, the old counter belonged to the
-original failure class; small max attempts (suggest 2–3, config
+original failure class (`post_attempt_seq` is NOT reset — it is
+monotonic journal identity, §2.2/§14.1, never a retry budget);
+small max attempts (suggest 2–3, config
 §16.6) — MAX ATTEMPTS is the ONLY bound (round 10: no cutoff
 pre-check exists, the engine owns its calendar; no wall-clock
 deadline exists). Exhaustion
@@ -2176,7 +2194,8 @@ status/stage):
   → stage = POST, stage_state = RETRY_WAIT (the ONE sanctioned
     backward stage move — same-key re-POST, assembled FRESH per §7.0:
     newest details, the request's own immutable amount);
-    next_retry_at = now, attempt_count reset, under the §7.4
+    next_retry_at = now, attempt_count reset (post_attempt_seq
+    unaffected — monotonic §14.1 identity), under the §7.4
     downgrade policy class (L7 is satisfied by this explicit write);
     submission_state REMAINS MAYBE_SUBMITTED; blocked_reason cleared.
   Rows failing repost_permitted — divergent payload (§7.2 key
@@ -2864,8 +2883,10 @@ Rules:
   gate before the wire. Every claim assembles the instruction FRESH
   (§7.0) and persists, in the claim transaction before the HTTP
   call: last_sent_hash, the divergence_expected flag (computed
-  against the PRIOR hash before overwriting it — §2.2), and
-  last_post_attempt_at — plus identity on the first claim (§5.1).
+  against the PRIOR hash before overwriting it — §2.2),
+  last_post_attempt_at, the post_attempt_seq increment (§2.2), and
+  the §14.1 ATTEMPT_STARTED journal insert (the content
+  write-ahead) — plus identity on the first claim (§5.1).
   The UETR cannot be persisted pre-wire: the platform SDK mints it
   inside the POST call; it is persisted from ACCEPTANCE-class
   responses only (§5).
@@ -3067,13 +3088,19 @@ This system stores only the current state needed for its own
 processing:
 
 - `payment_request` carries its current dimensions only; no
-  transition-history/journal table. The authoritative audit trail
-  lives in the payment platform.
+  transition-history/journal table. The authoritative transition
+  audit trail is the §14 log line plus the payment platform. (The
+  §14.1 attempt journal, added 2026-07-16, is a CONTENT record, not
+  transition history — it does not change this rule.)
 - Posting-claim log lines additionally carry the sent instruction
   hash (last_sent_hash) and the attempt count: incidents can
-  answer "what did we send on attempt N" from the log alone, at
-  zero schema cost — the attempt-history table considered in review
-  was REJECTED for exactly this reason (§2.2).
+  answer "which hash did we send on attempt N" from the log alone —
+  the attempt-history table considered in review was REJECTED as a
+  REPLACEMENT for these fields (§2.2), and that rejection stands.
+  What the log CANNOT answer is "what were the BYTES" — recorded
+  2026-07-16: the request actually sent to the engine is not
+  visible to this team (status is queryable, content is not), which
+  is the driver for §14.1.
 - Compensating control: every successful dimension-changing CAS emits
   one structured INFO log line —
   `request_id, idempotency_key, request_seq, correlation_id,
@@ -3089,6 +3116,118 @@ processing:
   investigation SLA. VALIDATED with the business (PO review):
   the 90-day floor is sufficient; no dispute-driven extension is
   required.
+
+### 14.1 Local attempt journal (content write-ahead — added 2026-07-16)
+
+Driver (PO-recorded 2026-07-16): the request actually sent to the
+payment engine is NOT visible to this team — the SDK/platform own
+the wire form; the engine's status is queryable, its content is
+not. Incidents and audit therefore require a RELIABLE local record
+of what each posting attempt intended to send. The §14 log line
+remains the transition record; this journal is the CONTENT record —
+two sinks of one attempt. It REPLACES NOTHING: divergence_expected,
+last_sent_hash, and the log line all stay (the §2.2 rejection of
+replacing those columns stands unchanged), and NO runtime rule,
+scanner, gate, resolver, or derivation may EVER read this table.
+
+Table — ops/audit schema; the §2 payment model remains exactly four
+tables:
+
+```text
+payment_attempt_journal
+  journal_id        identity PK
+  request_id        (NO foreign key — request archival stays
+                     unblocked; rows are self-contained)
+  idempotency_key   (denormalized)
+  post_attempt_seq  (copied from the request row, §2.2 — NEVER
+                     attempt_count, which resets on the §9.2
+                     downgrade and would collide on the recovery
+                     re-POST)
+  event_type        ATTEMPT_STARTED | ATTEMPT_RESOLVED
+  occurred_at       UTC; monthly interval-partition key
+  trigger_source, correlation_id
+  payload_hash      (= last_sent_hash, §7.0/CA-6 algorithm)
+  payload_content   (STARTED rows; nullable — dedup rule below)
+  content_ref       (when payload_content is NULL: the
+                     post_attempt_seq whose row carries the bytes)
+  outcome           (RESOLVED rows — the §7.2 classes VERBATIM plus
+                     LEASE_EXPIRED_MAYBE; never an invented
+                     vocabulary)
+  error_code, error_detail, response_excerpt
+  UNIQUE(request_id, post_attempt_seq, event_type)
+  local index on idempotency_key
+```
+
+Events — each insert rides a transaction that already exists (no
+new commit points, no new locks):
+
+- ATTEMPT_STARTED: inserted in the posting-claim transaction beside
+  the §2.2 write-ahead fields. RELIABILITY RULE (the requirement
+  itself): no byte may leave for the engine unless the content
+  record for its hash is durably committed — the journal is part of
+  the §7.0 write-ahead. Same transaction ALWAYS; a journal failure
+  fails the claim (fail-safe: posting pauses, money is never at
+  risk; §15 alert). AUTONOMOUS TRANSACTIONS ARE FORBIDDEN (they
+  would commit phantom STARTED rows when the claim rolls back).
+- ATTEMPT_RESOLVED: inserted in whichever transaction ends the
+  attempt episode — the §7.2 classification write, or the
+  lease-expiry recovery (outcome LEASE_EXPIRED_MAYBE) — and only
+  when that transaction's dimension CAS affected exactly one row
+  (the CAS arbitrates the worker/sweep race; the UNIQUE constraint
+  backstops).
+
+Content and performance (payloads are ISO 20022-class XML):
+
+- payload_content stores the CA-6 canonical serialization — the
+  exact bytes the hash covers. FULL content, not a summary
+  (PO decision 2026-07-16).
+- DEDUP RULE: content is stored ONCE per distinct hash per request.
+  A STARTED row carries payload_content iff its hash differs from
+  the request's previously journaled hash; otherwise
+  payload_content is NULL and content_ref names the
+  post_attempt_seq that carries the bytes. Retries are usually
+  hash-identical, so steady-state growth is ~one content row per
+  request, not per attempt. The reliability rule still holds: the
+  bytes for hash H committed before any attempt bearing H reached
+  the wire.
+- Recorded performance concerns (managed, never "solved" by
+  weakening the same-transaction rule): LOB write latency inside
+  the claim transaction (MEASURE — the local facts sheet's POST
+  p50/p99 baseline runs WITH the journal enabled); redo and backup
+  volume; SECUREFILE compression is a DBA/licensing decision;
+  partition maintenance is routine ops; own tablespace.
+
+Security — the ONE controlled exception to §16.3's no-local-content
+rule:
+
+- payload_content is real payment data. Grants: a restricted audit
+  role ONLY; reads of the journal are themselves DB-audited;
+  encryption at rest per the DBA standard (TDE where licensed);
+  NEVER replicated/copied to lower environments; retention =
+  partition drop per the compliance answer (open ask below).
+  §16.3 masking deliberately does NOT apply INSIDE the journal —
+  access control replaces it; the card, logs, and traces remain
+  masked exactly as before.
+
+Scope and guardrails:
+
+- POSTING attempts only — not ENRICH retries, not resolver
+  settlements, not lifecycle events (those live in §14 and on the
+  rows).
+- INSERT-only forever: no UPDATE or DELETE grants; retention is
+  partition drop.
+- Never read at runtime; §5.2 post-restore forensics MAY read it
+  (a human runbook, not a rule) — the journal lives outside the
+  payment database's restore set and can survive a restore.
+
+OPEN (recorded 2026-07-16, non-blocking):
+
+- TL/platform ask: can the post-SDK WIRE form be captured
+  (interceptor/SDK hook)? This journal records the canonical
+  instruction WE assemble; if the SDK transforms it, wire-digest
+  capture is a possible extension — design only after that answer.
+- Compliance ask: retention horizon and legal-deletion obligations
+  for payment content at rest (sets the partition-drop policy).
 
 ------
 
@@ -3346,10 +3485,15 @@ so one id greps the whole story.
   masked in the read model, logs, and traces (masking applied in the
   logging encoder, not by call-site discipline). Stack traces stay in
   logs, keyed by correlation id.
-- Instruction content is NEVER persisted on our side (§7.0 —
-  only last_sent_hash is stored, and a hash is not sensitive data);
-  party/account data lives transiently in the posting path's memory
-  and in the engine's records. No new PII surface.
+- Instruction content is persisted locally ONLY in the §14.1
+  attempt journal (2026-07-16 driver: the sent request is not
+  otherwise visible to us) under §14.1's controlled-access rules —
+  restricted audit role, DB-audited reads, encryption at rest per
+  DBA standard, no lower-environment replication. EVERYWHERE ELSE
+  the original rule stands: the payment tables store only
+  last_sent_hash (a hash is not sensitive data); party/account data
+  lives transiently in the posting path's memory and in the
+  engine's records; no other PII surface exists.
 - Secrets in a vault, rotatable without redeploy.
 - Inbound feed authenticity: ACLs on the topics; message signing if
   the broker is shared.

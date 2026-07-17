@@ -74,8 +74,9 @@ allowed; full-repo orientation reading is for discovery cards only.
   (BUSINESS_RULE_CHANGE_REQUIRED escape hatch).
 - Do not invent tables/journals/outboxes/parked-event/attempt-history
   tables (SPEC_CONFLICT escape hatch). Sole exceptions, per rule 13:
-  the CA-9 approval store and the OPTIONAL CA-10 attempt-audit
-  journal — ops schema, each only on its own card.
+  the CA-9 approval store and the §14.1 attempt journal (CA-10 /
+  AUD-01; riders on K-04/RC-02/ST-10) — ops schema, each only on
+  its named cards.
 - The filled mapping template and filled execution reports NEVER leave
   the work laptop.
 - If anything here conflicts with `requirment-v4.md`, the requirement

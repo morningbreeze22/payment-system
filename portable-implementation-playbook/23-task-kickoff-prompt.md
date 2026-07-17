@@ -58,11 +58,10 @@ hits, MODIFY only the card's scope. Do not touch anything the card's
 business-rule change seems required → report
 BUSINESS_RULE_CHANGE_REQUIRED and stop). Do not create new tables
 (report SPEC_CONFLICT and stop) — TWO exceptions, per rule 13: the
-CA-9 ops-schema pending-approval store and the OPTIONAL CA-10
-attempt-audit journal, each permitted ONLY when the current card
-explicitly requires it (CA-9 / OP cards; CA-10 and the posting-path
-riders it names — file 24 M9); every other new table remains
-forbidden. If the team runs parallel work streams
+CA-9 ops-schema pending-approval store and the §14.1 attempt
+journal, each permitted ONLY on its named cards (CA-9 / OP cards;
+AUD-01 for the journal DDL, K-04/RC-02/ST-10 for its riders —
+file 24 M9); every other new table remains forbidden. If the team runs parallel work streams
 (file 26 T.4): confirm <TASK-ID> belongs to YOUR stream and every
 cross-stream prerequisite (shared helper) is on merged main — not
 on another stream's branch; card prerequisites always outrank the

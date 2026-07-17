@@ -1,4 +1,4 @@
-> **Purpose:** Test matrix T-01..T-37 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
+> **Purpose:** Test matrix T-01..T-38 with setup/action/expected/failure-meaning/type/blocking per test (original Section J; seeds companion artifact CA-7).
 > **When to use this file:** When writing a task card's tests and when assembling GO-04 gate evidence.
 > **Depends on:** requirment-v4.md sections cited per test; 12-companion-artifacts.md (CA-7).
 > **Used by:** All test-bearing task cards; 17-go-live-checklist.md evidence column.
@@ -756,3 +756,37 @@ RG-10 (reopening), OB-03 (disappearance + validation marker-age
 alerts).
 ```
 
+
+### T-38 - attempt-journal reliability set (content write-ahead)
+
+```text
+Setup:   real Oracle lane; journal deployed (AUD-01); posting path
+         with the riders (K-04 / RC-02 / ST-10).
+Cases:
+  A  claim-transaction rollback (fault injected after the rider
+     insert): NO ATTEMPT_STARTED row survives; attempt_count and
+     post_attempt_seq unbumped (atomicity, no phantom rows).
+  B  the reset lifecycle: attempt 1 -> MAYBE -> trust-age downgrade
+     (attempt_count RESETS; post_attempt_seq does NOT) -> re-claim
+     -> re-POST: NO unique-key collision; the journal shows seq 1
+     and seq 2 pairs (the review-5156f1f H1 regression case).
+  C  lease-expiry vs slow-worker race: exactly ONE ATTEMPT_RESOLVED
+     per attempt (the losing CAS hits 0 rows and inserts nothing).
+  D  duplicate/replayed response processing: journal unchanged
+     beyond its single pair (rowCount==0 -> no insert).
+  E  dedup-by-hash: identical-bytes retry -> STARTED row with NULL
+     payload_content + content_ref; changed bytes -> full content
+     stored + divergence_expected TRUE recorded at claim.
+  F  journal outage (tablespace-full simulation): posting claims
+     FAIL fail-safe (zero wire calls), the write-failure alert
+     fires, money counters untouched; clean resume after recovery.
+  G  grants: the app role cannot SELECT; no role can UPDATE/DELETE;
+     audit-role reads appear in the DB audit trail.
+Expected: all cases green + grep/review evidence that NO runtime
+         code path SELECTs the journal.
+Failure meaning: the content write-ahead is unreliable, or the
+         journal has become state - both violate the requirement.
+Type: integration (real Oracle) + fault injection. BLOCKING: yes.
+Implemented by: AUD-01 (schema slice + G), K-04 (A, B, E),
+RC-02 (D), ST-10 (C), OB-05 (F alert wiring).
+```

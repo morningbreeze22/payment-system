@@ -217,6 +217,12 @@ P14C = PORTABLE / "08-task-cards" / "phase-14-rollout-and-go-live.md"
 P14P = PORTABLE / "09-minimal-context-packets" / "phase-14-rollout-and-go-live.md"
 P01C = PORTABLE / "08-task-cards" / "phase-01-discovery.md"
 P01P = PORTABLE / "09-minimal-context-packets" / "phase-01-discovery.md"
+P04C = PORTABLE / "08-task-cards" / "phase-04-identity-and-idempotency.md"
+P04P = PORTABLE / "09-minimal-context-packets" / "phase-04-identity-and-idempotency.md"
+P06C = PORTABLE / "08-task-cards" / "phase-06-factored-state-model.md"
+P06P = PORTABLE / "09-minimal-context-packets" / "phase-06-factored-state-model.md"
+P10C = PORTABLE / "08-task-cards" / "phase-10-retry-recovery-maybe.md"
+P10P = PORTABLE / "09-minimal-context-packets" / "phase-10-retry-recovery-maybe.md"
 SENTINEL_PAIRS = [
     ("GO-01", "F0", P14C, P14P),
     ("GO-01", "CUTOVER_POPULATION_GREENFIELD", P14C, P14P),
@@ -224,14 +230,36 @@ SENTINEL_PAIRS = [
     ("GO-03", "CUTOVER_POPULATION_GREENFIELD", P14C, P14P),
     ("GO-04", "CUTOVER_POPULATION_GREENFIELD", P14C, P14P),
     ("D-12", "CUTOVER_POPULATION_GREENFIELD", P01C, P01P),
+    ("K-04", "ATTEMPT_STARTED", P04C, P04P),
+    ("RC-02", "ATTEMPT_RESOLVED", P10C, P10P),
+    ("ST-10", "LEASE_EXPIRED_MAYBE", P06C, P06P),
 ]
+
+
+def _check_pair(cb, pb, token):
+    missing = []
+    if token not in cb:
+        missing.append("card")
+    if token not in pb:
+        missing.append("packet")
+    return missing
+
+
+# negative self-test (review 5156f1f L1): the checker itself must catch a
+# token missing from either side, and from both — run on every lint pass
+assert _check_pair("x TOKEN y", "no", "TOKEN") == ["packet"]
+assert _check_pair("no", "x TOKEN y", "TOKEN") == ["card"]
+assert _check_pair("no", "no", "TOKEN") == ["card", "packet"]
+assert _check_pair("a TOKEN", "b TOKEN", "TOKEN") == []
+
 for task_id, token, cardf, packf in SENTINEL_PAIRS:
     cb, pb = _card_block(cardf, task_id), _packet_block(packf, task_id)
     if not cb:
         errors.append(f"{rel(cardf)}: card block {task_id} not found (rule 6e)")
         continue
-    if token in cb and token not in pb:
-        errors.append(f"{rel(packf)}: {task_id} card carries safety token '{token}' but the {task_id} PACKET block does not (round-20 per-task rule)")
+    for side in _check_pair(cb, pb, token):
+        where = rel(cardf) if side == "card" else rel(packf)
+        errors.append(f"{where}: {task_id} {side} block lacks required safety token '{token}' (rule 6e TWO-SIDED — review 5156f1f L1)")
 
 # ---- Rule 6f (round 20): canonical P14 execution order stated in index + file 20 ----
 P14_ORDER = "GO-01 GO-02 GO-05 GO-04 GO-03"
@@ -256,6 +284,9 @@ if ca10_present:
     r16_text = "\n".join(lines_of(PORTABLE / "16-local-agent-instructions.md"))
     if "CA-10" not in r16_text:
         errors.append("16-local-agent-instructions.md: payment_attempt_journal exists in the doc set but rule 13 carries no CA-10 exception (rule 6h)")
+    spec_text = "\n".join(lines_of(ROOT / "requirment-v4.md"))
+    if "### 14.1" not in spec_text or "post_attempt_seq" not in spec_text:
+        errors.append("requirment-v4.md: payment_attempt_journal exists in the doc set but the spec lacks §14.1 and/or post_attempt_seq — the journal must be spec-anchored, never playbook-only (rule 6h; review 5156f1f H2)")
 
 # ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
 P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"

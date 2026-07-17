@@ -17,7 +17,7 @@
 - **Requirement sections / concepts to read:** Section M (this playbook), §16.5, §18 (gate status).
 - **Placeholder components involved:** [DB Migration Directory], deployment pipeline.
 - **Local placeholder mappings required before starting:** environment promotion path known.
-- **Local code areas to discover:** feature-flag/config-toggle conventions (Section M's flags need a local mechanism — record which).
+- **Local code areas to discover:** feature-flag/config-toggle conventions (Section M's flags F0–F5 need a local mechanism — record which; F0 is the NEW-FLOW TRAFFIC GATE, default OFF, whose activation boundary belongs to GO-03's M.4 sequence).
 - **How to locate:** deployment repo/config.
 - **Implementation instructions:** write the local rollout plan following Section M's stage order verbatim, with per-stage: owner, checkpoint evidence, rollback trigger + procedure; wire the Section M flags (new-writer dual-write is already structural; scanner enablement, resolver enablement, auto-downgrade enablement as config); carry the M.1a reader-first ladder stage explicitly (round 14): no release writes CANCELLED until reader-fleet compatibility is verified (discovery-proven N/A, or the compatibility release is deployed fleet-wide); the plan schedules the CUTOVER_POPULATION_GREENFIELD RUN 2 (round 18 — file 26 T.1) at the stage enabling the new intake path, after in-scope writer drain/fence.
 - **Do not change:** Section M's ORDER (auto-downgrade last, gated on P8 PASS).
@@ -84,7 +84,7 @@
 - **Task ID:** GO-04
 - **Title:** Execute the Section Q checklist; assemble gate evidence; obtain the PRE-CUTOVER go/no-go (round 19 — authorization precedes enablement)
 - **Classification:** §18 BLOCKING gate aggregation
-- **Purpose:** the four §18 BLOCKING items + all Q items PASS BEFORE the controlled cutover (GO-03) — round 19: the recorded decision is a CONDITIONAL GO authorizing GO-03's change window, contingent ONLY on the intentionally time-of-cutover item (the RUN-2 population proof returning ZERO inside that window); any other gap = NO-GO. First production payment under the new machinery happens only after GO-03's F0 sequence completes clean.
+- **Purpose:** the four §18 BLOCKING items + all Q items PASS BEFORE the controlled cutover (GO-03) — round 19: the recorded decision is a CONDITIONAL GO authorizing GO-03's change window, contingent ONLY on the intentionally time-of-cutover item (Q5b — the CUTOVER_POPULATION_GREENFIELD RUN-2 proof returning ZERO inside that window); any other gap = NO-GO. First production payment under the new machinery happens only after GO-03's F0 sequence completes clean.
 - **Prerequisites:** GO-02 clean; GO-05 rollback rehearsal recorded (round 19 — Q23's evidence exists BEFORE this meeting); OP-03 drill; CT suite results; K-03 vectors; open-question register (Section K) current.
 - **Requirement sections / concepts to read:** Section Q; §18 (all BLOCKING items).
 - **Placeholder components involved:** none (evidence task).

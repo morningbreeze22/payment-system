@@ -35,8 +35,8 @@ Tests: the suite. Stop: green; record as Section Q evidence.
 [K-04] Write-ahead identity at claim
 Read: §5 (rules) §11 (claim + ambiguous commit) §2.2. Invariant: no POST under an unpersisted caller-supplied identity; unknown claim-commit → NO wire call.
 Placeholders: [Provider POST Client] [Request Status Persistence Layer] [Payment Request Creation Component]. Mappings: POST site; claim commit boundary traced.
-Objective: claim transaction persists identity (first claim), COMMITS, then the HTTP call; commit-unknown → abandon, lease expiry owns it.
-Tests: ordering fault-injection (commit vs stub-received); ambiguous-commit → no call. Stop: merged.
+Objective: claim transaction persists identity (first claim), COMMITS, then the HTTP call; commit-unknown → abandon, lease expiry owns it. §14.1 rider in the SAME transaction: post_attempt_seq++ (monotonic, never reset) + ATTEMPT_STARTED journal insert (content write-ahead, dedup-by-hash); autonomous transactions forbidden.
+Tests: ordering fault-injection (commit vs stub-received); ambiguous-commit → no call; T-38 (rollback leaves no STARTED; downgrade reset → no key collision). Stop: merged.
 ```
 
 ```text

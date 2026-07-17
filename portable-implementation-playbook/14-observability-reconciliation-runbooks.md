@@ -47,9 +47,9 @@ root-cause incident.
 - UI/card false-completion prevention: completion-predicate
   anomalies (COMPLETED with active request — should be impossible;
   presence = defect)                    → alert
-- CA-10 journal (ONLY if adopted): write failure (posting pauses
+- §14.1 journal: write failure (posting pauses
   fail-safe — own tablespace)           → alert
-- CA-10 journal (ONLY if adopted): unmatched ATTEMPT_STARTED older
+- §14.1 journal: unmatched ATTEMPT_STARTED older
   than one lease window                 → alert (crash evidence)
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
@@ -291,8 +291,21 @@ CHECKS (evidence retained in the go-live pack, manifest updated):
    last_payload_digest are ALL non-NULL; every in-scope obligation
    belongs to such a trade. Query text + results retained.
 2. PROVENANCE: no in-scope row was created since the fence by a
-   legacy/out-of-band writer (compare writer audit against the
-   deployment inventory of fenced versions).
+   legacy/out-of-band writer. AUTHORITY (define BEFORE first use —
+   review 5156f1f M3): the DB-side audit trail on the four §2
+   tables (Oracle unified audit or the DBA-standard equivalent,
+   enabled as part of GO-01) PLUS the deployment-fence record
+   (which app versions were fenced, when). If NO DB-side audit
+   source exists in this environment, SAY SO in the evidence and
+   fall back to: the fence record + zero in-scope rows stamped
+   since the fence by non-current writer versions (writer-version
+   column / connection service tag) — and record the weaker basis.
+   Reference queries (templates in the evidence pack): obligations
+   lacking a complete trade admission row; trade rows with NULL
+   watermark/pointer/digest; the exact in-scope population union.
+   SCOPE (stated in the evidence): this proves LOCAL admission
+   coverage — it cannot prove upstream emitted every trade; that
+   remains the separate upstream emitted-vs-acked control (§18).
 3. THRESHOLD: ZERO uncovered rows. No percentage passes; no
    sampling.
 PASS: DBA + TL sign; manifest records the admission-coverage run
