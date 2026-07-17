@@ -473,7 +473,8 @@ Purpose: the card never lies: no false completion, correct exception
 Setup:   scopes at each §4-derivable state incl. anchors, MAYBE rows,
          latched overpay, reopened steps; a multi-payment trade
          (several obligations under one business_id).
-Action:  read through the card path.
+Action:  read through the card path AND the §12 all-payments TABLE
+         projection (request-granular; added 2026-07-17).
 Expect:  NOT_STARTED = absence; a zeroed removed payment shows
          CANCELLED, never COMPLETED (round 11 — §4.1 second
          branch); anchors show DATA_VALIDATION_FAILED;
@@ -482,8 +483,26 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
          trade returns ALL its obligations, one entry per payment —
          result count is never an error or alert (§12);
          unavailable ≠ stale-as-authoritative.
-Failure: false completion (the predicate's whole point) or a
-         multi-payment trade surfacing as an error or partial result.
+         TABLE projection cases (§12 contract, review 7ab31e5 M4):
+         - obligation with NO request → exactly one OBLIGATION_ONLY
+           row: scope tuple + required (blank for an anchor) +
+           "no request created" + the derived-exception reason;
+           request fields n/a;
+         - single request → exactly one REQUEST row, placeholder
+           GONE (no duplicate — join construction);
+         - required 120 fulfilled as 100 + 20 → exactly TWO REQUEST
+           rows (amounts 100, 20), both carrying required 120 and
+           cumulative counters;
+         - mixed active/terminal (REJECTED predecessor + live
+           successor) → both rows visible, history never laundered;
+         - fully removed scope (required = 0) → rows remain,
+           obligation context CANCELLED;
+         - reappearance after CANCELLED → rows return to
+           IN_PROGRESS context, no duplicate placeholders.
+Failure: false completion (the predicate's whole point), a
+         multi-payment trade surfacing as an error or partial
+         result, a duplicate placeholder beside a request row, or
+         100+20 collapsed into one synthetic row.
 Implemented by: RG-08/09, ST-04.
 ```
 

@@ -2976,6 +2976,58 @@ treat result count as a health signal). An index on business_id
 backs the lookup. `ui_process_instance_id` / `ui_step_instance_id`
 remain stored as display/reference fields.
 
+ALL-PAYMENTS TABLE projection (added 2026-07-17 — the second
+defined read surface; review 7ab31e5 M4 closed the granularity
+gap). The step CARD above stays obligation-granular; the
+all-payments TABLE is REQUEST-granular, informational only (no
+create/modify/retry/cancel actions), and is a pure projection —
+no schema change, no new state:
+
+```text
+Row granularity and identity:
+  - one row per payment_request where requests exist
+    (row_type = REQUEST, keyed by the request id);
+  - one placeholder row when an obligation exists with NO request
+    (row_type = OBLIGATION_ONLY, keyed by the obligation id).
+  NO DUPLICATES BY CONSTRUCTION: the projection is obligation LEFT
+  JOIN request — the moment the first request exists, the join
+  yields REQUEST rows instead of the placeholder; there is no
+  cleanup logic to get wrong.
+Field separation (amounts can never be conflated):
+  - obligation context on EVERY row: required / committed /
+    confirmed amounts, ui_step_status, active exception (+ manual-
+    action flag), reopened indicator;
+  - request fields on REQUEST rows only: request amount, §10.4
+    display label, blocked_reason, timestamps; empty/n-a on
+    OBLIGATION_ONLY rows.
+  Example: required 120 fulfilled as 100 + 20 renders as TWO
+  REQUEST rows (amounts 100 and 20), each carrying required 120
+  and the cumulative counters — never one synthetic 120 row.
+Pre-request visibility: the OBLIGATION_ONLY row shows the scope
+  tuple, the required amount (blank for a §6.6 anchor), "no
+  request created", and the REASON = the obligation's derived
+  active exception (§4.2) — always available by construction,
+  because every state that prevents request creation derives its
+  exception in the same transaction (§4).
+Status precedence: step status is obligation-derived (§4.1) ONLY;
+  REQUEST rows additionally carry the request's §10.4 label; the
+  frontend recomputes NOTHING and no rule keys on any of it
+  (§10.4).
+Decided display defaults (PO 2026-07-17): terminal/historical
+  request rows (e.g. a REJECTED predecessor) remain visible by
+  default — history is never laundered — with client-side
+  filtering permitted; a fully removed scope (required = 0) KEEPS
+  its row(s), the obligation context showing CANCELLED (§4.1),
+  consistent with the rollup algebra below.
+Edges (unchanged, restated): NOT_STARTED = row absence; the one
+  blind spot remains the unparseable-scope message that can
+  produce no row at all (§6.6 — DLT + alert covers it, and the
+  TL-7 key-only anchor stays the FUTURE extension for it).
+Read discipline: read-only, no locks; masking + content rules per
+  §16.3/§12; freshness indicator wired to the §15 lag metric;
+  result count is never a health signal.
+```
+
 Step granularity (open, folded into the TL-2 read contract, §18):
 does the UI render one step per PAYMENT, or one rolled-up step per
 TRADE? The §4 derivations are per obligation; a per-trade rollup

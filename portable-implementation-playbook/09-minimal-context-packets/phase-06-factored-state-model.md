@@ -32,11 +32,11 @@ Tests: the suite. Stop: green; coverage recorded (pending §9.2 case noted).
 ```
 
 ```text
-[ST-04] Display labels
-Read: §10.4 (mapping + strictness) §2.2. Invariant: labels derived from dimensions, display-only, never parsed by consumers, never in machine-consumed payloads.
+[ST-04] Display labels + §12 all-payments table projection
+Read: §10.4 (mapping + strictness) §2.2 §12 (ALL-PAYMENTS TABLE projection block). Invariant: labels derived from dimensions, display-only, never parsed by consumers, never in machine-consumed payloads; the table projection is a pure read (obligation LEFT JOIN request) — no schema, no state, no frontend recomputation, no duplicates by construction.
 Placeholders: [Request Status Persistence Layer] + display readers. Mappings: D-04 display-reader list.
-Objective: implement the §10.4 mapping (view/expression); route dashboards/card label/log/ops reads to it; card returns dimensions + label.
-Tests: mapping per label row; NEEDS_REVIEW includes blocked_reason. Stop: merged.
+Objective: implement the §10.4 mapping (view/expression); route dashboards/card label/log/ops reads to it; card returns dimensions + label. Implement the §12 table projection per its contract: row_type REQUEST (one per request) | OBLIGATION_ONLY (no-request placeholder: scope + required-or-blank + "no request created" + derived-exception reason; request fields n/a); obligation context on every row; terminal rows visible; removed scopes show CANCELLED context.
+Tests: mapping per label row; NEEDS_REVIEW includes blocked_reason; T-31 TABLE cases (placeholder; placeholder→request no-dup; 100+20 = two rows; mixed active/terminal; CANCELLED context; reappearance). Stop: merged.
 ```
 
 ```text

@@ -232,6 +232,22 @@ getCard(business_id):
     ops annotations; request detail incl. blocked_reason
   masking per §16.3; freshness/lag indicator wired to the §15 metric
   NO locks, NO writes, NO rule logic on display labels (§10.4)
+
+getAllPaymentsTable(filter):                     // §12 TABLE projection
+  SELECT obligation LEFT JOIN request            // (2026-07-17): pure read
+  per joined row emit:
+    row_type = REQUEST        (one row per request, request-id key)
+             | OBLIGATION_ONLY (no request yet: obligation-id key,
+               "no request created" + reason = the obligation's
+               DERIVED active exception; request fields n/a)
+    + obligation context on EVERY row (required/committed/confirmed,
+      ui_step_status, exception, reopened)
+    + request fields on REQUEST rows (amount, §10.4 label,
+      blocked_reason)
+  // 120 required fulfilled as 100+20 → TWO REQUEST rows;
+  // no duplicates by join construction (placeholder disappears the
+  // moment the first request row exists); terminal rows visible
+  // (history never laundered); removed scopes show CANCELLED context
 ```
 
 ------

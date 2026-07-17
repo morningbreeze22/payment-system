@@ -82,18 +82,18 @@
 ### ST-04 — Display label derivation
 
 - **Task ID:** ST-04
-- **Title:** Implement §10.4 labels as a derived view/expression; route dashboards/card/log/ops reads to it
+- **Title:** Implement §10.4 labels as a derived view/expression; route dashboards/card/log/ops reads to it; implement the §12 ALL-PAYMENTS TABLE projection (request-granular read surface, 2026-07-17)
 - **Classification:** MVP normative implementation
-- **Purpose:** the old 13-value status survives ONLY as a derived display label; labels never appear in machine-consumed API payloads.
+- **Purpose:** the old 13-value status survives ONLY as a derived display label; labels never appear in machine-consumed API payloads. The §12 table projection is the frontend's request-level view — defined here so no agent or frontend invents row semantics.
 - **Prerequisites:** ST-01.
-- **Requirement sections / concepts to read:** §10.4 (mapping + strictness), §2.2 ("no rule may key on it").
+- **Requirement sections / concepts to read:** §10.4 (mapping + strictness), §2.2 ("no rule may key on it"), §12 (ALL-PAYMENTS TABLE projection block — the full row contract).
 - **Placeholder components involved:** [Request Status Persistence Layer], [Metrics / Alerting Layer] (log line), card read path.
 - **Local placeholder mappings required before starting:** reader inventory (D-04).
 - **Local code areas to discover:** display readers of the legacy status.
 - **How to locate:** D-04 reader list, display-flagged entries.
-- **Implementation instructions:** implement the §10.4 mapping exactly (DB view or shared expression — choose per local convention, record); migrate DISPLAY consumers (dashboards, card payload's label field, log lines, ops queries you control) to it; the card read contract returns dimension columns + label per §10.4's rule (no consumer may parse the label).
-- **Do not change:** rule-keyed readers (ST-05's job); external report SQL you don't own (record as UNCLEAR for owners).
-- **Tests to add:** label mapping per §10.4 row; NEEDS_REVIEW includes blocked_reason display.
+- **Implementation instructions:** implement the §10.4 mapping exactly (DB view or shared expression — choose per local convention, record); migrate DISPLAY consumers (dashboards, card payload's label field, log lines, ops queries you control) to it; the card read contract returns dimension columns + label per §10.4's rule (no consumer may parse the label). ALSO implement the §12 ALL-PAYMENTS TABLE projection exactly per its contract block: obligation LEFT JOIN request; row_type REQUEST (one per request, request id key) or OBLIGATION_ONLY (obligation id key, request fields n/a, reason = the derived active exception); obligation context on every row (required/committed/confirmed, ui_step_status, exception, reopened); no duplicates by join construction; terminal rows visible (client filtering allowed); removed scopes render CANCELLED context; read-only, SHAPE-READ rules.
+- **Do not change:** rule-keyed readers (ST-05's job); external report SQL you don't own (record as UNCLEAR for owners); the §4 derivations (the projection READS them, never recomputes).
+- **Tests to add:** label mapping per §10.4 row; NEEDS_REVIEW includes blocked_reason display; the T-31 TABLE projection cases (no-request placeholder; placeholder gone on first request; 100+20 as two rows; mixed active/terminal; removed scope CANCELLED; reappearance).
 - **Edge cases:** legacy display values with no §10.4 equivalent — map to the nearest label per the S-08 reviewed table; record each.
 - **Manual validation:** card/dashboard smoke check in a local run.
 - **Expected outcome:** display decoupled from stored legacy status.
