@@ -35,7 +35,7 @@ Tests: the suite. Stop: green; record as Section Q evidence.
 [K-04] Write-ahead identity at claim
 Read: §5 (rules) §11 (claim + ambiguous commit) §2.2. Invariant: no POST under an unpersisted caller-supplied identity; unknown claim-commit → NO wire call.
 Placeholders: [Provider POST Client] [Request Status Persistence Layer] [Payment Request Creation Component]. Mappings: POST site; claim commit boundary traced.
-Objective: claim transaction persists identity (first claim), COMMITS, then the HTTP call; commit-unknown → abandon, lease expiry owns it. §14.1 rider in the SAME transaction, FAILURE-ISOLATED: post_attempt_seq++ (monotonic, never reset) + ATTEMPT_STARTED journal insert (FULL content every attempt; switch-gated; insert error → AUDIT-GAP alert, claim proceeds — never load-bearing); autonomous transactions forbidden.
+Objective: claim transaction persists identity (first claim), COMMITS, then the HTTP call; commit-unknown → abandon, lease expiry owns it. §14.1 rider in the SAME transaction: post_attempt_seq++ (monotonic, never reset) + ATTEMPT_STARTED insert (FULL content every attempt; switch-gated). Canonical failure rule: statement-local failures caught around the single statement (no inner @Transactional), gap alerted AFTER host commit, claim proceeds; FATAL failures = ordinary infra failures; guarantee = no incorrect payment outcome. Autonomous transactions forbidden.
 Tests: ordering fault-injection (commit vs stub-received); ambiguous-commit → no call; T-38 (rollback leaves no STARTED; downgrade reset → no key collision; outage → posting continues + gap alert). Stop: merged.
 ```
 

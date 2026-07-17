@@ -82,7 +82,10 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
-  (one per standing scan); trade_snapshot_state DDL (§2.4, round 5 —
+  (one per standing scan) PLUS the §12 estate-listing index (added
+  2026-07-17: leading columns = the authorization scope, then the
+  server-side filter/order columns — the §12 API contract's estate
+  query rides it); trade_snapshot_state DDL (§2.4, round 5 —
   business_id PK, ordering, storage id, digest, updated_at);
   expand/contract sequencing.
 Validation: DBA review; S-05/S-06/S-07 violation + plan tests green
@@ -229,7 +232,11 @@ Required contents:
 
     CREATE TABLE <audit_schema>.payment_attempt_journal (
       journal_id       NUMBER GENERATED ALWAYS AS IDENTITY,
-      request_id       NUMBER        NOT NULL,  -- deliberately NO FK
+      request_id       <request_id_type> NOT NULL,  -- deliberately NO FK;
+                       -- <request_id_type> is a MANDATORY discovery
+                       -- fact (the EXACT DB type of payment_request's
+                       -- id, from D-02/CA-4) — AUD-01 is not READY
+                       -- until it is recorded (review c8a92f1 H4)
       idempotency_key  VARCHAR2(64)  NOT NULL,
       post_attempt_seq NUMBER        NOT NULL,  -- §2.2, never attempt_count
       event_type       VARCHAR2(16)  NOT NULL,
@@ -239,7 +246,11 @@ Required contents:
       correlation_id   VARCHAR2(64),
       payload_hash     VARCHAR2(64),
       payload_content  CLOB,          -- FULL every STARTED (no dedup, no content_ref)
-      outcome          VARCHAR2(30),
+      outcome          VARCHAR2(30)
+        CONSTRAINT paj_outcome_ck CHECK (outcome IS NULL OR outcome IN
+          (<the CA-1 category tokens VERBATIM>, 'LEASE_EXPIRED_MAYBE')),
+        -- the list is GENERATED from CA-1's canonical categories at
+        -- CA-10 authoring time — never hand-typed (review c8a92f1 H4)
       error_code       VARCHAR2(64),
       error_detail     VARCHAR2(4000),
       response_excerpt VARCHAR2(4000),
@@ -259,16 +270,26 @@ Required contents:
     (PARTITION paj_p0 VALUES LESS THAN
        (TIMESTAMP '2026-08-01 00:00:00 UTC'));
 
-    -- CLOB presence (STARTED must carry content) — trigger, because
-    -- a CHECK cannot reference a LOB:
+    -- CLOB row-shape — trigger, because a CHECK cannot reference a
+    -- LOB. BOTH directions enforced (review c8a92f1 H4): STARTED
+    -- requires non-empty content; RESOLVED must carry NONE (content
+    -- is STARTED-only). NOTE the honest limit: the trigger proves
+    -- PRESENCE (length > 0), not full-content fidelity — T-38 E
+    -- proves fullness at application level.
     CREATE OR REPLACE TRIGGER <audit_schema>.paj_content_bi
     BEFORE INSERT ON <audit_schema>.payment_attempt_journal
     FOR EACH ROW
     BEGIN
       IF :NEW.event_type = 'ATTEMPT_STARTED'
-         AND :NEW.payload_content IS NULL THEN
+         AND (:NEW.payload_content IS NULL
+              OR DBMS_LOB.GETLENGTH(:NEW.payload_content) = 0) THEN
         RAISE_APPLICATION_ERROR(-20141,
-          'ATTEMPT_STARTED requires payload_content');
+          'ATTEMPT_STARTED requires non-empty payload_content');
+      END IF;
+      IF :NEW.event_type = 'ATTEMPT_RESOLVED'
+         AND :NEW.payload_content IS NOT NULL THEN
+        RAISE_APPLICATION_ERROR(-20142,
+          'ATTEMPT_RESOLVED must not carry payload_content');
       END IF;
     END;
 
@@ -283,21 +304,32 @@ Required contents:
     GRANT INSERT ON <audit_schema>.payment_attempt_journal TO <app_role>;
     GRANT SELECT ON <audit_schema>.payment_attempt_journal TO <audit_role>;
     -- No UPDATE/DELETE grants to application or reporting roles;
-    -- owner/DBA access is change-controlled. Unified audit policy
-    -- on ALL access to the table (DBA-standard statement), reads
-    -- included.
+    -- owner/DBA access is change-controlled and audited.
+
+    -- Unified audit (RUNNABLE — review c8a92f1 H4; the policy name
+    -- and any site standard are DBA-confirmed at AUD-01 review):
+    CREATE AUDIT POLICY paj_access_pol
+      ACTIONS SELECT ON <audit_schema>.payment_attempt_journal,
+              INSERT ON <audit_schema>.payment_attempt_journal,
+              UPDATE ON <audit_schema>.payment_attempt_journal,
+              DELETE ON <audit_schema>.payment_attempt_journal;
+    AUDIT POLICY paj_access_pol;
   - The TWO riders (§14.1): ATTEMPT_STARTED in the posting-claim
     transaction (K-04) — write-ahead when healthy, NEVER a gate;
     ATTEMPT_RESOLVED in whichever transaction ends the episode —
     RC-02's §7.2 classification or ST-10's lease-expiry recovery
     (LEASE_EXPIRED_MAYBE) — only on rowCount==1.
-  - Coupling (§14.1, PO 2026-07-17 — NEVER LOAD-BEARING): riders
-    run inside the host transaction, FAILURE-ISOLATED — an insert
-    error raises the AUDIT-GAP alert and the host transaction
-    proceeds; a host rollback removes the journal row (no
-    phantoms); AUTONOMOUS TRANSACTIONS FORBIDDEN; the journal must
-    never pause, fail, or gate a payment. Gap fallback: §14 line +
-    UETR/key-keyed platform inquiry (§5).
+  - Coupling (§14.1 — the ONE canonical formulation, review
+    c8a92f1 H1): the journal is never a business or money-safety
+    gate. STATEMENT-LOCAL insert failures proven by T-38 are
+    caught around the single JDBC statement, recorded in memory,
+    and alerted only AFTER host commit; FATAL connection/session/
+    transaction/commit failures propagate as ordinary host
+    infrastructure failures. The guarantee is "no incorrect
+    payment outcome" — not "no journal failure can ever fail an
+    attempt". A host rollback removes the journal row (no
+    phantoms); AUTONOMOUS TRANSACTIONS FORBIDDEN. Gap fallback:
+    §14 line + UETR/key-keyed platform inquiry (§5, manual path).
   - Enablement gate (§14.1): journal writes behind a config
     switch, DEFAULT OFF in production until the Q30 journal items
     are evidenced (encryption ENABLED or approved expiring

@@ -538,29 +538,31 @@ card K-04), beside the §2.2 write-ahead fields. The claim CAS also
 increments post_attempt_seq (monotonic — NEVER attempt_count, which
 resets on the §9.2 downgrade and would collide):
 
-```sql
--- inside the claim CAS UPDATE:  post_attempt_seq = post_attempt_seq + 1
--- rider (isolated):
-BEGIN
-  INSERT INTO audit.payment_attempt_journal
-    (request_id, idempotency_key, post_attempt_seq, event_type,
-     occurred_at, trigger_source, correlation_id, payload_hash,
-     payload_content)
-  VALUES
-    (:id, :key, :postSeq, 'ATTEMPT_STARTED',
-     SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash,
-     :content);
-EXCEPTION WHEN OTHERS THEN
-  record gap (memory/metric only); CONTINUE the host transaction
-  -- the AUDIT-GAP ALERT fires AFTER the host COMMIT, never here
-END;
--- :postSeq  = the post-increment post_attempt_seq of THIS claim
--- :content  = the FULL CA-6 canonical bytes, EVERY attempt
---             (§14.1 simplicity rule — no dedup, no content_ref;
---             in Java the "BEGIN/EXCEPTION" is a plain try/catch
---             around the JdbcTemplate statement — NEVER a nested
---             @Transactional and NEVER a new transaction: inner
---             participation marks the host rollback-only)
+```java
+// inside the claim transaction, after the CAS UPDATE
+// (which included: post_attempt_seq = post_attempt_seq + 1)
+if (journalSwitch.isOn()) {                    // §14.1 enablement gate
+  try {
+    jdbc.update(INSERT_ATTEMPT_STARTED,        // ONE statement, host tx —
+        id, key, postSeq, trigger, corr,       // no nested @Transactional
+        hash, content);                        // (rollback-only trap), no
+                                               // autonomous tx (phantoms)
+    // content = the FULL CA-6 canonical bytes, EVERY attempt
+    // (§14.1 simplicity rule — no dedup, no content_ref)
+  } catch (DataAccessException e) {
+    if (STATEMENT_LOCAL.test(e)) {             // the T-38 classifier:
+      gapBuffer.record(id, postSeq, e);        //  DuplicateKey/DataIntegrity/
+                                               //  QueryTimeout/space errors —
+                                               //  swallow; host tx proceeds.
+      // AUDIT-GAP alert fires AFTER host commit (afterCommit hook)
+    } else {
+      throw e;                                 // FATAL class (connection/
+                                               // session/commit): ordinary
+                                               // infra failure — existing
+                                               // recovery owns it
+    }
+  }
+}
 ```
 
 Rider 2 — ATTEMPT_RESOLVED, in WHICHEVER transaction ends the
@@ -570,17 +572,22 @@ dimension CAS arbitrates the race — insert ONLY on rowCount 1, and
 with the SAME statement isolation as rider 1 (try/catch, no inner
 transaction, gap alert after commit):
 
-```sql
-INSERT INTO audit.payment_attempt_journal
-  (request_id, idempotency_key, post_attempt_seq, event_type,
-   occurred_at, trigger_source, correlation_id, outcome, error_code,
-   error_detail, response_excerpt)
-VALUES
-  (:id, :key, :postSeq, 'ATTEMPT_RESOLVED',
-   SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :outcome,
-   :errCode, :errDetail, :responseExcerpt);
--- :outcome = the §7.2 class VERBATIM (+ LEASE_EXPIRED_MAYBE);
--- never an invented vocabulary
+```java
+// inside the episode-ending transaction, ONLY when its CAS
+// returned rowCount == 1 — same try/catch + STATEMENT_LOCAL
+// classifier + after-commit alert as rider 1:
+if (journalSwitch.isOn() && casRowCount == 1) {
+  try {
+    jdbc.update(INSERT_ATTEMPT_RESOLVED,
+        id, key, postSeq, trigger, corr,
+        outcome, errCode, errDetail, responseExcerpt);
+    // outcome = the §7.2 class VERBATIM (+ LEASE_EXPIRED_MAYBE);
+    // never an invented vocabulary (the paj_outcome_ck backstops)
+  } catch (DataAccessException e) {
+    if (STATEMENT_LOCAL.test(e)) { gapBuffer.record(id, postSeq, e); }
+    else { throw e; }
+  }
+}
 ```
 
 Binding rules (SHAPE — tick with the host card's checklist; T-38):

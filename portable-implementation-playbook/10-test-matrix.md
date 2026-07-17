@@ -504,11 +504,16 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            COMPLETED, reason NULL; an anchor retired by absence →
            OBLIGATION_ONLY row, CANCELLED, reason NULL
            (REMOVED_BEFORE_REQUEST display note);
-         - API contract (§12): deterministic ordering + keyset
-           pagination — each row seen exactly once across page
-           boundaries; estate mode REFUSES unbounded queries;
-           server-side authorization scoping enforced; composite
-           row key (row_type, source_id) stable across refreshes.
+         - API contract (§12, LIVE-BROWSE semantics — review
+           c8a92f1 M2): deterministic ordering + keyset pagination —
+           no row appears TWICE within one traversal; under
+           CONCURRENT WRITES cross-page completeness is NOT asserted
+           (the test inserts rows mid-traversal and asserts the
+           live-browse contract, never exactly-once enumeration);
+           estate mode REFUSES unbounded queries; server-side
+           authorization scoping enforced; composite row key
+           (row_type, source_id) stable across refreshes; the estate
+           query's captured plan rides CA-4's §12 estate index.
 Failure: false completion (the predicate's whole point), a
          multi-payment trade surfacing as an error or partial
          result, a duplicate placeholder beside a request row, or
@@ -666,7 +671,14 @@ Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          re-approval when a newer snapshot owns the trade
          (reprocess); the zombie's blocks all no-op; the
          failed-validation message advances NEITHER
-         trade_snapshot_state nor upstream_ordering;
+         trade_snapshot_state nor upstream_ordering — AND (review
+         c8a92f1 H3) its validation_failed marker lands on the
+         UNION of the document's extractable scopes and EVERY
+         existing obligation/anchor of the trade: regression case =
+         last valid snapshot carried A + B, the invalid document
+         carries only a malformed A block → B's existing obligation
+         is ALSO marked (no new request creation for B until a
+         corrected message), while A gets its anchor/marker;
          reference-only tie: detected at admission (digest differs),
          approved reprocess updates ONLY the trade row (blocks
          no-op), §7.0 assembly reads the new reference, re-run is
@@ -808,7 +820,10 @@ Cases:
      canonical payload with a matching hash - including the H/H/H
      identical-retry run AND the H1 -> H2 -> H1 alternating run
      (review 7ab31e5 H1: no NULL content, no refs, ever); changed
-     bytes also record divergence_expected TRUE at claim.
+     bytes also record divergence_expected TRUE at claim. FULLNESS
+     is proven HERE at application level (byte-compare against the
+     assembled instruction) - the DDL trigger only proves non-empty
+     PRESENCE (an EMPTY_CLOB would pass the trigger but fail E).
   F  failure isolation on the REAL JDBC/Spring stack, BOTH riders
      (review d00ef6a H3 - the narrow guarantee):
      (i) statement-local classes - tablespace-full, unique/CHECK/
@@ -818,7 +833,13 @@ Cases:
          COMMIT (a rolled-back host reports nothing); assert NO
          rollback-only marking / no UnexpectedRollbackException
          (the rider uses a plain try/catch, no inner
-         @Transactional).
+         @Transactional). THE CLASSIFIER IS PART OF THE DELIVERABLE
+         (review c8a92f1 H1): statement-local = DuplicateKeyException,
+         DataIntegrityViolationException, QueryTimeoutException,
+         space-error class (ORA-01653-family); FATAL =
+         DataAccessResourceFailureException / connection-closed,
+         TransactionSystemException at commit - each named class has
+         a test row.
      (ii) fatal classes - connection kill mid-insert, session
          termination, commit-time failure: the attempt fails as an
          ORDINARY infra failure and existing recovery handles it
@@ -831,8 +852,10 @@ Cases:
   H  partition maintenance: DROP PARTITION ... UPDATE GLOBAL INDEXES
      leaves BOTH global unique structures (paj_pk AND paj_pair_uq)
      USABLE (verified); the scalar shape CHECK and the content
-     trigger reject malformed STARTED/RESOLVED rows (STARTED
-     without content refused by the trigger).
+     trigger reject malformed rows in BOTH directions: STARTED
+     without content (or zero-length content) refused; RESOLVED
+     WITH content refused; outcome outside the paj_outcome_ck
+     vocabulary refused.
   I  log join: every journal event pair joins unambiguously to its
      ATTEMPT-class log lines via (request_id, post_attempt_seq,
      event type) - review 7ab31e5 M5.
@@ -840,7 +863,12 @@ Cases:
      under posting freeze + drain -> NO half-pairs; a mid-traffic
      flip in the harness DOES create one (documents why the rule
      exists); planned transitions are recorded and excluded by the
-     unmatched-pair alert triage.
+     unmatched-pair alert triage. BOUNDARY (review c8a92f1 M1):
+     claim committed while ON -> freeze effective before the wire ->
+     worker abandons -> the switch may NOT change until that
+     episode's lease-expiry resolution lands (drain includes
+     abandoned claims); the harness asserts the half-pair appears
+     ONLY when this rule is violated.
 Expected: all cases green + grep/review evidence that NO runtime
          code path SELECTs the journal.
 Failure meaning: either the journal disturbed payment processing

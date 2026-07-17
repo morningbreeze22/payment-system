@@ -123,8 +123,15 @@ onTradeSnapshot(record):
                                                  // validation failure —
         // NO amounts applied from ANY block; upstream_ordering NOT
         // advanced; blast radius = the TRADE (deliberate, fail
-        // closed): every extractable scope gets the marker
-        for scope in sortByScopeTuple(extractableScopes(doc)):
+        // closed): the marker lands on the UNION of the document's
+        // extractable scopes AND every EXISTING obligation/anchor of
+        // this business_id — including payments ABSENT from the
+        // invalid document (§6.6 "existing obligations and anchors
+        // alike"; review c8a92f1 H3). Anchors are upserted only for
+        // document-only scopes; existing rows just get the marker.
+        targetScopes = extractableScopes(doc)
+                       ∪ existingScopes(business_id)
+        for scope in sortByScopeTuple(targetScopes):
           TX(anchorOrMark):
             ob = SELECT payment_obligation FOR UPDATE
                  (upsert anchor if absent: required := NULL — §6.6;
@@ -362,6 +369,11 @@ postScan():
 
 [WORKER] — one attempt:
 postAttempt(id):
+  if freezeEffective(): return                   // §16.1 BOTH-ENDS, end 1 of 2
+                                                 // (review c8a92f1 H2): a queued
+                                                 // candidate may postdate the
+                                                 // scan's check — re-read HERE,
+                                                 // before ANY claim mutation
   // ---------- TX1: the posting claim (write-ahead) ----------
   TX(postingClaim):
     lockObligation(id.scope)
@@ -389,21 +401,21 @@ postAttempt(id):
                                     AND last_sent_hash != hash)
     request.last_sent_hash := hash               // write-ahead: the DB knows what
                                                  // may be sent BEFORE any byte leaves
-    [§14.1 rider 1: INSERT ATTEMPT_STARTED — same TX, FAILURE-
-     ISOLATED (insert error → AUDIT-GAP alert, claim PROCEEDS —
-     never load-bearing) and switch-gated; FULL content every
-     attempt, no dedup]
+    [§14.1 rider 1 (switch-gated): INSERT ATTEMPT_STARTED — same TX,
+     FULL content every attempt; canonical failure rule: statement-
+     local error → gap recorded, alert AFTER commit, claim proceeds;
+     fatal → ordinary infra failure]
     COMMIT
   on commit-outcome-UNKNOWN (connection died mid-commit):
     DO NOT POST. Walk away. Either the claim never landed (row still
     READY) or the lease expires into MAYBE — both safe (§11).
 
   // ---------- THE WIRE: no TX, no locks ----------
-  if freezeEffective(): return                   // §16.1 BOTH-ENDS rule: freeze is
-                                                 // checked before the claim AND
-                                                 // again here before the wire; an
+  if freezeEffective(): return                   // §16.1 BOTH-ENDS, end 2 of 2:
+                                                 // re-checked before the wire; an
                                                  // abandoned claim resolves via
-                                                 // lease expiry (RC-09)
+                                                 // lease expiry (RC-09) — and the
+                                                 // §14.1 switch drain waits for it
   try:
     resp = engineClient.post(payload, idempotency_key)   // SDK mints the
                                                          // UETR in-flight
@@ -446,8 +458,8 @@ postAttempt(id):
       UNMAPPED:
         sub := MAYBE_SUBMITTED; stage_state := BLOCKED(UNMAPPED_CODE)
         + alert                                    // fail closed
-    [§14.1 rider 2: INSERT ATTEMPT_RESOLVED on rowCount 1 —
-     failure-isolated, switch-gated (never load-bearing)]
+    [§14.1 rider 2 (switch-gated): INSERT ATTEMPT_RESOLVED on
+     rowCount 1 — canonical failure rule as rider 1]
     derive(ob)                                     // frontend sees the outcome AND
                                                    // its exception atomically
     COMMIT
@@ -470,8 +482,8 @@ sweepExpiredClaims():
             sub := MAYBE_SUBMITTED, maybe_since := coalesce(existing, now)
         // NEVER back to POST·READY: the payload may be at the engine;
         // re-POSTing here is the double-payment path (§11)
-        [§14.1 rider 2: ATTEMPT_RESOLVED outcome=LEASE_EXPIRED_MAYBE —
-         failure-isolated, switch-gated]
+        [§14.1 rider 2 (switch-gated): ATTEMPT_RESOLVED
+         outcome=LEASE_EXPIRED_MAYBE — canonical failure rule]
       derive(ob)
       COMMIT
 ```

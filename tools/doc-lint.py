@@ -124,7 +124,10 @@ FORBIDDEN = [
      re.compile(r"had no durable|nothing to|nothing needs|never suspend|zero attempts|no wall-clock|REMOVED|lint", re.I)),
     ("superseded journal design (2026-07-17: full content, never load-bearing — review d00ef6a H1)",
      re.compile(r"content_ref|dedup-by-hash|once per distinct hash|journal failure (?:fails|pauses)|fail-the-claim", re.I),
-     re.compile(r"no content_ref|no dedup|REJECTED|FUTURE|historical|replaces|never|review|lint", re.I)),
+     re.compile(r"no content_ref|no dedup|REJECTED|FUTURE|historical|replaces it|lint", re.I)),
+    ("journal absolute failure wording (c8a92f1 H1: the narrow guarantee is canon)",
+     re.compile(r"never pause, fail, or gate|NEVER pauses posting|no journal (?:condition|failure) (?:may|can) (?:pause|fail)|any insert error", re.I),
+     re.compile(r"money-safety gate|incorrect payment outcome|statement-local|lint", re.I)),
 ]
 
 for path in MAINTAINED:

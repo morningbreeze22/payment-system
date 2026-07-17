@@ -47,9 +47,10 @@ root-cause incident.
 - UI/card false-completion prevention: completion-predicate
   anomalies (COMPLETED with active request — should be impossible;
   presence = defect)                    → alert
-- §14.1 journal: write failure → AUDIT-GAP alert
-  (posting CONTINUES — never load-bearing;
-  gap recoverable via §14 line + UETR inquiry)   → alert
+- §14.1 journal: statement-local write failure → AUDIT-GAP alert,
+  EMITTED AFTER the host commit (posting proceeds; FATAL failures
+  surface as ordinary infra alerts instead; gap recoverable via
+  the §14 line + the manual platform ask)       → alert
 - §14.1 journal: unmatched ATTEMPT_STARTED older
   than one lease window                 → alert (crash evidence;
   planned §14.1 switch transitions — freeze-gated — are recorded

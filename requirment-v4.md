@@ -3044,14 +3044,28 @@ is an API, not just a row shape):
     across refreshes and pages;
   - ORDERING/PAGINATION: deterministic order (obligation identity,
     then request_seq); keyset cursor on that order (never OFFSET);
-    fixed page cap (config §16.6); consistency = per-page snapshot
-    honesty (the freshness indicator applies per response);
+    fixed page cap (config §16.6);
+  - PAGINATION SEMANTICS = LIVE BROWSE (decided 2026-07-17, review
+    c8a92f1 M2): each page is truthful at its read instant (the
+    freshness indicator applies per response); no row appears
+    twice within one traversal, but CROSS-PAGE COMPLETENESS under
+    concurrent writes is NOT guaranteed — rows inserted or
+    re-derived between pages may be missed. A stable
+    traversal/export mode (cursor carrying an as-of token) is
+    FUTURE work, designed only if a consumer needs it; tests
+    assert the live-browse contract, never exactly-once
+    enumeration under concurrent writes;
   - FILTERS: server-side in estate mode at production history
     volumes (status/exception/date); client-side filtering is a
     single-trade convenience only;
-  - INDEX: the estate query rides a reviewed index (CA-4 addendum)
-    and its captured plan follows the same discipline as every
-    standing scan (Q5a).
+  - ESTATE QUERY CONTRACT (review c8a92f1 M2 — no invented SQL):
+    the predicate shape is authorization scope FIRST (the caller's
+    entitlement column(s) lead), then the server-side filters,
+    ordered by (obligation identity, request_seq); the backing
+    index is part of CA-4's normative index list (its leading
+    columns = the authorization scope, then the filter/order
+    columns) and its captured plan follows the same discipline as
+    every standing scan (Q5a).
 ```
 
 Step granularity (open, folded into the TL-2 read contract, §18):
@@ -3210,10 +3224,16 @@ SDK/platform own the wire form; the engine's status is queryable,
 its content is not. The team therefore keeps a local record of the
 CANONICAL INSTRUCTION each posting attempt submitted to the SDK.
 
-GOVERNING STANCE (PO 2026-07-17, review 7ab31e5): this journal is
-PURELY team-internal tracking and audit. It must NEVER disturb
-payment processing — no journal condition may pause, fail, or gate
-a payment. If the journal has gaps, the fallback is the §14 log
+GOVERNING STANCE (PO 2026-07-17, review 7ab31e5; wording unified
+per review c8a92f1 H1 — ONE formulation, used verbatim everywhere):
+this journal is PURELY team-internal tracking and audit. THE
+JOURNAL IS NEVER A BUSINESS OR MONEY-SAFETY GATE: statement-local
+insert failures proven by T-38 are caught around the single JDBC
+statement, recorded in memory, and alerted only AFTER host commit;
+FATAL connection/session/transaction/commit failures propagate as
+ordinary host infrastructure failures. The guarantee is "NO
+INCORRECT PAYMENT OUTCOME" — not "no journal failure can ever fail
+an attempt". If the journal has gaps, the fallback is the §14 log
 line (key, seq, hash — always present) plus asking the payment
 platform: STATUS/outcome/reference are recoverable by
 UETR/idempotency-key QUERY (§9); exact CONTENT is recoverable only
@@ -3293,8 +3313,8 @@ new commit points, no new locks):
 
 COUPLING — NEVER LOAD-BEARING, stated as a NARROW GUARANTEE
 (2026-07-17, revised per review d00ef6a H3 — honest about the
-Spring/Oracle mechanics; replaces both the fail-the-claim rule and
-the over-broad "any error is harmless" claim):
+Spring/Oracle mechanics; the earlier fail-the-claim rule was REJECTED,
+as was the over-broad "any error is harmless" claim):
 
 - The rider INSERT runs INSIDE the host transaction wrapped in
   STATEMENT-LEVEL isolation: a plain try/catch around the single
@@ -3332,12 +3352,17 @@ explicitly approved, expiry-dated compensating-control exception)
 AND the compliance-approved retention schedule. Payments go-live
 does NOT wait for journal enablement — an OFF journal is simply the
 pre-2026-07-16 designed state (log-only forensics).
-SWITCH-TRANSITION RULE (review d00ef6a M3): the switch may change
-state ONLY under posting freeze + drain (§16.1) — flipping
-mid-traffic manufactures half-pairs (a RESOLVED without its
-STARTED, or vice versa) that would false-alarm the unmatched-pair
-alert. Planned transitions are recorded so alert triage can
-distinguish them (§15/N.1); T-38 exercises both toggle directions.
+SWITCH-TRANSITION RULE (review d00ef6a M3; drain defined per
+review c8a92f1 M1): the switch may change state ONLY under posting
+freeze + drain (§16.1) — flipping mid-traffic manufactures
+half-pairs (a RESOLVED without its STARTED, or vice versa) that
+would false-alarm the unmatched-pair alert. DRAIN COMPLETION means
+ZERO outstanding POST claims/attempt episodes — including claims
+abandoned at the pre-wire freeze check, whose episodes end only at
+their lease-expiry resolution; the switch waits for those too.
+Planned transitions are recorded so alert triage can distinguish
+them (§15/N.1); T-38 exercises both toggle directions and the
+abandoned-claim boundary.
 
 Security — the ONE controlled exception to §16.3's no-local-content
 rule:
