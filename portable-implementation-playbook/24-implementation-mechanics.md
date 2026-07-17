@@ -550,15 +550,22 @@ if (journalSwitch.isOn()) {                    // §14.1 enablement gate
     // content = the FULL CA-6 canonical bytes, EVERY attempt
     // (§14.1 simplicity rule — no dedup, no content_ref)
   } catch (DataAccessException e) {
-    if (STATEMENT_LOCAL.test(e)) {             // the T-38 classifier:
-      gapBuffer.record(id, postSeq, e);        //  DuplicateKey/DataIntegrity/
-                                               //  QueryTimeout/space errors —
-                                               //  swallow; host tx proceeds.
+    if (STATEMENT_LOCAL.test(e)) {             // the T-38 classifier: a
+      gapBuffer.record(id, postSeq, e);        // NARROW allowlist of PINNED
+                                               // ORA vendor codes (00001,
+                                               // 02290, 20141/20142,
+                                               // 01653-family) read from the
+                                               // SQLException — NEVER
+                                               // instanceof-only; swallow;
+                                               // host tx proceeds.
       // AUDIT-GAP alert fires AFTER host commit (afterCommit hook)
     } else {
-      throw e;                                 // FATAL class (connection/
-                                               // session/commit): ordinary
-                                               // infra failure — existing
+      throw e;                                 // EVERYTHING ELSE — timeouts,
+                                               // unknown/ambiguous
+                                               // translations, connection/
+                                               // session/commit classes — is
+                                               // FATAL BY DEFAULT: ordinary
+                                               // infra failure, existing
                                                // recovery owns it
     }
   }

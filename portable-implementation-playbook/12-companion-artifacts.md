@@ -82,10 +82,18 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
-  (one per standing scan) PLUS the §12 estate-listing index (added
-  2026-07-17: leading columns = the authorization scope, then the
-  server-side filter/order columns — the §12 API contract's estate
-  query rides it); trade_snapshot_state DDL (§2.4, round 5 —
+  (one per standing scan) PLUS the §12 ESTATE-QUERY RESOLUTION
+  (added 2026-07-17; scoped as a BLOCKING resolution item for
+  §12 estate mode per review 4d5cb83 M4 — single-trade mode is NOT
+  gated): the RESOLVED SQL with the authorization predicate/join
+  spelled out; the TOTAL keyset order incl. tie-breaker and NULL
+  encoding for OBLIGATION_ONLY rows (suggested: obligation id,
+  then row_type, then request_seq NULLS FIRST); the cursor field
+  set; the SUPPORTED FILTER-SHAPE MATRIX (which
+  status/exception/date combinations are served); the exact
+  index(es); and a plan/row-count acceptance table — until local
+  discovery supplies these, estate mode is a design instruction,
+  not a contract; trade_snapshot_state DDL (§2.4, round 5 —
   business_id PK, ordering, storage id, digest, updated_at);
   expand/contract sequencing.
 Validation: DBA review; S-05/S-06/S-07 violation + plan tests green
@@ -222,9 +230,19 @@ Purpose: the implementable spec of §14.1 — the RUNNABLE DDL, the
   package, retention. AUD-01 deploys the DDL; K-04, RC-02, and
   ST-10 carry the riders.
 Required contents:
-  - THE RUNNABLE DDL (review d00ef6a H2 — actual SQL, no executor
-    judgment; <placeholders> adapt per file 24 M0; Flyway-versioned
-    at AUD-01 time). Two Oracle facts are BAKED IN and must not be
+  - THE DDL TEMPLATE (review 4d5cb83 M1 — this is formally a
+    TEMPLATE with typed <placeholders>; the RESOLVED migration is
+    AUD-01's deliverable and must contain ZERO angle-bracket
+    tokens, verified by preflight, with a substitution manifest
+    recording each fact and its source). PLACEHOLDER MANIFEST:
+    <request_id_type> (D-02 discovery — the exact DB type of
+    payment_request's id), <the CA-1 category tokens VERBATIM>
+    (generated from published CA-1 — CA-1 is therefore a
+    PREREQUISITE of resolution), <audit_schema>/<audit_ts>/
+    <audit_lob_ts>/<app_role>/<audit_role> (DBA facts),
+    <app>_paj_access_pol policy name (environment-qualified),
+    audit execution principal + PDB/container scope (M2 below).
+    Two Oracle facts are BAKED IN and must not be
     "corrected" away: (a) Oracle forbids CHECK constraints that
     reference LOB columns — CLOB presence is trigger-enforced;
     (b) BOTH unique structures (the PK and the pair key) omit the
@@ -306,14 +324,16 @@ Required contents:
     -- No UPDATE/DELETE grants to application or reporting roles;
     -- owner/DBA access is change-controlled and audited.
 
-    -- Unified audit (RUNNABLE — review c8a92f1 H4; the policy name
-    -- and any site standard are DBA-confirmed at AUD-01 review):
-    CREATE AUDIT POLICY paj_access_pol
-      ACTIONS SELECT ON <audit_schema>.payment_attempt_journal,
-              INSERT ON <audit_schema>.payment_attempt_journal,
-              UPDATE ON <audit_schema>.payment_attempt_journal,
-              DELETE ON <audit_schema>.payment_attempt_journal;
-    AUDIT POLICY paj_access_pol;
+    -- Unified audit (review 4d5cb83 M2): scope = EVERY auditable
+    -- object action (covers ALTER-based partition retention too);
+    -- name environment-qualified; and CREATE AUDIT POLICY requires
+    -- AUDIT_ADMIN/AUDIT SYSTEM — an ordinary Flyway app principal
+    -- does NOT have it, so this block is a DBA-EXECUTED,
+    -- evidence-bound step (or a recorded privileged migration
+    -- principal), with the PDB/container scope recorded:
+    CREATE AUDIT POLICY <app>_paj_access_pol
+      ACTIONS ALL ON <audit_schema>.payment_attempt_journal;
+    AUDIT POLICY <app>_paj_access_pol;
   - The TWO riders (§14.1): ATTEMPT_STARTED in the posting-claim
     transaction (K-04) — write-ahead when healthy, NEVER a gate;
     ATTEMPT_RESOLVED in whichever transaction ends the episode —

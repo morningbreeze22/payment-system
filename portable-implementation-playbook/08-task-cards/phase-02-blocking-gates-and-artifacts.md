@@ -321,7 +321,7 @@
 - **Title:** §14.1 attempt journal (payment_attempt_journal, ops/audit schema): implementable spec + DDL + the two insert riders + security package (content write-ahead; 2026-07-16 driver: the sent request is not visible to us)
 - **Classification:** §14.1 companion artifact — MVP normative input (AUD-01 deploys it; K-04/RC-02/ST-10 carry the riders).
 - **Purpose:** the reliable local record of what each posting attempt intended to send; an audit sink, NEVER state — the §14 log line and the journal are two sinks of one attempt.
-- **Prerequisites:** §14.1 (the normative design); CA-4 (schema authority alignment); CA-6 (payload_hash + the canonical serialization payload_content stores).
+- **Prerequisites:** §14.1 (the normative design); CA-4 (schema authority alignment); CA-6 (payload_hash + the canonical serialization payload_content stores); CA-1 PUBLISHED (the paj_outcome_ck vocabulary is GENERATED from its category tokens — review 4d5cb83 M1).
 - **Requirement sections / concepts to read:** §14.1 (all), §2.2 (post_attempt_seq — NEVER attempt_count), §16.3 (the controlled content exception), §7.2 (outcome classes), §11 (claim/lease + expiry takeover), file 12 CA-10 spec, file 24 M9.
 - **Placeholder components involved:** none (DBA-owned ops/audit schema).
 - **Local placeholder mappings required before starting:** none for authoring.

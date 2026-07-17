@@ -131,6 +131,12 @@ onTradeSnapshot(record):
         // document-only scopes; existing rows just get the marker.
         targetScopes = extractableScopes(doc)
                        ∪ existingScopes(business_id)
+        // NOTE (§6.6 consistency window (a), ratified — review
+        // 4d5cb83 H1): a scope introduced LATER by a VALID
+        // out-of-order document carries no marker and MAY create a
+        // request from that valid state; that is the DEFINED
+        // behavior, not a gap — no trade-level fence exists BY
+        // DECISION
         for scope in sortByScopeTuple(targetScopes):
           TX(anchorOrMark):
             ob = SELECT payment_obligation FOR UPDATE
@@ -373,7 +379,15 @@ postAttempt(id):
                                                  // (review c8a92f1 H2): a queued
                                                  // candidate may postdate the
                                                  // scan's check — re-read HERE,
-                                                 // before ANY claim mutation
+                                                 // before ANY claim mutation.
+                                                 // LINEARIZATION (§16.1, review
+                                                 // 4d5cb83 L2): a worker past
+                                                 // THIS check is IN FLIGHT — a
+                                                 // flip after it may still see
+                                                 // one claim commit; the
+                                                 // pre-wire check stops the
+                                                 // wire; propagation bound +
+                                                 // drain own the boundary
   // ---------- TX1: the posting claim (write-ahead) ----------
   TX(postingClaim):
     lockObligation(id.scope)

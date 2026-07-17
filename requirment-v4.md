@@ -1535,10 +1535,32 @@ harmless by construction: a request created on a not-yet-marked
 sibling is created from the LAST VALID APPLIED state — exactly what
 would have happened had the corrupt snapshot simply arrived later —
 and the corrupt snapshot itself carries no applicable truth
-(validation failure advances nothing). Monotonic ordering-tagged
+(validation failure advances nothing). The SAME rationale covers
+two further windows (made explicit 2026-07-17, review 4d5cb83 H1 —
+ratified as the DEFINED behavior, not a gap):
+(a) OUT-OF-ORDER NEW SCOPE: valid ordering 100 carries only A; an
+    invalid ordering-200 document marks A (and every then-known
+    scope); a VALID out-of-order ordering-150 document then
+    introduces NEW scope B. B admits (150 > accepted 100), carries
+    no marker, and MAY create a request — from valid-150's applied
+    state, a VALID document. Had the corrupt 200 arrived after
+    150 (a legal ordering), B's request would exist anyway; the
+    invalid document says nothing about B, so blocking B protects
+    nothing money-real. A itself stays marker-blocked until a
+    valid document newer than 200 clears it BY ORDERING.
+(b) ENUMERATION RACE: a concurrent valid fan-out may create a
+    scope after the invalid path enumerated existing scopes — the
+    same window as (a), converging identically.
+PRECISE SCOPE OF THE STOP, restated: what stops is new request
+creation on scopes KNOWN OR EXTRACTABLE when the invalid document
+is processed; scopes introduced afterwards by VALID documents
+create from valid state. Monotonic ordering-tagged
 marker writes (§6.9) make re-application and interleaving with a
-newer valid snapshot converge. No trade-level lock or gate exists,
-BY DECISION: the atomicity it would buy protects nothing money-real.
+newer valid snapshot converge. No trade-level lock, gate, or
+trade-level validation fence exists, BY DECISION (re-affirmed
+2026-07-17): the atomicity it would buy protects nothing
+money-real, and a fence would DEFER VALID PAYMENTS (B above)
+to enforce a promise about a document that carries no truth.
 
 If the message is too malformed to identify the scope, route it to the
 dead-letter/ops-alert path. This blind spot is accepted and monitored.
@@ -3058,14 +3080,16 @@ is an API, not just a row shape):
   - FILTERS: server-side in estate mode at production history
     volumes (status/exception/date); client-side filtering is a
     single-trade convenience only;
-  - ESTATE QUERY CONTRACT (review c8a92f1 M2 — no invented SQL):
-    the predicate shape is authorization scope FIRST (the caller's
-    entitlement column(s) lead), then the server-side filters,
-    ordered by (obligation identity, request_seq); the backing
-    index is part of CA-4's normative index list (its leading
-    columns = the authorization scope, then the filter/order
-    columns) and its captured plan follows the same discipline as
-    every standing scan (Q5a).
+  - ESTATE QUERY CONTRACT (review c8a92f1 M2; scoped per review
+    4d5cb83 M4): the CONCEPT is authorization scope first, then
+    server-side filters, ordered by (obligation identity,
+    row_type, request_seq); the EXECUTABLE contract — resolved
+    SQL, authorization predicate/join, total order incl.
+    tie-breaker + NULL encoding for OBLIGATION_ONLY rows, cursor
+    fields, supported filter-shape matrix, exact index(es), plan
+    acceptance table — lives in CA-4's §12 estate-query resolution
+    and is BLOCKING for estate mode only (single-trade mode is not
+    gated). No agent invents any of those facts.
 ```
 
 Step granularity (open, folded into the TL-2 read contract, §18):
@@ -3616,7 +3640,16 @@ so one id greps the whole story.
   While posting is frozen or a breaker is OPEN, gated scanners make
   zero attempts, so the attempt budget structurally cannot burn —
   a 6-hour engine outage leaves the RETRY_WAIT population exactly
-  where it was, ready at recovery, with no BLOCKED flood. (Round
+  where it was, ready at recovery, with no BLOCKED flood.
+  LINEARIZATION of the freeze check (2026-07-17, review 4d5cb83
+  L2): "zero attempts" means zero WIRE calls. A worker that passed
+  its pre-claim freeze read before the flip is IN FLIGHT — it may
+  still commit its claim; the pre-wire re-check stops the wire
+  call, the abandoned claim resolves via lease expiry, and the
+  propagation bound + drain procedures own that boundary. A grid
+  read cannot form an atomic fence with the Oracle claim, BY
+  DECISION — a durable fencing token was considered and rejected
+  as machinery that protects nothing money-real. (Round
   10: NO cutoff check exists at attempt time or anywhere else —
   the engine owns its calendar and classifies late submissions
   itself, CA-1.) An in-flight POST call at flip time completes

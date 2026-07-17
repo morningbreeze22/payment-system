@@ -679,6 +679,15 @@ Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          carries only a malformed A block → B's existing obligation
          is ALSO marked (no new request creation for B until a
          corrected message), while A gets its anchor/marker;
+         DEFINED-WINDOW trace (review 4d5cb83 H1 — ratified
+         behavior, NOT a defect): valid 100 (A only) → invalid 200
+         (malformed A; A marked at 200) → out-of-order VALID 150
+         introducing NEW scope B → 150 ADMITS (150 > 100), B's
+         obligation AND request ARE created (from valid-150 state —
+         §6.6 consistency window (a)), and A remains marker-blocked
+         until a valid document newer than 200; the concurrent
+         invalid-200/valid-150 race (both lock orders) converges to
+         the same end state;
          reference-only tie: detected at admission (digest differs),
          approved reprocess updates ONLY the trade row (blocks
          no-op), §7.0 assembly reads the new reference, re-run is
@@ -822,8 +831,9 @@ Cases:
      (review 7ab31e5 H1: no NULL content, no refs, ever); changed
      bytes also record divergence_expected TRUE at claim. FULLNESS
      is proven HERE at application level (byte-compare against the
-     assembled instruction) - the DDL trigger only proves non-empty
-     PRESENCE (an EMPTY_CLOB would pass the trigger but fail E).
+     assembled instruction) - the DDL trigger proves NON-EMPTY
+     PRESENCE only (zero-length content is refused by the trigger,
+     T-38 H; byte-for-byte completeness is provable only here).
   F  failure isolation on the REAL JDBC/Spring stack, BOTH riders
      (review d00ef6a H3 - the narrow guarantee):
      (i) statement-local classes - tablespace-full, unique/CHECK/
@@ -834,12 +844,20 @@ Cases:
          rollback-only marking / no UnexpectedRollbackException
          (the rider uses a plain try/catch, no inner
          @Transactional). THE CLASSIFIER IS PART OF THE DELIVERABLE
-         (review c8a92f1 H1): statement-local = DuplicateKeyException,
-         DataIntegrityViolationException, QueryTimeoutException,
-         space-error class (ORA-01653-family); FATAL =
-         DataAccessResourceFailureException / connection-closed,
-         TransactionSystemException at commit - each named class has
-         a test row.
+         and is a NARROW ALLOWLIST OF PINNED ORACLE VENDOR CODES
+         (review 4d5cb83 M3 — never instanceof-only: a Spring type
+         such as QueryTimeoutException does not prove the session
+         is usable): allowed = ORA-00001 (unique), ORA-02290
+         (check), ORA-20141/20142 (the paj triggers),
+         ORA-01653/01654-family (space), read from the SQLException
+         vendor code on the PINNED driver + Spring versions;
+         EVERYTHING ELSE — including timeouts and any unknown or
+         ambiguous translation — is FATAL by default. Per allowed
+         signature, prove ALL of: the translation is exactly the
+         expected one; the connection remains valid; a subsequent
+         host-transaction statement succeeds; host COMMIT succeeds
+         with no rollback-only state; the after-commit gap alert
+         fires exactly once.
      (ii) fatal classes - connection kill mid-insert, session
          termination, commit-time failure: the attempt fails as an
          ORDINARY infra failure and existing recovery handles it
@@ -847,8 +865,13 @@ Cases:
          lease expiry -> MAYBE); money is never wrong.
      Sub-case: enablement switch OFF -> zero inserts, zero errors,
      posting unaffected.
-  G  grants: the app role cannot SELECT; no app/reporting role has
-     UPDATE/DELETE; audit-role reads appear in the DB audit trail.
+  G  grants + audit coverage (expanded per review 4d5cb83 M2): the
+     app role cannot SELECT; no app/reporting role has
+     UPDATE/DELETE; the audit policy is ENABLED (evidence captured,
+     container scope recorded); audit-role reads AND app INSERTs
+     AND denied-access attempts AND owner/DBA maintenance (incl.
+     the partition-drop ALTER) all appear in the unified audit
+     trail — the policy scope is ALL object actions.
   H  partition maintenance: DROP PARTITION ... UPDATE GLOBAL INDEXES
      leaves BOTH global unique structures (paj_pk AND paj_pair_uq)
      USABLE (verified); the scalar shape CHECK and the content
@@ -871,9 +894,13 @@ Cases:
      ONLY when this rule is violated.
 Expected: all cases green + grep/review evidence that NO runtime
          code path SELECTs the journal.
-Failure meaning: either the journal disturbed payment processing
-         (forbidden - PO 2026-07-17: never load-bearing) or it has
-         become state - both violate section 14.1.
+Failure meaning (review 4d5cb83 L1 — aligned with the narrow
+         guarantee): an INCORRECT money outcome, a MISCLASSIFIED
+         failure (statement-local treated as fatal or vice versa),
+         a PHANTOM gap alert (emitted for a rolled-back host), or
+         journal state becoming runtime input - each violates
+         section 14.1. (A fatal infra failure failing the attempt
+         is CORRECT behavior, not a test failure.)
 Type: integration (real Oracle) + fault injection. BLOCKING: yes
          (it proves the journal CANNOT hurt the money path).
 Implemented by: AUD-01 (schema slice + G + H + the switch), K-04
