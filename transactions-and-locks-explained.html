@@ -1,0 +1,1629 @@
+<title>Transactions &amp; Locks — Payment System Explainer</title>
+<style>
+  :root {
+    --bg: #F5F6F8;
+    --panel: #FFFFFF;
+    --panel-2: #EDF0F4;
+    --ink: #1B2431;
+    --muted: #5C6675;
+    --line: #D9DEE6;
+    --accent: #175E74;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #E1EEF3;
+    --amber: #9A5B00;
+    --green: #1D7A3E;
+    --violet: #6D4FC4;
+    --red: #B3372F;
+    --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+    --display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161C; --panel: #1A2029; --panel-2: #222A35; --ink: #E7EBF1;
+      --muted: #96A0AE; --line: #2C3441; --accent: #6BBCD2; --accent-ink: #0C1418;
+      --accent-soft: #143038; --amber: #E0A458; --green: #63C286;
+      --violet: #AC93E8; --red: #E07A70;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161C; --panel: #1A2029; --panel-2: #222A35; --ink: #E7EBF1;
+    --muted: #96A0AE; --line: #2C3441; --accent: #6BBCD2; --accent-ink: #0C1418;
+    --accent-soft: #143038; --amber: #E0A458; --green: #63C286;
+    --violet: #AC93E8; --red: #E07A70;
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F6F8; --panel: #FFFFFF; --panel-2: #EDF0F4; --ink: #1B2431;
+    --muted: #5C6675; --line: #D9DEE6; --accent: #175E74; --accent-ink: #FFFFFF;
+    --accent-soft: #E1EEF3; --amber: #9A5B00; --green: #1D7A3E;
+    --violet: #6D4FC4; --red: #B3372F;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--body); font-size: 16px; line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px 90px; }
+  code { font-family: var(--mono); font-size: .92em; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+  /* ---------- sticky spine nav ---------- */
+  nav.spine {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    padding: 10px 20px; display: flex; gap: 6px; justify-content: center;
+    overflow-x: auto; white-space: nowrap;
+  }
+  nav.spine a {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .05em;
+    color: var(--muted); text-decoration: none; padding: 5px 11px;
+    border-radius: 999px; border: 1px solid transparent;
+  }
+  nav.spine a:hover { color: var(--accent); border-color: var(--line); }
+  nav.spine a strong { color: var(--accent); font-weight: 700; }
+
+  /* ---------- hero ---------- */
+  header.hero { padding: 52px 0 8px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 700; font-size: 36px;
+    line-height: 1.12; margin: 0 0 14px; letter-spacing: -.015em; text-wrap: balance;
+  }
+  .thesis { color: var(--muted); max-width: 680px; margin: 0 0 26px; font-size: 17px; }
+  .thesis strong { color: var(--ink); }
+
+  .route { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .route a {
+    flex: 1; min-width: 150px; text-decoration: none; color: inherit;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; position: relative;
+  }
+  .route a:hover { border-color: var(--accent); }
+  .route a .r-letter { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--accent); display: block; margin-bottom: 4px; }
+  .route a .r-title { font-family: var(--display); font-weight: 700; font-size: 14.5px; display: block; }
+  .route a .r-req { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .route a.r-cap { border-style: dashed; }
+  .route-hint { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .route-hint b { color: var(--ink); }
+
+  /* ---------- theater ---------- */
+  #theater { margin-top: 54px; scroll-margin-top: 64px; }
+  .theater-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .theater-head h2 { font-family: var(--display); font-weight: 700; font-size: 24px; margin: 0; letter-spacing: -.01em; }
+  .theater-head .sub2 { color: var(--muted); font-size: 14px; }
+
+  .tab-groups { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tab-group { display: flex; gap: 5px; align-items: center; padding: 5px 8px 5px 5px; border: 1px dashed var(--line); border-radius: 10px; }
+  .tab-group .tg-label {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+    color: var(--accent); padding: 0 4px 0 7px; text-transform: uppercase;
+  }
+  .tab {
+    font-family: var(--body); font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+    border-radius: 7px; padding: 6px 11px;
+  }
+  .tab:hover { border-color: var(--accent); color: var(--accent); }
+  .tab.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stage-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  #stage { display: block; width: 100%; height: auto; background: #0F151E; }
+  .caption-bar {
+    border-top: 1px solid var(--line); padding: 14px 18px; min-height: 84px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .beat-col { display: flex; flex-direction: column; gap: 7px; align-items: center; margin-top: 3px; }
+  .beat-no {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 6px; padding: 2px 8px;
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .dots { display: flex; gap: 4px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+  .dots i.on { background: var(--accent); }
+  .caption { font-size: 15px; margin: 0; flex: 1; }
+  .caption strong { color: var(--ink); }
+  .caption .k { font-family: var(--mono); font-size: .9em; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+  .theater-controls {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    border-top: 1px solid var(--line); padding: 12px 18px; background: var(--panel);
+  }
+  button {
+    font-family: var(--body); font-size: 14px; font-weight: 600;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); padding: 7px 14px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 92px; }
+  button.primary:hover:not(:disabled) { color: var(--accent-ink); filter: brightness(1.08); }
+  select {
+    font-family: var(--body); font-size: 13.5px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 8px;
+  }
+  .hint { font-size: 12.5px; color: var(--muted); margin-left: auto; }
+
+  /* ---------- parts ---------- */
+  .part { margin-top: 76px; scroll-margin-top: 64px; }
+  .part-head { display: flex; gap: 20px; align-items: flex-start; }
+  .part-letter {
+    font-family: var(--mono); font-weight: 700; font-size: 58px; line-height: .9;
+    color: var(--accent); flex: none; width: 64px; text-align: center;
+    border-right: 3px solid var(--accent); padding-right: 16px;
+  }
+  .part-head-body h2 { font-family: var(--display); font-weight: 700; font-size: 24px; margin: 2px 0 8px; letter-spacing: -.01em; text-wrap: balance; }
+  .req-quote {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted); display: block;
+  }
+  .req-quote b { color: var(--amber); font-weight: 700; }
+  .part-intro { margin: 18px 0 0; color: var(--muted); max-width: 700px; font-size: 15.5px; }
+  .part-intro strong { color: var(--ink); }
+
+  .watch-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .watch-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13.5px; border: 1px solid var(--accent); color: var(--accent); background: transparent;
+  }
+  .watch-btn:hover { background: var(--accent-soft); }
+  .watch-btn .play-glyph { font-size: 10px; }
+
+  .bridge { margin-top: 26px; font-size: 14px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 14px; max-width: 700px; }
+  .bridge b { color: var(--ink); }
+
+  /* ---------- money ---------- */
+  .rule-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+  @media (max-width: 760px) { .rule-cards { grid-template-columns: 1fr; } }
+  .rule-card { border-radius: 10px; padding: 14px 16px; border: 1px solid var(--line); background: var(--panel); }
+  .rule-card .verb { font-family: var(--mono); font-weight: 700; font-size: 13px; display: block; margin-bottom: 6px; }
+  .rule-card p { margin: 0; font-size: 13.5px; color: var(--muted); }
+  .rule-card.inc .verb { color: var(--amber); }
+  .rule-card.dec .verb { color: var(--green); }
+  .rule-card.no .verb { color: var(--violet); }
+
+  .sim-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; align-items: start; margin-top: 14px; }
+  @media (max-width: 760px) { .sim-grid { grid-template-columns: 1fr; } }
+  .sim-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+  .sim-bars .mrow { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .sim-bars .mlabel { font-family: var(--mono); font-size: 12px; width: 150px; color: var(--muted); }
+  .sim-bars .mbar { flex: 1; height: 16px; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
+  .sim-bars .mfill { height: 100%; border-radius: 6px; transition: width .45s; }
+  .sim-bars .mval { font-family: var(--mono); font-size: 13px; width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .invariants { margin-top: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .invariants div { padding: 3px 0; }
+  .invariants .ok { color: var(--green); }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  .sim-log { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; max-height: 320px; overflow-y: auto; }
+  .sim-log h4 { margin: 0 0 8px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .sim-log .entry { font-family: var(--mono); font-size: 11.5px; padding: 6px 8px; border-radius: 6px; margin-bottom: 6px; background: var(--panel-2); color: var(--ink); }
+  .sim-log .entry.tx { border-left: 3px solid var(--amber); }
+  .sim-log .entry.notx { border-left: 3px solid var(--violet); }
+  .sim-log .entry.tx-green { border-left: 3px solid var(--green); }
+
+  /* ---------- reference bits ---------- */
+  details.sqlref { margin-top: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  details.sqlref summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 14px; }
+  details.sqlref .inner { padding: 0 16px 16px; }
+  pre.sql {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 12px 14px;
+    overflow-x: auto; margin: 10px 0 0; color: var(--ink);
+  }
+  pre.sql .kw { color: var(--accent); font-weight: 700; }
+  pre.sql .cm { color: var(--muted); }
+  details.sqlref p { font-size: 13.5px; color: var(--muted); margin: 12px 0 0; }
+  details.sqlref p strong { color: var(--ink); }
+
+  ol.scanner { margin: 18px 0 0; padding-left: 22px; }
+  ol.scanner li { margin-bottom: 10px; font-size: 14.5px; }
+  ol.scanner li .why { color: var(--muted); font-size: 13.5px; }
+
+  .intake-flow { display: flex; gap: 10px; align-items: stretch; margin-top: 22px; }
+  @media (max-width: 760px) { .intake-flow { flex-direction: column; } }
+  .intake-box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; flex: 1; }
+  .intake-box.admission { border-color: var(--accent); }
+  .intake-box h5 { margin: 0 0 8px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .intake-box.admission h5 { color: var(--accent); }
+  .intake-box ol { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+  .intake-box ol li { padding: 2px 0; }
+  .intake-box .p-badge { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--amber); display: block; margin-top: 8px; }
+  .intake-arrow { align-self: center; font-size: 20px; color: var(--accent); font-weight: 700; }
+  @media (max-width: 760px) { .intake-arrow { transform: rotate(90deg); align-self: flex-start; margin-left: 24px; } }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    border-radius: 0 8px 8px 0; padding: 12px 16px; margin-top: 20px;
+    font-size: 14px; color: var(--muted);
+  }
+  .note strong { color: var(--ink); }
+
+  footer { margin-top: 80px; border-top: 1px solid var(--line); padding-top: 22px; }
+  footer p { color: var(--muted); font-size: 14px; max-width: 720px; }
+  footer .one-liner { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--ink); }
+
+  @media (max-width: 640px) {
+    .part-head { gap: 14px; }
+    .part-letter { font-size: 40px; width: 46px; padding-right: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<nav class="spine" aria-label="Page structure">
+  <a href="#theater"><strong>▣</strong> theater</a>
+  <a href="#part-a"><strong>A</strong> the money lock</a>
+  <a href="#part-b"><strong>B</strong> slow work &amp; leases</a>
+  <a href="#part-c"><strong>C</strong> order &amp; verdicts</a>
+  <a href="#intake"><strong>Σ</strong> intake: all three</a>
+  <a href="#reference"><strong>§</strong> ops reference</a>
+</nav>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Payment Orchestration · Requirements v4 · §3 §6.1 §7 §11</div>
+    <h1>Every transaction decision in this design comes from three rules</h1>
+    <p class="thesis">You gave three requirements: <strong>never mess up amount calculation</strong>, <strong>only check minimal fields before saving the obligation</strong>, and <strong>enrichment is slow, so we claim with CAS</strong>. Each one became a rule; the three rules together are the whole concurrency model. This page proves each rule with a running animation, then shows all three operating at once in the intake flow.</p>
+    <div class="route">
+      <a href="#part-a"><span class="r-letter">A</span><span class="r-title">One lock owns the money</span><span class="r-req">“never mess up amount calculation”</span></a>
+      <a href="#part-b"><span class="r-letter">B</span><span class="r-title">Nothing slow inside a transaction</span><span class="r-req">“enrichment takes time → claim + CAS”</span></a>
+      <a href="#part-c"><span class="r-letter">C</span><span class="r-title">Fixed order, stated expectations</span><span class="r-req">how A and B stay safe under racing threads</span></a>
+      <a href="#intake" class="r-cap"><span class="r-letter">Σ</span><span class="r-title">Intake runs all three at once</span><span class="r-req">“minimal fields before saving obligation”</span></a>
+    </div>
+    <p class="route-hint">Reading order is top to bottom; every <b>▶ watch</b> button jumps to the theater and plays the scenario that proves the claim you just read.</p>
+  </header>
+
+  <!-- ================= THEATER ================= -->
+  <section id="theater">
+    <div class="theater-head">
+      <h2>The concurrency theater</h2>
+      <span class="sub2">real threads against the real tables — tabs are grouped by the rule they prove</span>
+    </div>
+
+    <div class="tab-groups" id="tabGroups" role="tablist"></div>
+
+    <div class="stage-card">
+      <canvas id="stage" width="980" height="410" aria-label="Animated concurrency scenario"></canvas>
+      <div class="caption-bar">
+        <div class="beat-col">
+          <span class="beat-no" id="beatNo">1 / 8</span>
+          <span class="dots" id="beatDots"></span>
+        </div>
+        <p class="caption" id="capText"></p>
+      </div>
+      <div class="theater-controls">
+        <button id="btnPlay" class="primary">Pause</button>
+        <button id="btnPrev">⏮ Prev</button>
+        <button id="btnNextB">Next ⏭</button>
+        <button id="btnRestart">↻ Replay</button>
+        <select id="speedSel" aria-label="Playback speed">
+          <option value="0.6">0.6× slow</option>
+          <option value="1" selected>1× normal</option>
+          <option value="1.6">1.6× fast</option>
+        </select>
+        <span class="hint">← → keys step · space plays/pauses</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PART A ================= -->
+  <section class="part" id="part-a">
+    <div class="part-head">
+      <div class="part-letter">A</div>
+      <div class="part-head-body">
+        <h2>One lock owns the money</h2>
+        <span class="req-quote">your requirement — <b>“we can never mess up amount calculation”</b></span>
+        <p class="part-intro">Rule A is a <strong>two-layer protocol</strong>, and both layers run in the same transaction. Layer 1: all money arithmetic — shortfall checks, request creation, overpay detection, completion — happens under the obligation row's <code>SELECT … FOR UPDATE</code>, one session at a time, never from a moving picture. Layer 2: the money <em>movement</em> rides a <strong>CAS on the request row</strong> (<code>WHERE outcome IS NULL</code>, <code>WHERE stage_state = 'READY'</code>…), so the event that moves money can fire <strong>exactly once</strong>. A1 shows why arithmetic needs the lock; A2 shows why the lock alone still double-moves money without the CAS.</p>
+        <div class="watch-row">
+          <button class="watch-btn" data-scn="0"><span class="play-glyph">▶</span> A1 — the lost update, with and without the lock</button>
+          <button class="watch-btn" data-scn="1"><span class="play-glyph">▶</span> A2 — obligation lock + request CAS, why both</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-cards">
+      <div class="rule-card inc"><span class="verb">INCREMENT committed</span><p>In the <em>same transaction</em> that inserts the request row. Shortfall instantly sees in-flight money — the double-pay window never exists.</p></div>
+      <div class="rule-card dec"><span class="verb">DECREMENT committed · INCREMENT confirmed</span><p>Decrement rides the CAS that sets a terminal-negative outcome; confirmed moves when EXECUTED evidence is applied. Each exactly once — the CAS row count guarantees it.</p></div>
+      <div class="rule-card no"><span class="verb">NO MOVEMENT</span><p>At POST time, on the POST response, on retries, at claim time. No counter mutation is ever adjacent to an external call.</p></div>
+    </div>
+
+    <div class="sim-grid">
+      <div class="sim-panel">
+        <div class="sim-bars">
+          <div class="mrow"><span class="mlabel">required_amount</span><div class="mbar"><div class="mfill" style="width:100%;background:var(--line)"></div></div><span class="mval">100</span></div>
+          <div class="mrow"><span class="mlabel">committed_amount</span><div class="mbar"><div class="mfill" id="simCommitted" style="width:0%;background:var(--amber)"></div></div><span class="mval" id="simCommittedV">0</span></div>
+          <div class="mrow"><span class="mlabel">confirmed_amount</span><div class="mbar"><div class="mfill" id="simConfirmed" style="width:0%;background:var(--green)"></div></div><span class="mval" id="simConfirmedV">0</span></div>
+        </div>
+        <div class="invariants" id="simInv"></div>
+        <div class="controls">
+          <button id="simCreate" class="primary">Create request</button>
+          <button id="simPost" disabled>POST / retry</button>
+          <button id="simExec" disabled>Feed: EXECUTED</button>
+          <button id="simReject" disabled>Terminal reject</button>
+          <button id="simReset">Reset</button>
+        </div>
+      </div>
+      <div class="sim-log">
+        <h4>Transaction log — drive it yourself</h4>
+        <div id="simEntries"><div class="entry">— obligation admitted, required = 100, no request yet —</div></div>
+      </div>
+    </div>
+
+    <p class="bridge"><b>But there's a tension.</b> If everything money-related needs this one lock, and enrichment or an engine call can take seconds — does the lock get held for seconds? Never. That's rule B.</p>
+  </section>
+
+  <!-- ================= PART B ================= -->
+  <section class="part" id="part-b">
+    <div class="part-head">
+      <div class="part-letter">B</div>
+      <div class="part-head-body">
+        <h2>Nothing slow ever runs inside a transaction</h2>
+        <span class="req-quote">your requirement — <b>“enrichment calls take time, so we claim with CAS”</b></span>
+        <p class="part-intro">Every slow thing — enrichment lookups, the engine POST — follows one shape: a short transaction to <strong>claim</strong> the row (a lease), commit, do the slow work with <strong>no transaction open and no locks held</strong>, then a short transaction to CAS the result in. For the POST that means one attempt = <strong>two transactions with the wire in between</strong> — and the gap between them is where all the interesting failure design lives.</p>
+        <div class="watch-row">
+          <button class="watch-btn" data-scn="2"><span class="play-glyph">▶</span> B1 — the POST attempt, end to end</button>
+          <button class="watch-btn" data-scn="3"><span class="play-glyph">▶</span> B2 — worker dies mid-wire: MAYBE + resolver</button>
+          <button class="watch-btn" data-scn="4"><span class="play-glyph">▶</span> B3 — why lease expiry means two different things</button>
+          <button class="watch-btn" data-scn="10"><span class="play-glyph">▶</span> B4 — NOT FOUND, the safe window, and the dedup backstop</button>
+          <button class="watch-btn" data-scn="11"><span class="play-glyph">▶</span> B5 — the divergent payload: one key, never two payloads</button>
+        </div>
+      </div>
+    </div>
+
+    <details class="sqlref">
+      <summary>Reference: the claim CAS these animations keep running</summary>
+      <div class="inner">
+        <pre class="sql"><span class="kw">UPDATE</span> payment_request
+<span class="kw">SET</span>    stage_state = 'CLAIMED',
+       claimed_by = :worker,
+       claim_expires_at = :now + :lease,
+       attempt_count = attempt_count + 1,
+       last_post_attempt_at = :now
+<span class="kw">WHERE</span>  payment_request_id = :id
+  <span class="kw">AND</span>  stage = 'POST' <span class="kw">AND</span> stage_state = 'READY'
+  <span class="kw">AND</span>  outcome <span class="kw">IS NULL</span>
+  <span class="kw">AND</span>  divergent_payload_at <span class="kw">IS NULL</span>
+<span class="cm">-- rowCount 1 = claim won · 0 = lost race, skip</span></pre>
+        <p>Before TX1 commits, the row also records the <strong>write-ahead facts</strong>: <code>last_sent_hash</code>, <code>divergence_expected</code>, <code>last_post_attempt_at</code>. (The deterministic idempotency key itself exists from row creation, §5.1/§6.8 — never minted at send time.) The DB durably knows what may be sent before any byte leaves. The audit journal's ATTEMPT_STARTED insert rides this same commit; ATTEMPT_RESOLVED rides TX2's.</p>
+      </div>
+    </details>
+
+    <p class="bridge"><b>Rules A and B assume threads race constantly</b> — for the same claim, the same obligation, the same trade. What keeps racing threads from deadlocking or double-doing work? Rule C.</p>
+  </section>
+
+  <!-- ================= PART C ================= -->
+  <section class="part" id="part-c">
+    <div class="part-head">
+      <div class="part-letter">C</div>
+      <div class="part-head-body">
+        <h2>Fixed lock order, stated expectations</h2>
+        <span class="req-quote">the rule that lets A and B survive racing threads</span>
+        <p class="part-intro">Two disciplines, applied to every single write. <strong>Order:</strong> locks are always taken trade → obligations (sorted tuple order) → request, so a wait cycle — deadlock — is structurally impossible. <strong>Verdicts:</strong> every state change is a conditional UPDATE whose WHERE restates the expected world; <code>rowCount = 1</code> means you won, <code>0</code> means someone beat you — skip, never retry blindly.</p>
+        <div class="watch-row">
+          <button class="watch-btn" data-scn="5"><span class="play-glyph">▶</span> C1 — two workers race for one claim</button>
+          <button class="watch-btn" data-scn="6"><span class="play-glyph">▶</span> C2 — deadlock, then the order that kills it</button>
+        </div>
+      </div>
+    </div>
+
+    <ol class="scanner">
+      <li><strong>Scanners select candidates with no locks at all.</strong> <span class="why">A plain bounded read: dimension predicates, DB time, deterministic order. It may return stale rows — the next step catches it.</span></li>
+      <li><strong>Per candidate, fresh transaction: obligation lock first, then the claim CAS.</strong> <span class="why">The CAS WHERE restates the full expected state. Row count 0 = another worker won — skip (that's C1 exactly).</span></li>
+      <li><strong>Per-item transaction boundaries.</strong> <span class="why">One poisoned item fails alone; it can never take the batch down with it.</span></li>
+    </ol>
+
+    <p class="bridge"><b>You've now seen all three rules in isolation.</b> The intake flow is where they run together, on every single message.</p>
+  </section>
+
+  <!-- ================= CAPSTONE ================= -->
+  <section class="part" id="intake">
+    <div class="part-head">
+      <div class="part-letter">Σ</div>
+      <div class="part-head-body">
+        <h2>Intake: all three rules in one flow</h2>
+        <span class="req-quote">your requirement — <b>“only check minimal fields before saving the obligation”</b></span>
+        <p class="part-intro">A trade snapshot carries 0..N payment blocks. Admission is one transaction; then each block gets its <strong>own</strong> transaction — there is deliberately no cross-obligation transaction, because redelivery plus per-block ordering guards is the convergence mechanism. And your minimal-fields rule is rule B applied to intake: the obligation needs only its <strong>4 valid scope-key fields</strong> (its identity) to be written. Party and account validation is slow, failable work — it belongs in the enrichment lease afterwards, retriable per request, never inside the intake transaction. The three Σ scenarios run whole lifecycles: multiple requests on one obligation, out-of-order snapshots, and asynchronous evidence colliding with intake.</p>
+        <div class="watch-row">
+          <button class="watch-btn" data-scn="7"><span class="play-glyph">▶</span> Σ1 — life of an obligation: deferral, reject, corrected message, async confirms</button>
+          <button class="watch-btn" data-scn="8"><span class="play-glyph">▶</span> Σ2 — the late snapshot: ordering beats arrival</button>
+          <button class="watch-btn" data-scn="9"><span class="play-glyph">▶</span> Σ3 — feed vs amendment: complete, then reopen</button>
+          <button class="watch-btn" data-scn="12"><span class="play-glyph">▶</span> Σ4 — crash mid-trade: the half-applied snapshot heals</button>
+          <button class="watch-btn" data-scn="13"><span class="play-glyph">▶</span> Σ5 — absence &amp; overpay: when the trade takes money away</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="intake-flow">
+      <div class="intake-box admission">
+        <h5>Admission — own transaction</h5>
+        <ol>
+          <li>Upsert-lock the trade_snapshot_state row (first lock)</li>
+          <li>Ordering + payload-digest check</li>
+          <li>Admit: advance watermark, store pointer + digest</li>
+          <li>COMMIT — then fan out</li>
+        </ol>
+        <span class="p-badge">rule C: first lock in the global order</span>
+      </div>
+      <span class="intake-arrow">→</span>
+      <div class="intake-box">
+        <h5>Block 1 (EUR tuple) — own tx</h5>
+        <ol>
+          <li>Fence: lock trade row, re-verify snapshot current</li>
+          <li>Obligation lock → upsert, apply amounts</li>
+          <li>Shortfall? create request + committed↑ (same tx)</li>
+          <li>Re-derive §4 · COMMIT</li>
+        </ol>
+        <span class="p-badge">rule A: money math under the obligation lock</span>
+      </div>
+      <div class="intake-box">
+        <h5>Block 2 (USD tuple) — own tx</h5>
+        <ol>
+          <li>Same shape, next tuple in sorted order (rule C)</li>
+          <li>Crash between blocks? Redelivery re-runs;</li>
+          <li>applied blocks drop as stale (ordering guard),</li>
+          <li>unapplied blocks apply normally</li>
+        </ol>
+        <span class="p-badge">rule B: slow validation deferred to the enrichment lease</span>
+      </div>
+    </div>
+    <div class="note">The Kafka offset is acknowledged only <strong>after</strong> commit — at-least-once redelivery plus ordering guards is the convergence mechanism. A block with a bad amount still writes its <strong>anchor row</strong> (required NULL + validation_failed marker) so the payment stays visible and recoverable — saving the obligation never waits for full validation.</div>
+  </section>
+
+  <!-- ================= REFERENCE ================= -->
+  <section class="part" id="reference">
+    <div class="part-head">
+      <div class="part-letter">§</div>
+      <div class="part-head-body">
+        <h2>Ops corner &amp; where the spec lives</h2>
+        <p class="part-intro"><strong>Shutdown follows rule B's logic (§11):</strong> stop Kafka listeners → stop scanners → drain in-flight POSTs → release only the ENRICH claims this worker holds. POST claims are never released on shutdown — a POST may be mid-flight; lease expiry into MAYBE is the only exit (that's B3).</p>
+      </div>
+    </div>
+    <footer>
+      <p class="one-liner">Short transactions that state their expectations, one pessimistic lock that owns all arithmetic, a fixed lock order, everything slow pushed outside transactions behind a lease — and MAYBE_SUBMITTED as the honest name for the one gap that can't be closed.</p>
+      <p>Non-normative teaching aid. The normative text is requirment-v4.md §3 (money), §6.1 (intake), §7 (POST execution), §9 (resolver), §11 (concurrency model). Where this page and the spec disagree, the spec wins.</p>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ==================================================================
+     THEATER ENGINE — stage is a fixed dark instrument panel
+     ================================================================== */
+  var canvas = $("stage"), ctx = canvas.getContext("2d");
+  var W = 980, H = 410;
+  var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var ST = {
+    bg: "#0F151E", panelDb: "#151E2B", panel: "#1C2736", line: "#2C3A52",
+    ink: "#E8EDF5", muted: "#8FA0B8", accent: "#5FD4EE", amber: "#F0B35C",
+    green: "#6FD695", violet: "#BCA5F5", red: "#F2857B", leaseTrack: "#0C111A"
+  };
+  var COLMAP = {
+    "--ink": ST.ink, "--muted": ST.muted, "--accent": ST.accent, "--amber": ST.amber,
+    "--green": ST.green, "--violet": ST.violet, "--red": ST.red, "--line": ST.line
+  };
+  function col(v) { return COLMAP[v] || v; }
+  function monoFont() { return '"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace'; }
+  function ease(p) { return p * p * (3 - 2 * p); }
+
+  /* ---- layout constants (logical 980x410) ---- */
+  var DB = { x: 210, y: 18, w: 420, h: 374 };
+  var ROW_A = { x: 235, y: 62, w: 370, h: 84 };
+  var ROW_B = { x: 235, y: 180, w: 370, h: 96 };
+  var ROW_C = { x: 235, y: 288, w: 370, h: 74 };
+  var ENG = { x: 760, y: 140, w: 190, h: 110 };
+  function rowSlot(row) { return { x: 172, y: row.y + row.h / 2 }; }
+  function queueSlot(row) { return { x: 112, y: row.y + row.h / 2 + 6 }; }
+  var HOME1 = { x: 72, y: 110 }, HOME2 = { x: 72, y: 250 }, HOME3 = { x: 72, y: 340 };
+  var ENG_SLOT = { x: ENG.x + ENG.w / 2, y: ENG.y + ENG.h + 34 };
+
+  /* ---- state ---- */
+  var S = null;
+  function fresh() {
+    return {
+      workers: {}, rows: {},
+      engine: { visible: true, label: "payment engine", sub: "idempotent by key", flash: null, flashColor: null },
+      packet: { active: false, x: 0, y: 0, label: "" },
+      arrows: [], wire: true, fxLive: []
+    };
+  }
+
+  var scn = null, beatIdx = 0, localT = 0, playing = true, speed = 1, curScn = 0;
+  var tweens = [], fxQueue = [];
+
+  function tw(obj, props) {
+    var from = {};
+    for (var k in props) from[k] = obj[k];
+    tweens.push({ obj: obj, from: from, to: props });
+  }
+  function fxAt(at, text, x, y, color, life) {
+    fxQueue.push({ at: at, text: text, x: x, y: y, color: color || "--ink", life: life || 1.6, spawned: false });
+  }
+  function addWorker(id, label, pos, colorVar) {
+    S.workers[id] = { x: pos.x, y: pos.y, color: colorVar, label: label, tx: false, dead: false, note: "" };
+  }
+  function stdRows(titleA, linesA, titleB, linesB) {
+    S.rows.a = { x: ROW_A.x, y: ROW_A.y, w: ROW_A.w, h: ROW_A.h, title: titleA, lines: linesA, lock: null, waitText: null, hlBorder: null, lease: null, leaseLabel: "" };
+    S.rows.b = { x: ROW_B.x, y: ROW_B.y, w: ROW_B.w, h: ROW_B.h, title: titleB, lines: linesB, lock: null, waitText: null, hlBorder: null, lease: null, leaseLabel: "" };
+  }
+
+  function renderDots() {
+    var box = $("beatDots");
+    box.innerHTML = "";
+    for (var i = 0; i < scn.beats.length; i++) {
+      var d = document.createElement("i");
+      if (i <= beatIdx) d.className = "on";
+      box.appendChild(d);
+    }
+  }
+  function startBeat(i) {
+    beatIdx = i; localT = 0; tweens = []; fxQueue = [];
+    var b = scn.beats[i];
+    if (b.set) b.set();
+    $("beatNo").textContent = (i + 1) + " / " + scn.beats.length;
+    $("capText").innerHTML = b.cap;
+    $("btnPrev").disabled = i === 0;
+    $("btnNextB").disabled = false;
+    renderDots();
+    if (!rafAlive) draw();
+  }
+  function finalizeBeat() {
+    tweens.forEach(function (t) { for (var k in t.to) t.obj[k] = t.to[k]; });
+    tweens = []; fxQueue = [];
+  }
+  function seek(i) {
+    S = fresh(); scn.setup();
+    for (var j = 0; j < i; j++) {
+      tweens = []; fxQueue = [];
+      if (scn.beats[j].set) scn.beats[j].set();
+      finalizeBeat();
+    }
+    S.fxLive = [];
+    startBeat(i);
+  }
+  function loadScenario(i) {
+    curScn = i;
+    scn = scenarios[i];
+    document.querySelectorAll(".tab").forEach(function (t) {
+      var on = parseInt(t.dataset.scn, 10) === i;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    S = fresh(); scn.setup();
+    startBeat(0);
+    playing = !REDUCED;
+    $("btnPlay").textContent = playing ? "Pause" : "▶ Play";
+  }
+
+  /* ---- update loop ---- */
+  var last = null, rafAlive = false;
+  function frame(ts) {
+    rafAlive = true;
+    step(ts);
+    requestAnimationFrame(frame);
+  }
+  function step(ts) {
+    if (last === null) last = ts;
+    var dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+
+    if (playing && scn) {
+      localT += dt * speed;
+      var b = scn.beats[beatIdx];
+      var p = Math.min(1, localT / b.d);
+      var ep = ease(p);
+      tweens.forEach(function (t) {
+        for (var k in t.to) t.obj[k] = t.from[k] + (t.to[k] - t.from[k]) * ep;
+      });
+      fxQueue.forEach(function (f) {
+        if (!f.spawned && p >= f.at) {
+          f.spawned = true;
+          S.fxLive.push({ text: f.text, x: f.x, y: f.y, color: f.color, age: 0, life: f.life });
+        }
+      });
+      if (localT >= b.d) {
+        finalizeBeat();
+        if (beatIdx < scn.beats.length - 1) startBeat(beatIdx + 1);
+        else { playing = false; $("btnPlay").textContent = "▶ Play"; }
+      }
+    }
+    S.fxLive.forEach(function (f) { f.age += dt * speed; });
+    S.fxLive = S.fxLive.filter(function (f) { return f.age < f.life; });
+
+    draw();
+  }
+
+  /* ---- draw ---- */
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var cw = canvas.clientWidth || W;
+    var scale = cw / W;
+    var ch = Math.round(H * scale);
+    if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
+      canvas.width = Math.round(cw * dpr);
+      canvas.height = Math.round(ch * dpr);
+      canvas.style.height = ch + "px";
+    }
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+
+    /* instrument-panel ground */
+    ctx.fillStyle = ST.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    /* db panel */
+    ctx.strokeStyle = ST.line; ctx.lineWidth = 1.5;
+    ctx.fillStyle = ST.panelDb;
+    rr(DB.x, DB.y, DB.w, DB.h, 12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = ST.muted; ctx.font = "700 11px " + monoFont();
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillText("ORACLE — one database", DB.x + 14, DB.y + 22);
+    ctx.fillText("WORKERS (threads)", 26, 40);
+
+    /* engine */
+    if (S.engine.visible) {
+      ctx.fillStyle = ST.panel; ctx.strokeStyle = ST.line;
+      rr(ENG.x, ENG.y, ENG.w, ENG.h, 10); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = ST.ink; ctx.font = "700 13px " + monoFont(); ctx.textAlign = "center";
+      ctx.fillText(S.engine.label, ENG.x + ENG.w / 2, ENG.y + 34);
+      ctx.fillStyle = ST.muted; ctx.font = "11px " + monoFont();
+      ctx.fillText(S.engine.sub, ENG.x + ENG.w / 2, ENG.y + 52);
+      if (S.engine.flash) {
+        ctx.fillStyle = col(S.engine.flashColor || "--accent");
+        ctx.font = "700 13px " + monoFont();
+        ctx.fillText(S.engine.flash, ENG.x + ENG.w / 2, ENG.y + 82);
+      }
+      if (S.wire) {
+        ctx.strokeStyle = ST.line; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(DB.x + DB.w, ENG.y + ENG.h / 2); ctx.lineTo(ENG.x, ENG.y + ENG.h / 2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = ST.muted; ctx.font = "10px " + monoFont();
+        ctx.fillText("the wire — no tx, no locks", (DB.x + DB.w + ENG.x) / 2, ENG.y + ENG.h / 2 - 10);
+      }
+    }
+
+    /* rows */
+    Object.keys(S.rows).forEach(function (k) {
+      var r = S.rows[k];
+      ctx.fillStyle = ST.panel;
+      ctx.strokeStyle = r.hlBorder ? col(r.hlBorder) : ST.line;
+      ctx.lineWidth = r.hlBorder ? 2 : 1.5;
+      rr(r.x, r.y, r.w, r.h, 8); ctx.fill(); ctx.stroke();
+      ctx.textAlign = "left";
+      ctx.fillStyle = ST.muted; ctx.font = "700 10.5px " + monoFont();
+      ctx.fillText(r.title, r.x + 12, r.y + 18);
+      ctx.fillStyle = ST.ink; ctx.font = "12.5px " + monoFont();
+      r.lines.forEach(function (ln, i) {
+        if (typeof ln === "object") { ctx.fillStyle = col(ln.c); ctx.fillText(ln.t, r.x + 12, r.y + 38 + i * 18); ctx.fillStyle = ST.ink; }
+        else ctx.fillText(ln, r.x + 12, r.y + 38 + i * 18);
+      });
+      if (r.lock) {
+        ctx.textAlign = "right"; ctx.font = "700 12px " + monoFont();
+        ctx.fillStyle = col(r.lockColor || "--accent");
+        ctx.fillText("🔒 " + r.lock, r.x + r.w - 12, r.y + 20);
+      }
+      if (r.waitText) {
+        ctx.textAlign = "right"; ctx.font = "11px " + monoFont();
+        ctx.fillStyle = ST.muted;
+        ctx.fillText("⏳ " + r.waitText, r.x + r.w - 12, r.y + 38);
+      }
+      if (r.lease !== null && r.lease !== undefined) {
+        var bw = r.w - 24, bx = r.x + 12, by = r.y + r.h - 14;
+        ctx.fillStyle = ST.leaseTrack; rr(bx, by, bw, 7, 3.5); ctx.fill();
+        ctx.fillStyle = r.lease > 0.01 ? ST.amber : ST.violet;
+        if (r.lease > 0.005) { rr(bx, by, Math.max(4, bw * r.lease), 7, 3.5); ctx.fill(); }
+        ctx.fillStyle = ST.muted; ctx.font = "9.5px " + monoFont(); ctx.textAlign = "left";
+        ctx.fillText(r.leaseLabel || "lease", bx, by - 4);
+      }
+    });
+
+    /* arrows */
+    S.arrows.forEach(function (a) {
+      var alpha = a.pulse && !REDUCED ? 0.55 + 0.45 * Math.sin(performance.now() / 220) : 1;
+      ctx.globalAlpha = Math.max(0.25, alpha);
+      ctx.strokeStyle = col(a.color); ctx.fillStyle = col(a.color); ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(a.x1, a.y1); ctx.lineTo(a.x2, a.y2); ctx.stroke();
+      var ang = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
+      ctx.beginPath();
+      ctx.moveTo(a.x2, a.y2);
+      ctx.lineTo(a.x2 - 10 * Math.cos(ang - 0.45), a.y2 - 10 * Math.sin(ang - 0.45));
+      ctx.lineTo(a.x2 - 10 * Math.cos(ang + 0.45), a.y2 - 10 * Math.sin(ang + 0.45));
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+
+    /* packet */
+    if (S.packet.active) {
+      ctx.fillStyle = ST.accent;
+      ctx.beginPath(); ctx.arc(S.packet.x, S.packet.y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = ST.muted; ctx.font = "10px " + monoFont(); ctx.textAlign = "center";
+      ctx.fillText(S.packet.label, S.packet.x, S.packet.y - 12);
+    }
+
+    /* workers */
+    Object.keys(S.workers).forEach(function (id) {
+      var w = S.workers[id];
+      if (w.tx && !w.dead) {
+        ctx.strokeStyle = ST.amber; ctx.setLineDash([4, 3]); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(w.x, w.y, 22, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = ST.amber; ctx.font = "700 9px " + monoFont(); ctx.textAlign = "center";
+        ctx.fillText("TX", w.x, w.y - 27);
+      }
+      ctx.fillStyle = w.dead ? "#3A4459" : col(w.color);
+      ctx.beginPath(); ctx.arc(w.x, w.y, 15, 0, Math.PI * 2); ctx.fill();
+      if (w.dead) {
+        ctx.strokeStyle = ST.red; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(w.x - 8, w.y - 8); ctx.lineTo(w.x + 8, w.y + 8);
+        ctx.moveTo(w.x + 8, w.y - 8); ctx.lineTo(w.x - 8, w.y + 8);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = "#0B1220"; ctx.font = "700 10.5px " + monoFont(); ctx.textAlign = "center";
+        ctx.textBaseline = "middle"; ctx.fillText(w.label, w.x, w.y + 1); ctx.textBaseline = "alphabetic";
+      }
+      if (w.note) {
+        ctx.fillStyle = w.dead ? ST.red : ST.muted;
+        ctx.font = "10.5px " + monoFont(); ctx.textAlign = "center";
+        ctx.fillText(w.note, w.x, w.y + 32);
+      }
+    });
+
+    /* floating fx */
+    S.fxLive.forEach(function (f) {
+      var a = 1 - Math.max(0, (f.age - f.life * 0.55)) / (f.life * 0.45);
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      ctx.fillStyle = col(f.color);
+      ctx.font = "700 13px " + monoFont(); ctx.textAlign = "center";
+      ctx.fillText(f.text, f.x, f.y - (REDUCED ? 0 : f.age * 9));
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  /* ==================================================================
+     SCENARIOS — ordered by the rule they prove: A, B1 B2 B3, C1 C2
+     ================================================================== */
+  var REQ_LINES_READY = ["stage POST · READY · NOT_SUBMITTED", "key PK-7f21…c4 (set at creation, §5.1)", "attempt_count 0"];
+  function obLines() { return ["scope: TRADE-42 · EUR · ACC-1", "committed 100 · confirmed 0"]; }
+
+  var scenarios = [
+
+    /* ---------- 0 = A1: the lost update ---------- */
+    {
+      name: "The lost update",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        stdRows("payment_obligation", ["required 100", { t: "committed = 0", c: "--ink" }], "…two requests being created", ["W1 wants to commit 60", "W2 wants to commit 40"]);
+        S.engine.visible = false; S.wire = false;
+      },
+      beats: [
+        { d: 3.6, cap: "<strong>Rule A.</strong> Why must one lock own the money? Watch the bug it prevents. Two intake threads create two requests (60 and 40) for the same obligation at the same time. First: a world <strong>without</strong> the lock.", set: function () {} },
+        { d: 3.0, cap: "Both transactions read <span class='k'>committed = 0</span> — simultaneously. Each now does arithmetic on a <strong>stale picture</strong>.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y - 26 });
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y + 30 });
+            S.workers.w1.tx = true; S.workers.w2.tx = true;
+            fxAt(0.75, "reads 0", ROW_A.x - 40, ROW_A.y + 18, "--muted");
+            fxAt(0.85, "reads 0", ROW_A.x - 40, ROW_A.y + 62, "--muted");
+        } },
+        { d: 2.8, cap: "W1 writes 0 + 60 = <span class='k'>60</span> and commits. Fine so far.", set: function () {
+            S.rows.a.lines = ["required 100", { t: "committed = 60", c: "--green" }];
+            S.workers.w1.tx = false;
+            fxAt(0.4, "write 60 ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 4.2, cap: "W2 writes 0 + 40 = <span class='k'>40</span> — <strong>overwriting W1</strong>. 60 of reserved money silently vanished. Shortfall now looks like 60 again → the system would create <em>another</em> request → <strong>double payment</strong>. The classic lost update.", set: function () {
+            S.rows.a.lines = ["required 100", { t: "committed = 40  (W1's 60 GONE)", c: "--red" }];
+            S.rows.a.hlBorder = "--red";
+            S.workers.w2.tx = false;
+            fxAt(0.35, "LOST UPDATE ✗", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--red", 2.2);
+        } },
+        { d: 3.0, cap: "Rewind. Same two workers — now with <span class='k'>SELECT … FOR UPDATE</span> on the obligation row.", set: function () {
+            S.rows.a.lines = ["required 100", { t: "committed = 0", c: "--ink" }];
+            S.rows.a.hlBorder = null;
+            tw(S.workers.w1, { x: HOME1.x + 30, y: HOME1.y });
+            tw(S.workers.w2, { x: HOME2.x + 30, y: HOME2.y });
+        } },
+        { d: 3.4, cap: "W1 takes the lock: reads 0, writes 60, commits. W2 doesn't read a stale picture — <strong>it simply waits at the lock</strong>.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y - 26 });
+            tw(S.workers.w2, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y + 20 });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "waiting…";
+            fxAt(0.8, "0 + 60 = 60 ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 3.4, cap: "W1 releases; W2 acquires and reads the <strong>current</strong> value: 60 + 40 = <span class='k'>100</span>. Serialized arithmetic cannot lose updates.", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = "W2"; S.workers.w2.note = ""; S.workers.w2.tx = true;
+            S.rows.a.lines = ["required 100", { t: "committed = 100 ✓", c: "--green" }];
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y + 30 });
+            fxAt(0.7, "60 + 40 = 100 ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 4.0, cap: "That's layer 1 of rule A: money <strong>arithmetic</strong> happens only inside the obligation lock — shortfall checks, request creation, overpay detection, completion. Never from a moving picture. <strong>But the lock alone is only half the protocol — watch A2: perfectly serialized arithmetic can still move money twice.</strong>", set: function () {
+            S.workers.w2.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+        } }
+      ]
+    },
+
+    /* ---------- 1 = A2: obligation lock + request CAS ---------- */
+    {
+      name: "Lock + CAS together",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        stdRows("payment_obligation",
+          ["required 100", { t: "committed = 100 (reserved)", c: "--ink" }],
+          "payment_request — amount 100",
+          ["stage CONFIRM · sub SUBMITTED", "outcome NULL (no verdict yet)"]);
+        S.engine.label = "platform feed"; S.engine.sub = "at-least-once delivery";
+      },
+      beats: [
+        { d: 3.8, cap: "<strong>Rule A, layer 2.</strong> The obligation lock makes arithmetic serial — but money must also move <strong>exactly once per event</strong>. The platform feed reports <span class='k'>REJECTED</span> for our request… and at-least-once delivery hands the <strong>same event to two consumers</strong>. Each must set the outcome and release the reserved 100 (<span class='k'>committed −= 100</span>).", set: function () {
+            S.engine.flash = "REJECTED — delivered ×2"; S.engine.flashColor = "--red";
+        } },
+        { d: 3.2, cap: "First, a world with <strong>only the obligation lock</strong> and no CAS discipline: each consumer just runs “set REJECTED; committed −= 100” under the lock. W1 goes first; W2 queues politely. Everything is perfectly serialized…", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y - 26 });
+            tw(S.workers.w2, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y + 20 });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "waiting…";
+            S.rows.a.waitText = "W2 queued";
+        } },
+        { d: 3.2, cap: "W1 applies its copy: outcome := REJECTED, committed 100 → 0, commit. Correct — this event <em>should</em> release the money, once.", set: function () {
+            S.rows.a.lines = ["required 100", { t: "committed = 0 (released)", c: "--green" }];
+            S.rows.b.lines = ["stage CONFIRM · sub SUBMITTED", { t: "outcome REJECTED", c: "--red" }];
+            fxAt(0.4, "committed 100 → 0 ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 4.4, cap: "W2's turn with the <strong>same event</strong>. The lock serializes it beautifully — and it blindly re-applies: 0 − 100 = <span class='k'>−100</span>. <strong>Reserved money went negative. Serial is not the same as exactly-once.</strong> No amount of locking fixes a write that doesn't check what world it's in.", set: function () {
+            S.workers.w1.tx = false; S.workers.w2.tx = true; S.workers.w2.note = "";
+            S.rows.a.lock = "W2"; S.rows.a.waitText = null;
+            S.rows.a.lines = ["required 100", { t: "committed = −100  ✗✗", c: "--red" }];
+            S.rows.a.hlBorder = "--red";
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y + 30 });
+            fxAt(0.45, "DOUBLE RELEASE ✗", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--red", 2.2);
+        } },
+        { d: 3.2, cap: "Rewind. Same redelivery, same obligation lock — but now the write is a <strong>CAS on the request row</strong> whose WHERE states the expected world: <span class='k'>… WHERE outcome IS NULL</span>. And the decrement <strong>rides the same transaction as the winning CAS</strong>.", set: function () {
+            S.rows.a.lines = ["required 100", { t: "committed = 100 (reserved)", c: "--ink" }];
+            S.rows.b.lines = ["stage CONFIRM · sub SUBMITTED", "outcome NULL (no verdict yet)"];
+            S.rows.a.hlBorder = null; S.rows.a.lock = null;
+            S.workers.w2.tx = false;
+            tw(S.workers.w1, { x: HOME1.x + 30, y: HOME1.y });
+            tw(S.workers.w2, { x: HOME2.x + 30, y: HOME2.y });
+        } },
+        { d: 3.6, cap: "W1: obligation lock → CAS <span class='k'>outcome NULL → REJECTED</span> → <span class='k'>rowCount = 1</span>: <strong>W1 owns the event.</strong> The same transaction decrements committed 100 → 0. Commit. Verdict and money can never disagree — they're one atomic write.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y - 26 });
+            tw(S.workers.w2, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y + 20 });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "waiting…";
+            S.rows.b.lines = ["stage CONFIRM · sub SUBMITTED", { t: "outcome REJECTED", c: "--red" }];
+            S.rows.a.lines = ["required 100", { t: "committed = 0 (released once)", c: "--green" }];
+            fxAt(0.45, "rowCount = 1 ✓ → committed −= 100", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
+        } },
+        { d: 3.8, cap: "W2: obligation lock → the <strong>same CAS</strong> → <span class='k'>WHERE outcome IS NULL</span> matches nothing → <span class='k'>rowCount = 0</span>. <strong>W2 applies nothing — no write, no decrement.</strong> The duplicate event simply evaporates. committed stays 0, exactly right.", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = "W2"; S.workers.w2.note = ""; S.workers.w2.tx = true;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y + 30 });
+            fxAt(0.4, "rowCount = 0 → skip, no decrement", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--red");
+        } },
+        { d: 4.6, cap: "<strong>Two mechanisms, two different jobs, one transaction.</strong> The obligation lock makes arithmetic <strong>serial</strong> (A1); the request-row CAS makes money events <strong>exactly-once</strong> — and the movement rides the winning CAS so state and money change atomically. This pairing appears in every money transaction: intake, outcome recording, the posting claim (B1), the resolver (B2). <strong>Next: rule B — why none of these locks is ever held across slow work.</strong>", set: function () {
+            S.workers.w2.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+        } }
+      ]
+    },
+
+    /* ---------- 2 = B1: POST attempt ---------- */
+    {
+      name: "The POST attempt",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        stdRows("payment_obligation", obLines(), "payment_request", REQ_LINES_READY.slice());
+      },
+      beats: [
+        { d: 3.2, cap: "<strong>Rule B, part 1.</strong> One POST attempt = <strong>two short transactions</strong> with the network call between them — never one long transaction wrapped around an HTTP call.", set: function () {} },
+        { d: 3.2, cap: "<strong>TX1 — the posting claim.</strong> Obligation lock first, then the claim CAS: lease set, <span class='k'>attempt_count +1</span>.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.b.lines = ["stage POST · CLAIMED", "key PK-7f21…c4", "attempt_count 1"];
+            S.rows.b.lease = 1; S.rows.b.leaseLabel = "lease 90s";
+        } },
+        { d: 3.6, cap: "Still in TX1: assemble the instruction <strong>fresh</strong> from the latest admitted snapshot, then persist the <strong>write-ahead facts</strong>: <code>last_sent_hash</code>, <code>divergence_expected</code>, <code>last_post_attempt_at</code>. (The idempotency key is NOT minted here — it has existed since the row was created, §5.1/§6.8. Identity is never invented at send time.)", set: function () {
+            S.rows.b.lines = ["stage POST · CLAIMED", "key PK-7f21…c4 · hash a41c…9e", "divergence_expected false"];
+            fxAt(0.4, "write-ahead: hash + flags", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--accent");
+        } },
+        { d: 3.4, cap: "<strong>TX1 COMMITS.</strong> The DB durably knows what may be sent — <em>before any byte leaves</em>. Lock released; total hold time: milliseconds. <span style='opacity:.75'>(ATTEMPT_STARTED audit row rides this commit.)</span>", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = null;
+            fxAt(0.3, "COMMIT ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y + ROW_B.h + 16, "--green");
+        } },
+        { d: 4.0, cap: "<strong>The wire.</strong> No transaction open, no locks held — a slow or hung engine cannot stall other workers or drain the pool. Only the lease is ticking. The platform SDK mints the UETR inside this call.", set: function () {
+            S.packet.active = true; S.packet.label = "PK-7f21…c4";
+            S.packet.x = DB.x + DB.w; S.packet.y = ENG.y + ENG.h / 2;
+            tw(S.packet, { x: ENG.x + 10 });
+            tw(S.rows.b, { lease: 0.55 });
+        } },
+        { d: 2.8, cap: "The engine answers: <span class='k'>ACCEPTED</span>.", set: function () {
+            S.engine.flash = "ACCEPTED"; S.engine.flashColor = "--green";
+            tw(S.packet, { x: DB.x + DB.w + 10 });
+            tw(S.rows.b, { lease: 0.45 });
+        } },
+        { d: 3.6, cap: "<strong>TX2 — outcome recording.</strong> Obligation lock again, classify (§7.2), CAS the dimensions: <span class='k'>SUBMITTED</span>, stage → CONFIRM. <strong>No money moves</strong> — acceptance is not execution; confirmed moves later on the feed's EXECUTED evidence (rule A kept its distance from the wire).", set: function () {
+            S.packet.active = false;
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.b.lines = ["stage CONFIRM · READY", { t: "sub SUBMITTED", c: "--green" }, "attempt_count 1"];
+            S.rows.b.lease = null;
+        } },
+        { d: 4.2, cap: "Re-derive §4 under the lock, <strong>TX2 COMMITS</strong>, then side effects (acks, alerts). <span style='opacity:.75'>(ATTEMPT_RESOLVED rides this commit.)</span> No lock ever spanned the wire. <strong>Next (B2): what happens when the worker dies in the middle?</strong>", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            fxAt(0.3, "COMMIT ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y + ROW_B.h + 16, "--green");
+        } }
+      ]
+    },
+
+    /* ---------- 2 = B2: crash & MAYBE ---------- */
+    {
+      name: "Crash → resolver",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        addWorker("rs", "RES", HOME3, "--violet");
+        S.workers.rs.note = "resolver";
+        stdRows("payment_obligation", obLines(), "payment_request",
+          ["stage POST · CLAIMED", "key PK-7f21…c4 · hash a41c…9e", "attempt_count 1"]);
+        S.rows.b.lease = 1; S.rows.b.leaseLabel = "lease 90s";
+        S.workers.w1.x = rowSlot(ROW_B).x; S.workers.w1.y = rowSlot(ROW_B).y;
+      },
+      beats: [
+        { d: 3.0, cap: "<strong>Rule B, part 2.</strong> Same attempt as B1 — TX1 has committed the claim and the write-ahead hash. W1 sends the payment…", set: function () {
+            S.packet.active = true; S.packet.label = "PK-7f21…c4";
+            S.packet.x = DB.x + DB.w; S.packet.y = ENG.y + ENG.h / 2;
+            tw(S.packet, { x: (DB.x + DB.w + ENG.x) / 2 });
+            tw(S.rows.b, { lease: 0.8 });
+        } },
+        { d: 3.4, cap: "…and <strong>dies mid-call</strong>. Did the engine receive it? <strong>Nobody on our side can ever know.</strong> This ambiguity cannot be engineered away — it's physics.", set: function () {
+            S.workers.w1.dead = true; S.workers.w1.note = "died";
+            S.packet.active = false;
+            fxAt(0.2, "💥", rowSlot(ROW_B).x, rowSlot(ROW_B).y - 20, "--red", 2.0);
+            tw(S.rows.b, { lease: 0.6 });
+        } },
+        { d: 3.8, cap: "No panic, no guessing. The <strong>lease simply runs out</strong>, and the row becomes <span class='k'>CONFIRM · READY · MAYBE_SUBMITTED</span> — the honest name for “we don't know”.", set: function () {
+            tw(S.rows.b, { lease: 0 });
+            S.rows.b.lines = ["stage CONFIRM · READY", { t: "sub MAYBE_SUBMITTED", c: "--violet" }, "key PK-7f21…c4 (kept!)"];
+            S.rows.b.hlBorder = "--violet"; S.rows.b.leaseLabel = "lease expired";
+        } },
+        { d: 3.8, cap: "Another posting scanner comes along — and <strong>bounces off</strong>. A MAYBE row is <strong>never re-claimed for posting, no exceptions</strong>: re-POSTing a possibly-sent payment is exactly the double-payment bug.", set: function () {
+            tw(S.workers.w2, { x: queueSlot(ROW_B).x, y: queueSlot(ROW_B).y });
+            fxAt(0.7, "not claimable ✗", queueSlot(ROW_B).x + 60, queueSlot(ROW_B).y - 24, "--red");
+        } },
+        { d: 3.6, cap: "Instead, the <strong>§9 resolver</strong> asks the only party who knows: the engine itself, queried by the request's deterministic idempotency key (§5.1). <strong>The engine's memory replaces ours.</strong>", set: function () {
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+            tw(S.workers.rs, { x: ENG_SLOT.x, y: ENG_SLOT.y });
+            S.engine.flash = "status(PK-7f21…c4)?"; S.engine.flashColor = "--violet";
+        } },
+        { d: 3.6, cap: "The engine answers <span class='k'>FOUND: ACCEPTED</span> — it did land. The resolver applies the truth in a normal short transaction: lock, CAS → SUBMITTED.", set: function () {
+            S.engine.flash = "FOUND: ACCEPTED"; S.engine.flashColor = "--green";
+            tw(S.workers.rs, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y + 34 });
+        } },
+        { d: 4.4, cap: "Row healed: <span class='k'>SUBMITTED</span>, same key, no second payment. <em>(NOT FOUND past the §9.2 trust-age → downgrade for a clean retry — with the SAME key; that's B4.)</em> And throughout, <strong>committed stayed reserved: fail-blocked, never pay-twice.</strong>", set: function () {
+            S.workers.rs.tx = true; S.rows.a.lock = "RES";
+            S.rows.b.lines = ["stage CONFIRM · READY", { t: "sub SUBMITTED ✓", c: "--green" }, "attempt_count 1 — one payment"];
+            S.rows.b.hlBorder = null; S.rows.b.lease = null;
+            fxAt(0.6, "CAS → SUBMITTED ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
+        } }
+      ]
+    },
+
+    /* ---------- 3 = B3: lease fork ---------- */
+    {
+      name: "Lease expiry",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        stdRows("payment_request — ENRICH stage", ["stage ENRICH · CLAIMED by W1", "party/account lookups pending"], "payment_request — POST stage", ["stage POST · CLAIMED by W1", "key persisted · payload sent?"]);
+        S.rows.a.lease = 1; S.rows.a.leaseLabel = "lease";
+        S.rows.b.lease = null;
+        S.engine.label = "slow outside world"; S.engine.sub = "lookups / payment engine";
+      },
+      beats: [
+        { d: 3.4, cap: "<strong>Rule B, part 3.</strong> Both slow stages use the <strong>identical claim-with-lease shape</strong>. What differs is what lease expiry <em>means</em> — and it hinges on one question: <strong>could the slow work have had an external effect?</strong>", set: function () {} },
+        { d: 3.0, cap: "<strong>Case 1 — ENRICH.</strong> W1 claimed the row and is off doing party/account lookups (no transaction open). Then it dies.", set: function () {
+            tw(S.workers.w1, { x: ENG_SLOT.x, y: ENG_SLOT.y - 200 });
+            tw(S.rows.a, { lease: 0.6 });
+        } },
+        { d: 3.2, cap: "Lookups are <strong>reads — repeatable, no external effect</strong>. So when the lease runs out, the row simply becomes claimable again.", set: function () {
+            S.workers.w1.dead = true; S.workers.w1.note = "died";
+            tw(S.rows.a, { lease: 0 });
+            fxAt(0.8, "lease expired → re-claimable", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 3.6, cap: "W2 re-claims it on the next scan and just redoes the work. <strong>Cheap, boring recovery</strong> — exactly what you want. This is why enrichment can afford to be slow and failable.", set: function () {
+            S.rows.a.lines = ["stage ENRICH · CLAIMED by W2", "lookups re-running ✓"];
+            S.rows.a.lease = 1;
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+        } },
+        { d: 3.6, cap: "<strong>Case 2 — POST.</strong> The same death, one stage later. But this claim's slow work was <em>sending money</em>: the payload may already be at the engine. The write-ahead committed before the wire, and nothing after it is durable — so a committed claim can <strong>never prove non-launch</strong>.", set: function () {
+            S.rows.b.lease = 0.5; S.rows.b.leaseLabel = "lease";
+            S.rows.b.hlBorder = "--violet";
+            tw(S.rows.b, { lease: 0.2 });
+        } },
+        { d: 3.8, cap: "So POST expiry lands somewhere else entirely: <span class='k'>MAYBE_SUBMITTED</span>. <strong>Nobody re-claims it. Nobody retries it.</strong> Only the resolver may act — by asking the engine (that was B2).", set: function () {
+            tw(S.rows.b, { lease: 0 });
+            S.rows.b.lines = ["stage CONFIRM · READY", { t: "sub MAYBE_SUBMITTED → resolver only", c: "--violet" }];
+            fxAt(0.7, "lease expired → MAYBE", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--violet");
+        } },
+        { d: 4.2, cap: "One shape, two recoveries: <strong>no external effect → redo it</strong>; <strong>possible external effect → ask the engine</strong>. Same logic drives shutdown (§11): ENRICH claims are released, in-flight POSTs are drained — never killed. <strong>Next: rule C, what keeps racing threads honest.</strong>", set: function () {} }
+      ]
+    },
+
+    /* ---------- 4 = C1: claim race ---------- */
+    {
+      name: "The claim race",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        stdRows("payment_obligation", obLines(), "payment_request", REQ_LINES_READY.slice());
+      },
+      beats: [
+        { d: 3.2, cap: "<strong>Rule C, part 1.</strong> Two scanner workers each ran the <strong>lock-free candidate read</strong> — and both saw the same <span class='k'>POST · READY</span> row. Neither knows about the other. This race is normal and expected.", set: function () {} },
+        { d: 2.6, cap: "Both head for the row to claim it.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y - 26 });
+            tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y + 30 });
+        } },
+        { d: 3.0, cap: "W1 arrives a hair earlier: opens a transaction and takes the <strong>obligation lock first</strong> — the global order, even though it mainly writes the request row.", set: function () {
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "waiting…";
+            S.rows.a.waitText = "W2 queued";
+        } },
+        { d: 3.4, cap: "W1 runs the claim CAS. The row was still READY → <span class='k'>rowCount = 1</span>: <strong>claim won</strong>, lease set, attempt_count bumps.", set: function () {
+            S.rows.b.lines = ["stage POST · CLAIMED by W1", "sub NOT_SUBMITTED", "attempt_count 1"];
+            S.rows.b.lease = 1; S.rows.b.leaseLabel = "lease 90s";
+            fxAt(0.25, "rowCount = 1 ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
+        } },
+        { d: 2.6, cap: "W1 commits and releases the lock. Now W2 finally gets in — and tries the exact same CAS.", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = "W2"; S.rows.a.waitText = null;
+            S.workers.w2.tx = true; S.workers.w2.note = "";
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+        } },
+        { d: 3.4, cap: "The row is no longer READY, so W2's WHERE matches nothing: <span class='k'>rowCount = 0</span>. <strong>W2 lost the race — it just skips.</strong> No error, no blind retry, no duplicate work.", set: function () {
+            fxAt(0.25, "rowCount = 0 ✗ skip", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--red");
+        } },
+        { d: 4.0, cap: "<strong>The WHERE states the expected world; the row count is the verdict.</strong> Two threads raced; exactly one attempt happened. This same shape guards every state change in the system. <strong>Next (C2): why the lock ORDER matters just as much.</strong>", set: function () {
+            S.workers.w2.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+        } }
+      ]
+    },
+
+    /* ---------- 5 = C2: deadlock ---------- */
+    {
+      name: "Deadlock vs. order",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        stdRows("obligation EUR (tuple #1)", ["scope: TRADE-42 · EUR · ACC-1"], "obligation USD (tuple #2)", ["scope: TRADE-42 · USD · ACC-2"]);
+        S.engine.visible = false; S.wire = false;
+      },
+      beats: [
+        { d: 3.4, cap: "<strong>Rule C, part 2.</strong> The same trade's snapshot is being processed twice (redelivery + a concurrent consumer). Each worker must touch <strong>both</strong> obligations. First: a world <strong>without</strong> a lock-order rule.", set: function () {} },
+        { d: 3.0, cap: "W1 grabs the EUR lock. W2 grabs the USD lock. Both succeed — so far so good…", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.workers.w1.tx = true; S.workers.w2.tx = true;
+            S.rows.a.lock = "W1"; S.rows.b.lock = "W2";
+        } },
+        { d: 4.4, cap: "…now W1 wants USD (held by W2) and W2 wants EUR (held by W1). <strong>A cycle. Deadlock.</strong> Both freeze forever — until Oracle detects it and kills one with <span class='k'>ORA-00060</span>.", set: function () {
+            S.workers.w1.note = "wants USD…"; S.workers.w2.note = "wants EUR…";
+            S.arrows = [
+              { x1: rowSlot(ROW_A).x + 8, y1: rowSlot(ROW_A).y + 20, x2: ROW_B.x - 8, y2: ROW_B.y + 14, color: "--red", pulse: true },
+              { x1: rowSlot(ROW_B).x + 8, y1: rowSlot(ROW_B).y - 20, x2: ROW_A.x - 8, y2: ROW_A.y + ROW_A.h - 14, color: "--red", pulse: true }
+            ];
+            fxAt(0.75, "ORA-00060 deadlock ✗", DB.x + DB.w / 2, 165, "--red", 2.4);
+        } },
+        { d: 3.0, cap: "Rewind. Now the fix — <strong>one global order</strong>: trade → obligations in <em>sorted tuple order</em> → request. Everyone walks the same direction; here that means <strong>EUR before USD, always</strong>.", set: function () {
+            S.arrows = [];
+            S.workers.w1.tx = false; S.workers.w2.tx = false;
+            S.workers.w1.note = ""; S.workers.w2.note = "";
+            S.rows.a.lock = null; S.rows.b.lock = null;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+        } },
+        { d: 3.4, cap: "Both start at EUR. W1 wins the lock; W2 <strong>queues</strong>. Waiting is fine — cycles are not.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y - 24 });
+            tw(S.workers.w2, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y + 18 });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "waiting…";
+            S.rows.a.waitText = "W2 queued";
+        } },
+        { d: 3.6, cap: "W1 proceeds EUR → USD, finishes, commits, releases both. No one ever held USD while waiting for EUR.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.rows.b.lock = "W1";
+            fxAt(0.85, "COMMIT ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y + ROW_B.h + 16, "--green");
+        } },
+        { d: 3.6, cap: "W2's turn: same path, same order, no conflict. <strong>When every path locks in the same order, a cycle can never form — deadlock is impossible by construction, not by luck.</strong>", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = "W2"; S.rows.b.lock = null; S.rows.a.waitText = null;
+            S.workers.w2.tx = true; S.workers.w2.note = "";
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+        } },
+        { d: 3.8, cap: "This is also why <span class='k'>FOR UPDATE SKIP LOCKED</span> is <strong>forbidden</strong> here: it silently reorders lock acquisition, quietly re-creating the deadlock world. <strong>Next: the Σ scenarios — whole lifecycles, where all the rules run at once.</strong>", set: function () {
+            tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.rows.a.lock = null; S.rows.b.lock = "W2";
+        } }
+      ]
+    },
+
+    /* ---------- 7 = Σ1: life of an obligation ---------- */
+    {
+      name: "Life of an obligation",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("fd", "FD", HOME3, "--violet");
+        S.workers.fd.note = "feed thread";
+        stdRows("payment_obligation", ["— no obligation yet —"], "payment_request R1", ["— not yet —"]);
+        S.rows.c = { x: ROW_C.x, y: ROW_C.y, w: ROW_C.w, h: ROW_C.h, title: "payment_request R2 / R3", lines: ["— not yet —"], lock: null, waitText: null, hlBorder: null, lease: null, leaseLabel: "" };
+      },
+      beats: [
+        { d: 3.6, cap: "<strong>Σ1 — one obligation, end to end.</strong> Snapshot <span class='k'>#4</span> of TRADE-42 arrives; our role derives one payment: EUR 100. Admission passes (watermark → 4) and the per-block transaction creates the obligation.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.a.lines = ["required 100 · step IN_PROGRESS", "committed 0 · confirmed 0 · shortfall 100"];
+        } },
+        { d: 3.4, cap: "<strong>Same transaction, rule A:</strong> shortfall 100 → request <strong>R1 (100)</strong> is created and <span class='k'>committed += 100</span> rides the same commit. The double-pay window never exists.", set: function () {
+            S.rows.b.lines = ["R1 · 100 · POST · READY", "key PK-…-seq1"];
+            S.rows.a.lines = ["required 100 · step IN_PROGRESS", "committed 100 · confirmed 0 · shortfall 0"];
+            fxAt(0.35, "+R1 · committed += 100", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--amber");
+        } },
+        { d: 3.2, cap: "R1 runs the B1 two-transaction attempt (condensed here): claim → wire → <span class='k'>SUBMITTED</span>. No money moves — acceptance is not execution.", set: function () {
+            S.rows.a.lock = null; S.workers.w1.tx = false;
+            S.packet.active = true; S.packet.label = "PK-…-seq1";
+            S.packet.x = DB.x + DB.w; S.packet.y = ENG.y + ENG.h / 2;
+            tw(S.packet, { x: ENG.x + 10 });
+            S.engine.flash = "ACCEPTED"; S.engine.flashColor = "--green";
+            S.rows.b.lines = ["R1 · SUBMITTED · awaiting feed", "key PK-…-seq1"];
+        } },
+        { d: 4.2, cap: "<strong>Amendment.</strong> Snapshot <span class='k'>#5</span>: required rises to 150. Now watch what does <strong>NOT</strong> happen: R1 (100) is still active, and invariant <span class='k'>I6</span> allows <strong>one active request per obligation</strong>. §6.8 sees shortfall 50 — and <strong>DEFERS</strong>: the new amount applies, no second request is created. Deferred, not lost.", set: function () {
+            S.packet.active = false; S.engine.flash = null;
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.a.lines = ["required 150 · step IN_PROGRESS", "committed 100 · confirmed 0 · shortfall 50"];
+            fxAt(0.5, "creation DEFERRED (I6: R1 active)", ROW_C.x + ROW_C.w / 2, ROW_C.y - 6, "--violet");
+        } },
+        { d: 4.2, cap: "Async: the feed delivers EXECUTED for R1 → <span class='k'>confirmed += 100</span>, R1 turns terminal. That is §6.8 trigger <span class='k'>T2</span>: re-evaluate under the lock — shortfall 50, no active request anymore → <strong>NOW R2 (50) is created</strong>, committed 150. The deferral pays out at exactly the first legal moment.", set: function () {
+            S.rows.a.lock = "FD"; S.workers.w1.tx = false;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.fd, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.workers.fd.tx = true;
+            S.engine.flash = "feed: EXECUTED (R1)"; S.engine.flashColor = "--green";
+            S.rows.b.lines = [{ t: "R1 · EXECUTED ✓", c: "--green" }, "key PK-…-seq1"];
+            S.rows.a.lines = ["required 150 · step IN_PROGRESS", "committed 150 · confirmed 100"];
+            S.rows.c.lines = ["R2 · 50 · POST · READY", "key PK-…-seq2"];
+            fxAt(0.55, "+R2 (trigger T2) · committed += 50", ROW_C.x + ROW_C.w / 2, ROW_C.y - 6, "--amber");
+        } },
+        { d: 4.0, cap: "R2's attempt gets a <strong>definitive REJECT</strong>. TX2: <span class='k'>outcome := REJECTED</span> (write-once, the row is kept forever) + <span class='k'>committed −= 50</span> in one CAS — A2's exactly-once pairing — and the <span class='k'>provider_rejected</span> marker is set, tagged with R2's creating_ordering.", set: function () {
+            S.rows.a.lock = null; S.workers.fd.tx = false;
+            tw(S.workers.fd, { x: HOME3.x, y: HOME3.y });
+            S.engine.flash = "REJECTED"; S.engine.flashColor = "--red";
+            S.rows.c.lines = [{ t: "R2 · REJECTED (row kept forever)", c: "--red" }, "marker set @ ordering 5"];
+            S.rows.a.lines = ["required 150 · step IN_PROGRESS", "committed 100 · confirmed 100"];
+            fxAt(0.4, "committed −= 50", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 4.4, cap: "<strong>No blind retry.</strong> The §6.8 successor policy for REJECTED demands upstream_ordering <strong>strictly newer</strong> than the rejected request's creating_ordering — and the live marker blocks creation meanwhile. The scope shows PROVIDER_REJECTED + a §15 alert, and the system <strong>deliberately stops paying</strong> until upstream says something newer.", set: function () {
+            S.engine.flash = null;
+            S.rows.a.lines = [{ t: "required 150 · PROVIDER_REJECTED ⚠", c: "--red" }, "committed 100 · confirmed 100"];
+            fxAt(0.5, "marker LIVE → no auto-successor", ROW_C.x + ROW_C.w / 2, ROW_C.y - 6, "--red", 2.0);
+        } },
+        { d: 4.4, cap: "The corrected message arrives: snapshot <span class='k'>#6</span> — same amounts, fixed details. The ordering advance flips the marker <em>historical</em> and the strictly-newer test passes → §6.8 creates <strong>successor R3 with a NEW key (seq 3)</strong>, committed 150. Retries reuse a request's key; a successor after a terminal verdict is a <em>new payment attempt</em>. R2's reject history is never laundered.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_C).x, y: rowSlot(ROW_C).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.c.title = "payment_request R3 (successor)";
+            S.rows.c.lines = ["R3 · 50 · POST · READY", "key PK-…-seq3  ← new identity"];
+            S.rows.a.lines = ["required 150 · step IN_PROGRESS", "committed 150 · confirmed 100"];
+            fxAt(0.55, "+R3 · committed += 50", ROW_C.x + ROW_C.w / 2, ROW_C.y - 6, "--amber");
+        } },
+        { d: 3.6, cap: "R3 submits cleanly, and — hours later, on the feed thread — EXECUTED arrives: <span class='k'>confirmed += 50</span>.", set: function () {
+            S.rows.a.lock = "FD"; S.workers.w1.tx = false;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.fd, { x: rowSlot(ROW_C).x, y: rowSlot(ROW_C).y });
+            S.workers.fd.tx = true;
+            S.engine.flash = "feed: EXECUTED (R3)"; S.engine.flashColor = "--green";
+            S.rows.c.lines = [{ t: "R3 · EXECUTED ✓", c: "--green" }, "key PK-…-seq3"];
+            S.rows.a.lines = ["required 150 · step IN_PROGRESS", "committed 150 · confirmed 150"];
+            fxAt(0.5, "confirmed += 50", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 4.8, cap: "Derivation (§4.1): required 150 &gt; 0, confirmed ≥ required, committed = confirmed, latch clear, no live marker → <strong>step COMPLETED</strong>. Three requests, a deferral, a reject, a corrected message, two async confirms — and at every commit the obligation told one consistent story. <strong>§6.8 is the single creation point that keeps multi-request life orderly.</strong>", set: function () {
+            S.workers.fd.tx = false; S.rows.a.lock = null;
+            tw(S.workers.fd, { x: HOME3.x, y: HOME3.y });
+            S.rows.a.lines = [{ t: "required 150 · step COMPLETED ✓", c: "--green" }, "committed 150 · confirmed 150"];
+            S.rows.a.hlBorder = "--green";
+            fxAt(0.4, "COMPLETED ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green", 2.2);
+        } }
+      ]
+    },
+
+    /* ---------- 8 = Σ2: the late snapshot ---------- */
+    {
+      name: "The late snapshot",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        S.workers.w1.note = "carrying #7";
+        S.workers.w2.note = "carrying #5";
+        stdRows("trade_snapshot_state", ["watermark: ordering 4", "digest d41d… · pointer xml-4"], "payment_obligation", ["required 100 (from #4)", "committed 100 · confirmed 0"]);
+        S.engine.visible = false; S.wire = false;
+      },
+      beats: [
+        { d: 3.8, cap: "<strong>Σ2 — upstream reorders and redelivers.</strong> Two snapshots of TRADE-42 arrive on two consumer threads <em>at the same moment</em>: <span class='k'>#7</span> (new amount 150) and stale <span class='k'>#5</span> (old amount 100, redelivered late). Last-write-wins would let the stale one clobber the new one. Ordering guards make the outcome deterministic.", set: function () {} },
+        { d: 3.0, cap: "Rule C: both consumers must lock the <strong>trade_snapshot_state row first</strong> — the admission fence, first lock in the global order. W1 (#7) wins; W2 (#5) queues.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y - 24 });
+            tw(S.workers.w2, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y + 18 });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1"; S.workers.w2.note = "#5 · waiting…";
+            S.rows.a.waitText = "W2 queued";
+        } },
+        { d: 3.6, cap: "W1's ordering check: <span class='k'>7 &gt; watermark 4</span> → ADMIT. Watermark advances to 7, pointer + digest stored, commit — then the per-block transaction applies required 150 to the obligation.", set: function () {
+            S.rows.a.lines = [{ t: "watermark: ordering 7 ✓", c: "--green" }, "digest 9c1f… · pointer xml-7"];
+            S.rows.b.lines = ["required 150 (from #7)", "committed 100 · shortfall 50 → R2"];
+            fxAt(0.35, "7 > 4 → admit ✓", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 3.8, cap: "Now W2 gets the lock, still holding #5. Check: <span class='k'>5 ≤ 7</span> → <strong>STALE. The entire snapshot is dropped</strong> — no partial apply, the obligations are never touched. The Kafka offset still acks: dropping a stale snapshot IS its correct processing.", set: function () {
+            S.workers.w1.tx = false; S.workers.w1.note = "";
+            S.rows.a.lock = "W2"; S.rows.a.waitText = null;
+            S.workers.w2.tx = true; S.workers.w2.note = "#5";
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y + 26 });
+            fxAt(0.45, "5 ≤ 7 → drop stale ✗", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--red", 2.0);
+        } },
+        { d: 3.6, cap: "There's a <strong>second fence</strong>: even inside each per-obligation transaction, the ordering tag is re-checked against the row (§6.1). A consumer that admitted <em>before</em> a newer snapshot landed cannot overwrite newer data mid-flight — its blocks drop as stale one by one.", set: function () {
+            S.workers.w2.tx = false; S.rows.a.lock = null; S.workers.w2.note = "";
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+            fxAt(0.5, "per-block ordering guard", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--accent");
+        } },
+        { d: 4.2, cap: "Result: <strong>any interleaving</strong> of deliveries — duplicates, reordering, redelivery after a crash — converges to the newest snapshot's world. Ordering plus idempotent drops is why intake needs no cross-thread coordination beyond the locks it already takes.", set: function () {} }
+      ]
+    },
+
+    /* ---------- 9 = Σ3: two flows, one obligation ---------- */
+    {
+      name: "Two flows, one obligation",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--amber");
+        addWorker("fd", "FD", HOME3, "--violet");
+        S.workers.w1.note = "intake: amendment";
+        S.workers.fd.note = "feed: EXECUTED R1";
+        stdRows("payment_obligation", ["required 100 · step IN_PROGRESS", "committed 100 · confirmed 0"], "payment_request R1", ["R1 · SUBMITTED · awaiting feed", "outcome NULL"]);
+        S.engine.label = "platform feed"; S.engine.sub = "asynchronous evidence";
+      },
+      beats: [
+        { d: 3.8, cap: "<strong>Σ3 — two unrelated flows, one obligation, same instant.</strong> The intake thread holds an amendment (required 100 → 150). The feed thread holds EXECUTED evidence for R1. They don't know about each other, and <strong>no coordinator exists — none is needed</strong>.", set: function () {
+            S.engine.flash = "EXECUTED (R1)"; S.engine.flashColor = "--green";
+        } },
+        { d: 3.0, cap: "Both flows need the same thing first: <strong>the obligation lock</strong>. The feed consumer happens to win this race; the amendment queues. (The opposite order works too — hold that thought.)", set: function () {
+            tw(S.workers.fd, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            tw(S.workers.w1, { x: queueSlot(ROW_A).x, y: queueSlot(ROW_A).y });
+            S.workers.fd.tx = true; S.rows.a.lock = "FD"; S.workers.w1.note = "waiting…";
+            S.rows.a.waitText = "W1 queued";
+        } },
+        { d: 4.0, cap: "Feed applies its evidence: write-once outcome CAS on R1 → <span class='k'>confirmed += 100</span>, re-derive: confirmed = committed = required = 100, no active request → <strong>step COMPLETED</strong>. Yes — it completes. Watch what happens next.", set: function () {
+            S.rows.b.lines = [{ t: "R1 · EXECUTED ✓", c: "--green" }, "outcome EXECUTED (write-once)"];
+            S.rows.a.lines = [{ t: "required 100 · step COMPLETED", c: "--green" }, "committed 100 · confirmed 100"];
+            fxAt(0.45, "confirmed += 100 → COMPLETED", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--green");
+        } },
+        { d: 4.2, cap: "Now the amendment gets the lock: required 100 → 150. The completed step <strong>REOPENS</strong> (§6.5) — shortfall 50 → R2 created, committed 150, re-derive: IN_PROGRESS again. <strong>Completion is a derived judgment, recomputed on every write — not a latch you have to defend.</strong>", set: function () {
+            S.workers.fd.tx = false; S.workers.w1.tx = true; S.workers.w1.note = "";
+            S.rows.a.lock = "W1"; S.rows.a.waitText = null;
+            tw(S.workers.fd, { x: HOME3.x, y: HOME3.y });
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            S.rows.a.lines = ["required 150 · step IN_PROGRESS (reopened)", "committed 150 · confirmed 100"];
+            fxAt(0.5, "reopen + R2 · committed += 50", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--amber");
+        } },
+        { d: 4.6, cap: "Replay it in the <strong>opposite order</strong> — amendment first, feed second — and the end state is <strong>identical</strong>: required 150, committed 150, confirmed 100, R2 in flight. When every write states its expected world and re-derives after itself, <strong>arrival order stops mattering</strong>. That is exactly what makes asynchronous status updates safe to consume on any thread, at any time.", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+        } }
+      ]
+    },
+
+    /* ---------- 10 = B4: resolver NOT FOUND ---------- */
+    {
+      name: "Resolver: NOT FOUND",
+      setup: function () {
+        addWorker("rs", "RES", HOME3, "--violet");
+        addWorker("w2", "W2", HOME2, "--amber");
+        S.workers.rs.note = "resolver";
+        stdRows("payment_obligation", obLines(), "payment_request",
+          ["stage CONFIRM · READY", { t: "sub MAYBE_SUBMITTED", c: "--violet" }, "key PK-…-seq1 (kept)"]);
+        S.rows.b.hlBorder = "--violet";
+      },
+      beats: [
+        { d: 3.8, cap: "<strong>B4.</strong> B2 showed the resolver's easy verdict: FOUND. The dangerous one is <span class='k'>NOT FOUND</span> — because “not found” can also mean <strong>“not yet arrived”</strong>. This row went MAYBE seconds ago; the original POST could still be crawling through a proxy.", set: function () {} },
+        { d: 3.4, cap: "The resolver queries by key… <span class='k'>NOT FOUND</span>. Tempting to retry immediately — and wrong: act now, and the retry <em>and</em> the still-in-flight original can both land. <strong>The query can race the payment it asks about.</strong>", set: function () {
+            tw(S.workers.rs, { x: ENG_SLOT.x, y: ENG_SLOT.y });
+            S.engine.flash = "NOT FOUND"; S.engine.flashColor = "--red";
+        } },
+        { d: 3.6, cap: "So NOT FOUND is only actionable <strong>after the §9.2 trust-age</strong> — measured from <code>last_post_attempt_at</code> and sized past any possible in-flight lifetime of the original call. Until then, the row stays MAYBE and the resolver simply re-checks. <strong>Patience here is a correctness feature.</strong>", set: function () {
+            S.workers.rs.note = "waiting out the trust-age…";
+            fxAt(0.5, "trust-age: not yet actionable", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--violet");
+        } },
+        { d: 3.6, cap: "Trust-age elapsed; still NOT FOUND. <strong>Now</strong> the §9.2 downgrade CAS runs: MAYBE_SUBMITTED → NOT_SUBMITTED, stage CONFIRM back to <span class='k'>POST · READY</span> (the one sanctioned stage regression in the system). Same row, <strong>same idempotency key</strong>, attempt history intact. No new identity is ever minted for a retry.", set: function () {
+            S.workers.rs.note = "resolver";
+            tw(S.workers.rs, { x: HOME3.x, y: HOME3.y });
+            S.engine.flash = null;
+            S.rows.b.lines = ["stage POST · READY", "sub NOT_SUBMITTED", "key PK-…-seq1  ← SAME key"];
+            S.rows.b.hlBorder = null;
+            fxAt(0.4, "downgrade ✓ (same key)", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
+        } },
+        { d: 3.2, cap: "A scanner re-claims it like any READY row and posts attempt 2 — carrying the same key.", set: function () {
+            tw(S.workers.w2, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.workers.w2.tx = true; S.rows.a.lock = "W2";
+            S.rows.b.lines = ["stage POST · CLAIMED · attempt 2", "key PK-…-seq1"];
+            S.packet.active = true; S.packet.label = "PK-…-seq1";
+            S.packet.x = DB.x + DB.w; S.packet.y = ENG.y + ENG.h / 2;
+            tw(S.packet, { x: ENG.x + 10 });
+        } },
+        { d: 4.4, cap: "Worst case: the query was wrong and attempt 1 <em>did</em> land. The engine dedups by our key: <span class='k'>DUPLICATE_REQUEST</span> — a hidden earlier attempt just surfaced. Classification (§7.2): back to <span class='k'>MAYBE_SUBMITTED</span> + status query — never “assume accepted”, and the response's UETR is not even persisted (it names a submission under which nothing executes, §5).", set: function () {
+            S.engine.flash = "DUPLICATE_REQUEST"; S.engine.flashColor = "--violet";
+            S.packet.active = false;
+            S.workers.w2.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+            S.rows.b.lines = ["stage CONFIRM · READY", { t: "sub MAYBE_SUBMITTED → status query", c: "--violet" }, "key PK-…-seq1"];
+            S.rows.b.hlBorder = "--violet";
+        } },
+        { d: 4.4, cap: "The follow-up query finds the original — query-proven → <span class='k'>SUBMITTED</span>. <strong>At no point could a second payment exist:</strong> our state machine never re-posts what might have landed, and the engine's dedup on the deterministic key catches the one case our state machine can't see. That double backstop is exactly what the §18-1 sandbox proof (CT-02..05) certifies before go-live.", set: function () {
+            S.engine.flash = "FOUND: ACCEPTED"; S.engine.flashColor = "--green";
+            S.rows.b.lines = ["stage CONFIRM · READY", { t: "sub SUBMITTED ✓ — one payment", c: "--green" }, "key PK-…-seq1"];
+            S.rows.b.hlBorder = null;
+            fxAt(0.4, "query-proven → SUBMITTED ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
+        } }
+      ]
+    },
+
+    /* ---------- 11 = B5: divergent payload ---------- */
+    {
+      name: "The divergent payload",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        stdRows("payment_obligation", obLines(), "payment_request",
+          ["stage POST · READY · attempt 1 failed (transport)", "key PK-…-seq1 · last_sent_hash H1"]);
+      },
+      beats: [
+        { d: 3.6, cap: "<strong>B5.</strong> Attempt 1 hit a clean transport error — retryable, same request, same key. But <strong>between attempts, upstream reference data changed</strong>. Watch what the claim does before any retry touches the wire.", set: function () {} },
+        { d: 4.2, cap: "Attempt 2's claim assembles the instruction <strong>fresh</strong> (§7.0 — payload bytes are never frozen) and hashes it: <span class='k'>H2 ≠ last_sent_hash H1</span>. The claim <strong>records</strong> <span class='k'>divergence_expected := true</span> in the write-ahead — <strong>and proceeds to the wire</strong>. Deliberate: if attempt 1 never landed, the engine should execute the CURRENT details, not stale bytes.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_B).x, y: rowSlot(ROW_B).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.b.lines = ["stage POST · CLAIMED · attempt 2", "hash H2 · divergence_expected TRUE"];
+            fxAt(0.55, "H2 ≠ H1 → recorded, sent anyway", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--amber");
+        } },
+        { d: 3.6, cap: "<strong>World 1:</strong> the engine never saw attempt 1 → it executes with the new payload. §5.1's rule lands exactly right: <em>a details update reaches the engine iff the payment has not arrived yet</em> — the desired outcome, no special code path.", set: function () {
+            S.engine.flash = "ACCEPTED (new details)"; S.engine.flashColor = "--green";
+        } },
+        { d: 4.6, cap: "<strong>World 2:</strong> the engine already <strong>holds</strong> the key → it rejects the collision (known-key-different-payload). That rejection is <em>information</em>: the payment exists at the engine — the MAYBE question just got answered. Because <span class='k'>divergence_expected</span> is true, this is <strong>EXPECTED</strong> divergence: evidence, not an anomaly — no CRITICAL. The row stamps <span class='k'>divergent_payload_at</span> (write-once) and goes MAYBE + status query.", set: function () {
+            S.engine.flash = "known-key-different-payload ✗"; S.engine.flashColor = "--red";
+            S.workers.w1.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+            S.rows.b.lines = [{ t: "MAYBE_SUBMITTED · divergent_payload_at set", c: "--violet" }, "status query recovers the outcome"];
+            S.rows.b.hlBorder = "--violet";
+            fxAt(0.5, "collision → MAYBE + query", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--violet");
+        } },
+        { d: 3.8, cap: "From now on <span class='k'>repost_permitted</span> is structurally false: the claim WHERE (<span class='k'>… AND divergent_payload_at IS NULL</span>) bounces every future posting pass. Further re-POSTs are futile — the engine holds the key — so only the resolver's query moves this row. The fence is the WHERE clause, not worker discipline.", set: function () {
+            fxAt(0.5, "claim WHERE → rowCount 0, forever", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--violet");
+        } },
+        { d: 4.6, cap: "Contrast the <strong>ANOMALOUS</strong> branch: the same collision with <span class='k'>divergence_expected FALSE</span> — a DR-replay-recreated row, or the engine disputing an unchanged payload — is a real inconsistency: <span class='k'>BLOCKED(ENGINE_INCONSISTENCY)</span> + CRITICAL. Either way the invariant holds: <strong>two different payloads never execute under one key — the engine enforces it, and the claim-time flag tells us whether to be alarmed.</strong>", set: function () {} }
+      ]
+    },
+
+    /* ---------- 12 = Σ4: the half-applied trade ---------- */
+    {
+      name: "The half-applied trade",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        addWorker("w2", "W2", HOME2, "--amber");
+        stdRows("trade_snapshot_state", ["watermark: ordering 5", "digest 77aa… · pointer xml-5"], "obligation EUR", ["required 100 · ordering tag 5", "committed 100 · confirmed 0"]);
+        S.rows.c = { x: ROW_C.x, y: ROW_C.y, w: ROW_C.w, h: ROW_C.h, title: "obligation USD", lines: ["required 200 · ordering tag 5", "committed 200 · confirmed 0"], lock: null, waitText: null, hlBorder: null, lease: null, leaseLabel: "" };
+        S.engine.visible = false; S.wire = false;
+      },
+      beats: [
+        { d: 3.6, cap: "<strong>Σ4.</strong> Snapshot <span class='k'>#6</span> amends <strong>both</strong> payments of the trade: EUR → 150, USD → 250. Remember the intake shape: admission is one transaction, then <strong>each block is its own transaction</strong>. So… what if the worker dies between blocks?", set: function () {} },
+        { d: 3.4, cap: "W1 admits #6 (watermark → 6, pointer + digest stored, commit) and applies block 1: <strong>EUR → 150</strong>, ordering tag 6. So far so good.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            S.workers.w1.tx = true;
+            S.rows.a.lines = ["watermark: ordering 6 ✓", "digest 3e8b… · pointer xml-6"];
+            S.rows.b.lines = [{ t: "required 150 · ordering tag 6 ✓", c: "--green" }, "committed 100 · confirmed 0"];
+            fxAt(0.6, "EUR block applied ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--green");
+        } },
+        { d: 3.2, cap: "💥 <strong>W1 dies before block 2.</strong> USD still shows the old world (tag 5). The trade is <strong>half-applied</strong> — and crucially, the Kafka offset was <strong>never acked</strong> (ack comes only after all blocks commit).", set: function () {
+            S.workers.w1.dead = true; S.workers.w1.tx = false; S.workers.w1.note = "died";
+            S.rows.c.hlBorder = "--red";
+            fxAt(0.3, "💥 crash between blocks", rowSlot(ROW_B).x + 60, rowSlot(ROW_B).y, "--red", 2.0);
+        } },
+        { d: 3.4, cap: "At-least-once does its job: the broker <strong>redelivers #6</strong> to W2. Admission check: same ordering, same digest → already admitted; watermark stays 6; proceed straight to the blocks.", set: function () {
+            tw(S.workers.w2, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y + 26 });
+            S.workers.w2.tx = true;
+            fxAt(0.7, "redelivery: already admitted → blocks", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--accent");
+        } },
+        { d: 3.4, cap: "Block EUR: the per-block ordering guard sees the obligation already tagged 6 — <span class='k'>6 ≯ 6</span> → <strong>drop as already applied</strong>. No double-apply, no special crash-recovery code path. The guard can't tell a crash from a duplicate, and doesn't need to.", set: function () {
+            fxAt(0.4, "6 ≯ 6 → skip ✓", ROW_B.x + ROW_B.w / 2, ROW_B.y - 6, "--violet");
+        } },
+        { d: 3.4, cap: "Block USD: tag 5 &lt; 6 → applies now: <strong>USD → 250</strong>, tag 6. Commit, ack the offset. The trade has converged to exactly the #6 world.", set: function () {
+            S.rows.c.lines = [{ t: "required 250 · ordering tag 6 ✓", c: "--green" }, "committed 200 · confirmed 0"];
+            S.rows.c.hlBorder = null;
+            fxAt(0.4, "USD block applied ✓", ROW_C.x + ROW_C.w / 2, ROW_C.y - 6, "--green");
+        } },
+        { d: 4.4, cap: "A crash at <strong>any</strong> boundary between any two transactions leaves a state that redelivery heals. That's the real reason there's no cross-obligation transaction: <strong>big atomic boxes aren't what makes intake safe — convergence is.</strong> (This is also what the T-34 session-kill tests certify at the four commit boundaries.)", set: function () {
+            S.workers.w2.tx = false;
+            tw(S.workers.w2, { x: HOME2.x, y: HOME2.y });
+        } }
+      ]
+    },
+
+    /* ---------- 13 = Σ5: when the trade takes money away ---------- */
+    {
+      name: "When the trade takes money away",
+      setup: function () {
+        addWorker("w1", "W1", HOME1, "--accent");
+        stdRows("payment_obligation", ["required 100 · step IN_PROGRESS", "committed 0 · confirmed 0 (enrichment pending)"], "payment_request", ["— none created yet —"]);
+        S.engine.visible = false; S.wire = false;
+      },
+      beats: [
+        { d: 3.8, cap: "<strong>Σ5 — two uncomfortable amendments.</strong> Act 1: the next snapshot simply <strong>doesn't contain our payment anymore</strong>. That's not an error and not silence — the contract says a message carries the trade's <em>full</em> settlement set, so <strong>absence = amendment to zero</strong> (BA-2).", set: function () {} },
+        { d: 3.8, cap: "The absence path writes <span class='k'>required := 0</span> — a <strong>tombstone only this path may write</strong> (0 means “removed”; NULL means “never validated”). Counters are 0/0/0, no active request, latch clear → derivation says <strong>CANCELLED</strong>. Not COMPLETED — nothing was done, because nothing was owed.", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.a.lines = [{ t: "required 0 (tombstone) · step CANCELLED", c: "--violet" }, "committed 0 · confirmed 0"];
+            S.rows.a.hlBorder = "--violet";
+            fxAt(0.45, "absence → required := 0", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--violet");
+        } },
+        { d: 3.4, cap: "CANCELLED is <strong>reopenable</strong>: if a later snapshot brings the payment back (with fresh ordering, through all the same admission gates), the obligation reopens and life continues. Removal never deletes the row — the audit trail survives.", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+        } },
+        { d: 3.6, cap: "<strong>Act 2 — the nastier one.</strong> A different obligation: required 150, fully paid — committed 150, <strong>confirmed 150</strong>, step COMPLETED. Then the amendment arrives: <strong>required drops to 50</strong>. We already moved 150 of real money.", set: function () {
+            S.rows.a.hlBorder = null;
+            S.rows.a.lines = [{ t: "required 150 · step COMPLETED", c: "--green" }, "committed 150 · confirmed 150"];
+            S.rows.b.lines = ["R1 · EXECUTED · 150 moved"];
+        } },
+        { d: 4.4, cap: "Apply it honestly: required := 50 → confirmed (150) &gt; required (50) → <strong>OVERPAY</strong>. The system sets the <strong>overpay latch</strong>, raises an operator alert — <strong>and does nothing else</strong>. No automatic refund, no counter “fix-up”: recovering real money is a human decision (refund, write-off, dispute).", set: function () {
+            tw(S.workers.w1, { x: rowSlot(ROW_A).x, y: rowSlot(ROW_A).y });
+            S.workers.w1.tx = true; S.rows.a.lock = "W1";
+            S.rows.a.lines = [{ t: "required 50 · OVERPAID by 100 ⚠", c: "--red" }, "committed 150 · confirmed 150 · latch SET"];
+            S.rows.a.hlBorder = "--red";
+            fxAt(0.5, "overpay latch + operator alert", ROW_A.x + ROW_A.w / 2, ROW_A.y - 6, "--red", 2.2);
+        } },
+        { d: 4.6, cap: "The latch also keeps the step from ever showing a false COMPLETED (completion requires the latch clear, §4.1). This is the design's honesty rule under the worst inputs: <strong>when reality and money disagree, the system freezes the story and calls a human — it never invents money movements to make the numbers look right.</strong>", set: function () {
+            S.workers.w1.tx = false; S.rows.a.lock = null;
+            tw(S.workers.w1, { x: HOME1.x, y: HOME1.y });
+        } }
+      ]
+    }
+  ];
+
+  /* ---- tabs, grouped by rule ---- */
+  var GROUPS = [
+    { label: "A · money", scns: [0, 1] },
+    { label: "B · slow work", scns: [2, 3, 4, 10, 11] },
+    { label: "C · order", scns: [5, 6] },
+    { label: "Σ · lifecycle", scns: [7, 8, 9, 12, 13] }
+  ];
+  var PART_LABEL = ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "Σ1", "Σ2", "Σ3", "B4", "B5", "Σ4", "Σ5"];
+  var groupsEl = $("tabGroups");
+  GROUPS.forEach(function (g) {
+    var box = document.createElement("div");
+    box.className = "tab-group";
+    var lb = document.createElement("span");
+    lb.className = "tg-label"; lb.textContent = g.label;
+    box.appendChild(lb);
+    g.scns.forEach(function (i) {
+      var b = document.createElement("button");
+      b.className = "tab"; b.dataset.scn = i;
+      b.textContent = PART_LABEL[i] + " · " + scenarios[i].name;
+      b.setAttribute("role", "tab");
+      b.addEventListener("click", function () { loadScenario(i); });
+      box.appendChild(b);
+    });
+    groupsEl.appendChild(box);
+  });
+
+  /* ---- watch buttons in the parts jump to the theater ---- */
+  document.querySelectorAll(".watch-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      loadScenario(parseInt(b.dataset.scn, 10));
+      playing = true; $("btnPlay").textContent = "Pause";
+      $("theater").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" });
+    });
+  });
+
+  /* ---- transport controls ---- */
+  $("btnPlay").addEventListener("click", function () {
+    if (!playing && beatIdx === scn.beats.length - 1 && localT >= scn.beats[beatIdx].d) { seek(0); }
+    playing = !playing;
+    $("btnPlay").textContent = playing ? "Pause" : "▶ Play";
+  });
+  $("btnRestart").addEventListener("click", function () {
+    seek(0); playing = true; $("btnPlay").textContent = "Pause";
+  });
+  $("btnNextB").addEventListener("click", function () {
+    if (beatIdx < scn.beats.length - 1) seek(beatIdx + 1);
+    else { finalizeBeat(); localT = scn.beats[beatIdx].d; }
+  });
+  $("btnPrev").addEventListener("click", function () { if (beatIdx > 0) seek(beatIdx - 1); });
+  $("speedSel").addEventListener("change", function () { speed = parseFloat(this.value); });
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" || e.target.tagName === "SUMMARY") return;
+    if (e.key === "ArrowRight") { $("btnNextB").click(); e.preventDefault(); }
+    if (e.key === "ArrowLeft") { $("btnPrev").click(); e.preventDefault(); }
+    if (e.key === " ") { $("btnPlay").click(); e.preventDefault(); }
+  });
+
+  loadScenario(0);
+  draw();
+  requestAnimationFrame(frame);
+  setTimeout(function () {
+    if (!rafAlive) setInterval(function () { step(performance.now()); }, 40);
+  }, 700);
+
+  /* ==================================================================
+     MONEY SIMULATOR
+     ================================================================== */
+  var sim = { committed: 0, confirmed: 0, active: false, executed: false };
+  var REQ = 100;
+
+  function simRender() {
+    $("simCommitted").style.width = sim.committed + "%";
+    $("simConfirmed").style.width = sim.confirmed + "%";
+    $("simCommittedV").textContent = sim.committed;
+    $("simConfirmedV").textContent = sim.confirmed;
+    var shortfall = REQ - sim.committed;
+    $("simInv").innerHTML =
+      "<div class='" + (sim.confirmed <= sim.committed ? "ok" : "") + "'>I3&nbsp;&nbsp;confirmed ≤ committed&nbsp;&nbsp;(" + sim.confirmed + " ≤ " + sim.committed + ") ✓</div>" +
+      "<div>I5&nbsp;&nbsp;shortfall = required − committed = <strong style='color:var(--ink)'>" + shortfall + "</strong>" +
+      (shortfall > 0 && !sim.active ? " → §6.8 may create a request (under the obligation lock)" : "") + "</div>" +
+      (sim.executed && shortfall === 0 ? "<div class='ok'>§4.1&nbsp;&nbsp;completion predicate satisfied — step COMPLETED</div>" : "");
+    $("simCreate").disabled = sim.active || (REQ - sim.committed) <= 0;
+    $("simPost").disabled = !sim.active;
+    $("simExec").disabled = !sim.active;
+    $("simReject").disabled = !sim.active;
+  }
+  function simLog(txt, cls) {
+    var e = document.createElement("div");
+    e.className = "entry " + cls;
+    e.innerHTML = txt;
+    var box = $("simEntries");
+    box.insertBefore(e, box.firstChild);
+  }
+  $("simCreate").addEventListener("click", function () {
+    sim.active = true; sim.committed += REQ;
+    simLog("<strong>TX</strong> [obligation lock] INSERT payment_request(100) <strong>+ committed += 100</strong> — same transaction, §3", "tx");
+    simRender();
+  });
+  $("simPost").addEventListener("click", function () {
+    simLog("POST attempt → engine … <strong>no counter movement</strong>, by design (retry-safe, crash-safe)", "notx");
+    simRender();
+  });
+  $("simExec").addEventListener("click", function () {
+    sim.active = false; sim.executed = true; sim.confirmed += REQ;
+    simLog("<strong>TX</strong> [obligation lock] feed evidence: outcome := EXECUTED <strong>+ confirmed += 100</strong> (committed unchanged — I1 still holds)", "tx-green");
+    simRender();
+  });
+  $("simReject").addEventListener("click", function () {
+    sim.active = false; sim.committed -= REQ;
+    simLog("<strong>TX</strong> [obligation lock] terminal CAS: outcome := REJECTED <strong>+ committed −= 100</strong> — rides the CAS, exactly once (rowCount = 1). Shortfall reopens → §6.8 may create a successor", "tx");
+    simRender();
+  });
+  $("simReset").addEventListener("click", function () {
+    sim = { committed: 0, confirmed: 0, active: false, executed: false };
+    $("simEntries").innerHTML = "<div class='entry'>— obligation admitted, required = 100, no request yet —</div>";
+    simRender();
+  });
+  simRender();
+})();
+</script>
