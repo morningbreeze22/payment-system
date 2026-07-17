@@ -201,6 +201,7 @@ window):
 | 24-implementation-mechanics.md | the concrete HOW: transaction/CAS/lock/claim/scanner/consumer recipes (M1–M6), Spring/Oracle traps (M7), binding per-shape edge-case checklists (M8) — mandatory for every implementation card (rules 17–18) |
 | 25-golive-verification-procedures.md | per-Q go-live verification: the check to run, the evidence artifact, the sign-off role; evidence-pack layout + GO-04 meeting script |
 | 26-team-execution-and-divergence-protocol.md | TEAM execution: handover premise (happy path exists; business logic preserved), the divergence protocol + LOCAL register (reference model vs local reality — rule 21), the local facts sheet (enrichment steps/latencies, volumes, Oracle version), and the sanctioned parallel work streams (rule 22) |
+| 27-service-pseudocode.md | ORIENTATION (non-normative): end-to-end pseudocode for the four spec services — threads, transactions, locks, money movements, exception taxonomy, and the frontend exception contract (S6); read before implementation cards, implement from card + file 24 |
 
 **Context budget (200K-token window):** the complete per-task reading
 set (this file + index + glossary entries + one phase card file + one
