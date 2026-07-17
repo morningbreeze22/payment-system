@@ -757,11 +757,12 @@ alerts).
 ```
 
 
-### T-38 - attempt-journal reliability set (content write-ahead)
+### T-38 - attempt-journal reliability set (never load-bearing)
 
 ```text
 Setup:   real Oracle lane; journal deployed (AUD-01); posting path
-         with the riders (K-04 / RC-02 / ST-10).
+         with the riders (K-04 / RC-02 / ST-10); enablement switch ON
+         unless a case says otherwise.
 Cases:
   A  claim-transaction rollback (fault injected after the rider
      insert): NO ATTEMPT_STARTED row survives; attempt_count and
@@ -774,19 +775,32 @@ Cases:
      per attempt (the losing CAS hits 0 rows and inserts nothing).
   D  duplicate/replayed response processing: journal unchanged
      beyond its single pair (rowCount==0 -> no insert).
-  E  dedup-by-hash: identical-bytes retry -> STARTED row with NULL
-     payload_content + content_ref; changed bytes -> full content
-     stored + divergence_expected TRUE recorded at claim.
-  F  journal outage (tablespace-full simulation): posting claims
-     FAIL fail-safe (zero wire calls), the write-failure alert
-     fires, money counters untouched; clean resume after recovery.
+  E  full-content presence: EVERY STARTED row carries the complete
+     canonical payload with a matching hash - including the H/H/H
+     identical-retry run AND the H1 -> H2 -> H1 alternating run
+     (review 7ab31e5 H1: no NULL content, no refs, ever); changed
+     bytes also record divergence_expected TRUE at claim.
+  F  journal outage (tablespace-full simulation): posting CONTINUES
+     (wire calls proceed, money outcomes identical), the AUDIT-GAP
+     alert fires per failed insert, host transactions commit
+     unaffected; gaps are visible; clean resume after recovery.
+     Sub-case: enablement switch OFF -> zero inserts, zero errors,
+     posting unaffected.
   G  grants: the app role cannot SELECT; no role can UPDATE/DELETE;
      audit-role reads appear in the DB audit trail.
+  H  partition maintenance: DROP PARTITION ... UPDATE GLOBAL INDEXES
+     leaves the global unique index USABLE (verified); event-shape
+     CHECKs reject malformed STARTED/RESOLVED rows.
+  I  log join: every journal event pair joins unambiguously to its
+     ATTEMPT-class log lines via (request_id, post_attempt_seq,
+     event type) - review 7ab31e5 M5.
 Expected: all cases green + grep/review evidence that NO runtime
          code path SELECTs the journal.
-Failure meaning: the content write-ahead is unreliable, or the
-         journal has become state - both violate the requirement.
-Type: integration (real Oracle) + fault injection. BLOCKING: yes.
-Implemented by: AUD-01 (schema slice + G), K-04 (A, B, E),
-RC-02 (D), ST-10 (C), OB-05 (F alert wiring).
+Failure meaning: either the journal disturbed payment processing
+         (forbidden - PO 2026-07-17: never load-bearing) or it has
+         become state - both violate section 14.1.
+Type: integration (real Oracle) + fault injection. BLOCKING: yes
+         (it proves the journal CANNOT hurt the money path).
+Implemented by: AUD-01 (schema slice + G + H), K-04 (A, B, E, F),
+RC-02 (D, I), ST-10 (C), OB-05 (F alert wiring).
 ```

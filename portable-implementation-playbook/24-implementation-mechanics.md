@@ -515,10 +515,12 @@ state: INSERT-only, ops/audit schema, and NO runtime rule, scanner,
 gate, resolver, or derivation may ever read it (rule 13(b)). The
 riders are single INSERT statements added INSIDE two transactions
 that already exist — no new commit points, no new locks, no SHAPE
-changes (each rider is one more statement inside an existing
-SHAPE-CAS transaction). RELIABILITY RULE (§14.1): no byte leaves
-for the engine unless the content record for its hash is durably
-committed.
+changes. NEVER LOAD-BEARING (§14.1, PO 2026-07-17): the journal
+must never pause, fail, or gate a payment — every rider is
+FAILURE-ISOLATED (catch the insert error, raise the AUDIT-GAP
+alert, let the host transaction proceed; Oracle statement-level
+rollback makes this safe) and SWITCH-GATED (§14.1 enablement
+switch OFF → skip the insert entirely, no error).
 
 Rider 1 — ATTEMPT_STARTED, in the posting-claim transaction (M1/M4,
 card K-04), beside the §2.2 write-ahead fields. The claim CAS also
@@ -527,18 +529,24 @@ resets on the §9.2 downgrade and would collide):
 
 ```sql
 -- inside the claim CAS UPDATE:  post_attempt_seq = post_attempt_seq + 1
-INSERT INTO audit.payment_attempt_journal
-  (request_id, idempotency_key, post_attempt_seq, event_type,
-   occurred_at, trigger_source, correlation_id, payload_hash,
-   payload_content, content_ref)
-VALUES
-  (:id, :key, :postSeq, 'ATTEMPT_STARTED',
-   SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash,
-   :contentOrNull, :refOrNull);
--- :postSeq = the post-increment post_attempt_seq of THIS claim
--- DEDUP (§14.1): :contentOrNull = the CA-6 canonical bytes iff
--- :hash differs from the request's previously journaled hash;
--- otherwise NULL with :refOrNull = the seq that carries the bytes
+-- rider (isolated):
+BEGIN
+  INSERT INTO audit.payment_attempt_journal
+    (request_id, idempotency_key, post_attempt_seq, event_type,
+     occurred_at, trigger_source, correlation_id, payload_hash,
+     payload_content)
+  VALUES
+    (:id, :key, :postSeq, 'ATTEMPT_STARTED',
+     SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash,
+     :content);
+EXCEPTION WHEN OTHERS THEN
+  raise AUDIT-GAP alert + metric; CONTINUE the host transaction
+END;
+-- :postSeq  = the post-increment post_attempt_seq of THIS claim
+-- :content  = the FULL CA-6 canonical bytes, EVERY attempt
+--             (§14.1 simplicity rule — no dedup, no content_ref;
+--             in Java the "BEGIN/EXCEPTION" is a try/catch around
+--             the statement, never a new transaction)
 ```
 
 Rider 2 — ATTEMPT_RESOLVED, in WHICHEVER transaction ends the
@@ -565,12 +573,17 @@ Binding rules (SHAPE — tick with the host card's checklist; T-38):
 [ ] both riders run in the SAME transaction as their host CAS —
     NEVER an autonomous transaction (phantom STARTED on rollback),
     NEVER a separate commit
+[ ] both riders are FAILURE-ISOLATED: an insert error raises the
+    AUDIT-GAP alert + metric and the host transaction PROCEEDS —
+    the journal never fails, pauses, or gates a payment (T-38 F)
+[ ] both riders are SWITCH-GATED (§14.1 enablement switch; OFF in
+    production until the Q30 journal items are evidenced)
+[ ] payload_content = the FULL canonical bytes on EVERY STARTED —
+    no dedup, no content_ref (T-38 E; consecutive-dedup is a
+    FUTURE Q31-gated optimization, §14.1)
 [ ] pairing identity = post_attempt_seq, NEVER attempt_count (it
     resets on the §9.2 downgrade — the T-38 case B regression)
 [ ] rider 2 executes only on the host CAS rowCount == 1
-[ ] journal failure fails the host transaction (fail-safe: posting
-    pauses, money never at risk) — own tablespace + the N.1
-    write-failure alert
 [ ] POSTING attempts only — no ENRICH retries, no resolver
     settlements, no lifecycle events
 [ ] no SELECT from the journal anywhere in runtime code (code review

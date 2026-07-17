@@ -3109,29 +3109,48 @@ processing:
   log is a durable, restore-surviving record of every issued and
   every POSTED key — §5.2 step 5b derives its enumeration bound
   from it, and the retention floor below already covers the replay
-  window by definition). This is the only local forensic record for
-  drift alerts, inbox anomalies, and BLOCKED-queue triage.
+  window by definition). ATTEMPT-class lines (posting claim,
+  outcome recording, lease-expiry recovery) ALSO carry
+  `post_attempt_seq` and the attempt event type (2026-07-17 —
+  review 7ab31e5 M5): they are the stable join to the §14.1
+  journal's event pairs; `attempt_count` on the line is
+  retry-budget context only (it resets on the §9.2 downgrade).
+  This is the only local forensic record for
+  drift alerts, inbox anomalies, and BLOCKED-queue triage — and
+  the ONLY restore-surviving one (§14.1 restore posture).
 - Log retention FLOOR (required now, because those commitments exist
   now): at least the greater of 90 days and the DR replay window +
   investigation SLA. VALIDATED with the business (PO review):
   the 90-day floor is sufficient; no dispute-driven extension is
   required.
 
-### 14.1 Local attempt journal (content write-ahead — added 2026-07-16)
+### 14.1 Local attempt journal (team-internal audit — added 2026-07-16, simplified 2026-07-17)
 
 Driver (PO-recorded 2026-07-16): the request actually sent to the
-payment engine is NOT visible to this team — the SDK/platform own
-the wire form; the engine's status is queryable, its content is
-not. Incidents and audit therefore require a RELIABLE local record
-of what each posting attempt intended to send. The §14 log line
-remains the transition record; this journal is the CONTENT record —
-two sinks of one attempt. It REPLACES NOTHING: divergence_expected,
-last_sent_hash, and the log line all stay (the §2.2 rejection of
-replacing those columns stands unchanged), and NO runtime rule,
-scanner, gate, resolver, or derivation may EVER read this table.
+payment engine is NOT directly visible to this team — the
+SDK/platform own the wire form; the engine's status is queryable,
+its content is not. The team therefore keeps a local record of the
+CANONICAL INSTRUCTION each posting attempt submitted to the SDK.
 
-Table — ops/audit schema; the §2 payment model remains exactly four
-tables:
+GOVERNING STANCE (PO 2026-07-17, review 7ab31e5): this journal is
+PURELY team-internal tracking and audit. It must NEVER disturb
+payment processing — no journal condition may pause, fail, or gate
+a payment. If the journal has gaps, the fallback is the §14 log
+line (key, seq, hash — always present) plus a UETR /
+idempotency-key-keyed inquiry to the payment platform; this is why
+§5's UETR persistence rules matter more than this journal.
+
+Position in the model: the §14 log line remains the transition
+record; this journal is the CONTENT record — two sinks of one
+attempt, joined by (request_id, post_attempt_seq, event type). It
+REPLACES NOTHING: divergence_expected, last_sent_hash, and the log
+line all stay (the §2.2 rejection of replacing those columns
+stands unchanged), and NO runtime rule, scanner, gate, resolver,
+or derivation may EVER read this table.
+
+Table — ops/audit schema in the SAME DATABASE (the same-transaction
+inserts below require it; no XA/distributed transactions), own
+tablespace; the §2 payment model remains exactly four tables:
 
 ```text
 payment_attempt_journal
@@ -3147,28 +3166,41 @@ payment_attempt_journal
   occurred_at       UTC; monthly interval-partition key
   trigger_source, correlation_id
   payload_hash      (= last_sent_hash, §7.0/CA-6 algorithm)
-  payload_content   (STARTED rows; nullable — dedup rule below)
-  content_ref       (when payload_content is NULL: the
-                     post_attempt_seq whose row carries the bytes)
+  payload_content   (STARTED rows: the FULL CA-6 canonical
+                     serialization, EVERY attempt — simplicity
+                     rule below)
   outcome           (RESOLVED rows — the §7.2 classes VERBATIM plus
                      LEASE_EXPIRED_MAYBE; never an invented
                      vocabulary)
   error_code, error_detail, response_excerpt
-  UNIQUE(request_id, post_attempt_seq, event_type)
+  UNIQUE(request_id, post_attempt_seq, event_type) — necessarily a
+  GLOBAL unique index (it cannot contain the partition key), so
+  partition maintenance MUST use
+  DROP PARTITION ... UPDATE GLOBAL INDEXES; CA-10 carries the full
+  DDL contract (types, nullability, event-shape CHECKs, LOB
+  storage, index strategy)
   local index on idempotency_key
 ```
+
+SIMPLICITY RULE (2026-07-17 — replaces the dedup-by-hash design,
+REJECTED as unimplementable under the no-read invariant, review
+7ab31e5 H1): payload_content is stored IN FULL on EVERY
+ATTEMPT_STARTED row. Retries usually repeat identical bytes; that
+redundancy is ACCEPTED — storage is bounded by partitions and is
+an audit-side cost, never a correctness input. FUTURE optimization,
+permitted ONLY if Q31 evidence shows a real volume/latency problem:
+CONSECUTIVE-identical dedup backed by a durable
+last_content_post_attempt_seq column on payment_request — never a
+journal read, never a global once-per-hash rule (both are
+structurally impossible under the no-read invariant).
 
 Events — each insert rides a transaction that already exists (no
 new commit points, no new locks):
 
 - ATTEMPT_STARTED: inserted in the posting-claim transaction beside
-  the §2.2 write-ahead fields. RELIABILITY RULE (the requirement
-  itself): no byte may leave for the engine unless the content
-  record for its hash is durably committed — the journal is part of
-  the §7.0 write-ahead. Same transaction ALWAYS; a journal failure
-  fails the claim (fail-safe: posting pauses, money is never at
-  risk; §15 alert). AUTONOMOUS TRANSACTIONS ARE FORBIDDEN (they
-  would commit phantom STARTED rows when the claim rolls back).
+  the §2.2 write-ahead fields. When healthy, this makes the content
+  record durable BEFORE any byte leaves — write-ahead as a GOAL,
+  not a gate (coupling rule below).
 - ATTEMPT_RESOLVED: inserted in whichever transaction ends the
   attempt episode — the §7.2 classification write, or the
   lease-expiry recovery (outcome LEASE_EXPIRED_MAYBE) — and only
@@ -3176,38 +3208,54 @@ new commit points, no new locks):
   (the CAS arbitrates the worker/sweep race; the UNIQUE constraint
   backstops).
 
-Content and performance (payloads are ISO 20022-class XML):
+COUPLING — NEVER LOAD-BEARING (2026-07-17; replaces the earlier
+fail-the-claim rule, which let an audit table pause payments):
 
-- payload_content stores the CA-6 canonical serialization — the
-  exact bytes the hash covers. FULL content, not a summary
-  (PO decision 2026-07-16).
-- DEDUP RULE: content is stored ONCE per distinct hash per request.
-  A STARTED row carries payload_content iff its hash differs from
-  the request's previously journaled hash; otherwise
-  payload_content is NULL and content_ref names the
-  post_attempt_seq that carries the bytes. Retries are usually
-  hash-identical, so steady-state growth is ~one content row per
-  request, not per attempt. The reliability rule still holds: the
-  bytes for hash H committed before any attempt bearing H reached
-  the wire.
-- Recorded performance concerns (managed, never "solved" by
-  weakening the same-transaction rule): LOB write latency inside
-  the claim transaction (MEASURE — the local facts sheet's POST
-  p50/p99 baseline runs WITH the journal enabled); redo and backup
-  volume; SECUREFILE compression is a DBA/licensing decision;
-  partition maintenance is routine ops; own tablespace.
+- The rider INSERT runs INSIDE the host transaction but is
+  FAILURE-ISOLATED: any insert error (tablespace full, constraint
+  defect, anything) is caught at the statement level, an AUDIT-GAP
+  alert + metric fire (§15), and the host transaction proceeds
+  untouched. Oracle statement-level rollback makes this safe; the
+  payment outcome is identical with or without the journal row.
+- Because the insert shares the host transaction, a host ROLLBACK
+  still removes the journal row — no phantom STARTED rows.
+  AUTONOMOUS TRANSACTIONS remain FORBIDDEN (they would create
+  exactly those phantoms).
+- Gap recovery: the §14 line still records key/seq/hash for the
+  attempt; exact content is recoverable from the payment platform
+  by UETR/idempotency key (§5). A journal gap is an audit
+  degradation, never a money event.
+
+ENABLEMENT GATE (2026-07-17): journal writes sit behind a plain
+config switch, DEFAULT OFF in production, enabled only after the
+Q30 journal items are EVIDENCED: encryption at rest ENABLED (or an
+explicitly approved, expiry-dated compensating-control exception)
+AND the compliance-approved retention schedule. Payments go-live
+does NOT wait for journal enablement — an OFF journal is simply the
+pre-2026-07-16 designed state (log-only forensics).
 
 Security — the ONE controlled exception to §16.3's no-local-content
 rule:
 
 - payload_content is real payment data. Grants: a restricted audit
   role ONLY; reads of the journal are themselves DB-audited;
-  encryption at rest per the DBA standard (TDE where licensed);
-  NEVER replicated/copied to lower environments; retention =
-  partition drop per the compliance answer (open ask below).
-  §16.3 masking deliberately does NOT apply INSIDE the journal —
-  access control replaces it; the card, logs, and traces remain
-  masked exactly as before.
+  encryption at rest per the enablement gate above; NEVER
+  replicated/copied to lower environments; retention = partition
+  drop per the compliance answer (open ask below). §16.3 masking
+  deliberately does NOT apply INSIDE the journal — access control
+  replaces it; the card, logs, and traces remain masked exactly as
+  before.
+
+Honesty note — what this journal proves (review 7ab31e5 M2): the
+CANONICAL INSTRUCTION COMMITTED BEFORE ATTEMPTED TRANSMISSION —
+application intent. It is NOT proof of the post-SDK wire bytes
+(the SDK may transform the message); the wire-capture ask below
+governs that gap. Restore posture (review 7ab31e5 M1): the journal
+lives in the SAME database as the payment tables, so a
+full-database point-in-time restore rewinds it with everything
+else; it survives logical/schema-level restores of the payment
+schema and payment-tablespace TSPITR. The ONLY restore-surviving
+record is the external §14 log platform.
 
 Scope and guardrails:
 
@@ -3217,17 +3265,20 @@ Scope and guardrails:
 - INSERT-only forever: no UPDATE or DELETE grants; retention is
   partition drop.
 - Never read at runtime; §5.2 post-restore forensics MAY read it
-  (a human runbook, not a rule) — the journal lives outside the
-  payment database's restore set and can survive a restore.
+  (a human runbook, not a rule).
 
-OPEN (recorded 2026-07-16, non-blocking):
+OPEN (recorded 2026-07-16; blocking status revised 2026-07-17):
 
-- TL/platform ask: can the post-SDK WIRE form be captured
-  (interceptor/SDK hook)? This journal records the canonical
-  instruction WE assemble; if the SDK transforms it, wire-digest
-  capture is a possible extension — design only after that answer.
-- Compliance ask: retention horizon and legal-deletion obligations
-  for payment content at rest (sets the partition-drop policy).
+- TL/platform ask (non-blocking): can the post-SDK WIRE form be
+  captured (interceptor/SDK hook)? This journal records the
+  canonical instruction WE assemble; if the SDK transforms it,
+  wire-digest capture is a possible extension — design only after
+  that answer.
+- Compliance ask (BLOCKS JOURNAL ENABLEMENT, never payments
+  go-live): retention horizon and legal-deletion obligations for
+  payment content at rest (sets the partition-drop policy), and
+  whether partition-level deletion satisfies erasure demands or a
+  DBA-executed, audited redaction procedure is required.
 
 ------
 
@@ -3788,8 +3839,10 @@ display only; reads current state; never a source of truth
 
 This system
 =
-payment orchestrator; current state only; audit lives in the
-payment platform
+payment orchestrator; current payment state + the §14 transition
+log (restore-surviving, external) + the §14.1 attempt-content
+journal (team-internal audit, never load-bearing); execution truth
+lives in the payment platform
 ```
 
 ------

@@ -1,7 +1,7 @@
 > **Purpose:** End-to-end pseudocode for the four spec services (PaymentOrchestrationService, PaymentEnrichmentService, PaymentExecutionService, PaymentNotificationConsumerService): threads, transactions, locks, money movements, exception handling, and the frontend exception contract — one readable flow per service.
-> **When to use this file:** ORIENTATION before implementation cards — read it to understand how the pieces fit; then implement from the CARD + file 24 recipes, never from this file alone.
+> **When to use this file:** ONBOARDING ONLY — read once when joining the project to understand how the pieces fit. It is deliberately NOT part of any card's minimal reading set (rule 4): per-card work uses the card + packet + the cited spec sections + file 24. Never implement from this file.
 > **Depends on:** requirment-v4.md (wins on every conflict); 24-implementation-mechanics.md (M1–M9 are the binding shapes); 26-team-execution-and-divergence-protocol.md (local reality may differ — record divergences, rule 21).
-> **Used by:** every implementation card as background; onboarding.
+> **Used by:** onboarding only (deliberately outside the per-card context budget — review 7ab31e5 L2).
 > **Safe to transfer:** yes
 > **Contains local code names:** no
 
@@ -111,10 +111,13 @@ surface), the §12 card read. Threads:
 onTradeSnapshot(record):
   try:
     doc = parse(record)                          // fails → POISON
-    validateSnapshot(doc)                        // §6.0: schema, strictly-positive
-                                                 // amounts, within-snapshot tuple
-                                                 // uniqueness; unparseable scope →
-                                                 // POISON (no row possible, §6.6)
+    validateSnapshot(doc)                        // §6.0 HARD failures ONLY: schema,
+                                                 // within-snapshot tuple uniqueness,
+                                                 // UNPARSEABLE scope → POISON (§6.6:
+                                                 // no row possible). Per-block issues
+                                                 // (extractable scope, bad amount) do
+                                                 // NOT throw here — they flow to the
+                                                 // anchor branch in the fan-out below
 
     // ---- ADMISSION: its own TX; FIRST lock in the global order ----
     TX(admission):
@@ -122,12 +125,17 @@ onTradeSnapshot(record):
              // insert-on-first-contact; PK-race → retry read (§6.1)
       if doc.ordering < snap.last_accepted_ordering:
           COMMIT; ack; return                    // STALE — refused WHOLE (§6.7)
-      if doc.ordering == snap.last_accepted_ordering
-         and doc.digest == snap.last_payload_digest:
-          pass                                   // redelivery — re-run blocks (heals
+      if doc.ordering == snap.last_accepted_ordering:
+          if doc.digest == snap.last_payload_digest:
+              pass                               // redelivery — re-run blocks (heals
                                                  // a crash mid fan-out; blocks no-op)
+          else:
+              rollback; alert AMENDMENT_TIE_CONFLICT (§6.7)
+              ack; return                        // TIE: same ordering, DIFFERENT
+                                                 // content — refused WHOLE; never
+                                                 // applied, watermark untouched
       else:
-          snap.watermark  := doc.ordering        // admit
+          snap.watermark  := doc.ordering        // admit (strictly newer only)
           snap.pointer    := doc.storageId
           snap.digest     := doc.digest
       COMMIT
@@ -264,11 +272,16 @@ enrich(id):
     expired) + backoff bookkeeping; COMMIT; return
     // if we die instead: lease expiry makes the row re-claimable —
     // lookups are repeatable reads, redo is safe (§7.3/§11)
-  catch VALIDATION_FAILED (bad/missing reference data):
+  catch VALIDATION_FAILED (DEFINITIVE invalid data — §7.3 flow row):
     TX(fail):
       lockObligation
-      CAS CLAIMED → BLOCKED(<validation reason>)  // request-side detail
-      derive(ob)   // frontend now shows the manual-action exception
+      CAS ENRICH·CLAIMED → outcome := REJECTED    // terminal, write-once
+          + committed -= amount                    // release rides the CAS (§3)
+          + validation_failed marker (ordering-tagged, §6.9)
+      derive(ob)   // frontend: DATA_VALIDATION_FAILED exception;
+                   // §6.8 creates NO successor until a NEWER message
+                   // flips the marker not-live (corrected data comes
+                   // through the front door, never a park-and-hope)
       COMMIT; alert per §15; return
 
   TX(result):
@@ -299,9 +312,14 @@ postScan():
                                                  // unreachable = frozen (fail-safe);
                                                  // zero attempts while effective
   if breakerOpen(): return
-  candidates = lock-free read WHERE stage='POST' AND stage_state='READY'
+  candidates = lock-free read WHERE stage='POST'
+               AND ( stage_state='READY'
+                     OR (stage_state='RETRY_WAIT'                 // L7: retries live
+                         AND next_retry_at <= now) )              // HERE, not READY
                AND repost_permitted               // §7.0: divergent_payload_at IS
                                                   // NULL AND NOT MAYBE_SUBMITTED...
+                                                  // (§9.2-downgraded rows ARE
+                                                  // RETRY_WAIT+MAYBE and DO pass)
                FETCH FIRST :N ROWS ONLY
   for c in candidates: workerPool.submit(postAttempt(c))
 
@@ -318,7 +336,9 @@ postAttempt(id):
                                                    // reset (attempt_count
                                                    // resets on §9.2)
         last_post_attempt_at = now
-        WHERE id AND stage='POST' AND stage_state='READY'
+        WHERE id AND stage='POST'
+          AND (stage_state='READY' OR
+               (stage_state='RETRY_WAIT' AND next_retry_at <= now))
           AND outcome IS NULL AND divergent_payload_at IS NULL
     if n == 0: rollback; return                  // lost race
     payload = assembleFRESH(admittedSnapshotVia(trade_snapshot_state))
@@ -328,9 +348,10 @@ postAttempt(id):
                                     AND last_sent_hash != hash)
     request.last_sent_hash := hash               // write-ahead: the DB knows what
                                                  // may be sent BEFORE any byte leaves
-    [§14.1 rider 1: INSERT ATTEMPT_STARTED — same TX ALWAYS; the
-     content write-ahead (full bytes iff hash changed, else
-     content_ref — dedup); no byte leaves without this committed]
+    [§14.1 rider 1: INSERT ATTEMPT_STARTED — same TX, FAILURE-
+     ISOLATED (insert error → AUDIT-GAP alert, claim PROCEEDS —
+     never load-bearing) and switch-gated; FULL content every
+     attempt, no dedup]
     COMMIT
   on commit-outcome-UNKNOWN (connection died mid-commit):
     DO NOT POST. Walk away. Either the claim never landed (row still
@@ -362,9 +383,11 @@ postAttempt(id):
             + committed -= amount                 // rides THIS CAS, once
             + provider_rejected marker (L9)
       SYNC_ERROR_RETRYABLE (per CA-1):
-        CAS CLAIMED → READY + backoff              // same key next attempt
+        CAS CLAIMED → RETRY_WAIT, next_retry_at per policy (L7)
+                                                   // same key next attempt
       TRANSPORT_ERROR_NOT_SENT:
-        CAS CLAIMED → READY + backoff              // provably unsent only
+        CAS CLAIMED → RETRY_WAIT, next_retry_at per policy (L7)
+                                                   // provably unsent only
       DUPLICATE_REQUEST:
         CAS sub := MAYBE_SUBMITTED, stage := CONFIRM·READY + status query
         // a hidden earlier attempt surfaced; uetr NOT persisted (§5)
@@ -377,7 +400,8 @@ postAttempt(id):
       UNMAPPED:
         sub := MAYBE_SUBMITTED; stage_state := BLOCKED(UNMAPPED_CODE)
         + alert                                    // fail closed
-    [§14.1 rider 2: INSERT ATTEMPT_RESOLVED on rowCount 1]
+    [§14.1 rider 2: INSERT ATTEMPT_RESOLVED on rowCount 1 —
+     failure-isolated, switch-gated (never load-bearing)]
     derive(ob)                                     // frontend sees the outcome AND
                                                    // its exception atomically
     COMMIT
@@ -400,7 +424,8 @@ sweepExpiredClaims():
             sub := MAYBE_SUBMITTED, maybe_since := coalesce(existing, now)
         // NEVER back to POST·READY: the payload may be at the engine;
         // re-POSTing here is the double-payment path (§11)
-        [§14.1 rider 2: ATTEMPT_RESOLVED outcome=LEASE_EXPIRED_MAYBE]
+        [§14.1 rider 2: ATTEMPT_RESOLVED outcome=LEASE_EXPIRED_MAYBE —
+         failure-isolated, switch-gated]
       derive(ob)
       COMMIT
 ```
@@ -420,8 +445,13 @@ resolve(row):                                     // MAYBE rows (any stage_state
     ACCEPTED (found, not yet executed):
       TX: CAS sub := SUBMITTED (query-proven, always-safe tightening)
     NOT_FOUND:
-      if sub == SUBMITTED: BLOCKED(ENGINE_INCONSISTENCY) + CRITICAL
-        // never downgrade an acknowledged payment (§9.1)
+      if sub == SUBMITTED:
+        if withinTrustAge(submitted_at): keep SUBMITTED; requery
+          // §2.2/§9.2 SUBMITTED-branch trust-age — feed/index lag
+          // is normal; "not found" may mean "not indexed yet"
+        else: BLOCKED(ENGINE_INCONSISTENCY) + CRITICAL
+          // never downgrade an acknowledged payment (§9.1); the
+          // park is REVERSIBLE — row stays in resolver scope (§9.5)
       else if withinTrustAge(last_post_attempt_at): keep MAYBE; requery
         // "not found" may mean "not yet" — patience is correctness (§9.2)
       else if pastTrustAge and lookbackStillValid (§7.4 aging)
@@ -477,20 +507,24 @@ onFeedEvent(e):
                                                   // replay (§8); §9 sweep recovers
       lockObligation(req.scope)
       rank = evidenceRank(evt.status)             // CA-2; §4.4 precedence
-      n = CAS request dims per rank
-          WHERE expected pre-state (outcome IS NULL for terminal writes)
-      if n == 1:
-        if evt.status == EXECUTED:
-          if evt.amount.compareTo(req.amount) != 0:
-            CAS stage_state := BLOCKED(AMOUNT_MISMATCH), sub stays
-            SUBMITTED + CRITICAL; NO money movement (§8)
-          else:
-            outcome := EXECUTED; confirmed += req.amount
-        if terminal-negative: committed -= req.amount   // once, on the CAS
-      else:                                        // n == 0
-        if req is terminal AND evt.event_id is NEW:
-          CRITICAL (§8 — evidence against a terminal row)
-        else: stale/duplicate — normal, no action
+      // §8: the amount-equality GUARD runs BEFORE any terminal
+      // outcome write and before any money movement
+      if evt.status == EXECUTED
+         and evt.amount.compareTo(req.amount) != 0:
+        CAS stage_state := BLOCKED(AMOUNT_MISMATCH)
+            // sub stays SUBMITTED; outcome NOT written; CRITICAL;
+            // NO money movement — the guard PRECEDES the outcome CAS
+      else:
+        n = CAS request dims per rank
+            WHERE expected pre-state (outcome IS NULL for terminal writes)
+        if n == 1:
+          if evt.status == EXECUTED:
+            outcome := EXECUTED (in that CAS); confirmed += req.amount
+          if terminal-negative: committed -= req.amount // once, on the CAS
+        else:                                      // n == 0
+          if req is terminal AND evt.event_id is NEW:
+            CRITICAL (§8 — evidence against a terminal row)
+          else: stale/duplicate — normal, no action
       derive(ob)                                   // frontend: confirmation or
                                                    // its exception, atomically
       COMMIT

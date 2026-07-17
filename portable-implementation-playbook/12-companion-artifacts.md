@@ -218,56 +218,74 @@ Purpose: the implementable spec of §14.1 — DDL, the two riders, the
   dedup rule, the security package, retention. AUD-01 deploys the
   DDL; K-04, RC-02, and ST-10 carry the riders.
 Required contents:
-  - DDL exactly per §14.1 (names adapt per file 24 M0):
-    payment_attempt_journal — journal_id identity PK; request_id
+  - EXECUTABLE DDL CONTRACT per §14.1 (names adapt per file 24 M0;
+    review 7ab31e5 M3 — no judgment left to the executor):
+    payment_attempt_journal — every column with Oracle type,
+    length, and nullability; journal_id identity PK; request_id
     (NO foreign key); idempotency_key denormalized;
     post_attempt_seq (from the request row §2.2 — NEVER
     attempt_count: it resets on the §9.2 downgrade and would
     collide on the recovery re-POST); event_type ATTEMPT_STARTED |
-    ATTEMPT_RESOLVED; occurred_at UTC = monthly interval-partition
-    key; trigger_source; correlation_id; payload_hash (CA-6);
-    payload_content (STARTED; nullable) + content_ref (dedup);
-    outcome (§7.2 classes VERBATIM + LEASE_EXPIRED_MAYBE);
-    error_code; error_detail; response_excerpt;
-    UNIQUE(request_id, post_attempt_seq, event_type); local index
-    on idempotency_key; own tablespace.
+    ATTEMPT_RESOLVED with EVENT-SHAPE CHECK constraints (STARTED ⇒
+    payload_hash + payload_content NOT NULL, outcome NULL;
+    RESOLVED ⇒ outcome NOT NULL, payload_content NULL); occurred_at
+    UTC DEFAULT, monthly interval-partition key; trigger_source;
+    correlation_id; payload_hash (CA-6); payload_content (STARTED:
+    FULL content EVERY attempt — the §14.1 simplicity rule; no
+    dedup, no content_ref); outcome (§7.2 classes VERBATIM +
+    LEASE_EXPIRED_MAYBE); error_code; error_detail;
+    response_excerpt; UNIQUE(request_id, post_attempt_seq,
+    event_type) as a GLOBAL unique index + the partition
+    maintenance rule DROP PARTITION ... UPDATE GLOBAL INDEXES
+    (+ post-drop index-usability check); local index on
+    idempotency_key; SECUREFILE LOB clause + tablespace named;
+    own tablespace.
   - The TWO riders (§14.1): ATTEMPT_STARTED in the posting-claim
-    transaction (K-04) — the RELIABILITY RULE: no byte leaves
-    unless the content record for its hash is durably committed;
+    transaction (K-04) — write-ahead when healthy, NEVER a gate;
     ATTEMPT_RESOLVED in whichever transaction ends the episode —
     RC-02's §7.2 classification or ST-10's lease-expiry recovery
     (LEASE_EXPIRED_MAYBE) — only on rowCount==1.
-  - Coupling: same-transaction ALWAYS — a journal failure fails the
-    posting transaction (fail-safe; §15 alert; own tablespace);
-    AUTONOMOUS TRANSACTIONS FORBIDDEN.
-  - Content + performance (ISO 20022-class payloads): FULL content
-    (PO 2026-07-16), CA-6 canonical serialization; DEDUP — content
-    stored once per distinct hash per request (else content_ref);
-    recorded concerns per §14.1 (LOB latency in the claim tx —
-    measure via the file 26 facts sheet WITH the journal on;
-    redo/backup volume; SECUREFILE compression = DBA/licensing;
-    partition maintenance) — never resolved by weakening the
-    same-transaction rule.
+  - Coupling (§14.1, PO 2026-07-17 — NEVER LOAD-BEARING): riders
+    run inside the host transaction, FAILURE-ISOLATED — an insert
+    error raises the AUDIT-GAP alert and the host transaction
+    proceeds; a host rollback removes the journal row (no
+    phantoms); AUTONOMOUS TRANSACTIONS FORBIDDEN; the journal must
+    never pause, fail, or gate a payment. Gap fallback: §14 line +
+    UETR/key-keyed platform inquiry (§5).
+  - Enablement gate (§14.1): journal writes behind a config
+    switch, DEFAULT OFF in production until the Q30 journal items
+    are evidenced (encryption ENABLED or approved expiring
+    exception + compliance-approved retention schedule).
+  - Performance (ISO 20022-class payloads): full-content-per-
+    attempt is the ACCEPTED cost; recorded concerns per §14.1
+    (LOB latency in the claim tx — measure via the file 26 facts
+    sheet WITH the journal on; redo/backup volume; SECUREFILE
+    compression = DBA/licensing; partition maintenance).
+    Consecutive-dedup is a FUTURE optimization gated on Q31
+    evidence, requiring the last_content_post_attempt_seq column —
+    never a journal read.
   - Security (§16.3 exception): restricted audit role only;
-    DB-audited reads; encryption at rest per DBA standard; never
-    replicated to lower environments; retention = partition drop
-    per the compliance answer (§14.1 open ask).
+    DB-audited reads; never replicated to lower environments;
+    retention = partition drop per the compliance answer.
   - Guardrails: INSERT-only forever; NO runtime rule, scanner,
     gate, resolver, or derivation may EVER read it (replaces
     NOTHING — divergence_expected, last_sent_hash, §14 line all
     stay; the V11-17 rejection scope is intact); POSTING attempts
     only.
 Validation: DBA + security/privacy + ops review; PO driver on
-  record (2026-07-16); T-38 green (rollback, downgrade-reset
-  identity, expiry race, duplicate delivery, journal-outage pause).
+  record (2026-07-16; never-load-bearing stance 2026-07-17); T-38
+  green (rollback, downgrade-reset identity, expiry race,
+  duplicate delivery, full-content presence, outage-continuity,
+  grants, partition/global-index maintenance, log-join).
 Dependent tasks: AUD-01 (DDL); K-04 (rider 1); RC-02 + ST-10
   (rider 2); OB-05 (the two N.1 journal alerts); Q30 evidence
-  (protection controls), Q31 (capacity).
-Go-live relevance: YES — gated like any MVP scope (it is part of
-  the posting path; the old "never gates" framing died with the
-  optional framing).
-Failure if omitted: no local record of sent content exists anywhere
-  (the engine's copy is not visible to us) — incident forensics and
-  audit cannot answer "what did we actually send".
+  (protection controls + enablement gate), Q31 (capacity).
+Go-live relevance: payments go-live is NEVER gated by the journal
+  (never load-bearing; switch default OFF). JOURNAL ENABLEMENT is
+  gated: Q30 journal items + the compliance retention answer.
+Failure if omitted: no local record of the canonical instruction
+  we submitted (application intent — NOT wire bytes, §14.1 honesty
+  note); forensics fall back to the §14 hash line + a
+  UETR/key-keyed platform inquiry — the designed degraded state.
 ```
 

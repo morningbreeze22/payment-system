@@ -47,8 +47,9 @@ root-cause incident.
 - UI/card false-completion prevention: completion-predicate
   anomalies (COMPLETED with active request — should be impossible;
   presence = defect)                    → alert
-- §14.1 journal: write failure (posting pauses
-  fail-safe — own tablespace)           → alert
+- §14.1 journal: write failure → AUDIT-GAP alert
+  (posting CONTINUES — never load-bearing;
+  gap recoverable via §14 line + UETR inquiry)   → alert
 - §14.1 journal: unmatched ATTEMPT_STARTED older
   than one lease window                 → alert (crash evidence)
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
