@@ -1,4 +1,4 @@
-> **Purpose:** Task cards B-01..B-04 and CA-1..CA-9 (§18 gates + companion artifacts) (original Section H, phase P2).
+> **Purpose:** Task cards B-01..B-04 and CA-1..CA-10 (§18 gates + companion artifacts; CA-10 OPTIONAL) (original Section H, phase P2).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P2.
@@ -313,6 +313,30 @@
 - **Common mistakes:** allowing outcome values beyond EXECUTED/REJECTED.
 - **Completion criteria:** spec published.
 - **Stop condition:** published; OP-01 unblocked.
+- **Next task:** CA-10 (OPTIONAL — or straight to S-01, Phase P3, if the team declines it).
+
+### CA-10 — Author the OPTIONAL attempt-audit journal spec (team-internal)
+
+- **Task ID:** CA-10
+- **Title:** OPTIONAL team-internal attempt-audit journal (payment_attempt_journal, ops/audit schema): spec + DDL + the two insert riders (rule-13 second sanctioned exception, recorded 2026-07-16)
+- **Classification:** OPTIONAL companion artifact — team-internal audit; NOT §16.6; NEVER go-live gated.
+- **Purpose:** DB-grade, SQL-joinable audit of POSTING attempts beyond the §14 90-day log floor; an audit sink, NEVER state — the §14 log line and the journal row are the same record with two sinks.
+- **Prerequisites:** the PO-recorded driver (2026-07-16 — without it, DECLINE and record the decision); CA-4 (schema authority alignment); CA-6 (payload_hash = the last_sent_hash algorithm).
+- **Requirement sections / concepts to read:** §14, §7.0, §7.2 (outcome classes), §2.2 (write-ahead fields), §11 (claim/lease + expiry takeover), file 12 CA-10 spec, file 24 M9.
+- **Placeholder components involved:** none (DBA-owned ops/audit schema).
+- **Local placeholder mappings required before starting:** none for authoring.
+- **Local code areas to discover:** none for authoring (the riders name their sites: posting claim + episode-ending transactions).
+- **How to locate:** n/a.
+- **Implementation instructions:** author the spec exactly per file 12 CA-10 (DDL incl. UNIQUE(request_id, attempt_no, event_type) and monthly partitioning; the two same-transaction riders — STARTED in the posting claim, RESOLVED in whichever transaction ends the episode incl. LEASE_EXPIRED_MAYBE; fail-safe coupling with a write-failure alert; autonomous transactions FORBIDDEN; INSERT-only; restricted grants; POSTING attempts only). Record the team's adopt/decline decision in the tracker row.
+- **Do not change:** the four §2 tables; the §14 line; divergence_expected/last_sent_hash (the journal REPLACES NOTHING — the V11-17 rejection scope is intact); the no-runtime-read guardrail.
+- **Tests to add:** none here (rider tests live with the posting-path cards if adopted).
+- **Edge cases:** unmatched STARTED older than one lease window = alert, not defect-silence; TX1 rollback removes the STARTED row with the claim — correct, never "fixed" with an autonomous transaction.
+- **Manual validation:** DBA + ops review; PO driver on record.
+- **Expected outcome:** published spec + recorded adopt/decline decision.
+- **Failure signs:** any scanner/gate/derivation reading the journal; UPDATE/DELETE grants; autonomous transactions; journal rows for ENRICH retries.
+- **Common mistakes:** inventing outcome vocabulary (must mirror §7.2 verbatim + LEASE_EXPIRED_MAYBE); journaling the whole request lifecycle (scope = POST attempts only).
+- **Completion criteria:** spec published; decision recorded.
+- **Stop condition:** published (or DECLINED and recorded).
 - **Next task:** S-01 (Phase P3).
 
 
@@ -320,7 +344,7 @@
 
 ## Phase handoff summary (P2 → P3)
 
-- **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-9 authored, owned, versioned.
+- **Phase outputs:** written answers/records for §18 items 0–3 (B-01..B-04); companion artifacts CA-1..CA-9 authored, owned, versioned; CA-10 (OPTIONAL attempt-audit journal) explicitly adopted or declined, decision recorded.
 - **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0's residue blocks IN-02 ONLY (the §6 consumer freeze; the scope model is a settled §1 contract fact, so S-02/S-03/S-05, K-02/K-03 and the CA-4/CA-5 freeze are NOT gated — normalized 2026-07-11); §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 is CLOSED (round 10 — engine owns the calendar); §18-3 default path = OP-01..03.
 - **Local mapping rows expected filled:** none new (document phase).
 - **Tests expected to exist:** none new; CA-5 golden vectors DRAFTED (executed as tests in P4); CA-7 catalog seeded from the test matrix.

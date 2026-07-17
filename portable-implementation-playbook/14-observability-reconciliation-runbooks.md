@@ -47,6 +47,10 @@ root-cause incident.
 - UI/card false-completion prevention: completion-predicate
   anomalies (COMPLETED with active request — should be impossible;
   presence = defect)                    → alert
+- CA-10 journal (ONLY if adopted): write failure (posting pauses
+  fail-safe — own tablespace)           → alert
+- CA-10 journal (ONLY if adopted): unmatched ATTEMPT_STARTED older
+  than one lease window                 → alert (crash evidence)
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)

@@ -41,6 +41,7 @@ a status; every DONE row has a filed execution report (file 19).
 | 23 | CA-7 | TODO | | | |
 | 24 | CA-8 | TODO | | | |
 | 25 | CA-9 | TODO | | | |
+| 25a | CA-10 | TODO | | | (OPTIONAL — record adopt/decline here; never gates) |
 | 26 | S-01 | TODO | | | |
 | 27 | S-02 | TODO | | | |
 | 28 | S-03 | TODO | | | |

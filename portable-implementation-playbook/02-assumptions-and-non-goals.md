@@ -31,11 +31,13 @@
 5. The data model is exactly four core tables: payment_obligation,
    payment_request, processed_inbound_event, trade_snapshot_state
    (§2 — the fourth added 2026-07-11 round 5, admission gate). Plus
-   ONE sanctioned non-payment store: the §9.3 ops-schema approval
-   record. No other new persistent tables, journals, outboxes,
-   parked-event tables, attempt-history tables, manual-action
-   tables, or audit-history tables. A task that appears to need a
-   new table is a SPEC_CONFLICT, not a new table.
+   TWO sanctioned non-payment OPS-SCHEMA stores (rule 13): the §9.3
+   approval record (CA-9) and the OPTIONAL CA-10 attempt-audit
+   journal (2026-07-16 — INSERT-only, never read at runtime). No
+   other new persistent tables, journals, outboxes, parked-event
+   tables, attempt-history tables, manual-action tables, or
+   audit-history tables. A task that appears to need a new table is
+   a SPEC_CONFLICT, not a new table.
 ```
 
 **Non-goals**
@@ -55,7 +57,9 @@
    re-POST, auto-unlatch, UETR generation/validation, runtime
    collision-contract gating, the resumable EXECUTING approval
    execution record — round 5, §9.3) stay rejected and are not
-   re-proposed.
+   re-proposed. (The OPTIONAL CA-10 journal is NOT the rejected
+   attempt-history alternative: it replaces nothing and is never
+   read at runtime — rule 13(b).)
 4. NO re-opening of §1.1 Basic Agreements (BA-1 scope-key mutability,
    BA-2 no upstream cancellation, BA-3 ordering is upstream's
    responsibility) or the §1 contract facts.

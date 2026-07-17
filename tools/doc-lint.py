@@ -245,6 +245,18 @@ for path in MAINTAINED:
         if re.search(r"[ \t]+$", line):
             errors.append(f"{rel(path)}:{n}: trailing whitespace (breaks git diff --check)")
 
+# ---- Rule 6h (CA-10): journal guard sentences present wherever the journal exists ----
+ca10_present = any(
+    "payment_attempt_journal" in "\n".join(lines_of(p)) for p in MAINTAINED
+)
+if ca10_present:
+    ca_text = "\n".join(lines_of(PORTABLE / "12-companion-artifacts.md"))
+    if "INSERT-only" not in ca_text or "NO runtime rule" not in ca_text:
+        errors.append("12-companion-artifacts.md: payment_attempt_journal exists in the doc set but the CA-10 INSERT-only / no-runtime-read guard sentences are missing (rule 6h)")
+    r16_text = "\n".join(lines_of(PORTABLE / "16-local-agent-instructions.md"))
+    if "CA-10" not in r16_text:
+        errors.append("16-local-agent-instructions.md: payment_attempt_journal exists in the doc set but rule 13 carries no CA-10 exception (rule 6h)")
+
 # ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
 P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"
 if P3_ORDER not in seq_text:

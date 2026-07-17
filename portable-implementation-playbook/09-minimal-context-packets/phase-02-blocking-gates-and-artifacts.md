@@ -1,4 +1,4 @@
-> **Purpose:** Minimal context packets B-01..B-04, CA-1..CA-9 — paste-alone briefs for a small-context local agent (original Section I, phase P2).
+> **Purpose:** Minimal context packets B-01..B-04, CA-1..CA-10 — paste-alone briefs for a small-context local agent (original Section I, phase P2; CA-10 OPTIONAL).
 > **When to use this file:** Paired with the matching task-card file 08-task-cards/02-blocking-gates-and-artifacts.md — one packet per task, used as the working brief.
 > **Depends on:** 09-minimal-context-packets/README.md; the matching task card; the requirement sections each packet cites; 07-placeholder-glossary.md.
 > **Used by:** The local coding agent executing phase P2.
@@ -109,5 +109,13 @@ Read: §9.3 (operation + approval workflow) §10.1 §10.3 §20-8 §16.6 artifact
 Placeholders: [Operator Admin Procedure Area]. Mappings: none.
 Objective: spec EXECUTION signature = approval_id ONLY (round 4 — the approval record carries the authenticated initiator/approver identities, action binding incl. request_id + EXECUTED|REJECTED + ticket ref + nonce; identities are DERIVED, never inputs), consumption semantics per operation class (§9.3), evidence-flag mechanics, refusals (CLAIMED/terminal/amount mismatch), money effects, audit fields, alert, restricted role, drill script.
 Tests: none (OP-02). Stop: published; OP-01 unblocked.
+```
+
+```text
+[CA-10] OPTIONAL attempt-audit journal spec (payment_attempt_journal)
+Read: §14 §7.0 §7.2 §2.2 §11; file 12 CA-10; file 24 M9. Invariant: audit sink NEVER state — no runtime rule, scanner, gate, resolver, or derivation may read it; INSERT-only forever; ops/audit schema (rule-13 SECOND sanctioned exception, 2026-07-16); it replaces NOTHING (§14 line + divergence_expected + last_sent_hash all stay — the V11-17 rejection scope is intact); never go-live gated.
+Placeholders: none (DBA ops/audit schema). Mappings: none.
+Objective: spec the DDL (request_id no-FK, idempotency_key denormalized, attempt_no, event_type ATTEMPT_STARTED|ATTEMPT_RESOLVED, occurred_at UTC monthly-partition key, trigger_source, correlation_id, payload_hash, payload_json, outcome = §7.2 classes verbatim + LEASE_EXPIRED_MAYBE, error/response fields, UNIQUE(request_id, attempt_no, event_type)) and the TWO same-transaction riders: STARTED in the posting claim beside the write-ahead fields; RESOLVED in whichever transaction ends the episode (worker classification OR lease-expiry takeover). Fail-safe coupling (journal failure fails the posting tx; own tablespace + alert); autonomous transactions FORBIDDEN; restricted grants (payload = account data); POSTING attempts only.
+Tests: none here (riders test with posting-path cards). Stop: published + team adopt/decline recorded in the tracker.
 ```
 

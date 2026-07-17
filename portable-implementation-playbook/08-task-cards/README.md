@@ -48,7 +48,7 @@ locally into sub-tasks (suffix .1, .2 …) and report the split.
 | File | Tasks | Phase |
 |---|---|---|
 | phase-01-discovery.md | D-01..D-12 | P1 |
-| phase-02-blocking-gates-and-artifacts.md | B-01..B-04, CA-1..CA-9 | P2 |
+| phase-02-blocking-gates-and-artifacts.md | B-01..B-04, CA-1..CA-10 (CA-10 optional) | P2 |
 | phase-03-schema-and-migration.md | S-01..S-10 | P3 |
 | phase-04-identity-and-idempotency.md | K-01..K-06 | P4 |
 | phase-05-uetr-response-persistence.md | U-01..U-03 | P5 |

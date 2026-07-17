@@ -68,18 +68,28 @@ the sections that govern it.
 13. Never invent tables, journals, outboxes, parked-event tables,
     attempt-history tables, or audit-history tables. If an
     implementation seems to need one, report SPEC_CONFLICT.
-    SINGLE SANCTIONED EXCEPTION (2026-07-11 round 3): the §9.3
-    two-step approval workflow's pending-approval record — a small
-    OPS-SCHEMA store, operational workflow state OUTSIDE the §2
-    payment data model (the four §2 tables). Its spec lives
-    in CA-9; nothing payment-state may ever be stored there.
+    TWO SANCTIONED EXCEPTIONS — both OPS-SCHEMA stores OUTSIDE the
+    §2 payment data model (the four §2 tables), each permitted ONLY
+    on the card that names it:
+    (a) 2026-07-11 round 3: the §9.3 two-step approval workflow's
+        pending-approval record — spec in CA-9; nothing
+        payment-state may ever be stored there.
+    (b) 2026-07-16 (PO-recorded driver — team-internal attempt
+        audit, SQL-joinable, retention beyond the §14 90-day log
+        floor): the OPTIONAL payment_attempt_journal — spec in
+        CA-10; INSERT-only forever, and NO runtime rule, scanner,
+        gate, resolver, or derivation may EVER read it (an audit
+        sink, never state).
 14. Tasks marked BLOCKED on §18 items stay blocked until the human
     owner records the answer. Do not "unblock" them by assuming.
 15. Rejected design alternatives recorded in requirment-v4.md
     (derived committed_amount, attempt-history table, payload freeze,
     auto-unlatch, materiality re-POST, consecutive-answer counter,
     UETR generation/validation) are settled. Do not re-propose or
-    implement them.
+    implement them. (CA-10 does NOT reopen the attempt-history
+    rejection: V11-17 was rejected as a REPLACEMENT for the
+    divergence fields and as history-read-as-state; CA-10 replaces
+    nothing and is never read at runtime — rule 13(b).)
 16. When the spec and this playbook seem to disagree, the spec
     (`requirment-v4.md`) wins — report the discrepancy.
 17. Before ANY implementation card (every card except discovery and

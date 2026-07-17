@@ -42,7 +42,9 @@ Go-live blocking: no (but P2+ cannot start safely without it).
 ```text
 Goal:            Drive answers to §18 BLOCKING items 0–3 (record, not
                  decide); author the nine §16.6 companion artifacts
-                 with named owners.
+                 with named owners (+ the OPTIONAL CA-10 attempt-audit
+                 journal spec — team-internal, not §16.6, never
+                 gating; adopt/decline recorded).
 Why here:        §18-0's residue gates the §6 consumer (D graph #1);
                  CA-1/2/3/5/6 are inputs to implementation phases;
                  CA-4 is the P3 deliverable spec; CA-9 is P11's spec.

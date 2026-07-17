@@ -507,3 +507,62 @@ triggers stay as the DB backstop:**
     traces (§12/§16.3)
 [ ] no rule/decision logic keyed on display labels (§10.4)
 ```
+
+## M9. OPTIONAL attempt-audit journal riders (CA-10 — only if adopted)
+
+Skip this section entirely unless the tracker records CA-10 as
+ADOPTED. The journal is an audit sink, never state: INSERT-only,
+ops/audit schema, and NO runtime rule, scanner, gate, resolver, or
+derivation may ever read it (rule 13(b); spec in file 12 CA-10).
+The riders are single INSERT statements added INSIDE two
+transactions that already exist — no new commit points, no new
+locks, no SHAPE changes (each rider is one more statement inside an
+existing SHAPE-CAS transaction).
+
+Rider 1 — ATTEMPT_STARTED, in the posting-claim transaction (M1/M4),
+beside the §2.2 write-ahead fields:
+
+```sql
+INSERT INTO audit.payment_attempt_journal
+  (request_id, idempotency_key, attempt_no, event_type, occurred_at,
+   trigger_source, correlation_id, payload_hash, payload_json)
+VALUES
+  (:id, :key, :attemptNo, 'ATTEMPT_STARTED',
+   SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash, :payload);
+-- :attemptNo = the post-bump attempt_count of THIS claim
+```
+
+Rider 2 — ATTEMPT_RESOLVED, in WHICHEVER transaction ends the
+attempt episode: the worker's §7.2 classification CAS, OR the
+lease-expiry takeover (then outcome = 'LEASE_EXPIRED_MAYBE'). The
+dimension CAS arbitrates the race — insert ONLY on rowCount 1:
+
+```sql
+INSERT INTO audit.payment_attempt_journal
+  (request_id, idempotency_key, attempt_no, event_type, occurred_at,
+   trigger_source, correlation_id, outcome, error_code, error_detail,
+   response_excerpt)
+VALUES
+  (:id, :key, :attemptNo, 'ATTEMPT_RESOLVED',
+   SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :outcome,
+   :errCode, :errDetail, :responseExcerpt);
+-- :outcome = the §7.2 class VERBATIM (+ LEASE_EXPIRED_MAYBE);
+-- never an invented vocabulary
+```
+
+Binding rules (SHAPE — tick with the host card's checklist):
+
+```text
+[ ] both riders run in the SAME transaction as their host CAS —
+    NEVER an autonomous transaction (phantom STARTED on rollback),
+    NEVER a separate commit
+[ ] rider 2 executes only on the host CAS rowCount == 1
+[ ] journal failure fails the host transaction (fail-safe: posting
+    pauses, money never at risk) — own tablespace + the N.1
+    write-failure alert
+[ ] POSTING attempts only — no ENRICH retries, no resolver
+    settlements, no lifecycle events
+[ ] no SELECT from the journal anywhere in runtime code (code review
+    greps for reads; ops/reporting queries live outside the app)
+[ ] schema/table/column names adapt per M0; shapes above are BINDING
+```
