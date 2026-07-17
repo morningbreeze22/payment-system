@@ -51,7 +51,9 @@ root-cause incident.
   (posting CONTINUES — never load-bearing;
   gap recoverable via §14 line + UETR inquiry)   → alert
 - §14.1 journal: unmatched ATTEMPT_STARTED older
-  than one lease window                 → alert (crash evidence)
+  than one lease window                 → alert (crash evidence;
+  planned §14.1 switch transitions — freeze-gated — are recorded
+  and EXCLUDED by triage)
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)

@@ -34,6 +34,14 @@
     level, and never payment-state; the journal is INSERT-only and
     never read at runtime, so the V11-17 rejection scope stays
     intact.
+[x] INVARIANT-CHANGE PROPAGATION CHECKLIST (added after review
+    d00ef6a H1 — a stale phase-02 packet survived one fold): every
+    commit that changes a normative invariant MUST grep the WHOLE
+    maintained set for the superseded wording (cards, packets,
+    mechanics, tests, pseudocode, HTML, go-live files) and either
+    update or explicitly allowlist each hit; the forbidden-token
+    lint rules are the mechanical backstop, and each superseded
+    design earns its own forbidden-token entry at fold time.
 [x] No future/post-MVP/PO-discussion work promoted to MVP: §5.2 DR
     runbook (C18), key-only anchoring (C25), §19.1/19.2/19.3
     (C69-71), ops console (C72) are classified FUTURE/QUESTION;

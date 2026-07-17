@@ -515,12 +515,23 @@ state: INSERT-only, ops/audit schema, and NO runtime rule, scanner,
 gate, resolver, or derivation may ever read it (rule 13(b)). The
 riders are single INSERT statements added INSIDE two transactions
 that already exist — no new commit points, no new locks, no SHAPE
-changes. NEVER LOAD-BEARING (§14.1, PO 2026-07-17): the journal
-must never pause, fail, or gate a payment — every rider is
-FAILURE-ISOLATED (catch the insert error, raise the AUDIT-GAP
-alert, let the host transaction proceed; Oracle statement-level
-rollback makes this safe) and SWITCH-GATED (§14.1 enablement
-switch OFF → skip the insert entirely, no error).
+changes. NEVER LOAD-BEARING, as a NARROW GUARANTEE (§14.1, revised
+per review d00ef6a H3): every rider is SWITCH-GATED (§14.1 switch
+OFF → skip entirely, no error) and STATEMENT-ISOLATED — a plain
+try/catch around the single INSERT with NO inner @Transactional
+boundary (inner participation would mark the host rollback-only:
+the exact Spring trap this rule forbids). Statement-local failures
+(unique/CHECK/trigger violations, space errors, statement timeout)
+are swallowed: record the gap in memory/metrics and CONTINUE; the
+AUDIT-GAP alert is emitted AFTER the host COMMIT (side effects
+after commit — a rolled-back host never reports a phantom gap).
+FATAL failures (connection loss, session kill, commit failure) are
+NOT isolatable — they fail the host transaction as ordinary infra
+failures, which existing recovery already handles (uncommitted
+claim → row stays READY/RETRY_WAIT; committed claim → lease expiry
+→ MAYBE). The provable contract: the journal can never cause an
+INCORRECT payment outcome (T-38 F exercises both classes on the
+real JDBC/Spring stack, both riders).
 
 Rider 1 — ATTEMPT_STARTED, in the posting-claim transaction (M1/M4,
 card K-04), beside the §2.2 write-ahead fields. The claim CAS also
@@ -540,19 +551,24 @@ BEGIN
      SYS_EXTRACT_UTC(SYSTIMESTAMP), :trigger, :corr, :hash,
      :content);
 EXCEPTION WHEN OTHERS THEN
-  raise AUDIT-GAP alert + metric; CONTINUE the host transaction
+  record gap (memory/metric only); CONTINUE the host transaction
+  -- the AUDIT-GAP ALERT fires AFTER the host COMMIT, never here
 END;
 -- :postSeq  = the post-increment post_attempt_seq of THIS claim
 -- :content  = the FULL CA-6 canonical bytes, EVERY attempt
 --             (§14.1 simplicity rule — no dedup, no content_ref;
---             in Java the "BEGIN/EXCEPTION" is a try/catch around
---             the statement, never a new transaction)
+--             in Java the "BEGIN/EXCEPTION" is a plain try/catch
+--             around the JdbcTemplate statement — NEVER a nested
+--             @Transactional and NEVER a new transaction: inner
+--             participation marks the host rollback-only)
 ```
 
 Rider 2 — ATTEMPT_RESOLVED, in WHICHEVER transaction ends the
 attempt episode: RC-02's §7.2 classification CAS, OR ST-10's
 lease-expiry takeover (then outcome = 'LEASE_EXPIRED_MAYBE'). The
-dimension CAS arbitrates the race — insert ONLY on rowCount 1:
+dimension CAS arbitrates the race — insert ONLY on rowCount 1, and
+with the SAME statement isolation as rider 1 (try/catch, no inner
+transaction, gap alert after commit):
 
 ```sql
 INSERT INTO audit.payment_attempt_journal
@@ -573,11 +589,16 @@ Binding rules (SHAPE — tick with the host card's checklist; T-38):
 [ ] both riders run in the SAME transaction as their host CAS —
     NEVER an autonomous transaction (phantom STARTED on rollback),
     NEVER a separate commit
-[ ] both riders are FAILURE-ISOLATED: an insert error raises the
-    AUDIT-GAP alert + metric and the host transaction PROCEEDS —
-    the journal never fails, pauses, or gates a payment (T-38 F)
+[ ] both riders are STATEMENT-ISOLATED: plain try/catch, NO inner
+    @Transactional (rollback-only trap); statement-local failures
+    → gap recorded, host PROCEEDS; the AUDIT-GAP alert fires only
+    AFTER the host COMMIT; fatal session/commit failures = normal
+    infra failures handled by existing recovery (T-38 F, both
+    riders, real JDBC/Spring stack)
 [ ] both riders are SWITCH-GATED (§14.1 enablement switch; OFF in
-    production until the Q30 journal items are evidenced)
+    production until the Q30 journal items are evidenced; the
+    switch changes state ONLY under posting freeze + drain — §14.1
+    switch-transition rule, T-38 J)
 [ ] payload_content = the FULL canonical bytes on EVERY STARTED —
     no dedup, no content_ref (T-38 E; consecutive-dedup is a
     FUTURE Q31-gated optimization, §14.1)

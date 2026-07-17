@@ -214,32 +214,78 @@ Driver (PO-recorded 2026-07-16): the request actually sent to the
   form; status is queryable, content is not) — incidents and audit
   need a RELIABLE local record of what each posting attempt
   intended to send.
-Purpose: the implementable spec of §14.1 — DDL, the two riders, the
-  dedup rule, the security package, retention. AUD-01 deploys the
-  DDL; K-04, RC-02, and ST-10 carry the riders.
+Purpose: the implementable spec of §14.1 — the RUNNABLE DDL, the
+  two riders, the simplicity + narrow-guarantee rules, the security
+  package, retention. AUD-01 deploys the DDL; K-04, RC-02, and
+  ST-10 carry the riders.
 Required contents:
-  - EXECUTABLE DDL CONTRACT per §14.1 (names adapt per file 24 M0;
-    review 7ab31e5 M3 — no judgment left to the executor):
-    payment_attempt_journal — every column with Oracle type,
-    length, and nullability; journal_id identity PK; request_id
-    (NO foreign key); idempotency_key denormalized;
-    post_attempt_seq (from the request row §2.2 — NEVER
-    attempt_count: it resets on the §9.2 downgrade and would
-    collide on the recovery re-POST); event_type ATTEMPT_STARTED |
-    ATTEMPT_RESOLVED with EVENT-SHAPE CHECK constraints (STARTED ⇒
-    payload_hash + payload_content NOT NULL, outcome NULL;
-    RESOLVED ⇒ outcome NOT NULL, payload_content NULL); occurred_at
-    UTC DEFAULT, monthly interval-partition key; trigger_source;
-    correlation_id; payload_hash (CA-6); payload_content (STARTED:
-    FULL content EVERY attempt — the §14.1 simplicity rule; no
-    dedup, no content_ref); outcome (§7.2 classes VERBATIM +
-    LEASE_EXPIRED_MAYBE); error_code; error_detail;
-    response_excerpt; UNIQUE(request_id, post_attempt_seq,
-    event_type) as a GLOBAL unique index + the partition
-    maintenance rule DROP PARTITION ... UPDATE GLOBAL INDEXES
-    (+ post-drop index-usability check); local index on
-    idempotency_key; SECUREFILE LOB clause + tablespace named;
-    own tablespace.
+  - THE RUNNABLE DDL (review d00ef6a H2 — actual SQL, no executor
+    judgment; <placeholders> adapt per file 24 M0; Flyway-versioned
+    at AUD-01 time). Two Oracle facts are BAKED IN and must not be
+    "corrected" away: (a) Oracle forbids CHECK constraints that
+    reference LOB columns — CLOB presence is trigger-enforced;
+    (b) BOTH unique structures (the PK and the pair key) omit the
+    partition key, so BOTH are GLOBAL indexes:
+
+    CREATE TABLE <audit_schema>.payment_attempt_journal (
+      journal_id       NUMBER GENERATED ALWAYS AS IDENTITY,
+      request_id       NUMBER        NOT NULL,  -- deliberately NO FK
+      idempotency_key  VARCHAR2(64)  NOT NULL,
+      post_attempt_seq NUMBER        NOT NULL,  -- §2.2, never attempt_count
+      event_type       VARCHAR2(16)  NOT NULL,
+      occurred_at      TIMESTAMP
+        DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP)  NOT NULL,
+      trigger_source   VARCHAR2(30)  NOT NULL,
+      correlation_id   VARCHAR2(64),
+      payload_hash     VARCHAR2(64),
+      payload_content  CLOB,          -- FULL every STARTED (no dedup, no content_ref)
+      outcome          VARCHAR2(30),
+      error_code       VARCHAR2(64),
+      error_detail     VARCHAR2(4000),
+      response_excerpt VARCHAR2(4000),
+      CONSTRAINT paj_pk PRIMARY KEY (journal_id),
+      CONSTRAINT paj_evt_ck CHECK
+        (event_type IN ('ATTEMPT_STARTED','ATTEMPT_RESOLVED')),
+      CONSTRAINT paj_shape_ck CHECK (   -- SCALAR columns only
+        (event_type = 'ATTEMPT_STARTED'
+           AND payload_hash IS NOT NULL AND outcome IS NULL)
+        OR (event_type = 'ATTEMPT_RESOLVED' AND outcome IS NOT NULL))
+      , CONSTRAINT paj_pair_uq UNIQUE (request_id, post_attempt_seq, event_type)
+    )
+    LOB (payload_content) STORE AS SECUREFILE (TABLESPACE <audit_lob_ts>)
+    TABLESPACE <audit_ts>
+    PARTITION BY RANGE (occurred_at)
+    INTERVAL (NUMTOYMINTERVAL(1,'MONTH'))
+    (PARTITION paj_p0 VALUES LESS THAN
+       (TIMESTAMP '2026-08-01 00:00:00 UTC'));
+
+    -- CLOB presence (STARTED must carry content) — trigger, because
+    -- a CHECK cannot reference a LOB:
+    CREATE OR REPLACE TRIGGER <audit_schema>.paj_content_bi
+    BEFORE INSERT ON <audit_schema>.payment_attempt_journal
+    FOR EACH ROW
+    BEGIN
+      IF :NEW.event_type = 'ATTEMPT_STARTED'
+         AND :NEW.payload_content IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20141,
+          'ATTEMPT_STARTED requires payload_content');
+      END IF;
+    END;
+
+    CREATE INDEX <audit_schema>.paj_key_ix
+      ON <audit_schema>.payment_attempt_journal (idempotency_key) LOCAL;
+
+    -- PARTITION MAINTENANCE (both global indexes): every retention
+    -- drop is
+    --   ALTER TABLE ... DROP PARTITION <p> UPDATE GLOBAL INDEXES;
+    -- and T-38 H verifies paj_pk AND paj_pair_uq stay USABLE.
+
+    GRANT INSERT ON <audit_schema>.payment_attempt_journal TO <app_role>;
+    GRANT SELECT ON <audit_schema>.payment_attempt_journal TO <audit_role>;
+    -- No UPDATE/DELETE grants to application or reporting roles;
+    -- owner/DBA access is change-controlled. Unified audit policy
+    -- on ALL access to the table (DBA-standard statement), reads
+    -- included.
   - The TWO riders (§14.1): ATTEMPT_STARTED in the posting-claim
     transaction (K-04) — write-ahead when healthy, NEVER a gate;
     ATTEMPT_RESOLVED in whichever transaction ends the episode —

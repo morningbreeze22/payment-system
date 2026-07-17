@@ -122,6 +122,9 @@ FORBIDDEN = [
     ("retired deadline/budget suspension model (round 3)",
      re.compile(r"deadline suspension|deadlines?\s+(?:are\s+)?suspend(?:ed|s)?\b|budgets?\s+(?:are\s+)?(?:suspended|frozen)\b|suspends the (?:retry )?budget", re.I),
      re.compile(r"had no durable|nothing to|nothing needs|never suspend|zero attempts|no wall-clock|REMOVED|lint", re.I)),
+    ("superseded journal design (2026-07-17: full content, never load-bearing — review d00ef6a H1)",
+     re.compile(r"content_ref|dedup-by-hash|once per distinct hash|journal failure (?:fails|pauses)|fail-the-claim", re.I),
+     re.compile(r"no content_ref|no dedup|REJECTED|FUTURE|historical|replaces|never|review|lint", re.I)),
 ]
 
 for path in MAINTAINED:

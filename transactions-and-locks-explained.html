@@ -474,7 +474,7 @@
         <span class="p-badge">rule B: slow validation deferred to the enrichment lease</span>
       </div>
     </div>
-    <div class="note">The Kafka offset is acknowledged only <strong>after</strong> commit — at-least-once redelivery plus ordering guards is the convergence mechanism. A block with a bad amount still writes its <strong>anchor row</strong> (required NULL + validation_failed marker) so the payment stays visible and recoverable — saving the obligation never waits for full validation.</div>
+    <div class="note">The Kafka offset is acknowledged only <strong>after</strong> commit — at-least-once redelivery plus ordering guards is the convergence mechanism. Validation is a <strong>whole-snapshot verdict</strong> (§6.0/§6.6): a snapshot that fails it applies <em>no amounts at all</em> — instead every extractable scope gets its <strong>anchor row</strong> / validation marker (required NULL + validation_failed, watermark NOT advanced) so the payments stay visible while nothing half-applies. Obligation saving needs only the 4 valid scope-key fields; deep per-payment validation is enrichment's job, never intake's.</div>
   </section>
 
   <!-- ================= REFERENCE ================= -->

@@ -110,14 +110,33 @@ surface), the §12 card read. Threads:
 [KAFKA LISTENER THREAD]
 onTradeSnapshot(record):
   try:
-    doc = parse(record)                          // fails → POISON
-    validateSnapshot(doc)                        // §6.0 HARD failures ONLY: schema,
-                                                 // within-snapshot tuple uniqueness,
-                                                 // UNPARSEABLE scope → POISON (§6.6:
-                                                 // no row possible). Per-block issues
-                                                 // (extractable scope, bad amount) do
-                                                 // NOT throw here — they flow to the
-                                                 // anchor branch in the fan-out below
+    doc = parse(record)                          // truly unparseable → POISON
+                                                 // (no scope extractable — §6.6:
+                                                 // no row possible; DLT + page)
+
+    // ---- VALIDATION: ONE verdict for the WHOLE snapshot (§6.0) ----
+    verdict = validateSnapshot(doc)              // schema, amounts, within-snapshot
+                                                 // tuple uniqueness — evaluated for
+                                                 // the WHOLE document, never per-block
+    if verdict == INVALID:                       // §6.6 snapshot note (review
+                                                 // d00ef6a H4): WHOLE-SNAPSHOT
+                                                 // validation failure —
+        // NO amounts applied from ANY block; upstream_ordering NOT
+        // advanced; blast radius = the TRADE (deliberate, fail
+        // closed): every extractable scope gets the marker
+        for scope in sortByScopeTuple(extractableScopes(doc)):
+          TX(anchorOrMark):
+            ob = SELECT payment_obligation FOR UPDATE
+                 (upsert anchor if absent: required := NULL — §6.6;
+                  colliding tuples share one anchor)
+            write validation_failed marker(doc.ordering)
+                 // §6.9 monotonic; recorded as
+                 // validation_failed_ordering; in-flight requests
+                 // UNTOUCHED (the marker is not a state input)
+            derive(ob)          // frontend: DATA_VALIDATION_FAILED
+            COMMIT
+        ack(record); return     // no admission, no fan-out; a later
+                                // CORRECTED message applies normally
 
     // ---- ADMISSION: its own TX; FIRST lock in the global order ----
     TX(admission):
@@ -154,11 +173,10 @@ onTradeSnapshot(record):
              // for saving an obligation; deep validation is enrichment's job
         if ob.ordering_tag >= doc.ordering: rollback; continue   // already applied
 
-        if block.scopeExtractableButInvalid:
-            ob.required := NULL                  // anchor (§6.6)
-            write validation_failed marker(doc.ordering)
-            // frontend: DATA_VALIDATION_FAILED surfaces via derive()
-        else if block.absentFromSnapshot:
+        // (no invalid-block branch here: validation was a
+        //  WHOLE-SNAPSHOT verdict above — every block in an
+        //  admitted snapshot is valid by construction)
+        if block.absentFromSnapshot:
             ob.required := 0                     // removal tombstone — ONLY the
                                                  // absence path writes 0 (§6.1/§4.1)
             handleActiveRequestOnRemoval()       // §6.4/§6.5, see S1.2
@@ -238,8 +256,11 @@ getAllPaymentsTable(filter):                     // §12 TABLE projection
   per joined row emit:
     row_type = REQUEST        (one row per request, request-id key)
              | OBLIGATION_ONLY (no request yet: obligation-id key,
-               "no request created" + reason = the obligation's
-               DERIVED active exception; request fields n/a)
+               "no request created" + NULLABLE reason = the derived
+               active exception when LIVE, else NULL with the
+               status carrying the story (§6.2 covered-on-arrival →
+               COMPLETED; retired anchor → CANCELLED /
+               REMOVED_BEFORE_REQUEST); request fields n/a)
     + obligation context on EVERY row (required/committed/confirmed,
       ui_step_status, exception, reopened)
     + request fields on REQUEST rows (amount, §10.4 label,
@@ -355,8 +376,12 @@ postAttempt(id):
         WHERE id AND stage='POST'
           AND (stage_state='READY' OR
                (stage_state='RETRY_WAIT' AND next_retry_at <= now))
-          AND outcome IS NULL AND divergent_payload_at IS NULL
-    if n == 0: rollback; return                  // lost race
+          AND outcome IS NULL
+          AND <ALL repost_permitted terms — §7.0/§11: divergent_payload_at
+               IS NULL AND NOT the stale-amount MAYBE condition; the claim
+               RE-CHECKS the full derived gate, never just the scan's view
+               (review d00ef6a H4 — the scan-to-claim race)>
+    if n == 0: rollback; return                  // lost race / gate closed
     payload = assembleFRESH(admittedSnapshotVia(trade_snapshot_state))
               // never cached bytes; enriched + current data (§7.0)
     hash    = canonicalHash(payload)             // CA-6
@@ -374,6 +399,11 @@ postAttempt(id):
     READY) or the lease expires into MAYBE — both safe (§11).
 
   // ---------- THE WIRE: no TX, no locks ----------
+  if freezeEffective(): return                   // §16.1 BOTH-ENDS rule: freeze is
+                                                 // checked before the claim AND
+                                                 // again here before the wire; an
+                                                 // abandoned claim resolves via
+                                                 // lease expiry (RC-09)
   try:
     resp = engineClient.post(payload, idempotency_key)   // SDK mints the
                                                          // UETR in-flight
@@ -527,8 +557,10 @@ onFeedEvent(e):
       // outcome write and before any money movement
       if evt.status == EXECUTED
          and evt.amount.compareTo(req.amount) != 0:
-        CAS stage_state := BLOCKED(AMOUNT_MISMATCH)
-            // sub stays SUBMITTED; outcome NOT written; CRITICAL;
+        CAS stage_state := BLOCKED(AMOUNT_MISMATCH),
+            sub := SUBMITTED                    // SET, not "stays" — §8:
+            // settlement evidence TIGHTENS even a MAYBE row (review
+            // d00ef6a H4); outcome NOT written; CRITICAL;
             // NO money movement — the guard PRECEDES the outcome CAS
       else:
         n = CAS request dims per rank

@@ -3005,10 +3005,14 @@ Field separation (amounts can never be conflated):
   and the cumulative counters — never one synthetic 120 row.
 Pre-request visibility: the OBLIGATION_ONLY row shows the scope
   tuple, the required amount (blank for a §6.6 anchor), "no
-  request created", and the REASON = the obligation's derived
-  active exception (§4.2) — always available by construction,
-  because every state that prevents request creation derives its
-  exception in the same transaction (§4).
+  request created", and a NULLABLE reason (review d00ef6a M2):
+  the derived active exception (§4.2) when one is LIVE; otherwise
+  NULL, with the status itself carrying the story — a §6.2
+  covered-on-arrival scope shows COMPLETED with no exception; an
+  anchor retired by absence shows CANCELLED (display note
+  REMOVED_BEFORE_REQUEST). Exception-blocked states always have a
+  live exception by construction (§4); the frontend never invents
+  a reason.
 Status precedence: step status is obligation-derived (§4.1) ONLY;
   REQUEST rows additionally carry the request's §10.4 label; the
   frontend recomputes NOTHING and no rule keys on any of it
@@ -3026,6 +3030,28 @@ Edges (unchanged, restated): NOT_STARTED = row absence; the one
 Read discipline: read-only, no locks; masking + content rules per
   §16.3/§12; freshness indicator wired to the §15 lag metric;
   result count is never a health signal.
+API/read contract (2026-07-17, review d00ef6a M2 — the projection
+is an API, not just a row shape):
+  - SCOPE: exactly two modes — single trade (business_id, the
+    card's sibling) and BOUNDED estate listing (mandatory
+    server-side filters + pagination; an unbounded all-rows dump
+    is never offered);
+  - AUTHORIZATION: the same read-only enterprise role/scoping as
+    the card (§16.3); entitlement enforced server-side — no
+    client-driven enumeration beyond the caller's scope;
+  - ROW KEY: composite (row_type, source_id) — REQUEST rows keyed
+    by request id, OBLIGATION_ONLY rows by obligation id; stable
+    across refreshes and pages;
+  - ORDERING/PAGINATION: deterministic order (obligation identity,
+    then request_seq); keyset cursor on that order (never OFFSET);
+    fixed page cap (config §16.6); consistency = per-page snapshot
+    honesty (the freshness indicator applies per response);
+  - FILTERS: server-side in estate mode at production history
+    volumes (status/exception/date); client-side filtering is a
+    single-trade convenience only;
+  - INDEX: the estate query rides a reviewed index (CA-4 addendum)
+    and its captured plan follows the same discipline as every
+    standing scan (Q5a).
 ```
 
 Step granularity (open, folded into the TL-2 read contract, §18):
@@ -3188,9 +3214,14 @@ GOVERNING STANCE (PO 2026-07-17, review 7ab31e5): this journal is
 PURELY team-internal tracking and audit. It must NEVER disturb
 payment processing — no journal condition may pause, fail, or gate
 a payment. If the journal has gaps, the fallback is the §14 log
-line (key, seq, hash — always present) plus a UETR /
-idempotency-key-keyed inquiry to the payment platform; this is why
-§5's UETR persistence rules matter more than this journal.
+line (key, seq, hash — always present) plus asking the payment
+platform: STATUS/outcome/reference are recoverable by
+UETR/idempotency-key QUERY (§9); exact CONTENT is recoverable only
+via a MANUAL platform-team request — an UNPROVEN capability
+(review d00ef6a M1; see the wire-capture ask below). Until that is
+evidenced, a missing journal row is an accepted, PERMANENT
+canonical-content gap. This is why §5's UETR persistence rules
+matter more than this journal.
 
 Position in the model: the §14 log line remains the transition
 record; this journal is the CONTENT record — two sinks of one
@@ -3234,9 +3265,9 @@ payment_attempt_journal
   local index on idempotency_key
 ```
 
-SIMPLICITY RULE (2026-07-17 — replaces the dedup-by-hash design,
-REJECTED as unimplementable under the no-read invariant, review
-7ab31e5 H1): payload_content is stored IN FULL on EVERY
+SIMPLICITY RULE (2026-07-17 — the dedup-by-hash design was REJECTED
+as unimplementable under the no-read invariant, review 7ab31e5 H1;
+this rule replaces it): payload_content is stored IN FULL on EVERY
 ATTEMPT_STARTED row. Retries usually repeat identical bytes; that
 redundancy is ACCEPTED — storage is bounded by partitions and is
 an audit-side cost, never a correctness input. FUTURE optimization,
@@ -3260,23 +3291,39 @@ new commit points, no new locks):
   (the CAS arbitrates the worker/sweep race; the UNIQUE constraint
   backstops).
 
-COUPLING — NEVER LOAD-BEARING (2026-07-17; replaces the earlier
-fail-the-claim rule, which let an audit table pause payments):
+COUPLING — NEVER LOAD-BEARING, stated as a NARROW GUARANTEE
+(2026-07-17, revised per review d00ef6a H3 — honest about the
+Spring/Oracle mechanics; replaces both the fail-the-claim rule and
+the over-broad "any error is harmless" claim):
 
-- The rider INSERT runs INSIDE the host transaction but is
-  FAILURE-ISOLATED: any insert error (tablespace full, constraint
-  defect, anything) is caught at the statement level, an AUDIT-GAP
-  alert + metric fire (§15), and the host transaction proceeds
-  untouched. Oracle statement-level rollback makes this safe; the
-  payment outcome is identical with or without the journal row.
+- The rider INSERT runs INSIDE the host transaction wrapped in
+  STATEMENT-LEVEL isolation: a plain try/catch around the single
+  INSERT, with NO inner transaction boundary (an inner
+  @Transactional participation would mark the host rollback-only —
+  the exact trap this rule forbids). STATEMENT-LOCAL failures —
+  unique/CHECK violations, space/tablespace errors, statement
+  timeout — are swallowed: the gap is recorded in memory/metrics
+  and the host transaction proceeds; the AUDIT-GAP alert is
+  emitted AFTER the host COMMIT (side effects after commit, §11 —
+  a rolled-back host must never report a phantom gap).
+- FATAL failures — connection loss, session termination,
+  commit-time failure, transaction invalidation — are NOT
+  isolatable by any mechanism. They fail the host transaction as
+  ORDINARY infrastructure failures, which the existing machinery
+  already recovers (an uncommitted claim leaves the row
+  READY/RETRY_WAIT for the next scan; a committed claim recovers
+  via lease expiry → MAYBE, §11). The PROVABLE guarantee is
+  therefore: THE JOURNAL CAN NEVER CAUSE AN INCORRECT PAYMENT
+  OUTCOME — not "no journal error can ever fail an attempt".
+  T-38 exercises both classes on the real JDBC/Spring stack.
 - Because the insert shares the host transaction, a host ROLLBACK
   still removes the journal row — no phantom STARTED rows.
   AUTONOMOUS TRANSACTIONS remain FORBIDDEN (they would create
   exactly those phantoms).
 - Gap recovery: the §14 line still records key/seq/hash for the
-  attempt; exact content is recoverable from the payment platform
-  by UETR/idempotency key (§5). A journal gap is an audit
-  degradation, never a money event.
+  attempt; status/outcome are recoverable by query (§9); exact
+  content only via the manual platform-team path above. A journal
+  gap is an audit degradation, never a money event.
 
 ENABLEMENT GATE (2026-07-17): journal writes sit behind a plain
 config switch, DEFAULT OFF in production, enabled only after the
@@ -3285,6 +3332,12 @@ explicitly approved, expiry-dated compensating-control exception)
 AND the compliance-approved retention schedule. Payments go-live
 does NOT wait for journal enablement — an OFF journal is simply the
 pre-2026-07-16 designed state (log-only forensics).
+SWITCH-TRANSITION RULE (review d00ef6a M3): the switch may change
+state ONLY under posting freeze + drain (§16.1) — flipping
+mid-traffic manufactures half-pairs (a RESOLVED without its
+STARTED, or vice versa) that would false-alarm the unmatched-pair
+alert. Planned transitions are recorded so alert triage can
+distinguish them (§15/N.1); T-38 exercises both toggle directions.
 
 Security — the ONE controlled exception to §16.3's no-local-content
 rule:

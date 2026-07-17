@@ -498,7 +498,17 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
          - fully removed scope (required = 0) → rows remain,
            obligation context CANCELLED;
          - reappearance after CANCELLED → rows return to
-           IN_PROGRESS context, no duplicate placeholders.
+           IN_PROGRESS context, no duplicate placeholders;
+         - NULLABLE-reason edges (review d00ef6a M2): a §6.2
+           covered-on-arrival scope → OBLIGATION_ONLY row,
+           COMPLETED, reason NULL; an anchor retired by absence →
+           OBLIGATION_ONLY row, CANCELLED, reason NULL
+           (REMOVED_BEFORE_REQUEST display note);
+         - API contract (§12): deterministic ordering + keyset
+           pagination — each row seen exactly once across page
+           boundaries; estate mode REFUSES unbounded queries;
+           server-side authorization scoping enforced; composite
+           row key (row_type, source_id) stable across refreshes.
 Failure: false completion (the predicate's whole point), a
          multi-payment trade surfacing as an error or partial
          result, a duplicate placeholder beside a request row, or
@@ -799,20 +809,38 @@ Cases:
      identical-retry run AND the H1 -> H2 -> H1 alternating run
      (review 7ab31e5 H1: no NULL content, no refs, ever); changed
      bytes also record divergence_expected TRUE at claim.
-  F  journal outage (tablespace-full simulation): posting CONTINUES
-     (wire calls proceed, money outcomes identical), the AUDIT-GAP
-     alert fires per failed insert, host transactions commit
-     unaffected; gaps are visible; clean resume after recovery.
+  F  failure isolation on the REAL JDBC/Spring stack, BOTH riders
+     (review d00ef6a H3 - the narrow guarantee):
+     (i) statement-local classes - tablespace-full, unique/CHECK/
+         trigger violation, statement timeout: posting CONTINUES
+         (wire calls proceed, money outcomes identical), the gap is
+         recorded, and the AUDIT-GAP alert fires AFTER the host
+         COMMIT (a rolled-back host reports nothing); assert NO
+         rollback-only marking / no UnexpectedRollbackException
+         (the rider uses a plain try/catch, no inner
+         @Transactional).
+     (ii) fatal classes - connection kill mid-insert, session
+         termination, commit-time failure: the attempt fails as an
+         ORDINARY infra failure and existing recovery handles it
+         (uncommitted claim -> row READY/RETRY_WAIT; committed ->
+         lease expiry -> MAYBE); money is never wrong.
      Sub-case: enablement switch OFF -> zero inserts, zero errors,
      posting unaffected.
-  G  grants: the app role cannot SELECT; no role can UPDATE/DELETE;
-     audit-role reads appear in the DB audit trail.
+  G  grants: the app role cannot SELECT; no app/reporting role has
+     UPDATE/DELETE; audit-role reads appear in the DB audit trail.
   H  partition maintenance: DROP PARTITION ... UPDATE GLOBAL INDEXES
-     leaves the global unique index USABLE (verified); event-shape
-     CHECKs reject malformed STARTED/RESOLVED rows.
+     leaves BOTH global unique structures (paj_pk AND paj_pair_uq)
+     USABLE (verified); the scalar shape CHECK and the content
+     trigger reject malformed STARTED/RESOLVED rows (STARTED
+     without content refused by the trigger).
   I  log join: every journal event pair joins unambiguously to its
      ATTEMPT-class log lines via (request_id, post_attempt_seq,
      event type) - review 7ab31e5 M5.
+  J  switch transitions (review d00ef6a M3): OFF->ON and ON->OFF
+     under posting freeze + drain -> NO half-pairs; a mid-traffic
+     flip in the harness DOES create one (documents why the rule
+     exists); planned transitions are recorded and excluded by the
+     unmatched-pair alert triage.
 Expected: all cases green + grep/review evidence that NO runtime
          code path SELECTs the journal.
 Failure meaning: either the journal disturbed payment processing
@@ -820,6 +848,7 @@ Failure meaning: either the journal disturbed payment processing
          become state - both violate section 14.1.
 Type: integration (real Oracle) + fault injection. BLOCKING: yes
          (it proves the journal CANNOT hurt the money path).
-Implemented by: AUD-01 (schema slice + G + H), K-04 (A, B, E, F),
-RC-02 (D, I), ST-10 (C), OB-05 (F alert wiring).
+Implemented by: AUD-01 (schema slice + G + H + the switch), K-04
+(A, B, E, F), RC-02 (D, I), ST-10 (C), OB-05 (F alert wiring +
+J triage rules).
 ```
