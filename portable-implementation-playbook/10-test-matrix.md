@@ -436,15 +436,26 @@ Implemented by: OP-02's wedge assertion + RC-07/RC-08.
 ### T-29 — Drift scanner
 
 ```text
-Section: §3, §10.3 L9   Type: INTEGRATION + OPERATIONAL   Blocking: YES
+Section: §3, §10.3 L9, §6.6   Type: INTEGRATION + OPERATIONAL   Blocking: YES
 Purpose: I1/I2 violations page; read skew does not; L9 verified.
+         PLUS (non-blocking sub-case, b1d91dc M1) the §6.6
+         accepted-window candidate diagnostic: query correctness
+         only — it is OPTIONAL and ON-DEMAND, so NO schedule, index,
+         or EXPLAIN-plan assertions exist for it.
 Setup:   seeded counter corruption; concurrent uncommitted create;
-         REJECTED row missing its marker.
-Action:  run the scan.
+         REJECTED row missing its marker; seeded escape-schedule
+         window (sibling request created after a LIVE
+         validation_failed anchor, below its failure ordering) +
+         an ordinary request created BEFORE the failure.
+Action:  run the scan; run the candidate diagnostic one-shot.
 Expect:  corruption pages after locked re-check; skew does not page;
-         L9 violation detected.
+         L9 violation detected; the seeded window row IS emitted as
+         LOWER_ORDER_SIBLING_REQUEST_AFTER_VALIDATION_MARKER_CANDIDATE
+         (masked), the pre-failure request is NOT; the candidate is
+         a metric/log event only — never a page or gate.
 Failure: silent drift → the deliberate counter redundancy pays
-         nothing.
+         nothing; candidate auto-classified or paging → violates
+         the §6.6 manual-triage-only decision.
 Implemented by: OB-01.
 ```
 
@@ -912,6 +923,8 @@ Failure meaning (review 4d5cb83 L1 — aligned with the narrow
 Type: integration (real Oracle) + fault injection. BLOCKING: yes
          (it proves the journal CANNOT hurt the money path).
 Implemented by: AUD-01 (schema slice + G + H + the switch), K-04
-(A, B, E, F), RC-02 (D, I), ST-10 (C), OB-05 (F alert wiring +
-J triage rules).
+(A, B, E, F), RC-02 (D), ST-10 (C), OB-05 (F alert wiring +
+J triage rules); I = ST-08 (the §14 line convention: post_attempt_seq
++ event type on ATTEMPT-class lines) together with K-04/RC-02/ST-10
+(the three ATTEMPT-class emission sites) — review b1d91dc M3.
 ```

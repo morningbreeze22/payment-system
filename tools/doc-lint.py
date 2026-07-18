@@ -132,16 +132,61 @@ FORBIDDEN = [
 
 # ---- Multiline semantic rules (2b697fb L1): matched against the WHOLE
 # file text so line-wrapping cannot hide a forbidden clause; the allow
-# tokens are checked within the matched span's covering lines only
-# (never the rest of the file) ----
+# tokens are checked within the SAME SENTENCE as the match only
+# (b1d91dc L2 — an unrelated allow word elsewhere on a covering line
+# must never exempt a contradictory clause) ----
 MULTILINE_FORBIDDEN = [
     ("timeout classified as statement-local (928341a H2: timeouts are FATAL by default)",
      re.compile(r"statement\s+timeout[^.]{0,140}?(?:swallow|statement-local|continues|proceeds)|(?:swallow(?:ed)?|statement-local)[^.]{0,140}?statement\s+timeout", re.I | re.S),
      re.compile(r"NOT here|FATAL|are not|never|lint", re.I)),
-    ("unqualified 'no journal' (2b697fb M2: say no TRANSITION-HISTORY journal; the 14.1 attempt-content journal exists)",
-     re.compile(r"\bno\s+journal\b(?!\s+(?:failure|error|condition|gap))", re.I),
-     re.compile(r"transition-history|console keeps|attempt-content|lint", re.I)),
+    ("unqualified 'no journal' incl. adjective variants (2b697fb M2 + b1d91dc M2: say no TRANSITION-HISTORY / manual-action journal; the 14.1 attempt-content journal exists)",
+     re.compile(r"\bno\s+(?:local\s+|application\s+|app\s+)?journal\b(?!\s+(?:failure|error|condition|gap))", re.I),
+     re.compile(r"transition-history|manual-action|attempt-content|lint", re.I)),
 ]
+
+def _sentence_span(text, start, end):
+    """The sentence containing a multiline match. A period counts as a
+    sentence boundary only when followed by whitespace/end-of-text, so
+    decimals like '14.1' never truncate the span (b1d91dc L2)."""
+    s = 0
+    for b in re.finditer(r"\.(?=\s)", text[:start]):
+        s = b.end()
+    tail = re.search(r"\.(?=\s|$)", text[end:])
+    e = end + tail.start() + 1 if tail else len(text)
+    return text[s:e]
+
+# ---- Lint self-test fixtures (b1d91dc L2): table-driven, executed on
+# EVERY run; a mismatch is a lint error. These make the semantic rules'
+# behavior durable instead of a one-off chat-session assertion. ----
+LINT_FIXTURES = [
+    # (rule-name substring, sample text, should_trip)
+    ("timeout classified", "the statement\ntimeout is swallowed and the claim proceeds.", True),
+    # allow token in a DIFFERENT sentence on the same line must NOT exempt:
+    ("timeout classified", "a swallowed statement timeout continues posting. FATAL alerts page elsewhere.", True),
+    ("timeout classified", "statement timeouts are FATAL by default, never statement-local.", False),
+    ("unqualified 'no journal'", "there is no journal here.", True),
+    ("unqualified 'no journal'", "No local journal exists.", True),
+    ("unqualified 'no journal'", "no application journal is kept.", True),
+    ("unqualified 'no journal'", "no TRANSITION-HISTORY journal replaces the structured CAS log.", False),
+    ("unqualified 'no journal'", "no local manual-action or transition-history journal exists.", False),
+    ("unqualified 'no journal'", "no journal failure can pause posting.", False),
+]
+
+def _multiline_trips(rule_key, sample):
+    for name, trip, allow in MULTILINE_FORBIDDEN:
+        if rule_key in name:
+            for m in trip.finditer(sample):
+                if not allow.search(_sentence_span(sample, m.start(), m.end())):
+                    return True
+            return False
+    return None  # rule key matched no rule — itself a self-test failure
+
+for _key, _sample, _expected in LINT_FIXTURES:
+    _got = _multiline_trips(_key, _sample)
+    if _got is None:
+        errors.append(f"LINT-SELFTEST: no MULTILINE_FORBIDDEN rule matches key '{_key}'")
+    elif _got != _expected:
+        errors.append(f"LINT-SELFTEST [{_key}]: expected trip={_expected}, got trip={_got}: {_sample[:80]!r}")
 
 for path in MAINTAINED:
     if path.name == "18-playbook-quality-self-check.md":
@@ -151,12 +196,10 @@ for path in MAINTAINED:
             if trip.search(line) and not allow.search(line):
                 errors.append(f"{rel(path)}:{n}: forbidden phrase [{name}]: {line.strip()[:120]}")
     text = "\n".join(lines_of(path))
-    file_lines = text.split("\n")
     for name, trip, allow in MULTILINE_FORBIDDEN:
         for m in trip.finditer(text):
             start_line = text.count("\n", 0, m.start()) + 1
-            end_line = text.count("\n", 0, m.end()) + 1
-            span = "\n".join(file_lines[start_line - 1:end_line])
+            span = _sentence_span(text, m.start(), m.end())
             if not allow.search(span):
                 errors.append(f"{rel(path)}:{start_line}: forbidden multiline phrase [{name}]: {m.group(0)[:100]}")
 

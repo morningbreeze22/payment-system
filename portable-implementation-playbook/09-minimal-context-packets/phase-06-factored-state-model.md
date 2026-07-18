@@ -67,8 +67,8 @@ Tests: churn preserves maybe_since; re-entry = new episode; outcome clears. Stop
 [ST-08] CAS log line
 Read: §14 (whole) §16.3 (masking). Invariant: emitted only on rowCount==1; carries key+seq+correlation+tuple before→after+label+trigger fields; no account data, no instruction content.
 Placeholders: [Request Status Persistence Layer] [Metrics / Alerting Layer]. Mappings: logging conventions.
-Objective: one emission point in the CAS helper; posting-claim line adds hash+attempt count (K-05 convention).
-Tests: log-capture per transition family; masking. Stop: merged.
+Objective: one emission point in the CAS helper; posting-claim line adds hash + attempt count + post_attempt_seq (K-05 convention); EVERY ATTEMPT-class line (posting claim, response resolution, lease-expiry resolution) carries post_attempt_seq + attempt event type — the STABLE §14.1 join keys (attempt_count resets on §9.2 downgrade; never the join key).
+Tests: log-capture per transition family; ATTEMPT-class lines assert post_attempt_seq + event type; masking. Stop: merged.
 ```
 
 ```text

@@ -55,19 +55,41 @@ root-cause incident.
   than one lease window                 → alert (crash evidence;
   planned §14.1 switch transitions — freeze-gated — are recorded
   and EXCLUDED by triage)
-- §6.6 accepted-window CANDIDATE report (revised per review
-  2b697fb M1 — owned by OB-01; a candidate list for MANUAL
-  review, NOT a classifier): for each obligation M with a LIVE
+- §6.6 accepted-window CANDIDATE diagnostic (revised per review
+  2b697fb M1; scoped per review b1d91dc M1 — OPTIONAL, ON-DEMAND,
+  documented+shipped by OB-01; a candidate list for MANUAL
+  review, NOT a classifier, NOT a required standing scan, NOT a
+  go-live item): for each obligation M with a LIVE
   validation_failed marker, flag sibling payment_request rows r
   (same business_id, different scope) where r.creating_ordering <
   M.validation_failed_ordering AND r.created_at >
   M.validation_failed_first_at → metric/log event
-  VALID_SCOPE_CREATED_BELOW_KNOWN_VALIDATION_FAILURE_ORDERING
+  LOWER_ORDER_SIBLING_REQUEST_AFTER_VALIDATION_MARKER_CANDIDATE
   (masked trade/scope ids + both orderings + both timestamps).
-  Persisted state cannot distinguish the intentional window from
-  a missed-marker crash (no marker-source discriminator exists,
-  BY DECISION); candidates go to manual triage. Not detectable
-  online (no trade-level watermark)    → metric + manual review
+  Reference SQL shape (resolve table/column names locally):
+    SELECT <masked ids, both orderings, both timestamps>
+    FROM   payment_obligation M
+    JOIN   payment_obligation s
+           ON s.business_id = M.business_id
+          AND s.<scope key> <> M.<scope key>
+    JOIN   payment_request r
+           ON r.payment_obligation_id = s.id
+    WHERE  M.validation_failed IS LIVE
+      AND  r.creating_ordering < M.validation_failed_ordering
+      AND  r.created_at        > M.validation_failed_first_at
+  Run ON DEMAND during marker triage: the driving set is
+  obligations with LIVE validation_failed markers (bounded,
+  small). It deliberately reads historical/terminal request rows,
+  so the CA-4 active-row-bounded standing-scan index discipline
+  does NOT apply (explicit exception, review b1d91dc M1): no new
+  index, no schedule, no plan contract. HONEST COVERAGE: observes
+  ONLY the post-marker chronology subset (the escape schedule);
+  in the other ratified schedule B carries the LIVE marker itself
+  and is visible directly (§6.6). Persisted state cannot
+  distinguish the intentional window from a missed-marker crash
+  (no marker-source discriminator exists, BY DECISION);
+  candidates go to manual triage. Not detectable online (no
+  trade-level watermark)          → on-demand query + manual review
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)

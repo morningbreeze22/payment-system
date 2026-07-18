@@ -11,8 +11,8 @@
 [OB-01] Drift scanner
 Read: §3 (drift + invariants) §10.3 (L9) §15. Invariant: snapshot read + locked re-check BEFORE paging; read skew never pages; mismatch PAGES (not logs).
 Placeholders: [Reconciliation / Drift Scanner] [Metrics / Alerting Layer]. Mappings: SCN/flashback availability (else UNCLEAR → DBA).
-Objective: recompute I1/I2 per obligation; re-check under lock; page; verify L9 totality. PLUS the §6.6 accepted-window CANDIDATE scan (review 2b697fb M1): obligations with a LIVE validation_failed marker → flag sibling requests (same business_id, different scope) with creating_ordering < validation_failed_ordering AND created_at > validation_failed_first_at → VALID_SCOPE_CREATED_BELOW_KNOWN_VALIDATION_FAILURE_ORDERING (masked; candidates for MANUAL triage — never auto-classified, never a page/gate).
-Tests: seeded I1/I2 violations page; read-skew non-page; L9 detection; accepted-window seeded case flagged, pre-failure request NOT flagged, output masked, candidate = metric/log only. Stop: merged incl. the candidate scan.
+Objective: recompute I1/I2 per obligation; re-check under lock; page; verify L9 totality. PLUS ship (do NOT schedule) the §6.6 accepted-window CANDIDATE diagnostic (reviews 2b697fb M1 + b1d91dc M1 — OPTIONAL, ON-DEMAND, never a standing scan, NOT a go-live item; reference SQL in 14-observability N.1): obligations with a LIVE validation_failed marker → flag sibling requests (same business_id, different scope) with creating_ordering < validation_failed_ordering AND created_at > validation_failed_first_at → LOWER_ORDER_SIBLING_REQUEST_AFTER_VALIDATION_MARKER_CANDIDATE (masked; candidates for MANUAL triage — never auto-classified, never a page/gate; NOT in CA-4's index contract — reads historical rows by design; covers ONLY the post-marker subset, the other ratified schedule is visible via the marker on B itself).
+Tests: seeded I1/I2 violations page; read-skew non-page; L9 detection; diagnostic query correctness only (no schedule/plan assertions): seeded escape-schedule case flagged, pre-failure request NOT flagged, output masked, candidate = metric/log only. Stop: merged incl. the documented diagnostic.
 ```
 
 ```text

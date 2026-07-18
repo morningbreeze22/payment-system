@@ -82,7 +82,11 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
-  (one per standing scan) PLUS the §12 ESTATE-QUERY RESOLUTION
+  (one per standing scan — EXPLICIT EXCEPTION, review b1d91dc M1:
+  the §6.6 accepted-window candidate diagnostic is OPTIONAL and
+  ON-DEMAND, reads historical rows by design, and gets NO entry
+  here — no index, no schedule, no plan contract) PLUS the §12
+  ESTATE-QUERY RESOLUTION
   (added 2026-07-17; scoped as a BLOCKING resolution item for
   §12 estate mode per review 4d5cb83 M4 — single-trade mode is NOT
   gated): the RESOLVED SQL with the authorization predicate/join

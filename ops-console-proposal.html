@@ -95,7 +95,7 @@ Kept for layout reference only. Never load this file into a coding-agent context
 <ol>
 <li><strong>No new mutation semantics.</strong> Every console action executes the <em>same</em> conditional CAS UPDATE + obligation-lock flow the orchestrator itself uses (v2 §3, §4, §10). The console adds authorization and audit around existing transitions — never a new way to change state. Row count 0 = "state moved under you" = action rejected, re-fetch.</li>
 <li><strong>Fail-safe bias preserved.</strong> Nothing in the console can create or submit a payment. Actions release, park, or resolve; the only path back to money moving is <code>retry</code>, which re-enters the normal §6.4 retry-guard.</li>
-<li><strong>Every action survives DR.</strong> No local journal exists (v2 §12), so each action writes the structured log line AND requires an external ticket reference — the record that survives a database restore.</li>
+<li><strong>Every action survives DR.</strong> No local manual-action or transition-history journal exists (v2 §12; the switch-gated §14.1 attempt-content journal is a separate same-database audit sink and rewinds with a restore), so each action writes the structured log line AND requires an external ticket reference — the record that survives a database restore.</li>
 <li><strong>Read wide, write narrow.</strong> The read surface shows everything; the write surface is a closed catalog of six operations.</li>
 </ol>
 

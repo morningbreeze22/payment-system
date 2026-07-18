@@ -187,9 +187,9 @@
 - **Local placeholder mappings required before starting:** logging conventions (D-10).
 - **Local code areas to discover:** MDC/correlation propagation.
 - **How to locate:** F.21.
-- **Implementation instructions:** one emission point in the shared CAS helper (fires only on rowCount==1); fields exactly per §14; trigger_source = the flow (values per flow tasks; OPS_PLATFORM_VERIFIED reserved for OP-01); correlation_id from MDC; posting-claim line additionally carries last_sent_hash + attempt_count (K-05 emits it — verify one convention, not two).
+- **Implementation instructions:** one emission point in the shared CAS helper (fires only on rowCount==1); fields exactly per §14; trigger_source = the flow (values per flow tasks; OPS_PLATFORM_VERIFIED reserved for OP-01); correlation_id from MDC; posting-claim line additionally carries last_sent_hash + attempt_count + post_attempt_seq (K-05 emits it — verify one convention, not two); EVERY ATTEMPT-class line (posting claim, response resolution, lease-expiry resolution) carries post_attempt_seq + the attempt event type (§14 — these are the STABLE join keys to the §14.1 journal; attempt_count RESETS on §9.2 downgrade and can NEVER serve as the join key — review b1d91dc M3).
 - **Do not change:** log platform config beyond adding the line; retention (§14 floor) is an OB-05/owner item — record current retention vs the 90-day floor, report if below.
-- **Tests to add:** log-capture test per transition family: line present, fields populated, before/after correct, no account data.
+- **Tests to add:** log-capture test per transition family: line present, fields populated, before/after correct, no account data; ATTEMPT-class capture (b1d91dc M3): the posting-claim, response-resolution, and lease-expiry-resolution lines each assert post_attempt_seq + attempt event type present.
 - **Edge cases:** transitions inside batch scanners — line per row, not per batch.
 - **Manual validation:** grep a local run by one correlation id: full story reads end to end (§15 practice).
 - **Expected outcome:** forensic line live.

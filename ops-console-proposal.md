@@ -56,10 +56,13 @@ audited UI, not about adding capability.
    are the §6.4-retry-guarded retry (O1), the §9.2 downgrade re-POST
    lane (O7/O8, same-key, fresh assembly §7.0), and §6.8's standing
    re-evaluation after a legal release.
-5. **Every action survives DR.** No local journal exists (§14); each
-   action emits the §14 structured log line AND requires an external
-   ticket reference — the ticket trail is the record that survives a
-   restore (§20-8).
+5. **Every action survives DR.** No local manual-action or
+   transition-history journal exists (§14); the switch-gated §14.1
+   attempt-content journal is a SEPARATE same-database audit sink and
+   rewinds with a restore — it records nothing about console actions.
+   Each action emits the §14 structured log line AND requires an
+   external ticket reference — the ticket trail is the record that
+   survives a restore (§20-8).
 6. **Read wide, write narrow.** The read surface can show everything;
    the write surface is a closed catalog.
 
@@ -183,7 +186,9 @@ exception per §4.2 ranks), request list showing the **dimension tuple
 (stage · stage_state · submission_state · outcome) plus the §10.4
 display label**, retry/anchor state, idempotency key, UETR,
 provider_reference; transition history read *from the log store* (§14
-lines by request_id — the console keeps no journal). Action buttons
+lines by request_id — the console keeps no transition/manual-action
+journal; the §14.1 attempt-content journal is an unrelated audit sink,
+not a console surface). Action buttons
 appear only where the operation catalog's dimension preconditions hold
 and only for the caller's role; for MAYBE/SUBMITTED rows the release
 actions are absent and the §9.3 action set (O6–O10) is offered
