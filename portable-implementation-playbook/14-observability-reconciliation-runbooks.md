@@ -56,40 +56,66 @@ root-cause incident.
   planned §14.1 switch transitions — freeze-gated — are recorded
   and EXCLUDED by triage)
 - §6.6 accepted-window CANDIDATE diagnostic (revised per review
-  2b697fb M1; scoped per review b1d91dc M1 — OPTIONAL, ON-DEMAND,
-  documented+shipped by OB-01; a candidate list for MANUAL
-  review, NOT a classifier, NOT a required standing scan, NOT a
-  go-live item): for each obligation M with a LIVE
-  validation_failed marker, flag sibling payment_request rows r
-  (same business_id, different scope) where r.creating_ordering <
-  M.validation_failed_ordering AND r.created_at >
-  M.validation_failed_first_at → metric/log event
+  2b697fb M1; scoped per review b1d91dc M1; delivery semantics +
+  safe-execution envelope per review b760786 M1 — a candidate
+  list for MANUAL review, NOT a classifier, NOT a required
+  standing scan). DELIVERY SEMANTICS, stated exactly: shipping
+  the query + its correctness test is MANDATORY within OB-01
+  (the sub-case failing blocks OB-01 completion); INVOCATION is
+  on-demand at operator discretion — never scheduled; NOTHING
+  about it gates payment go-live. For each obligation M with a
+  LIVE validation_failed marker, flag sibling payment_request
+  rows r (same business_id, different scope) where
+  r.creating_ordering < M.validation_failed_ordering AND
+  r.created_at > M.validation_failed_first_at → metric/log event
   LOWER_ORDER_SIBLING_REQUEST_AFTER_VALIDATION_MARKER_CANDIDATE
   (masked trade/scope ids + both orderings + both timestamps).
-  Reference SQL shape (resolve table/column names locally):
+  Reference SQL (physical names resolve locally; the RELATIONAL
+  PREDICATE is EXACT — review b760786 L1; marker liveness is the
+  §2.1 definition verbatim):
     SELECT <masked ids, both orderings, both timestamps>
     FROM   payment_obligation M
     JOIN   payment_obligation s
            ON s.business_id = M.business_id
-          AND s.<scope key> <> M.<scope key>
+          AND s.id <> M.id      -- different scope, same trade
     JOIN   payment_request r
            ON r.payment_obligation_id = s.id
-    WHERE  M.validation_failed IS LIVE
+    WHERE  M.business_id = :business_id  -- REQUIRED bind (below)
+      AND  M.validation_failed_ordering IS NOT NULL
+      AND  (M.upstream_ordering IS NULL
+            OR M.validation_failed_ordering >= M.upstream_ordering)
       AND  r.creating_ordering < M.validation_failed_ordering
       AND  r.created_at        > M.validation_failed_first_at
-  Run ON DEMAND during marker triage: the driving set is
-  obligations with LIVE validation_failed markers (bounded,
-  small). It deliberately reads historical/terminal request rows,
-  so the CA-4 active-row-bounded standing-scan index discipline
-  does NOT apply (explicit exception, review b1d91dc M1): no new
-  index, no schedule, no plan contract. HONEST COVERAGE: observes
-  ONLY the post-marker chronology subset (the escape schedule);
-  in the other ratified schedule B carries the LIVE marker itself
-  and is visible directly (§6.6). Persisted state cannot
-  distinguish the intentional window from a missed-marker crash
-  (no marker-source discriminator exists, BY DECISION);
-  candidates go to manual triage. Not detectable online (no
-  trade-level watermark)          → on-demand query + manual review
+    ORDER  BY M.id, r.creating_ordering, r.id  -- deterministic,
+                                    -- repeatable operator evidence
+    FETCH  FIRST 500 ROWS ONLY                 -- hard cap
+  SAFE-EXECUTION ENVELOPE (b760786 M1 — an on-demand incident
+  query can still hurt a primary database):
+  (1) the :business_id bind (or an explicit obligation-id list
+      taken from the marker under triage) is REQUIRED — never run
+      unbound across the estate;
+  (2) the hard row limit AND a statement timeout are REQUIRED;
+  (3) read-only execution only; prefer a replica/reporting
+      connection where one exists — primary execution is allowed
+      ONLY with the bind + limit + timeout all in place;
+  (4) before FIRST production use an operator inspects one
+      representative EXPLAIN plan (a one-time sanity look, not a
+      CA-4 plan contract): the join reads historical/terminal
+      request rows by design, the active-row-bounded indexes
+      deliberately EXCLUDE those rows, and Oracle creates no
+      index for a foreign key by itself.
+  The CA-4 standing-scan index discipline does NOT apply
+  (explicit exception, b1d91dc M1): no new index, no schedule, no
+  plan contract — the envelope above, not an assumed "small
+  driving set", is the protection (live markers can accumulate).
+  HONEST COVERAGE: observes ONLY the post-marker chronology
+  subset (the escape schedule); in the other ratified schedule B
+  carries the LIVE marker itself and is visible directly (§6.6).
+  Persisted state cannot distinguish the intentional window from
+  a missed-marker crash (no marker-source discriminator exists,
+  BY DECISION); candidates go to manual triage. Not detectable
+  online (no trade-level watermark)
+                                  → on-demand query + manual review
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)

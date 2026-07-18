@@ -145,13 +145,17 @@ MULTILINE_FORBIDDEN = [
 ]
 
 def _sentence_span(text, start, end):
-    """The sentence containing a multiline match. A period counts as a
-    sentence boundary only when followed by whitespace/end-of-text, so
-    decimals like '14.1' never truncate the span (b1d91dc L2)."""
+    """The sentence containing a multiline match. '.', '?', '!' count as
+    sentence boundaries only when followed by whitespace/end-of-text, so
+    decimals like '14.1' never truncate the span (b1d91dc L2 + b760786
+    L2). Semicolons are DELIBERATELY not boundaries: these docs chain
+    qualified clauses with semicolons, and splitting there would
+    false-positive canonical text whose allow phrase sits across a
+    semicolon from the trip phrase."""
     s = 0
-    for b in re.finditer(r"\.(?=\s)", text[:start]):
+    for b in re.finditer(r"[.?!](?=\s)", text[:start]):
         s = b.end()
-    tail = re.search(r"\.(?=\s|$)", text[end:])
+    tail = re.search(r"[.?!](?=\s|$)", text[end:])
     e = end + tail.start() + 1 if tail else len(text)
     return text[s:e]
 
@@ -164,6 +168,10 @@ LINT_FIXTURES = [
     # allow token in a DIFFERENT sentence on the same line must NOT exempt:
     ("timeout classified", "a swallowed statement timeout continues posting. FATAL alerts page elsewhere.", True),
     ("timeout classified", "statement timeouts are FATAL by default, never statement-local.", False),
+    # '?' is a boundary: allow token in the NEXT sentence must not exempt:
+    ("timeout classified", "Is the statement timeout swallowed? FATAL failures page elsewhere.", True),
+    # '!' is a boundary and allow works within it:
+    ("timeout classified", "never swallow a statement timeout! see the canon.", False),
     ("unqualified 'no journal'", "there is no journal here.", True),
     ("unqualified 'no journal'", "No local journal exists.", True),
     ("unqualified 'no journal'", "no application journal is kept.", True),

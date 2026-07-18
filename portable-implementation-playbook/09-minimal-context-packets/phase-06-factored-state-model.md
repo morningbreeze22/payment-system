@@ -67,8 +67,8 @@ Tests: churn preserves maybe_since; re-entry = new episode; outcome clears. Stop
 [ST-08] CAS log line
 Read: §14 (whole) §16.3 (masking). Invariant: emitted only on rowCount==1; carries key+seq+correlation+tuple before→after+label+trigger fields; no account data, no instruction content.
 Placeholders: [Request Status Persistence Layer] [Metrics / Alerting Layer]. Mappings: logging conventions.
-Objective: one emission point in the CAS helper; posting-claim line adds hash + attempt count + post_attempt_seq (K-05 convention); EVERY ATTEMPT-class line (posting claim, response resolution, lease-expiry resolution) carries post_attempt_seq + attempt event type — the STABLE §14.1 join keys (attempt_count resets on §9.2 downgrade; never the join key).
-Tests: log-capture per transition family; ATTEMPT-class lines assert post_attempt_seq + event type; masking. Stop: merged.
+Objective: one emission point in the CAS helper; posting-claim line adds hash + attempt count + post_attempt_seq (K-05 convention); EVERY ATTEMPT-class line (posting claim, response resolution, lease-expiry resolution) carries post_attempt_seq + attempt_event_type — the STABLE §14.1 join keys (attempt_count resets on §9.2 downgrade; never the join key). attempt_event_type = EXACT field name, values BYTE-EQUAL to journal event_type: claim = 'ATTEMPT_STARTED', both resolutions = 'ATTEMPT_RESOLVED' (local vocabularies FORBIDDEN; not trigger_event_id).
+Tests: log-capture per transition family; ATTEMPT-class lines assert post_attempt_seq + attempt_event_type exact tokens; masking. Stop: merged.
 ```
 
 ```text
@@ -83,7 +83,7 @@ Tests: double-claim race; stale-worker fence; L6. Stop: merged.
 [ST-10] Lease-expiry recovery
 Read: §11 (expiry + rationale) §10.2. Invariant: expired POST claim → CONFIRM·READY·MAYBE + maybe_since; NEVER re-claimed for posting; no "provably not launched" carve-out.
 Placeholders: [Retry Resolver Job] (or expiry sweep). Mappings: ST-09 shape.
-Objective: expiry handling: ENRICH → READY in place; POST → CONFIRM·READY·MAYBE (+maybe_since), claim fields cleared. §14.1 rider: POST-expiry CAS inserts ATTEMPT_RESOLVED outcome LEASE_EXPIRED_MAYBE, same transaction, rowCount==1 only; switch-gated. Canonical failure rule: statement-local failures caught + alerted AFTER host commit, recovery proceeds; fatal = ordinary infra failure; guarantee = no incorrect payment outcome.
+Objective: expiry handling: ENRICH → READY in place; POST → CONFIRM·READY·MAYBE (+maybe_since), claim fields cleared. §14.1 rider: POST-expiry CAS inserts ATTEMPT_RESOLVED outcome LEASE_EXPIRED_MAYBE, same transaction, rowCount==1 only; switch-gated; matching §14 log line: attempt_event_type = 'ATTEMPT_RESOLVED' (exact field name, byte-equal, NOT 'LEASE_EXPIRED' — b760786 M2). Canonical failure rule: statement-local failures caught + alerted AFTER host commit, recovery proceeds; fatal = ordinary infra failure; guarantee = no incorrect payment outcome.
 Tests: both paths; slow-worker fence; expired POST row structurally unclaimable for posting; T-38 (one RESOLVED per attempt under the race). Stop: merged.
 ```
 

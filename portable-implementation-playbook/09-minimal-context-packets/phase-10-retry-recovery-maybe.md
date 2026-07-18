@@ -19,7 +19,7 @@ Tests: fixture per CA-1 row + defaults. Stop: merged.
 [RC-02] Response-driven transitions
 Read: §7.2 (every row) §10.5 (POST rows) §2.2 (divergent_payload_at) §7.1. Invariant: collision sets divergent_payload_at write-once then branches on the CLAIM-TIME divergence_expected flag; rejects never write uetr; marker totality on REJECTED.
 Placeholders: [Provider Response Parser] [Request Status Persistence Layer]. Mappings: RC-01 wired.
-Objective: implement each §7.2 row as its exact tuple CAS + side effects (anchors, markers, release on definitive rejects). §14.1 rider: ATTEMPT_RESOLVED insert (outcome = §7.2 class verbatim) in the SAME transaction, only on rowCount==1; switch-gated. Canonical failure rule: statement-local failures caught + alerted AFTER host commit, transition proceeds; fatal = ordinary infra failure; guarantee = no incorrect payment outcome.
+Objective: implement each §7.2 row as its exact tuple CAS + side effects (anchors, markers, release on definitive rejects). §14.1 rider: ATTEMPT_RESOLVED insert (outcome = §7.2 class verbatim) in the SAME transaction, only on rowCount==1; switch-gated; matching §14 log line: attempt_event_type = 'ATTEMPT_RESOLVED' (exact field name, byte-equal to the journal token — b760786 M2). Canonical failure rule: statement-local failures caught + alerted AFTER host commit, transition proceeds; fatal = ordinary infra failure; guarantee = no incorrect payment outcome.
 Tests: one per row; write-once; mirror rule; totality; T-38 (RESOLVED iff rowCount 1). Stop: merged.
 ```
 

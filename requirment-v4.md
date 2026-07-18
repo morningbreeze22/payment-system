@@ -1593,12 +1593,20 @@ ratified as the DEFINED behavior, not a gap):
     fields carry no source discriminator (whole-snapshot vs
     enrichment vs engine invalid-data share them) — none is
     added, BY DECISION (schema churn for an observability aid).
-    Run ON DEMAND during marker triage (driving set = obligations
-    with LIVE markers — bounded and small); NOT scheduled, NOT in
-    CA-4's standing-scan/index contract (it reads historical
-    request rows by design — explicit exception), NOT a go-live
-    item. Not detectable online without a trade-level watermark;
-    documented, accepted.
+    Delivery semantics (review b760786 M1, stated exactly):
+    SHIPPING the query + its correctness test is MANDATORY within
+    OB-01 — the sub-case failing blocks OB-01 completion;
+    INVOCATION is on-demand at operator discretion — never
+    scheduled; and NOTHING about it gates payment go-live. Run it
+    during marker triage under the runbook's safe-execution
+    envelope (required trade bind, hard row limit, statement
+    timeout, read-only, replica preferred, one-time plan
+    inspection): the envelope, NOT an assumed "small driving
+    set", is the protection — live markers can accumulate and the
+    query reads historical request rows. NOT in CA-4's
+    standing-scan/index contract (explicit exception), NOT a
+    go-live item. Not detectable online without a trade-level
+    watermark; documented, accepted.
 PRECISE SCOPE OF THE STOP, restated: what stops is new request
 creation on scopes KNOWN OR EXTRACTABLE when the invalid document
 is processed; scopes introduced afterwards by VALID documents
@@ -3275,10 +3283,20 @@ processing:
   from it, and the retention floor below already covers the replay
   window by definition). ATTEMPT-class lines (posting claim,
   outcome recording, lease-expiry recovery) ALSO carry
-  `post_attempt_seq` and the attempt event type (2026-07-17 —
-  review 7ab31e5 M5): they are the stable join to the §14.1
-  journal's event pairs; `attempt_count` on the line is
-  retry-budget context only (it resets on the §9.2 downgrade).
+  `post_attempt_seq` and `attempt_event_type` (2026-07-17 —
+  review 7ab31e5 M5; field name + token vocabulary FROZEN per
+  review b760786 M2): `attempt_event_type` is the EXACT
+  structured-field name, and its values are BYTE-EQUAL to the
+  §14.1 journal's event_type tokens — the posting-claim line
+  carries exactly 'ATTEMPT_STARTED'; the outcome-recording and
+  lease-expiry-recovery lines carry exactly 'ATTEMPT_RESOLVED'.
+  No emission site may invent a local vocabulary (values like
+  POSTING_CLAIM / RESPONSE_RESOLVED / LEASE_EXPIRED are
+  FORBIDDEN — they break the direct join), and the field is
+  never conflated with trigger_event_id. These are the stable
+  join to the §14.1 journal's event pairs; `attempt_count` on the
+  line is retry-budget context only (it resets on the §9.2
+  downgrade).
   This is the only local forensic record for
   drift alerts, inbox anomalies, and BLOCKED-queue triage — and
   the ONLY restore-surviving one (§14.1 restore posture).
@@ -3317,7 +3335,9 @@ matter more than this journal.
 
 Position in the model: the §14 log line remains the transition
 record; this journal is the CONTENT record — two sinks of one
-attempt, joined by (request_id, post_attempt_seq, event type). It
+attempt, joined by (request_id, post_attempt_seq,
+attempt_event_type), the log value byte-equal to the journal's
+event_type token (§14 / review b760786 M2). It
 REPLACES NOTHING: divergence_expected, last_sent_hash, and the log
 line all stay (the §2.2 rejection of replacing those columns
 stands unchanged), and NO runtime rule, scanner, gate, resolver,

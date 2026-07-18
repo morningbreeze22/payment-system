@@ -438,10 +438,13 @@ Implemented by: OP-02's wedge assertion + RC-07/RC-08.
 ```text
 Section: §3, §10.3 L9, §6.6   Type: INTEGRATION + OPERATIONAL   Blocking: YES
 Purpose: I1/I2 violations page; read skew does not; L9 verified.
-         PLUS (non-blocking sub-case, b1d91dc M1) the §6.6
-         accepted-window candidate diagnostic: query correctness
-         only — it is OPTIONAL and ON-DEMAND, so NO schedule, index,
-         or EXPLAIN-plan assertions exist for it.
+         PLUS (b1d91dc M1 + b760786 M1) the §6.6 accepted-window
+         candidate diagnostic: query correctness only. Delivery
+         semantics: this sub-case failing blocks OB-01 COMPLETION;
+         it NEVER blocks payment go-live; invocation in production
+         is on-demand at operator discretion. NO schedule, index,
+         or EXPLAIN-plan assertions exist for it (the N.1
+         safe-execution envelope governs production runs).
 Setup:   seeded counter corruption; concurrent uncommitted create;
          REJECTED row missing its marker; seeded escape-schedule
          window (sibling request created after a LIVE
@@ -900,7 +903,14 @@ Cases:
      vocabulary refused.
   I  log join: every journal event pair joins unambiguously to its
      ATTEMPT-class log lines via (request_id, post_attempt_seq,
-     event type) - review 7ab31e5 M5.
+     attempt_event_type) - review 7ab31e5 M5. Exact-vocabulary
+     assertion (review b760786 M2): the log field is NAMED
+     attempt_event_type and its value is BYTE-EQUAL to
+     payment_attempt_journal.event_type at all three emission
+     sites - the claim line = 'ATTEMPT_STARTED'; the
+     response-resolution and lease-expiry lines =
+     'ATTEMPT_RESOLVED'; any local vocabulary (POSTING_CLAIM,
+     RESPONSE_RESOLVED, LEASE_EXPIRED, ...) FAILS this case.
   J  switch transitions (review d00ef6a M3): OFF->ON and ON->OFF
      under posting freeze + drain -> NO half-pairs; a mid-traffic
      flip in the harness DOES create one (documents why the rule
@@ -925,6 +935,6 @@ Type: integration (real Oracle) + fault injection. BLOCKING: yes
 Implemented by: AUD-01 (schema slice + G + H + the switch), K-04
 (A, B, E, F), RC-02 (D), ST-10 (C), OB-05 (F alert wiring +
 J triage rules); I = ST-08 (the §14 line convention: post_attempt_seq
-+ event type on ATTEMPT-class lines) together with K-04/RC-02/ST-10
++ attempt_event_type on ATTEMPT-class lines) together with K-04/RC-02/ST-10
 (the three ATTEMPT-class emission sites) — review b1d91dc M3.
 ```
