@@ -425,6 +425,11 @@ postAttempt(id):
   on commit-outcome-UNKNOWN (connection died mid-commit):
     DO NOT POST. Walk away. Either the claim never landed (row still
     READY) or the lease expires into MAYBE — both safe (§11).
+  after commit: publish the buffered §14 line
+    (attempt_event_type='ATTEMPT_STARTED') — best-effort,
+    at-most-once (§14 delivery contract, 4098532 H1); publication
+    failure NEVER blocks the wire call — the write-ahead identity
+    in the DB, not the log, prevents duplicate payment.
 
   // ---------- THE WIRE: no TX, no locks ----------
   if freezeEffective(): return                   // §16.1 BOTH-ENDS, end 2 of 2:
@@ -479,7 +484,8 @@ postAttempt(id):
     derive(ob)                                     // frontend sees the outcome AND
                                                    // its exception atomically
     COMMIT
-  after commit: alerts/acks; §14 line
+  after commit: alerts/acks; publish the buffered §14 line
+    (best-effort, at-most-once — §14 delivery contract, 4098532 H1)
 ```
 
 ### S3.2 Lease-expiry sweep

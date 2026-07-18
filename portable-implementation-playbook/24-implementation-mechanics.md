@@ -135,12 +135,19 @@ UPDATE payment_obligation SET committed_amount = committed_amount - :amt
 -- STEP 7 · §4 re-derivation, same transaction: ui_step_status (§4.1),
 --   active_exception_* (§4.2 rank order). Never skipped, never async.
 
--- STEP 8 · emit the §14 structured log line:
+-- STEP 8 · BUFFER the §14 structured log line + register the
+--   after-commit publication callback (§14 delivery contract,
+--   review 4098532 H1 — NEVER publish inside the transaction):
 --   request_id, idempotency_key, request_seq, correlation_id,
 --   (stage, stage_state, submission_state, outcome) before→after,
 --   display label, trigger_source, trigger_event_id / ticket ref.
 
-COMMIT;  -- Kafka ack, if any, comes AFTER this commit (M6)
+COMMIT;  -- Kafka ack, if any, comes AFTER this commit (M6).
+         -- The buffered §14 line publishes from afterCommit:
+         -- rollback discards it (phantoms impossible); a crash
+         -- here loses it (accepted gap, at-most-once, no retry);
+         -- publication failure never fails the transition.
+         -- Posting claim: commit → publish → provider call.
 ```
 
 Exception: updates touching ONLY claim fields / attempt counters

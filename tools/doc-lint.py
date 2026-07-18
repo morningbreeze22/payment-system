@@ -132,9 +132,10 @@ FORBIDDEN = [
 
 # ---- Multiline semantic rules (2b697fb L1): matched against the WHOLE
 # file text so line-wrapping cannot hide a forbidden clause; the allow
-# tokens are checked within the SAME SENTENCE as the match only
-# (b1d91dc L2 — an unrelated allow word elsewhere on a covering line
-# must never exempt a contradictory clause) ----
+# tokens are checked only within the clause(s) of the containing
+# sentence that the match overlaps (b1d91dc L2 + 4098532 L2 — an
+# unrelated allow word on the same line, in the next sentence, or in a
+# distant semicolon clause must never exempt a contradiction) ----
 MULTILINE_FORBIDDEN = [
     ("timeout classified as statement-local (928341a H2: timeouts are FATAL by default)",
      re.compile(r"statement\s+timeout[^.]{0,140}?(?:swallow|statement-local|continues|proceeds)|(?:swallow(?:ed)?|statement-local)[^.]{0,140}?statement\s+timeout", re.I | re.S),
@@ -142,22 +143,32 @@ MULTILINE_FORBIDDEN = [
     ("unqualified 'no journal' incl. adjective variants (2b697fb M2 + b1d91dc M2: say no TRANSITION-HISTORY / manual-action journal; the 14.1 attempt-content journal exists)",
      re.compile(r"\bno\s+(?:local\s+|application\s+|app\s+)?journal\b(?!\s+(?:failure|error|condition|gap))", re.I),
      re.compile(r"transition-history|manual-action|attempt-content|lint", re.I)),
+    ("unqualified log-completeness absolute (4098532 H1: the external 14 log is BEST-EFFORT complete - afterCommit publication, crash-window gaps possible)",
+     re.compile(r"restore-surviving record of every|record of every issued", re.I),
+     re.compile(r"best-effort|crash-window|crash window|gap|lint", re.I)),
 ]
 
-def _sentence_span(text, start, end):
-    """The sentence containing a multiline match. '.', '?', '!' count as
-    sentence boundaries only when followed by whitespace/end-of-text, so
-    decimals like '14.1' never truncate the span (b1d91dc L2 + b760786
-    L2). Semicolons are DELIBERATELY not boundaries: these docs chain
-    qualified clauses with semicolons, and splitting there would
-    false-positive canonical text whose allow phrase sits across a
-    semicolon from the trip phrase."""
-    s = 0
+def _allow_span(text, start, end):
+    """Span in which allow tokens may exempt a multiline match: the
+    containing sentence ('.', '?', '!' boundaries, whitespace-following
+    so decimals like '14.1' never truncate — b1d91dc/b760786 L2),
+    narrowed to the semicolon-separated clause(s) the match itself
+    OVERLAPS (4098532 L2 — an allow word in a distant clause must not
+    exempt a contradiction; a match whose span crosses the semicolon
+    still sees both clauses, preserving canonical constructions)."""
+    s0 = 0
     for b in re.finditer(r"[.?!](?=\s)", text[:start]):
-        s = b.end()
+        s0 = b.end()
     tail = re.search(r"[.?!](?=\s|$)", text[end:])
-    e = end + tail.start() + 1 if tail else len(text)
-    return text[s:e]
+    e0 = end + tail.start() + 1 if tail else len(text)
+    sent = text[s0:e0]
+    ms, me = start - s0, end - s0
+    pos, keep = 0, []
+    for clause in sent.split(";"):
+        if pos <= me and pos + len(clause) >= ms:
+            keep.append(clause)
+        pos += len(clause) + 1
+    return ";".join(keep)
 
 # ---- Lint self-test fixtures (b1d91dc L2): table-driven, executed on
 # EVERY run; a mismatch is a lint error. These make the semantic rules'
@@ -172,6 +183,14 @@ LINT_FIXTURES = [
     ("timeout classified", "Is the statement timeout swallowed? FATAL failures page elsewhere.", True),
     # '!' is a boundary and allow works within it:
     ("timeout classified", "never swallow a statement timeout! see the canon.", False),
+    # 4098532 L2 - demonstrated semicolon bypasses MUST now trip:
+    ("timeout classified", "the statement timeout is swallowed; unrelated failures are FATAL by default.", True),
+    ("unqualified 'no journal'", "there is no journal; the attempt-content journal exists.", True),
+    # ...while a match SPANNING the semicolon still sees the allow clause:
+    ("timeout classified", "statement timeouts are FATAL by default; never statement-local.", False),
+    # 4098532 H1 - log-completeness absolutes:
+    ("log-completeness", "the log is a durable, restore-surviving record of every issued key.", True),
+    ("log-completeness", "a best-effort, restore-surviving record of every issued key (crash-window gaps possible).", False),
     ("unqualified 'no journal'", "there is no journal here.", True),
     ("unqualified 'no journal'", "No local journal exists.", True),
     ("unqualified 'no journal'", "no application journal is kept.", True),
@@ -184,7 +203,7 @@ def _multiline_trips(rule_key, sample):
     for name, trip, allow in MULTILINE_FORBIDDEN:
         if rule_key in name:
             for m in trip.finditer(sample):
-                if not allow.search(_sentence_span(sample, m.start(), m.end())):
+                if not allow.search(_allow_span(sample, m.start(), m.end())):
                     return True
             return False
     return None  # rule key matched no rule — itself a self-test failure
@@ -195,6 +214,19 @@ for _key, _sample, _expected in LINT_FIXTURES:
         errors.append(f"LINT-SELFTEST: no MULTILINE_FORBIDDEN rule matches key '{_key}'")
     elif _got != _expected:
         errors.append(f"LINT-SELFTEST [{_key}]: expected trip={_expected}, got trip={_got}: {_sample[:80]!r}")
+
+# ---- Rule 6i (4098532 H1): the §14 delivery contract must stay in
+# lockstep across its four normative statements — spec, ST-08 card,
+# mechanics CAS skeleton, pseudocode ----
+_DC_SITES = [
+    (ROOT / "requirment-v4.md", r"DELIVERY CONTRACT"),
+    (PORTABLE / "08-task-cards" / "phase-06-factored-state-model.md", r"afterCommit"),
+    (PORTABLE / "24-implementation-mechanics.md", r"after-commit publication callback"),
+    (PORTABLE / "27-service-pseudocode.md", r"publish the buffered"),
+]
+for _p, _tok in _DC_SITES:
+    if not re.search(_tok, "\n".join(lines_of(_p))):
+        errors.append(f"{rel(_p)}: missing the §14 delivery-contract statement /{_tok}/ (rule 6i, review 4098532 H1 — the four sites must never diverge again)")
 
 for path in MAINTAINED:
     if path.name == "18-playbook-quality-self-check.md":
@@ -207,7 +239,7 @@ for path in MAINTAINED:
     for name, trip, allow in MULTILINE_FORBIDDEN:
         for m in trip.finditer(text):
             start_line = text.count("\n", 0, m.start()) + 1
-            span = _sentence_span(text, m.start(), m.end())
+            span = _allow_span(text, m.start(), m.end())
             if not allow.search(span):
                 errors.append(f"{rel(path)}:{start_line}: forbidden multiline phrase [{name}]: {m.group(0)[:100]}")
 

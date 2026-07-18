@@ -59,11 +59,16 @@ root-cause incident.
   2b697fb M1; scoped per review b1d91dc M1; delivery semantics +
   safe-execution envelope per review b760786 M1 — a candidate
   list for MANUAL review, NOT a classifier, NOT a required
-  standing scan). DELIVERY SEMANTICS, stated exactly: shipping
-  the query + its correctness test is MANDATORY within OB-01
-  (the sub-case failing blocks OB-01 completion); INVOCATION is
-  on-demand at operator discretion — never scheduled; NOTHING
-  about it gates payment go-live. For each obligation M with a
+  standing scan). DELIVERY SEMANTICS, stated exactly (corrected
+  4098532 M1): shipping the query + its correctness test is a
+  REQUIRED deliverable within OB-01, but its test failing does
+  NOT block OB-01 completion — the failure becomes an EXPLICIT
+  OPEN ITEM in the P12 handoff, deadline = before FIRST
+  production use of this marker-triage runbook. INVOCATION is
+  on-demand at operator discretion — never scheduled. NOTHING
+  about it gates payment go-live — literally true only under the
+  non-blocking rule above, because OB-01 → P12 → Q19 sit on the
+  go-live path. For each obligation M with a
   LIVE validation_failed marker, flag sibling payment_request
   rows r (same business_id, different scope) where
   r.creating_ordering < M.validation_failed_ordering AND
@@ -94,16 +99,26 @@ root-cause incident.
   (1) the :business_id bind (or an explicit obligation-id list
       taken from the marker under triage) is REQUIRED — never run
       unbound across the estate;
-  (2) the hard row limit AND a statement timeout are REQUIRED;
+  (2) the hard row limit AND the NAMED statement timeout are
+      REQUIRED: accepted_window_diagnostic_timeout_ms — owner:
+      ops, with DBA sign-off; default 10000 ms, maximum 30000 ms
+      (values locally adjustable, the NAME and ownership are
+      not); mechanism: JDBC Statement.setQueryTimeout (or the
+      Spring JdbcTemplate queryTimeout equivalent) on the
+      read-only connection — an application-layer-only timeout
+      that never cancels the Oracle statement does NOT satisfy
+      this (review 4098532 L1);
   (3) read-only execution only; prefer a replica/reporting
       connection where one exists — primary execution is allowed
       ONLY with the bind + limit + timeout all in place;
   (4) before FIRST production use an operator inspects one
-      representative EXPLAIN plan (a one-time sanity look, not a
-      CA-4 plan contract): the join reads historical/terminal
-      request rows by design, the active-row-bounded indexes
-      deliberately EXCLUDE those rows, and Oracle creates no
-      index for a foreign key by itself.
+      representative EXPLAIN plan AND proves the timeout actually
+      cancels the real Oracle statement within the bound (one
+      pre-production evidence step covering both — a one-time
+      sanity look, not a CA-4 plan contract): the join reads
+      historical/terminal request rows by design, the
+      active-row-bounded indexes deliberately EXCLUDE those rows,
+      and Oracle creates no index for a foreign key by itself.
   The CA-4 standing-scan index discipline does NOT apply
   (explicit exception, b1d91dc M1): no new index, no schedule, no
   plan contract — the envelope above, not an assumed "small

@@ -60,9 +60,11 @@ audited UI, not about adding capability.
    transition-history journal exists (§14); the switch-gated §14.1
    attempt-content journal is a SEPARATE same-database audit sink and
    rewinds with a restore — it records nothing about console actions.
-   Each action emits the §14 structured log line AND requires an
+   Each action emits the §14 structured log line (published after
+   commit, best-effort per the §14 delivery contract) AND requires an
    external ticket reference — the ticket trail is the record that
-   survives a restore (§20-8).
+   survives a restore (§20-8); the mandatory ticket, not the
+   best-effort line, is what makes manual actions non-erasable.
 6. **Read wide, write narrow.** The read surface can show everything;
    the write surface is a closed catalog.
 

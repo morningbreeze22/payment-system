@@ -438,13 +438,20 @@ Implemented by: OP-02's wedge assertion + RC-07/RC-08.
 ```text
 Section: §3, §10.3 L9, §6.6   Type: INTEGRATION + OPERATIONAL   Blocking: YES
 Purpose: I1/I2 violations page; read skew does not; L9 verified.
-         PLUS (b1d91dc M1 + b760786 M1) the §6.6 accepted-window
-         candidate diagnostic: query correctness only. Delivery
-         semantics: this sub-case failing blocks OB-01 COMPLETION;
-         it NEVER blocks payment go-live; invocation in production
-         is on-demand at operator discretion. NO schedule, index,
-         or EXPLAIN-plan assertions exist for it (the N.1
-         safe-execution envelope governs production runs).
+         PLUS (b1d91dc M1 + b760786 M1; corrected 4098532 M1) the
+         §6.6 accepted-window candidate diagnostic: query
+         correctness only. Delivery semantics: a REQUIRED
+         deliverable, but this sub-case failing does NOT block
+         OB-01 completion — the failure becomes an EXPLICIT OPEN
+         ITEM in the P12 handoff, deadline = before first
+         production marker-triage use; it NEVER blocks payment
+         go-live (OB-01 → P12 → Q19 sit on the go-live path, so a
+         blocking sub-case here WOULD gate go-live — that is
+         exactly what this rule prevents). Invocation in
+         production is on-demand at operator discretion. NO
+         schedule, index, or EXPLAIN-plan assertions exist for it
+         (the N.1 safe-execution envelope governs production
+         runs).
 Setup:   seeded counter corruption; concurrent uncommitted create;
          REJECTED row missing its marker; seeded escape-schedule
          window (sibling request created after a LIVE
@@ -903,7 +910,14 @@ Cases:
      vocabulary refused.
   I  log join: every journal event pair joins unambiguously to its
      ATTEMPT-class log lines via (request_id, post_attempt_seq,
-     attempt_event_type) - review 7ab31e5 M5. Exact-vocabulary
+     attempt_event_type) WHEN those lines exist - review 7ab31e5
+     M5, delivery semantics per review 4098532 H1 (afterCommit
+     publication): a line for a ROLLED-BACK transaction is a
+     FAILURE (phantom - it would also let a reused
+     post_attempt_seq forge duplicate join keys); a MISSING line
+     in the crash-after-commit fault case is TOLERATED (accepted
+     gap, at-most-once); publication failure must leave the
+     transition committed and unaffected. Exact-vocabulary
      assertion (review b760786 M2): the log field is NAMED
      attempt_event_type and its value is BYTE-EQUAL to
      payment_attempt_journal.event_type at all three emission

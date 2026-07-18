@@ -1047,13 +1047,22 @@ manual engine-side reconciliation.
    selected on created_at (§2.2).
 5b. Sequence-divergence guard: for EVERY obligation touched in
    the replay window, ENUMERATE the deterministic key space
-   hash(scope | seq) and status-query each key, up to a PROVEN
-   upper bound — the maximum request_seq observed in the §14 logs
-   for that obligation across the replay window (the log platform
-   is outside the restored database and its retention floor covers
+   hash(scope | seq) and status-query each key, up to an upper
+   bound derived as MAX(maximum request_seq observed in the §14
+   logs for that obligation across the replay window,
+   next_request_seq on the restored row) PLUS K further
+   consecutive sequences (config §16.6) as a mandatory overshoot
+   margin. The log-derived component is BEST-EFFORT, NOT proven
+   (review 4098532 H1 — the §14 delivery contract publishes
+   after commit at-most-once: a crash-window or pipeline gap can
+   hide the highest-seq claim, and stopping at a hidden bound is
+   exactly the duplicate-key hazard this step exists to close;
+   the overshoot margin is what absorbs it). The log platform is
+   outside the restored database and its retention floor covers
    the replay window by definition; the posting-claim log lines
-   even identify exactly which keys hit the wire). Only if the log
-   platform is unavailable, fall back to the heuristic stop of K
+   identify which keys hit the wire WHEN their lines exist. Only
+   if the log platform is unavailable entirely, fall back to the
+   heuristic stop of K
    consecutive NOT_FOUNDs past the current next_request_seq
    (config §16.6) — recorded as HEURISTIC (reviewer
    follow-up): enrichment-only requests never reach the engine, so
@@ -1593,11 +1602,18 @@ ratified as the DEFINED behavior, not a gap):
     fields carry no source discriminator (whole-snapshot vs
     enrichment vs engine invalid-data share them) — none is
     added, BY DECISION (schema churn for an observability aid).
-    Delivery semantics (review b760786 M1, stated exactly):
-    SHIPPING the query + its correctness test is MANDATORY within
-    OB-01 — the sub-case failing blocks OB-01 completion;
-    INVOCATION is on-demand at operator discretion — never
-    scheduled; and NOTHING about it gates payment go-live. Run it
+    Delivery semantics (review b760786 M1; corrected review
+    4098532 M1 — the earlier "blocks OB-01 completion" made
+    "never gates go-live" FALSE under the dependency graph, since
+    OB-01 blocks P12 and P12/Q19 gate go-live): SHIPPING the
+    query + its correctness test is a REQUIRED deliverable within
+    OB-01, but its test failing does NOT block OB-01 completion —
+    a failure is recorded as an EXPLICIT OPEN ITEM carried in the
+    P12 handoff, deadline = before the FIRST production use of
+    the marker-triage runbook (not before go-live). INVOCATION is
+    on-demand at operator discretion — never scheduled; NOTHING
+    about it gates payment go-live, and under this rule that
+    claim is literally true. Run it
     during marker triage under the runbook's safe-execution
     envelope (required trade bind, hard row limit, statement
     timeout, read-only, replica preferred, one-time plan
@@ -3261,7 +3277,10 @@ processing:
 
 - `payment_request` carries its current dimensions only; no
   transition-history/journal table. The authoritative transition
-  audit trail is the §14 log line plus the payment platform. (The
+  audit trail is the §14 log line plus the payment platform —
+  "authoritative" means the DESIGNATED record, not a gapless one:
+  completeness is BEST-EFFORT per the delivery contract below
+  (review 4098532 H1). (The
   §14.1 attempt journal, added 2026-07-16, is a CONTENT record, not
   transition history — it does not change this rule.)
 - Posting-claim log lines additionally carry the sent instruction
@@ -3277,11 +3296,37 @@ processing:
   one structured INFO log line —
   `request_id, idempotency_key, request_seq, correlation_id,
   (stage, stage_state, submission_state, outcome) before → after,
-  display label, trigger_source, trigger_event_id` (key + seq added: the log platform lives OUTSIDE the payment database, so the
-  log is a durable, restore-surviving record of every issued and
-  every POSTED key — §5.2 step 5b derives its enumeration bound
-  from it, and the retention floor below already covers the replay
-  window by definition). ATTEMPT-class lines (posting claim,
+  display label, trigger_source, trigger_event_id`.
+  DELIVERY CONTRACT (defined 2026-07-17, review 4098532 H1 — ONE
+  contract for ALL emission sites, no exceptions; an external log
+  platform and an Oracle transaction have no atomic bridge, so
+  the contract states what IS guaranteed instead of pretending
+  exactly-once): the line is BUFFERED while the transaction runs
+  and PUBLISHED only from an after-commit callback.
+  - PHANTOMS ARE IMPOSSIBLE: nothing is ever emitted for
+    uncommitted state — a rolled-back CAS leaves no line, so a
+    post_attempt_seq reused after rollback can never produce
+    duplicate join keys;
+  - GAPS ARE POSSIBLE: a crash between commit and publication, a
+    publication failure, or loss inside the log pipeline
+    (shipping to the platform is itself asynchronous) can leave a
+    committed transition WITHOUT a line. Publication is
+    at-most-once, never retried, and its failure NEVER fails or
+    delays the transition — the log is forensic; the database row
+    is the money-safety record;
+  - POSTING-CLAIM ORDERING: claim commit → best-effort line
+    publication → provider call. Publication failure does NOT
+    block the provider call: the write-ahead identity in the
+    database (§5/K-04), not the log, is what prevents duplicate
+    payment.
+  (key + seq added: the log platform lives OUTSIDE the payment
+  database, so the log is a durable, restore-surviving,
+  BEST-EFFORT-COMPLETE record of issued and POSTED keys —
+  "best-effort" is load-bearing: §5.2 step 5b treats the
+  log-derived enumeration bound as best-effort and OVERSHOOTS it,
+  and no consumer may assume the log is gapless; the retention
+  floor below already covers the replay window by definition).
+  ATTEMPT-class lines (posting claim,
   outcome recording, lease-expiry recovery) ALSO carry
   `post_attempt_seq` and `attempt_event_type` (2026-07-17 —
   review 7ab31e5 M5; field name + token vocabulary FROZEN per
@@ -3299,7 +3344,8 @@ processing:
   downgrade).
   This is the only local forensic record for
   drift alerts, inbox anomalies, and BLOCKED-queue triage — and
-  the ONLY restore-surviving one (§14.1 restore posture).
+  the ONLY restore-surviving one (§14.1 restore posture), subject
+  to the best-effort completeness bound above.
 - Log retention FLOOR (required now, because those commitments exist
   now): at least the greater of 90 days and the DR replay window +
   investigation SLA. VALIDATED with the business (PO review):

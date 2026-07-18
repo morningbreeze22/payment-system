@@ -65,10 +65,10 @@ Tests: churn preserves maybe_since; re-entry = new episode; outcome clears. Stop
 
 ```text
 [ST-08] CAS log line
-Read: §14 (whole) §16.3 (masking). Invariant: emitted only on rowCount==1; carries key+seq+correlation+tuple before→after+label+trigger fields; no account data, no instruction content.
+Read: §14 (whole incl. DELIVERY CONTRACT) §16.3 (masking). Invariant: emitted only on rowCount==1 AND published only from an afterCommit callback (buffer in-tx; rollback discards — NO phantom ever; crash-window gap accepted, at-most-once, no retry; publication failure never fails the transition; claim ordering: commit → publish best-effort → provider call); carries key+seq+correlation+tuple before→after+label+trigger fields; no account data, no instruction content.
 Placeholders: [Request Status Persistence Layer] [Metrics / Alerting Layer]. Mappings: logging conventions.
 Objective: one emission point in the CAS helper; posting-claim line adds hash + attempt count + post_attempt_seq (K-05 convention); EVERY ATTEMPT-class line (posting claim, response resolution, lease-expiry resolution) carries post_attempt_seq + attempt_event_type — the STABLE §14.1 join keys (attempt_count resets on §9.2 downgrade; never the join key). attempt_event_type = EXACT field name, values BYTE-EQUAL to journal event_type: claim = 'ATTEMPT_STARTED', both resolutions = 'ATTEMPT_RESOLVED' (local vocabularies FORBIDDEN; not trigger_event_id).
-Tests: log-capture per transition family; ATTEMPT-class lines assert post_attempt_seq + attempt_event_type exact tokens; masking. Stop: merged.
+Tests: log-capture per transition family; ATTEMPT-class lines assert post_attempt_seq + attempt_event_type exact tokens; delivery contract: rollback → NO line; crash-after-commit → gap tolerated, no phantom; publication failure → transition unaffected; masking. Stop: merged.
 ```
 
 ```text
