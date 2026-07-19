@@ -47,11 +47,11 @@ a status; every DONE row has a filed execution report (file 19).
 | 27 | S-02 | TODO | | | |
 | 28 | S-03 | TODO | | | |
 | 29 | S-04 | TODO | | | |
-| 29a | S-10 | TODO | | | (round 5: §2.4 table — runs HERE, before S-05) |
-| 30 | S-05 | TODO | | | |
-| 31 | S-06 | TODO | | | |
-| 32 | S-07 | TODO | | | |
-| 33 | S-08 | TODO | | | |
+| 29a | S-10 | TODO | | | (round 5: §2.4 table — runs HERE, before S-08/S-05) |
+| 30 | S-08 | TODO | | | (289ef66 M1: backfill BEFORE the S-05 constraint objects — I6 is a UNIQUE index, NOVALIDATE never applies) |
+| 31 | S-05 | TODO | | | |
+| 32 | S-06 | TODO | | | |
+| 33 | S-07 | TODO | | | |
 | 34 | S-09 | TODO | | | |
 | 35 | K-01 | TODO | | | |
 | 36 | K-02 | TODO | | | |

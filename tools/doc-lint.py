@@ -535,10 +535,72 @@ if ca10_present:
 
 # ---- Rule 6c (round 9; REORDERED 289ef66 M1 — S-08 backfill before
 # S-05 constraint objects: I6 is a UNIQUE index, NOVALIDATE does not
-# apply): the P3 chain order is stated verbatim in file 20 ----
+# apply; EXTENDED follow-up M1 on 0bcb536 — the order must agree on
+# EVERY canonical execution surface: file 20, the file-01 chain line,
+# the tracker row sequence, and the phase-03 Next-task chain; the old
+# rule checked only file 20 and reported clean while the other agent
+# entry points still carried the pre-289ef66 order) ----
 P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-08, S-05, S-06, S-07, S-09"
+P3_SEQ = P3_ORDER.replace(",", "").split()
 if P3_ORDER not in seq_text:
     errors.append(f"{rel(seq)}: canonical P3 order not stated verbatim ({P3_ORDER})")
+# (b) file 01 chain line (space-separated form)
+if " ".join(P3_SEQ) not in idx_text:
+    errors.append(f"01-playbook-index.md: canonical P3 order not stated verbatim ({' '.join(P3_SEQ)}) (rule 6c)")
+# (c) tracker: S-xx ids extracted from the task-ID column, in row order,
+# must equal the canonical sequence (an agent taking "the next tracker
+# row" must receive the canonical order)
+_trk_text = "\n".join(lines_of(PORTABLE / "21-progress-tracker-template.md"))
+_trk_seq = re.findall(r"^\|\s*\S+\s*\|\s*(S-\d{2})\s*\|", _trk_text, re.M)
+if _trk_seq != P3_SEQ:
+    errors.append(f"21-progress-tracker-template.md: P3 tracker rows diverge from the canonical order (got: {' '.join(_trk_seq)}) (rule 6c)")
+# (d) phase-03 card chain: walking **Next task:** links from S-01 must
+# reproduce the canonical sequence exactly
+_p3card_text = "\n".join(lines_of(PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md"))
+_p3_chain = {}
+for _blk in re.split(r"^### ", _p3card_text, flags=re.M):
+    _mh = re.match(r"(S-\d{2}) ", _blk)
+    if not _mh:
+        continue
+    _mn = re.search(r"\*\*Next task:\*\* (S-\d{2})", _blk)
+    if _mn:
+        _p3_chain[_mh.group(1)] = _mn.group(1)
+_walk = ["S-01"]
+while _walk[-1] in _p3_chain and len(_walk) <= len(P3_SEQ):
+    _walk.append(_p3_chain[_walk[-1]])
+if _walk != P3_SEQ:
+    errors.append(f"08-task-cards/phase-03-schema-and-migration.md: Next-task chain diverges from the canonical P3 order (walked: {' -> '.join(_walk)}) (rule 6c)")
+# rule-6c self-tests (mutation + positive — executed every run)
+assert re.findall(r"^\|\s*\S+\s*\|\s*(S-\d{2})\s*\|", "| 30 | S-08 | TODO | | | (note about S-05) |\n| 31 | S-05 | TODO | | | |", re.M) == ["S-08", "S-05"], "6c tracker extractor must read the ID column only"
+assert re.findall(r"^\|\s*\S+\s*\|\s*(S-\d{2})\s*\|", "| 35 | K-01 | TODO | | | |", re.M) == [], "6c tracker extractor must ignore non-S rows"
+
+# ---- Rule 6m (follow-up M2 on 0bcb536): the typed consequence record
+# has exactly TWO producers (CT-04, CT-05) and a FOUR-state vocabulary
+# declared in spec §18-1 — no maintained file may attribute records to
+# CT-02/CT-03 (the unsatisfiable-gate class), and the full vocabulary
+# must be present verbatim (whitespace-normalized) at both canonical
+# declaration sites ----
+CONSEQ_STATES = "NO_IMPLEMENTATION_CHANGE | IMPLEMENTATION_REQUIRED | IMPLEMENTED_AND_VERIFIED | UNRESOLVED_BLOCKING"
+def _ws_norm(t):
+    return re.sub(r"\s+", " ", t)
+_spec_norm = _ws_norm("\n".join(lines_of(ROOT / "requirment-v4.md")))
+if CONSEQ_STATES not in _spec_norm:
+    errors.append(f"requirment-v4.md: §18-1 must declare the FULL four-state consequence vocabulary verbatim ({CONSEQ_STATES}) (rule 6m)")
+_ct_card_norm = _ws_norm("\n".join(lines_of(PORTABLE / "08-task-cards" / "phase-08-provider-contract-tests.md")))
+if CONSEQ_STATES not in _ct_card_norm:
+    errors.append(f"08-task-cards/phase-08-provider-contract-tests.md: CT-04 must cite the FULL four-state consequence vocabulary verbatim ({CONSEQ_STATES}) (rule 6m)")
+_CONSEQ_MISATTR = re.compile(r"CT-02\.\.(?:CT-)?0?5['s]*\s+(?:TYPED|typed)|CT-0[23](?:'s)?\s+(?:TYPED|typed)\s+consequence|four typed consequence records", re.I)
+for path in MAINTAINED:
+    _pt = _ws_norm("\n".join(lines_of(path)))
+    _mm = _CONSEQ_MISATTR.search(_pt)
+    if _mm:
+        errors.append(f"{rel(path)}: attributes typed consequence records beyond the two producers CT-04/CT-05 ('{_mm.group(0)}') — CT-02/CT-03 are plain pass/fail proofs with no record (rule 6m)")
+# rule-6m self-tests (executed every run)
+assert _CONSEQ_MISATTR.search("every CT-02..05 TYPED consequence record"), "6m must catch the range attribution"
+assert _CONSEQ_MISATTR.search("the four typed consequence records"), "6m must catch the four-record count"
+assert _CONSEQ_MISATTR.search("CT-02's typed consequence record"), "6m must catch direct CT-02 attribution"
+assert not _CONSEQ_MISATTR.search("CT-02..CT-05 must be PASSED — AND BOTH typed consequence records (CT-04's and CT-05's"), "6m must not flag the corrected DD-6 wording"
+assert not _CONSEQ_MISATTR.search("CT-04's typed consequence record reads IMPLEMENTATION_REQUIRED"), "6m must not flag legitimate CT-04 attribution"
 
 # ---- Rule 7: every §N(.N) cited in the portable package exists in the spec ----
 spec_lines = lines_of(ROOT / "requirment-v4.md")

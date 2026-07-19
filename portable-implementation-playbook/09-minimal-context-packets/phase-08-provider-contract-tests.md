@@ -35,7 +35,7 @@ Tests: two variants. Stop: recorded. Execution → STOP, escalate (TL-4 payload-
 [CT-04] TTL edge
 Read: §18-1(c) §7.0 §9.3. Invariant: a key aged out of the dedup store executes a duplicate — TTL vs max row lifetime decides a repost_permitted TTL term.
 Placeholders: [Contract Test Suite]. Mappings: harness; written TTL.
-Objective: re-run (a)/(b) at the achievable retention edge; compare TTL vs max lifetime incl. ops SLA; emit the TYPED consequence record (NO_IMPLEMENTATION_CHANGE | IMPLEMENTATION_REQUIRED | UNRESOLVED_BLOCKING — 289ef66 M2); TTL short ⇒ IMPLEMENTATION_REQUIRED reopens/blocks RC-03 even if merged; F4/Q2/Q10/go-live blocked until the record reads IMPLEMENTED_AND_VERIFIED.
+Objective: re-run (a)/(b) at the achievable retention edge; compare TTL vs max lifetime incl. ops SLA; emit the TYPED consequence record (289ef66 M2; four-state model + transitions = spec §18-1 — initial emission ∈ {NO_IMPLEMENTATION_CHANGE, IMPLEMENTATION_REQUIRED, UNRESOLVED_BLOCKING}; IMPLEMENTED_AND_VERIFIED only from IMPLEMENTATION_REQUIRED with linked commit + re-run tests + reviewer); TTL short ⇒ IMPLEMENTATION_REQUIRED reopens/blocks RC-03 even if merged; F4/Q2/Q10/go-live blocked until the record reads NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED.
 Tests: edge runs (provider-assisted acceptable, documented). Stop: evidence + typed record in a non-UNRESOLVED state.
 ```
 
@@ -43,7 +43,7 @@ Tests: edge runs (provider-assisted acceptable, documented). Stop: evidence + ty
 [CT-05] Re-POST after sync business reject
 Read: §18-1(d) TL-6 §7.1. Invariant: either answer is handled but must be KNOWN by test, not by documentation.
 Placeholders: [Contract Test Suite]. Mappings: harness; inducible business reject.
-Objective: induce reject; re-POST same key; record re-executes vs replays; emit the TYPED consequence record (289ef66 M2); REPLAYS ⇒ IMPLEMENTATION_REQUIRED reopens/blocks RC-04 even if merged (that class → fresh successor via §6.8); F4/Q2/Q10/go-live blocked until IMPLEMENTED_AND_VERIFIED.
+Objective: induce reject; re-POST same key; record re-executes vs replays; emit the TYPED consequence record (289ef66 M2; four-state model = spec §18-1, as on CT-04); REPLAYS ⇒ IMPLEMENTATION_REQUIRED reopens/blocks RC-04 even if merged (that class → fresh successor via §6.8); F4/Q2/Q10/go-live blocked until NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED.
 Tests: the run per retryable class. Stop: evidence + typed record in a non-UNRESOLVED state.
 ```
 

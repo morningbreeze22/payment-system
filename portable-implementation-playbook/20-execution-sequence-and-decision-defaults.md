@@ -116,7 +116,9 @@ DD-6  CT block placement: run CT-01..CT-07 immediately after K-06 IF
       sandbox access (B-02) exists. If not, continue with U-01 onward
       and run the CT block as soon as access arrives. HARD GATE either
       way (extended 289ef66 M2): CT-02..CT-05 must be PASSED — AND
-      every typed CT consequence record must read
+      BOTH typed consequence records (CT-04's and CT-05's — the
+      ONLY two producers; CT-02/CT-03 are plain pass/fail proofs
+      with no record) must read
       NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED — before
       GO-03 stage F4 (auto-downgrade) and before checklist items
       Q2/Q10 can PASS. Late CT execution makes this bite: an

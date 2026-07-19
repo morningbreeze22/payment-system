@@ -34,7 +34,7 @@ Rules of the game:
 | Q | How to verify (do this) | Evidence artifact | Sign-off |
 |---|---|---|---|
 | Q1 | Read the filed upstream confirmation (ask 5) — it must state snapshot schema + within-snapshot uniqueness as a GUARANTEE ("usually" = FAIL). Run the B-01/IN-02 intake validation tests (within-snapshot tuple-collision seed → whole-snapshot failure + anchors; test-ID reference corrected 2026-07-11 — T-01 is key generation, not intake). Confirm the PO-9 answer recorded in §18 AND the §6.1 fan-out implements it; confirm TL-16's round-5 answer IMPLEMENTED (S-10 trade_snapshot_state + the IN-02 admission gate; T-35 green). Read the filed ask-8 store contract (§18-0(d)) — it must state fetch-by-id sanction, versioned-id stability, consistent reads, IMMUTABILITY (corrections = new id/version), and retention ≥ the ops/tie SLA as GUARANTEES. | signed upstream doc; ask-8 store contract; intake-test run ID; §18 answer entries with date+source | TL + EXT(upstream) |
-| Q2 | Confirm CT-02..05 executed against the REAL sandbox (not mocks): (a) same-payload dedupe, (b) different-payload reject with distinguishable code, (c) retention-TTL edge with the TTL stated in writing, (d) post-reject re-POST behavior recorded. Confirm the re-run procedure for engine releases is scheduled (calendar/pipeline entry). ROUND-16 EVIDENCE STANDARD: every CT record carries redacted RAW request/response bytes, canonical payload hash, idempotency key, timestamps, correlation/provider reference, environment + endpoint/API/SDK/engine versions, provider-side EXECUTION COUNT (a status query showing one visible payment is NOT execution-count proof — provider dedup/query semantics can collapse records; obtain an execution/audit count or settlement-ledger equivalent), status-query result, expected/actual outcome, reviewer signature; raw evidence preserved immutably, never prose transcript or screenshot alone. Plus the provider PRODUCTION-PARITY statement: which idempotency/TTL/error-code/query-retention behaviors are identical to production, with exceptions listed; provider + TL sign off on the CA-1/2/3 mappings produced from the observations. CONSEQUENCE CLOSURE (289ef66 M2): verify every typed consequence record from CT-02..CT-05 reads NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED IN THE DEPLOYED RELEASE CANDIDATE — an IMPLEMENTATION_REQUIRED record with the follow-up unimplemented is a Q2 FAIL, whatever the test evidence shows. | CT run transcript + RAW captures + execution-count proof; TTL letter; parity statement; re-run schedule link; the four typed consequence records + (where required) the fixing commit bound to the evidence | TL + EXT(provider) |
+| Q2 | Confirm CT-02..05 executed against the REAL sandbox (not mocks): (a) same-payload dedupe, (b) different-payload reject with distinguishable code, (c) retention-TTL edge with the TTL stated in writing, (d) post-reject re-POST behavior recorded. Confirm the re-run procedure for engine releases is scheduled (calendar/pipeline entry). ROUND-16 EVIDENCE STANDARD: every CT record carries redacted RAW request/response bytes, canonical payload hash, idempotency key, timestamps, correlation/provider reference, environment + endpoint/API/SDK/engine versions, provider-side EXECUTION COUNT (a status query showing one visible payment is NOT execution-count proof — provider dedup/query semantics can collapse records; obtain an execution/audit count or settlement-ledger equivalent), status-query result, expected/actual outcome, reviewer signature; raw evidence preserved immutably, never prose transcript or screenshot alone. Plus the provider PRODUCTION-PARITY statement: which idempotency/TTL/error-code/query-retention behaviors are identical to production, with exceptions listed; provider + TL sign off on the CA-1/2/3 mappings produced from the observations. CONSEQUENCE CLOSURE (289ef66 M2): verify BOTH typed consequence records — CT-04's and CT-05's, the ONLY two producers (CT-02/CT-03 are plain blocking pass/fail proofs and carry NO consequence record) — read NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED IN THE DEPLOYED RELEASE CANDIDATE — an IMPLEMENTATION_REQUIRED record with the follow-up unimplemented is a Q2 FAIL, whatever the test evidence shows. | CT run transcript + RAW captures + execution-count proof; TTL letter; parity statement; re-run schedule link; the two typed consequence records (CT-04, CT-05) + (where required) the fixing commit bound to the evidence | TL + EXT(provider) |
 | Q3 | CLOSED round 10 (engine-owned calendar, §18-2): verify the engine's WRITTEN any-time-submission line is filed, the CA-1 table carries the late-submission response class (or its recorded absence), and NO local cutoff config/constants exist in the target env (grep the deployed config). | written line filed; CA-1 row; config grep output | TL |
 | Q4 | Verify the OP-01 audited operation deployed (endpoint restricted to the enterprise ops role — attempt it with an unauthorized identity, must fail; 2026-07-11 boundary: authorized application endpoint), OP-02 suite green on real Oracle (incl. the marker-blocks-successor case AND the §9.3 approval-workflow negative set), OP-03 drill report SIGNED by the ops owner with real operators + real ticket. Alternative path only with TL-10 ∧ TL-5 letters + PO re-confirmation. | endpoint authz config + refused-attempt log; T-24 run ID; signed drill report | OPS + TL |
 | Q5a | Diff deployed schema vs CA-4 DDL (constraints VALIDATED state, both triggers live, artifact-4 index list present). Run the migration test incl. dual-run (old+new app versions concurrently). EXPLAIN one scanner query per standing scan → each rides its ACTIVE-row-bounded index. GREENFIELD (round 10 — the bootstrap/pointer evidence set was RETIRED: T-36, S-11 coverage, the enablement gate, and pointer coverage may NOT be required here): instead verify trade_snapshot_state deploys EMPTY, the S-10 creation path is live, and T-35 + T-37 are green (admission + fence + absence lifecycle). Round 20: verify the RUN-2 queries + scope predicate are REVIEWED and manifest-bound (query checksum recorded) — Q5a must be fully PASS before GO-04 can issue the conditional authorization. | schema diff output; migration test run; captured plans; T-35/T-37 run IDs; reviewed RUN-2 query pack in manifest.yaml | DEV + DBA |
@@ -43,7 +43,7 @@ Rules of the game:
 | Q7 | ST-05 inventory: every legacy-status rule site listed with disposition (removed / display-only). Grep release build for business logic keyed on display labels or blocked_reason — zero hits. | ST-05 inventory doc; grep output | DEV + TL |
 | Q8 | T-03/08/09/10 green (write-ahead identity, crash/retry/restore identity stability). Kill-test evidence: worker killed between claim-commit and HTTP call → row lands MAYBE, resolver recovers (T-08 trace). | run IDs + T-08 trace log | DEV |
 | Q9 | T-02 golden vectors green IN CI (build fails on drift — verify by mutating a vector locally once and observing the failure, then revert). | run ID + the observed-failure note | DEV + TL |
-| Q10 | Same CT evidence as Q2 filed in the pack — INCLUDING the consequence-closure verification (every CT-02..05 typed record NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED in the deployed RC; 289ef66 M2) + CT-07 SDK checks (UETR returned + field name; caller key accepted; dedup keys on caller key). | CT-07 run/responses; consequence records | TL |
+| Q10 | Same CT evidence as Q2 filed in the pack — INCLUDING the consequence-closure verification (both CT-04/CT-05 typed records — the only two producers — NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED in the deployed RC; 289ef66 M2) + CT-07 SDK checks (UETR returned + field name; caller key accepted; dedup keys on caller key). | CT-07 run/responses; consequence records | TL |
 | Q11 | T-17 green: I6 second-active-insert refused; UNIQUE(idempotency_key) violation refused; DUPLICATE_REQUEST routed to MAYBE+query (not error, not fresh key). | run ID | DEV |
 | Q12 | T-08/09/10 + ST-10 green: lease expiry both branches (ENRICH re-claim; POST → MAYBE, never re-claimed); graceful shutdown drains in order. | run IDs | DEV |
 | Q13 | CLOSED round 10 with Q3 (no local calendar exists; nothing to configure per environment). | — | OPS |
@@ -128,22 +128,40 @@ coexists with immutability; version model clarified 58f5a64 L3):
    not empty, deliberately incomplete.
 2. v2 — GO-03 CLOSURE pack: a NEW manifest VERSION that APPENDS the
    RUN-2 result, DBA + TL signatures, the Q5b PASS row, and the
-   FIRST_REQUEST_CREATION_COLUMNS field (PASS or PENDING_SAMPLE —
-   the field is ALWAYS present in v2). v1 is PRESERVED UNCHANGED —
-   closure never overwrites or rewrites captured evidence. v2 is
-   FINAL only when FIRST_REQUEST_CREATION_COLUMNS is already PASS;
-   otherwise v2 is the immutable GO-03 closure version and v3
-   (below) is the final sample-closure version.
-3. v3 — CONDITIONAL SAMPLE CLOSURE for
+   FIRST_REQUEST_CREATION_COLUMNS field — legal v2 values:
+   PASS | PENDING_SAMPLE | FAILED_INCIDENT_OPEN (the field is
+   ALWAYS present in v2; the failed state added to v2 follow-up L1
+   on 0bcb536 — an INVALID first row observed INSIDE the change
+   window is neither PASS nor "no sample": v2 records
+   FAILED_INCIDENT_OPEN with the append-only bad-row evidence and
+   the incident opened BEFORE closure signs). v1 is PRESERVED
+   UNCHANGED — closure never overwrites or rewrites captured
+   evidence. v2 is FINAL only when FIRST_REQUEST_CREATION_COLUMNS
+   is PASS; otherwise v2 is the immutable GO-03 closure version
+   and the NEXT sample/disposition version (below) is the final
+   sample-closure version.
+3. v3+ — CONDITIONAL SAMPLE CLOSURE for
    FIRST_REQUEST_CREATION_COLUMNS (7cc9f49 L2; mechanism + query
    frozen 58f5a64 L1/L2; failure state added 289ef66 L1 — the ONE
    item that may be open at GO-03 closure, beside nothing): a
    manifest field with values
-   PENDING_SAMPLE | PASS | FAILED_INCIDENT_OPEN. If the first
-   post-F0 payment_request
-   existed inside the change window, v2 records PASS with the row
-   evidence (NON-NULL required_total_at_creation + NON-NULL
-   request_seq) and NO v3 exists. If not, v2 carries
+   PENDING_SAMPLE | PASS | FAILED_INCIDENT_OPEN. "v3" here means
+   THE NEXT SAMPLE/DISPOSITION VERSION, not a fixed third slot —
+   every state change appends a further version (a
+   FAILED_INCIDENT_OPEN requalification, for example, closes in a
+   later version; nothing assumes every failure follows a
+   no-sample v2 — follow-up L1 on 0bcb536). Three v2 branches:
+   (i) a first post-F0 payment_request existed inside the change
+   window AND is valid → v2 records PASS with the row evidence
+   (NON-NULL required_total_at_creation + NON-NULL request_seq)
+   and NO later sample version exists;
+   (ii) a first row existed inside the change window and is
+   INVALID (any NULL creation column) → v2 records
+   FAILED_INCIDENT_OPEN (append-only bad-row evidence + incident
+   opened before closure signs; severity routing below applies);
+   closure then follows the REQUALIFICATION path in a later
+   append-only version;
+   (iii) NO row existed → v2 carries
    PENDING_SAMPLE and the MANUAL closure procedure applies — the
    ONE mechanism, no automation exists or is implied:
    (1) GO-03 OPENS the durable ticket BEFORE closure is signed;
@@ -175,13 +193,18 @@ coexists with immutability; version model clarified 58f5a64 L3):
    and close the item wrongly. NEVER add request_seq IS NOT NULL
    or required_total_at_creation IS NOT NULL to the predicate —
    the selected first row is INSPECTED, not curated. ACCEPTANCE
-   CASES, all four — OWNED BY GO-03 (the operator executing this
+   CASES, all five — OWNED BY GO-03 (the operator executing this
    procedure runs them as a named checklist, including query
-   CHECKSUM verification against the ticket, 289ef66 L1): no row
-   → stays PENDING_SAMPLE; valid first row → PASS (v3 signed);
-   INVALID first row (any NULL creation column) → the field
-   becomes FAILED_INCIDENT_OPEN — the system is no longer waiting
-   for a sample, it has OBSERVED a broken creation contract: the
+   CHECKSUM verification against the ticket, 289ef66 L1; the
+   inside-window invalid case added follow-up L1 on 0bcb536): no
+   row → stays PENDING_SAMPLE; valid first row → PASS (next
+   version signed); INVALID first row observed INSIDE the change
+   window → v2 ITSELF records FAILED_INCIDENT_OPEN (never PASS,
+   never PENDING_SAMPLE — the sample exists and is bad); INVALID
+   first row observed by the deferred ticket → the NEXT
+   append-only manifest version records FAILED_INCIDENT_OPEN —
+   in both invalid cases the system is no longer waiting for a
+   sample, it has OBSERVED a broken creation contract: the
    bad-row evidence is preserved append-only, the incident
    disposition is REQUIRED evidence, and a later good row does
    NOT cure it; two rows sharing created_at → the tie-breaker

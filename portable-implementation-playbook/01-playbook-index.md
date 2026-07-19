@@ -57,7 +57,7 @@ P2  Gates/artifacts:  B-01 B-02 B-03 B-04
                       CA-1 CA-2 CA-3 CA-4 CA-5 CA-6 CA-7 CA-8 CA-9
                       CA-10 (§14.1 attempt-journal spec)
 P3  Schema (+audit):  AUD-01 (§14.1 journal DDL — off-chain, in/after P3)
-P3  Schema:           S-01 S-02 S-03 S-04 S-10 S-05 S-06 S-07 S-08 S-09
+P3  Schema:           S-01 S-02 S-03 S-04 S-10 S-08 S-05 S-06 S-07 S-09
 P4  Identity:         K-01 K-02 K-03 K-04 K-05 K-06
 P5  UETR:             U-01 U-02 U-03
 P6  State model:      ST-01 ST-02 ST-03 ST-04 ST-05 ST-06 ST-07 ST-08 ST-09 ST-10 ST-11

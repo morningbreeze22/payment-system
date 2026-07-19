@@ -4440,17 +4440,35 @@ lives in the payment platform
    this test is the PROOF, and it blocks GO-LIVE, not runtime
    behavior. Because nothing is live until it passes, TL-4's
    revert-to-payload-freeze clause remains executable while it
-   matters. CONSEQUENCE CLOSURE (review 289ef66 M2): (c) and (d)
-   are DECISIONS, not pass/fail tests — each emits a TYPED
-   consequence record (NO_IMPLEMENTATION_CHANGE |
-   IMPLEMENTATION_REQUIRED | UNRESOLVED_BLOCKING).
+   matters. CONSEQUENCE CLOSURE (review 289ef66 M2; state model
+   completed follow-up M2 on 0bcb536): (c) and (d) are DECISIONS,
+   not pass/fail tests — ONLY these two (CT-04 and CT-05) emit a
+   TYPED consequence record; (a) and (b) (CT-02/CT-03) are plain
+   blocking pass/fail proofs with no consequence record. The
+   record's COMPLETE state vocabulary is FOUR states:
+   NO_IMPLEMENTATION_CHANGE | IMPLEMENTATION_REQUIRED |
+   IMPLEMENTED_AND_VERIFIED | UNRESOLVED_BLOCKING.
+   Legal transitions:
+     - INITIAL emission (the test's result) is exactly one of
+       NO_IMPLEMENTATION_CHANGE, IMPLEMENTATION_REQUIRED, or
+       UNRESOLVED_BLOCKING — IMPLEMENTED_AND_VERIFIED can never
+       be an initial value;
+     - IMPLEMENTATION_REQUIRED → IMPLEMENTED_AND_VERIFIED ONLY
+       with the fixing commit/build linked to this evidence, the
+       affected tests re-run green, and a reviewer sign-off;
+     - UNRESOLVED_BLOCKING has NO release-permitting transition:
+       it exits only through a NEWLY REVIEWED evidence run that
+       emits a fresh initial value (a new record version — the
+       old record is never edited);
+     - NO_IMPLEMENTATION_CHANGE and IMPLEMENTED_AND_VERIFIED are
+       terminal for that evidence run.
    IMPLEMENTATION_REQUIRED reopens the affected implementation
    (RC-03 for the TTL term, RC-04 for the replay policy) EVEN IF
-   ALREADY MERGED, and go-live authorization requires every such
-   record to read NO_IMPLEMENTATION_CHANGE or
-   IMPLEMENTED_AND_VERIFIED in the deployed release candidate —
-   "test passed + consequence recorded" is NOT
-   release-sufficient.
+   ALREADY MERGED, and go-live authorization requires BOTH
+   records (CT-04's and CT-05's) to read
+   NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED in the
+   deployed release candidate — "test passed + consequence
+   recorded" is NOT release-sufficient.
 2. CLOSED 2026-07-11 (PO answer): the PAYMENT ENGINE owns its own
    cutoff calendar (engine-owned, round 10) — this system initiates at any time and carries
    NO local calendar, cutoff gate, or cutoff config. A late
