@@ -130,7 +130,10 @@ UPDATE payment_obligation SET committed_amount = committed_amount - :amt
 
 -- STEP 6 · §6.8 standing re-evaluation (if this transition is a
 --   T1–T4 trigger) — the SINGLE request-creation point, still under
---   the same lock
+--   the same lock; the creation INSERT stamps
+--   required_total_at_creation := the locked row's required_amount
+--   (§2.2 set-once display stamp — written here or never; no money
+--   logic ever reads it)
 
 -- STEP 7 · §4 re-derivation, same transaction: ui_step_status (§4.1),
 --   active_exception_* (§4.2 rank order). Never skipped, never async.

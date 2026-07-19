@@ -513,7 +513,11 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            GONE (no duplicate — join construction);
          - required 120 fulfilled as 100 + 20 → exactly TWO REQUEST
            rows (amounts 100, 20), both carrying required 120 and
-           cumulative counters;
+           cumulative counters, and the amount-series stamps
+           (2026-07-19): the 100-row shows
+           required_total_at_creation 100, the 20-row shows 120;
+           a pre-migration row shows NULL rendered as "predates
+           capture", never a computed value;
          - mixed active/terminal (REJECTED predecessor + live
            successor) → both rows visible, history never laundered;
          - fully removed scope (required = 0) → rows remain,

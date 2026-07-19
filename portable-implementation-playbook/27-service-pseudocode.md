@@ -207,7 +207,12 @@ onTradeSnapshot(record):
                                                  // identity §5.1: key computed and
                                                  // stored at creation (K-02), then
                                                  // re-verified/persisted-if-absent
-                                                 // at the first posting claim (K-04))
+                                                 // at the first posting claim (K-04);
+                                                 // the INSERT also stamps
+                                                 // required_total_at_creation :=
+                                                 // ob.required — set-once display
+                                                 // stamp, §2.2/§6.8, never read by
+                                                 // any money logic)
         derive(ob)                               // frontend updated atomically
         COMMIT
 

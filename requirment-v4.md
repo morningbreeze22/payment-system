@@ -385,6 +385,38 @@ state_changed_at    — updated on every dimension-changing CAS (single
 creating_ordering   — the upstream_ordering value at creation time;
                       input to the §6.8 successor policy and the
                       marker ordering tags
+required_total_at_creation — the obligation's required_amount as
+                      read under the obligation lock inside the
+                      §6.8 transaction that created this row
+                      (added 2026-07-19 — UI amount-series
+                      requirement): a SET-ONCE display stamp, the
+                      third creation-time stamp beside
+                      creating_ordering and created_at, kept for
+                      the same reason — the value is NOT
+                      reconstructable later (outcomes are stored
+                      as current state only, so "what was
+                      committed when this row was created" is
+                      unknowable afterward: a reject-then-retry
+                      history of 100 REJECTED + 100 retry sums to
+                      200 under any derivation, a number no
+                      message ever carried; decreases and
+                      zeroings create no request at all). NEVER
+                      LOAD-BEARING: no runtime rule, gate,
+                      scanner, coverage evaluation, or money
+                      decision reads it — §6.8 computes from the
+                      LIVE amounts, always. Right-sizing identity:
+                      stamp = row amount + committed-before-insert
+                      (and committed == required immediately after
+                      the insert). Never UPDATEd — the §9.2
+                      downgrade re-POST reuses the row and keeps
+                      the creation-era stamp. NULL = predates
+                      capture (backfill leaves NULL, never
+                      back-computes). §5.2 replay caveat: a
+                      re-created row stamps the REPLAYED
+                      evaluation against the current trade store,
+                      which can differ from the lost original —
+                      the same known fresh-assembly limitation,
+                      accepted.
 provider_reference  — engine-assigned reference, if any, persisted
                       from the POST response; secondary feed-matching
                       key (§8); a distinct field from the uetr,
@@ -1769,7 +1801,10 @@ AND  provider_rejected not live           (§6.9; cleared by a newer
 AND  the successor policy permits         (below)
 then create the next request (reservation +committed, §3;
      next_request_seq++, deterministic identity §5.1;
-     creating_ordering := upstream_ordering)
+     creating_ordering := upstream_ordering;
+     required_total_at_creation := required_amount — the locked
+     row's value at this instant, set-once display stamp, §2.2;
+     this transaction is the ONLY moment the value exists)
 ```
 
 Trigger inventory (normative):
@@ -3092,11 +3127,22 @@ Field separation (amounts can never be conflated):
     confirmed amounts, ui_step_status, active exception (+ manual-
     action flag), reopened indicator;
   - request fields on REQUEST rows only: request amount, §10.4
-    display label, blocked_reason, timestamps; empty/n-a on
-    OBLIGATION_ONLY rows.
+    display label, blocked_reason, timestamps,
+    required_total_at_creation (§2.2 — the required total in
+    force when THIS attempt was created; NULL renders as
+    "predates capture"); empty/n-a on OBLIGATION_ONLY rows.
   Example: required 120 fulfilled as 100 + 20 renders as TWO
   REQUEST rows (amounts 100 and 20), each carrying required 120
-  and the cumulative counters — never one synthetic 120 row.
+  and the cumulative counters — never one synthetic 120 row; and
+  the stamps carry the per-attempt history: the 100-row shows
+  required_total_at_creation 100, the 20-row shows 120 — the UI
+  amount series (2026-07-19). SCOPE, stated honestly: the series
+  shows the required total AT EACH ATTEMPT — message versions
+  that never produced a request (decreases, zeroings,
+  enrichment-only changes) are NOT in it, BY DECISION; a full
+  message-version history would need the upstream version-listing
+  ask or a history store, neither of which this column pretends
+  to be.
 Pre-request visibility: the OBLIGATION_ONLY row shows the scope
   tuple, the required amount (blank for a §6.6 anchor), "no
   request created", and a NULLABLE reason (review d00ef6a M2):

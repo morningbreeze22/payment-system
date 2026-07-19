@@ -80,7 +80,9 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   expression; enum CHECKs (round 12: the ui_step_status CHECK
   carries IN_PROGRESS/COMPLETED/CANCELLED — a two-value constraint
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
-  the dimension-ordering encoding); freeze + release-guard triggers +
+  the dimension-ordering encoding); the required_total_at_creation
+  stamp tripwire CHECK (IS NULL OR >= amount — §2.2, 2026-07-19);
+  freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
   (one per standing scan — EXPLICIT EXCEPTION, review b1d91dc M1:
   the §6.6 accepted-window candidate diagnostic is OPTIONAL and
