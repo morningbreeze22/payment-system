@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PORTABLE = ROOT / "portable-implementation-playbook"
 
 MAINTAINED = [ROOT / "requirment-v4.md", ROOT / "ops-console-proposal.md",
-              ROOT / "failure-recovery-walkthrough.md", ROOT / "README.md"]
+              ROOT / "failure-recovery-walkthrough.md", ROOT / "README.md",
+              ROOT / "db-schema-dictionary.md"]
 MAINTAINED += sorted(PORTABLE.rglob("*.md"))
 
 errors = []
