@@ -337,6 +337,31 @@ Supporting fields:
 ```text
 payment_obligation_id
 amount              — IMMUTABLE after creation (§6.3)
+request_seq         — the IMMUTABLE per-request sequence: the value
+                      of payment_obligation.next_request_seq
+                      consumed by THIS row, assigned under the
+                      obligation lock in the same §6.8 transaction
+                      that inserts the row and increments the
+                      counter (declared 2026-07-19, review 1d8a650
+                      M1 — the value was already consumed by four
+                      contracts but never declared as a column).
+                      Write-once, never UPDATEd. It is the source
+                      of truth for: the §5.1 identity-hash input
+                      (the hash is not invertible, so the
+                      clear-text sequence must be stored); the
+                      request_seq field on every §14 log line; the
+                      §12 keyset order; and the §5.2 5b
+                      log-derived heuristic limit. NULL on
+                      legacy/pre-F0 rows created by old writers —
+                      NEVER fabricated (backfill leaves NULL; the
+                      §12 ordering handles NULLs explicitly).
+                      Defensive uniqueness: a NULL-IGNORING
+                      function-based unique index over
+                      (payment_obligation_id, request_seq) — a
+                      plain composite UNIQUE would reject multiple
+                      NULL-seq legacy rows on one obligation (the
+                      same NULL-ignoring pattern as the uetr
+                      index)
 blocked_reason      — set iff stage_state = BLOCKED (§13 codes:
                       RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH,
                       CUTOFF_EXPIRED (RESERVED round 10 — never
@@ -539,7 +564,13 @@ terminal rows `state_changed_at` IS the outcome time (the future
 terminal-row retention/archival design — §18 tech-lead item —
 relies on that convention).
 
-Constraints (the DB is the backstop for every invariant the code
+Constraints (scoped per review 1d8a650 L2: the DB backstops every
+DB-ENFORCEABLE money/state invariant named by the schema contract
+(CA-4); explicitly-listed exceptions use NAMED non-DB controls —
+the required_total_at_creation set-once property = RG-06's
+SQL-inventory assertion + mutation tests (its CHECK is a corruption
+tripwire only), L9 = code + the drift scanner, never a CHECK. The
+DB is the backstop for every DB-enforceable invariant the code
 enforces): per-column enum CHECKs; the §10.3 legality matrix as CHECK
 constraints (L2–L8 and L1's terminal-row shape; L1's freeze and the
 release guard are trigger backstops — §10.3); and:
@@ -548,6 +579,9 @@ release guard are trigger backstops — §10.3); and:
 - UNIQUE (idempotency_key)
 - UNIQUE (uetr)                — NULL until assigned; Oracle ignores
                                  NULLs in the index
+- UNIQUE (payment_obligation_id, request_seq) — NULL-IGNORING
+  function-based form (rows with NULL request_seq are excluded;
+  legacy/pre-F0 rows carry NULL — 1d8a650 M1)
 - I6: at most ONE ACTIVE request per obligation, enforced with a
   function-based unique index ON THIS TABLE
   (CASE WHEN outcome IS NULL THEN payment_obligation_id END)
@@ -1017,7 +1051,11 @@ idempotency_key = hash(business_id | payment_type | debit_account |
                        currency | request_seq)   ← THE DR keystone
 request_seq     = payment_obligation.next_request_seq (§2.1),
                   incremented under the obligation lock in the same
-                  transaction that inserts the request
+                  transaction that inserts the request, and
+                  PERSISTED on the row as payment_request.request_seq
+                  (§2.2, write-once — the hash is not invertible,
+                  so the clear-text sequence must be stored;
+                  1d8a650 M1)
 ```
 
 The UETR is deliberately NOT part of this derivation: UETR
@@ -1844,7 +1882,9 @@ AND  provider_rejected not live           (§6.9; cleared by a newer
                                            second — §2.1, §19.3)
 AND  the successor policy permits         (below)
 then create the next request (reservation +committed, §3;
-     next_request_seq++, deterministic identity §5.1;
+     next_request_seq++ with the consumed value persisted as
+     the row's request_seq (§2.2, write-once — 1d8a650 M1),
+     deterministic identity §5.1;
      creating_ordering := upstream_ordering;
      required_total_at_creation := required_amount — the locked
      row's value at this instant, set-once display stamp, §2.2;
@@ -3236,8 +3276,10 @@ is an API, not just a row shape):
     by request id, OBLIGATION_ONLY rows by obligation id; stable
     across refreshes and pages;
   - ORDERING/PAGINATION: deterministic order (obligation identity,
-    then request_seq); keyset cursor on that order (never OFFSET);
-    fixed page cap (config §16.6);
+    then request_seq NULLS FIRST, then created_at, then request id
+    — the NULL handling exists because legacy/pre-F0 rows carry
+    NULL request_seq, 1d8a650 M1); keyset cursor on that order
+    (never OFFSET); fixed page cap (config §16.6);
   - PAGINATION SEMANTICS = LIVE BROWSE (decided 2026-07-17, review
     c8a92f1 M2): each page is truthful at its read instant (the
     freshness indicator applies per response); no row appears

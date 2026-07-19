@@ -69,8 +69,11 @@ P11 Operator proc:    OP-01 OP-02 OP-03 OP-04a..OP-04e
 P12 Drift:            OB-01 OB-02
 P13 Observability:    OB-03 OB-04 OB-05 OB-06 OB-07
 P14 Rollout:          GO-01 GO-02 GO-05 GO-04 GO-03
-Tests (Section J):    T-01 … T-37 (T-21/T-36 retired stubs)
-Questions (Section K): Q-01 … Q-21
+Tests (Section J):    T-01 … T-38 (T-21/T-36 retired stubs; T-38
+                      gates JOURNAL ENABLEMENT, not payment
+                      go-live — except its switch-OFF inertness
+                      sub-case)
+Questions (Section K): Q-01 … Q-22 (Q-22 = FUTURE/BLOCKING-FOR-DR)
 ```
 
 ## Dependency order (phase-level; details in Section D)

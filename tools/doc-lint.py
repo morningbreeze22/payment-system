@@ -264,6 +264,46 @@ if tids:
     elif int(m.group(1)) != max(tids):
         errors.append(f"{rel(matrix)}: header says T-01..T-{m.group(1)} but max test is T-{max(tids):02d}")
 
+# ---- Rule 6j (1d8a650 M2): every advertised T-01..T-NN / Q-01..Q-NN
+# range in ANY maintained file must equal the canonical maxima (the
+# matrix and the Section K register) — stale ranges silently orphan
+# new tests/questions ----
+_q_ids = [int(qm.group(1))
+          for l in lines_of(PORTABLE / "11-provider-techlead-po-questions.md")
+          for qm in [re.match(r"\| Q-(\d+) \|", l)] if qm]
+_max_t = max(tids) if tids else 0
+_max_q = max(_q_ids) if _q_ids else 0
+_range_pat_t = re.compile(r"T-01\s*(?:\.\.|…|–)\s*T-(\d+)")
+_range_pat_q = re.compile(r"Q-01\s*(?:\.\.|…|–)\s*Q-(\d+)")
+for _p in MAINTAINED:
+    for _n, _l in enumerate(lines_of(_p), 1):
+        for _m in _range_pat_t.finditer(_l):
+            if int(_m.group(1)) != _max_t:
+                errors.append(f"{rel(_p)}:{_n}: stale range T-01..T-{_m.group(1)} — canonical max is T-{_max_t} (rule 6j, 1d8a650 M2)")
+        for _m in _range_pat_q.finditer(_l):
+            if int(_m.group(1)) != _max_q:
+                errors.append(f"{rel(_p)}:{_n}: stale range Q-01..Q-{_m.group(1)} — canonical max is Q-{_max_q} (rule 6j, 1d8a650 M2)")
+
+# ---- Rule 6k (1d8a650 M1 class): request-field inventory — every
+# named payment_request column must appear wherever the request schema
+# is stated (spec, S-03 card, S-03 packet, schema dictionary), so a
+# consumed-but-undeclared column cannot recur ----
+REQUEST_FIELDS = ["request_seq", "post_attempt_seq",
+    "required_total_at_creation", "creating_ordering", "idempotency_key",
+    "uetr", "divergent_payload_at", "maybe_since", "escalated_at",
+    "submitted_at", "last_post_attempt_at", "last_sent_hash",
+    "divergence_expected", "blocked_reason", "next_query_at",
+    "provider_reference", "state_changed_at"]
+_FIELD_FILES = [ROOT / "requirment-v4.md",
+    PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md",
+    PORTABLE / "09-minimal-context-packets" / "phase-03-schema-and-migration.md",
+    ROOT / "db-schema-dictionary.md"]
+for _p in _FIELD_FILES:
+    _txt = "\n".join(lines_of(_p))
+    for _f in REQUEST_FIELDS:
+        if _f not in _txt:
+            errors.append(f"{rel(_p)}: request field '{_f}' missing (rule 6k inventory, 1d8a650 M1 — a consumed column must be declared everywhere the schema is stated)")
+
 # ---- Rule 6: card-ID parity between task-card files and file 20 ----
 card_ids = set()
 card_id_list = []

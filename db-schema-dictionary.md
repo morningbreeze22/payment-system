@@ -1,11 +1,15 @@
 # DB Schema Dictionary — Payment Orchestration
 
-> **What this is:** a team-facing explanation of every table and column —
-> the basic idea behind each table, why each column exists, and how it is
-> used at runtime. It is DERIVED from `requirment-v4.md` §2 (the
-> authority) plus the CA-9/CA-10 companion specs; on any conflict the
-> requirement wins. This file explains — it never overrides. (The
-> `requirment` filename spelling is intentional; do not "fix" it.)
+> **What this is:** the authoritative CONCEPTUAL dictionary of the data
+> model — the basic idea behind each table, why each column exists, and
+> how it is used at runtime. It is DERIVED from `requirment-v4.md` §2
+> (the authority) plus the CA-4 schema/constraint resolution artifact
+> and the CA-9/CA-10 companion specs; on any conflict the requirement
+> wins, and PHYSICAL resolution (exact Oracle types, index expressions,
+> encodings) lives in CA-4, not here. Some approval-store internals are
+> summarized rather than enumerated. This file explains — it never
+> overrides. (The `requirment` filename spelling is intentional; do not
+> "fix" it.)
 >
 > **The one-paragraph mental model:** the system stores CURRENT STATE
 > only. There is no transition-history journal table — history lives in
@@ -13,17 +17,22 @@
 > CONTENT only, in the switch-gated §14.1 attempt journal (a separate
 > audit schema, never read at runtime). Every column below exists because
 > a NAMED rule, alert, derivation, or display keys on it; columns that
-> would merely be "nice to have" were rejected. The database is the
-> BACKSTOP for every invariant the code enforces (CHECKs, unique indexes,
-> triggers), and money-critical facts are deliberately stored redundantly
-> (counters) with a scanner that verifies the redundancy (§3 drift).
+> would merely be "nice to have" were rejected. The database BACKSTOPS
+> every DB-ENFORCEABLE money/state invariant named by the schema
+> contract (CHECKs, unique indexes, triggers — CA-4 is the resolution
+> artifact); explicitly-listed exceptions use NAMED non-DB controls
+> instead (the `required_total_at_creation` set-once property = RG-06's
+> SQL-inventory assertion + mutation tests; L9 = code + the drift
+> scanner — do NOT invent triggers for these). Money-critical facts are
+> deliberately stored redundantly (counters) with a scanner that
+> verifies the redundancy (§3 drift).
 
 ## Table inventory
 
 | Table | Schema | One-line idea |
 |---|---|---|
 | `payment_obligation` | payment | One row per payment SCOPE — the durable, user-visible payment fact and the money ground truth ("how much must be paid, how much is reserved, how much is confirmed"). |
-| `payment_request` | payment | One row per executable payment ATTEMPT against an obligation — the thing that actually goes to the payment engine. State = four independent columns, not one status enum. |
+| `payment_request` | payment | One row per LOGICAL PAYMENT REQUEST against an obligation — the unit that can be sent to the payment engine. A request may carry MULTIPLE provider POST attempts ("posting attempt" = `post_attempt_seq`) while keeping one identity and one row. State = four independent columns, not one status enum. |
 | `processed_inbound_event` | payment | Dedup inbox for the status feed — "have we already processed this event id?" |
 | `trade_snapshot_state` | payment | One row per TRADE — the snapshot-admission gate's lock and memory (which snapshot ordering this trade has accepted, and which stored document that was). |
 | CA-9 approval store | ops (separate, sanctioned) | Approval records for the audited manual operations (apply-platform-verified-outcome, reprocess-snapshot) — PENDING→APPROVED→CONSUMED, 4-eyes. |
@@ -95,15 +104,18 @@ index. The ui_step_status CHECK lands in S-05.
 
 ---
 
-## 2. payment_request — one row per executable attempt
+## 2. payment_request — one row per logical payment request
 
 **Basic idea.** A request is the unit that can be sent to the payment
 engine: right-sized to the shortfall at creation (§6.8), carrying a
 deterministic idempotency identity, and moving through a FACTORED state
 model — four independent columns, one per independent fact — instead of
-one 13-value status enum. Requests are never deleted: a REJECTED
-predecessor stays visible next to its successor (history is never
-laundered). At most ONE ACTIVE request per obligation (I6).
+one 13-value status enum. One request row may carry MULTIPLE provider
+POST attempts (the §9.2 downgrade re-POSTs the SAME row; "posting
+attempt" is reserved for `post_attempt_seq`). Requests are never
+deleted: a REJECTED predecessor stays visible next to its successor
+(history is never laundered). At most ONE ACTIVE request per obligation
+(I6).
 
 **Writers:** created ONLY by §6.8 (single creation point, obligation
 lock); mutated ONLY through the shared CAS helper (version-guarded,
@@ -127,6 +139,8 @@ survives only as a §10.4 display label — no rule may key on it.
 |---|---|
 | `payment_obligation_id` | Owner. I6 (function-based unique index on `CASE WHEN outcome IS NULL THEN payment_obligation_id END`) enforces at most one active request per obligation AT THE DB. |
 | `amount` | IMMUTABLE after creation (§6.3). Amendments never mutate an in-flight request — they supersede or top-up via §6.8. |
+| `request_seq` | The IMMUTABLE per-request sequence (1d8a650 M1): the `next_request_seq` value this row consumed, persisted write-once in the creation transaction. Source of truth for the §5.1 identity-hash input (the hash is not invertible), the `request_seq` field on every §14 log line, the §12 keyset order, and the §5.2 DR heuristic. NULL on legacy/pre-F0 rows, never fabricated. NULL-ignoring unique over (obligation, seq). |
+| `blocked_reason` | Set iff `stage_state = BLOCKED` (L8 CHECK both ways). The §13 code vocabulary (RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH, ENGINE_INCONSISTENCY, AMENDMENT_PARKED, OPS_PARKED, ESCALATED — ESCALATED kept distinct so the §15 BLOCKED queue ranks the money-critical class first; CUTOFF_EXPIRED reserved, never produced). Display/queue-routing ONLY — §10.1: no rule may key on it. |
 | `idempotency_key` / `end_to_end_id` | The deterministic identity `hash(scope | seq)` (§5.1) — computed and persisted BEFORE any POST (write-ahead: K-02 at creation, re-verified at first claim K-04). UNIQUE. This is the duplicate-payment defense: the same logical attempt always presents the same key, even after crash or restore. |
 | `uetr` | SDK/engine-assigned (NEVER generated here — BA/§5); persisted ONLY from acceptance-class responses; UNIQUE, NULL until assigned (NULL-ignoring index). The key for platform status queries. Never a dedup key. |
 | `provider_reference` | Engine-assigned reference from the POST response; SECONDARY feed-matching key (§8). Distinct field from uetr, never merged. |

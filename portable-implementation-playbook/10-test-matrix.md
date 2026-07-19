@@ -527,7 +527,9 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            a pre-F0 row shows NULL rendered as "not captured
            (pre-F0)", never a computed value (one stamp per
            payment_request row, NOT per POST attempt — 0e09f09
-           M2);
+           M2); keyset order stable with NULL-seq legacy rows
+           (request_seq NULLS FIRST, then created_at, then
+           request id — 1d8a650 M1);
          - mixed active/terminal (REJECTED predecessor + live
            successor) → both rows visible, history never laundered;
          - fully removed scope (required = 0) → rows remain,
@@ -958,8 +960,18 @@ Failure meaning (review 4d5cb83 L1 — aligned with the narrow
          journal state becoming runtime input - each violates
          section 14.1. (A fatal infra failure failing the attempt
          is CORRECT behavior, not a test failure.)
-Type: integration (real Oracle) + fault injection. BLOCKING: yes
-         (it proves the journal CANNOT hurt the money path).
+Type: integration (real Oracle) + fault injection.
+BLOCKING: JOURNAL_ENABLEMENT (explicit gate, review 1d8a650 M2 —
+         the earlier bare "yes" admitted two incompatible
+         readings): the FULL applicable A-J evidence set gates the
+         section-14.1 switch OFF->ON transition, NEVER payment
+         go-live (the journal defaults OFF and an OFF journal
+         never blocks payments). EXCEPTION - one sub-case DOES
+         gate payment go-live: case F's switch-OFF INERTNESS
+         (switch OFF -> zero inserts, zero errors, posting
+         unaffected), because the rider code ships in the
+         money path even while OFF; that sub-case rides the
+         normal money-path gate (Q30 records both).
 Implemented by: AUD-01 (schema slice + G + H + the switch), K-04
 (A, B, E, F), RC-02 (D), ST-10 (C), OB-05 (F alert wiring +
 J triage rules); I = ST-08 (the §14 line convention: post_attempt_seq

@@ -76,7 +76,10 @@ Section: §16.6 artifact 4; §2, §10.3, §3.
 Owner type: TEAM + DBA.
 Purpose: the authoritative schema spec P3 implements.
 Required contents: all columns/types; scope-key UNIQUE (per B-01);
-  UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); exact I6
+  UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); the
+  NULL-ignoring function-based UNIQUE over
+  (payment_obligation_id, request_seq) (1d8a650 M1 — legacy rows
+  carry NULL request_seq); exact I6
   expression; enum CHECKs (round 12: the ui_step_status CHECK
   carries IN_PROGRESS/COMPLETED/CANCELLED — a two-value constraint
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
@@ -109,7 +112,9 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
 Validation: DBA review; S-05/S-06/S-07 violation + plan tests green
   on real Oracle; S-09 dual-run proof.
 Dependent tasks: S-01..S-10, OP-01 (flag mechanics), OB-01 (indexes).
-Go-live relevance: YES — the DB backstop for every invariant.
+Go-live relevance: YES — the DB backstop for every DB-ENFORCEABLE
+  invariant (1d8a650 L2: the stamp's set-once and L9 use named
+  non-DB controls by decision).
 Failure if omitted: illegal states representable; fat-finger releases
   silent; scans degrade with terminal-row growth.
 ```
@@ -164,7 +169,9 @@ Failure if omitted: divergence_expected is noise → expected
 Section: §16.6 artifact 6.
 Owner type: TEAM, named owner.
 Purpose: single owned index of every required test.
-Required contents: Section J's T-01..T-37; the spec-named entries
+Required contents: Section J's T-01..T-38 (T-38 carries gate
+  JOURNAL_ENABLEMENT — record the gate, not a bare yes/no;
+  review 1d8a650 M2); the spec-named entries
   (downgrade re-POST answered DUPLICATE_REQUEST leaves prior uetr
   intact; §11 ambiguous claim-commit; §8 concurrent in-flight
   duplicates); per-entry §-traceability, owner type, implementing
