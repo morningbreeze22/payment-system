@@ -19,7 +19,7 @@ Tests: none. Stop: plan approved by owner + DBA.
 [S-02] Obligation columns
 Read: §2.1 (whole) §16.5. Invariant: additive only; nullable-with-default first; scope key per B-01.
 Placeholders: [DB Migration Directory] [Obligation Repository]. Mappings: both.
-Objective: add §2.1 columns (amounts, markers+counters+first_at, ordering fields, read-model fields, reopened_at, next_request_seq), scope-key UNIQUE, amounts>=0 CHECK, business_id index; entity mapping additive. next_request_seq MUST be INITIALIZED on every existing row + defaulted on new rows (CA-5 initial value; Oracle NULL+1 IS NULL — uninitialized wedges K-01; 4dbdf2b M1).
+Objective: add §2.1 columns (amounts, markers+counters+first_at, ordering fields, read-model fields, reopened_at, next_request_seq), scope-key UNIQUE, amounts>=0 CHECK, business_id index; entity mapping additive. next_request_seq MUST be INITIALIZED on every existing row + defaulted on new rows (CA-5 initial value; Oracle NULL+1 IS NULL — uninitialized wedges K-01; 4dbdf2b M1). PREREQ: CA-4 + CA-5 PUBLISHED — if either is absent STOP, never improvise the value (6cb3005 M1).
 Tests: apply on clean+prod-shaped schema; entity round-trip; ZERO NULL next_request_seq after apply; overflow bound fails closed. Stop: merged, D-11 baseline green. Duplicate-scope data → STOP and report.
 ```
 

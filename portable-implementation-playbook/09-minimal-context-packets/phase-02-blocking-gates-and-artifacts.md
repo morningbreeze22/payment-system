@@ -67,16 +67,16 @@ Tests: none. Stop: published.
 [CA-4] DDL migration set spec
 Read: §2.1 §2.2 §2.3 §10.3 §3(I6) §16.5 §16.6 artifact 4. Invariant: four tables only (§2.1–§2.4) + the sanctioned §9.3 ops approval store; other new-table needs = SPEC_CONFLICT.
 Placeholders: [DB Migration Directory] [Stored Procedure / Trigger Area]. Mappings: D-02 inventory; scope key settled (§1 contract facts).
-Objective: spec all columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), I6 function index, enum+L1-shape+L2–L8 CHECKs, freeze+release-guard triggers w/ evidence-flag mechanics, active-row-bounded index list, expand/contract sequencing.
-Tests: none (S-09 executes). Stop: DBA-reviewed spec published.
+Objective: spec all columns, scope-key UNIQUE, UNIQUE(idempotency_key), NULL-ignoring UNIQUE(uetr), the EXACT conditional NULL-ignoring UNIQUE over (payment_obligation_id, request_seq), the integer domain + fail-closed overflow for next_request_seq/request_seq (STOP+alert at bound, never wraparound), THE CANONICAL §12 KEYSET TUPLE byte-for-byte (obligation_identity, row_type, request_seq NULLS FIRST, created_at NULLS FIRST, source_id — resolve physical names, NEVER reorder) + cursor NULL semantics, the stamp tripwire CHECK, I6 function index, enum+L1-shape+L2–L8 CHECKs, freeze+release-guard triggers w/ evidence-flag mechanics, active-row-bounded index list, expand/contract sequencing (6cb3005 M1).
+Tests: none (S-09 executes). Stop: DBA-reviewed spec published — NOT complete without the request_seq unique expression, the overflow domain, and the keyset tuple.
 ```
 
 ```text
 [CA-5] Identity spec + golden vectors
 Read: §5.1 (amount/UETR excluded), §2.1 (seq), §16.6 artifact 5. Invariant: byte-exact, versioned; vectors computed independently of the implementation.
 Placeholders: [Payment Request Creation Component] (consumer). Mappings: scope key settled (§1 contract facts).
-Objective: spec inputs (scope|seq — no discriminator, §1 contract facts), canonicalization, delimiter/encoding, algorithm, version; ≥12 vectors incl. canonicalization + delimiter-in-field cases.
-Tests: none (K-03). Stop: spec + vectors published.
+Objective: spec inputs (scope|seq — no discriminator, §1 contract facts), canonicalization, delimiter/encoding, algorithm, version; the INITIAL sequence value + counter-initialization policy for pre-existing/old-writer obligations (S-02/S-08 execute it — Oracle NULL+1 IS NULL wedges K-01); the VERSIONED IDENTITY NAMESPACE + collision analysis (new-scheme keys provably cannot collide with legacy keys; historical sequences NEVER inferred) (6cb3005 M1); ≥12 vectors incl. canonicalization + delimiter-in-field cases.
+Tests: none (K-03). Stop: spec + vectors published — NOT complete without the initial value, init policy, and namespace/collision analysis.
 ```
 
 ```text

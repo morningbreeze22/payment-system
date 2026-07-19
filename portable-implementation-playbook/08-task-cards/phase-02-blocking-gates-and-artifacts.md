@@ -183,15 +183,15 @@
 - **Local placeholder mappings required before starting:** D-02 rows (real current shape).
 - **Local code areas to discover:** none beyond D-02's inventory.
 - **How to locate:** n/a.
-- **Implementation instructions:** specify (schema-shape pseudocode, not final SQL): every §2.1/§2.2 column with type/nullability; scope-key UNIQUE (per B-01!); UNIQUE(idempotency_key), UNIQUE(uetr) (NULL-ignoring); I6 as CASE WHEN outcome IS NULL THEN payment_obligation_id END unique function-based index; per-enum CHECKs; L1-shape + L2–L8 CHECK expressions; freeze trigger + release-guard trigger with evidence session flag mechanics; the normative index list — resolver sweep, retry scanner, escalation scanner, BLOCKED queue, stuck-state, drift, §5.2 created_at window — each expression NULL for terminal rows (§16.6-4); expand/contract sequencing notes per migration.
+- **Implementation instructions:** specify (schema-shape pseudocode, not final SQL): every §2.1/§2.2 column with type/nullability; scope-key UNIQUE (per B-01!); UNIQUE(idempotency_key), UNIQUE(uetr) (NULL-ignoring); the EXACT conditional expression for the NULL-IGNORING function-based UNIQUE over (payment_obligation_id, request_seq) — a plain composite would reject multiple NULL-seq legacy rows (1d8a650/6cb3005 M1); the INTEGER DOMAIN + fail-closed OVERFLOW behavior for next_request_seq/request_seq (STOP + alert at the bound, never wraparound); THE CANONICAL §12 KEYSET TUPLE byte-for-byte — (obligation_identity, row_type, request_seq NULLS FIRST, created_at NULLS FIRST, source_id) — with cursor NULL semantics (this card maps obligation_identity to physical fields but may NOT change the logical order; 4dbdf2b M2); the stamp tripwire CHECK (required_total_at_creation IS NULL OR >= amount); I6 as CASE WHEN outcome IS NULL THEN payment_obligation_id END unique function-based index; per-enum CHECKs; L1-shape + L2–L8 CHECK expressions; freeze trigger + release-guard trigger with evidence session flag mechanics; the normative index list — resolver sweep, retry scanner, escalation scanner, BLOCKED queue, stuck-state, drift, §5.2 created_at window — each expression NULL for terminal rows (§16.6-4); expand/contract sequencing notes per migration.
 - **Do not change:** the four-table model (§2.1–§2.4) — any "needs another table" is SPEC_CONFLICT.
 - **Tests to add:** none here (S-09 executes them).
 - **Edge cases:** existing-column type conflicts from D-02 → each gets an explicit expand/contract path in the spec.
 - **Manual validation:** DBA-owner review (privileges for triggers/procedures confirmed — from D-02).
 - **Expected outcome:** versioned DDL spec ready for S-02..S-07.
-- **Failure signs:** CHECK constraints written VALIDATE-first against unmigrated data.
+- **Failure signs:** CHECK constraints written VALIDATE-first against unmigrated data; a spec missing the request_seq unique expression, the integer/overflow domain, or the keyset tuple — S-02/ST-04 become under-specified (6cb3005 M1).
 - **Common mistakes:** forgetting Oracle NULL-in-unique-index semantics for uetr; omitting the active-row-bounded trick on scan indexes.
-- **Completion criteria:** spec complete, DBA-reviewed.
+- **Completion criteria:** spec complete INCLUDING the (payment_obligation_id, request_seq) conditional unique expression, the integer/overflow domain, and the canonical keyset tuple — absence of ANY of the three = NOT complete (6cb3005 M1); DBA-reviewed.
 - **Stop condition:** published; S-02..S-07 unblocked (schema freeze).
 - **Next task:** CA-5.
 
@@ -207,15 +207,15 @@
 - **Local placeholder mappings required before starting:** none for authoring.
 - **Local code areas to discover:** none.
 - **How to locate:** n/a.
-- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (no discriminator — scope key settled, §1 contract facts); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, and scope variants — each vector = inputs + exact expected key bytes.
+- **Implementation instructions:** specify: input fields = business_id | payment_type | debit_account | currency | request_seq (no discriminator — scope key settled, §1 contract facts); canonicalization per field; delimiter + encoding; hash algorithm + output format; version identifier embedded in the scheme; the INITIAL SEQUENCE VALUE + the COUNTER-INITIALIZATION POLICY for pre-existing/old-writer obligations (S-02/S-08 execute it — Oracle NULL + 1 IS NULL, an uninitialized counter wedges K-01; 4dbdf2b/6cb3005 M1); the VERSIONED IDENTITY NAMESPACE + the COLLISION ANALYSIS proving new-scheme keys cannot collide with any legacy-scheme key on the same table (historical per-request sequences are NEVER inferred); at least a dozen golden vectors covering: case variants, whitespace variants, account-number normalization cases, seq increments, and scope variants — each vector = inputs + exact expected key bytes.
 - **Do not change:** the input list — amount and UETR stay OUT (§5.1 records why); the scope fields are a §1 contract fact (changing them requires the PO).
 - **Tests to add:** none here (K-03 turns vectors into tests).
 - **Edge cases:** fields that can legally contain the delimiter — the spec must make that unambiguous (length-prefix or escaping — choose and freeze).
 - **Manual validation:** two independent implementations (or one implementation + manual computation) reproduce all vectors.
 - **Expected outcome:** frozen versioned spec + vector file.
-- **Failure signs:** vectors computed only by the code under test (circular).
+- **Failure signs:** vectors computed only by the code under test (circular); a spec missing the initial value, the initialization policy, or the namespace/collision analysis — S-02 becomes under-specified (6cb3005 M1).
 - **Common mistakes:** locale-dependent case folding; unspecified encoding.
-- **Completion criteria:** spec + vectors published.
+- **Completion criteria:** spec + vectors published INCLUDING the initial sequence value, the counter-initialization policy, and the versioned namespace + collision analysis — absence of ANY = NOT complete (6cb3005 M1).
 - **Stop condition:** published; K-02/K-03 unblocked.
 - **Next task:** CA-6.
 

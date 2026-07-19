@@ -313,22 +313,34 @@ _FIELD_SLICES = [
      r"\[S-03\]", r"\[S-04\]"),
     (ROOT / "db-schema-dictionary.md", r"## 2\. payment_request", r"\n## 3\. "),
 ]
+def _missing_request_fields(slice_text):
+    """The SHARED validator (6cb3005 L3): both the maintained-file loop
+    and the self-tests call THIS, so a refactor cannot silently change
+    what the self-test exercises."""
+    return [f for f in REQUEST_FIELDS if f not in slice_text]
+
 for _p, _sp, _ep in _FIELD_SLICES:
     _sl = _schema_slice("\n".join(lines_of(_p)), _sp, _ep)
     if _sl is None:
         errors.append(f"{rel(_p)}: rule 6k cannot locate the request schema slice (anchor /{_sp}/ missing — heading changed?)")
         continue
-    for _f in REQUEST_FIELDS:
-        if _f not in _sl:
-            errors.append(f"{rel(_p)}: request field '{_f}' missing from the SCHEMA SLICE (rule 6k, 4dbdf2b L1 — presence elsewhere in the file does not count)")
+    for _f in _missing_request_fields(_sl):
+        errors.append(f"{rel(_p)}: request field '{_f}' missing from the SCHEMA SLICE (rule 6k, 4dbdf2b L1 — presence elsewhere in the file does not count)")
 
-# rule 6k mutation self-test (4dbdf2b L1): a field removed from the
-# inventory slice but still mentioned elsewhere in the same file MUST
-# be caught — this proves the check is slice-scoped, not whole-file
+# rule 6k mutation self-tests (4dbdf2b L1 + 6cb3005 L3): exercised
+# through the SAME validator as the real check.
+# (1) a field removed from the inventory slice but mentioned elsewhere
+#     in the file MUST be reported missing:
 _mut_file = "### S-03 x\nfields: stage, outcome\n### S-04 y\nrequest_seq mentioned here only\n"
 _mut_slice = _schema_slice(_mut_file, r"### S-03 ", r"### S-04 ")
-if _mut_slice is None or "request_seq" in _mut_slice or "request_seq" not in _mut_file:
-    errors.append("LINT-SELFTEST [rule 6k]: mutation fixture failed — the slice-scoped check would miss an inventory removal masked by a stray mention")
+if (_mut_slice is None or "request_seq" not in _mut_file
+        or "request_seq" not in _missing_request_fields(_mut_slice)):
+    errors.append("LINT-SELFTEST [rule 6k]: the validator failed to report request_seq missing from the fixture slice (stray out-of-slice mention must not mask an inventory removal)")
+# (2) an in-slice declaration of every field must pass clean:
+_ok_file = "### S-03 x\nfields: " + ", ".join(REQUEST_FIELDS) + "\n### S-04 y\n"
+_ok_slice = _schema_slice(_ok_file, r"### S-03 ", r"### S-04 ")
+if _ok_slice is None or _missing_request_fields(_ok_slice):
+    errors.append("LINT-SELFTEST [rule 6k]: a complete in-slice inventory must produce zero missing fields")
 
 # ---- Rule 6: card-ID parity between task-card files and file 20 ----
 card_ids = set()

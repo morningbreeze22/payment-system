@@ -474,15 +474,19 @@ Implemented by: OB-01.
 ```text
 Section: §8, §15      Type: INTEGRATION    Blocking: YES
 Purpose: evidence-for-terminal is CRITICAL; benign redeliveries are
-         silent. PLUS (aa4399c L1, non-blocking sub-case) the
-         post-F0 NULL-stamp data-quality scan detects and stays
-         quiet correctly.
+         silent. PLUS (aa4399c L1 + 4dbdf2b M1 + 6cb3005 L1,
+         non-blocking sub-cases) BOTH post-F0 creation-column
+         scans detect and stay quiet correctly: NULL stamp → LOW
+         ticket; NULL request_seq → ALERT + ticket at its HIGHER
+         severity and correct routing.
 Setup:   terminal REJECTED row; new-event_id settlement for it;
-         known-event_id redelivery; a seeded request row with
-         created_at AFTER the configured F0 timestamp and NULL
-         required_total_at_creation; a NULL-stamp row dated
-         BEFORE it.
-Action:  deliver both events; run the data-quality scan.
+         known-event_id redelivery; seeded rows for BOTH columns:
+         a request with created_at AFTER the configured F0
+         timestamp and NULL required_total_at_creation; a
+         post-F0 row with NULL request_seq; and a pre-F0 NULL
+         row for EACH column.
+Action:  deliver both events; run BOTH data-quality scans
+         explicitly.
 Expect:  new event → CRITICAL alert (zero-row CAS detected); known
          event → silent inbox skip; post-F0 NULL-stamp row → LOW
          data-quality ticket (never a page); post-F0
@@ -491,7 +495,9 @@ Expect:  new event → CRITICAL alert (zero-row CAS detected); known
          rows → silent.
 Failure: the replay-divergence signature (a §5.2 tripwire) missed, or
          redelivery noise paging humans, or the NULL-stamp scan
-         paging/gating (it is a ticket only).
+         paging/gating (it is a ticket only), or a MISSING or
+         MISROUTED NULL-request_seq alert (wrong severity or
+         routing — 6cb3005 L1).
 Implemented by: OB-02, IN-07.
 ```
 

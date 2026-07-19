@@ -42,7 +42,7 @@ collected retroactively at GO-04.**
 | Q15 | apply-platform-verified-outcome test suite + drill report on file | T-24, OP-02/03 | | |
 | Q16 | Reservation release / confirmation correctness green (I1–I6, redelivery safety, overpay latch) | T-26/27, RG-01..04 | | |
 | Q17 | Evidence session flag / release guard validated (code + trigger layers; pool non-leakage) | T-25, S-06, RG-05 | | |
-| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity) | T-30, OB-02 | | |
+| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity, both post-F0 creation-column scans: NULL stamp → ticket, NULL request_seq → alert — 6cb3005 L1) | T-30, OB-02 | | |
 | Q19 | Drift scanner live, paging, read-skew-safe | T-29, OB-01 | | |
 | Q20 | Observability dashboards + alerts live per §15 with runbook links; rollup verified; config ordering validation active | T-32, OB-03..07 | | |
 | Q21 | Runbook stubs published (CA-8) incl. the aged-MAYBE runbook | CA-8, OB-06 | | |

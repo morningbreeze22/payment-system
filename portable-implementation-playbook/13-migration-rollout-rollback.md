@@ -96,7 +96,13 @@ F0 ACTIVATION WINDOW (round 19 — atomic, inside a change freeze):
   execute the reviewed RUN-2 queries (file 26 T.1) → require ZERO →
   DBA/TL sign the result → enable F0 / execute the named external
   routing action → verify the FIRST admitted row carries watermark
-  + storage pointer + digest. Any nonzero count → STOP, NO-GO,
+  + storage pointer + digest AND the FIRST post-F0 payment_request
+  row carries NON-NULL required_total_at_creation + NON-NULL
+  request_seq (both filed in the evidence pack beside the signed
+  F0 timestamp; NO-SAMPLE rule: no request in the window → file
+  the bounded created_at >= F0 query as "no production sample
+  yet" — the check completes on the first real sample; 6cb3005
+  L2). Any nonzero count → STOP, NO-GO,
   architecture review (never proceed, never waive).
 ```
 
@@ -156,7 +162,13 @@ SEGMENT 2 — ATOMIC ACTIVATION (the M.2 F0 window):
    execute the reviewed RUN-2 queries → require ZERO → convert Q5b
    to PASS + DBA/TL sign → enable F0 (or the named external routing
    action) → verify the FIRST admitted row carries watermark +
-   storage pointer + digest. Nonzero or missing signature → ABORT
+   storage pointer + digest AND the FIRST post-F0 payment_request
+   row carries NON-NULL required_total_at_creation + NON-NULL
+   request_seq — both filed in the evidence pack beside the signed
+   F0 timestamp (NO-SAMPLE rule: no request created in the window
+   → file the bounded created_at >= F0 query as "no production
+   sample yet"; the check completes on the first real sample —
+   6cb3005 L2). Nonzero or missing signature → ABORT
    the window (F0 stays OFF), NO-GO, architecture review.
 
 SEGMENT 3 — POST-TRAFFIC (traffic flowing; each stage soaked):
