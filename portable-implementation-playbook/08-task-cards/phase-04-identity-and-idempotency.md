@@ -140,9 +140,9 @@
 - **Local placeholder mappings required before starting:** integration lane with engine stub.
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** integration tests: (1) crash before POST (after claim commit) → retry reuses the SAME persisted key; (2) crash after POST, before response → row MAYBE via lease expiry, no fresh key ever minted; (3) restore simulation: delete the request row + reset obligation counters to a pre-insert image (test harness), re-run creation for the same shortfall → derived key EQUALS the deleted row's key; (4) UNIQUE(idempotency_key) violation surfaces as a loud error, never silent.
+- **Implementation instructions:** integration tests: (1) crash before POST (after claim commit) → the row reaches its re-POST ONLY via lease expiry → MAYBE_SUBMITTED → resolver → the §9.2 downgrade (NO direct posting re-claim exists — 2a19c20 M1: a committed or commit-unknown claim always expires into MAYBE, even when the wire call provably never started), and the eventual retry reuses the SAME persisted key; (2) crash after POST, before response → row MAYBE via lease expiry, no fresh key ever minted; (3) restore simulation: delete the request row + reset obligation counters to a pre-insert image (test harness), re-run creation for the same shortfall → derived key EQUALS the deleted row's key; (4) UNIQUE(idempotency_key) violation surfaces as a loud error, never silent.
 - **Do not change:** production code (test-only task; failures here reopen K-xx tasks).
-- **Tests to add:** the four above (catalog T-07/T-08/T-09 alignment).
+- **Tests to add:** the four above (catalog T-08/T-09/T-10 alignment — corrected 2a19c20 L2; T-07 is the hash/divergence set, not this one).
 - **Edge cases:** test (3) must use the REAL derivation path, not a shortcut call to the hash function.
 - **Manual validation:** review that stubs assert on the KEY the engine received.
 - **Expected outcome:** duplicate-prevention evidence recorded for Section Q.

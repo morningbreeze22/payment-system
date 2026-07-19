@@ -2935,10 +2935,22 @@ stage_state  READY → CLAIMED    worker claim (lease, §11)
                                 downgrade — both gated by
                                 repost_permitted (§7.0) when the exit
                                 is toward a re-POST
-             CLAIMED lease expiry: at ENRICH/POST-pre-call →
-                                re-claimable in place; after a POST
-                                may have been sent → stage CONFIRM,
-                                READY, MAYBE_SUBMITTED (§11)
+             CLAIMED lease expiry: at ENRICH → re-claimable in
+                                place; at POST, ALWAYS → stage
+                                CONFIRM, READY, MAYBE_SUBMITTED —
+                                a CLAIMED row means the claim
+                                COMMITTED, and a committed (or
+                                commit-unknown) posting claim
+                                expires into MAYBE even when the
+                                wire call provably never started
+                                (write-ahead: a dead worker cannot
+                                testify; NO direct posting
+                                re-claim exists — §11; corrected
+                                2a19c20 M1, where the earlier
+                                "POST-pre-call → re-claimable"
+                                wording was the forbidden
+                                carve-out; caught by the new lint
+                                rule, not the review)
 
 submission_  NOT → MAYBE        ambiguous POST attempt (§7.2) or
 state                           posting-claim lease expiry (§11)
@@ -4060,12 +4072,13 @@ so one id greps the whole story.
   engine settles all-or-nothing; any mismatch is a defect signal →
   BLOCKED (AMOUNT_MISMATCH) + CRITICAL alert (§8).
 - All timestamps UTC; every due-time comparison uses database time,
-  never application-node time. (The former local-cutoff timezone
-  exception is RETIRED — round 10, the engine owns its calendar (§7.4, §18
-  BLOCKING item) represents them timezone-aware — local time + zone
-  id, DST-correct, per currency/market including holidays —
-  converted to UTC at comparison time, never stored as fixed UTC
-  constants (a fixed constant is wrong twice a year per market).
+  never application-node time. This service implements NO local
+  cutoff calendar — the engine owns its calendar (§7.4, §18
+  BLOCKING item). The former local-cutoff timezone exception is
+  RETIRED (round 10), and its timezone-aware representation rules
+  are retired with it (2a19c20 L3 — the stale fragment describing
+  zone-id/DST handling was deleted so it cannot be rebuilt into
+  local cutoff machinery).
 ```
 
 ### 16.5 Deployment, capacity, contracts

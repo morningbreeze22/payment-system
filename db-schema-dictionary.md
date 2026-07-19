@@ -181,7 +181,10 @@ survives only as a §10.4 display label — no rule may key on it.
 
 ### Constraints
 
-`UNIQUE(idempotency_key)`; NULL-ignoring `UNIQUE(uetr)`; I6 (one active
+`UNIQUE(idempotency_key)`; NULL-ignoring `UNIQUE(uetr)`; the
+NULL-ignoring conditional unique over `(payment_obligation_id,
+request_seq)` (legacy NULL-seq rows exempt — behavior proven by the
+S-05 isolation tests, 2a19c20 M2); I6 (one active
 request per obligation); per-column enum CHECKs; the §10.3 legality
 matrix as CHECKs (L2–L8, L1 terminal shape — e.g. L4: EXECUTED ⇒
 SUBMITTED; L8: BLOCKED ⇔ blocked_reason); freeze + release-guard

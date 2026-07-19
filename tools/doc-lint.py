@@ -150,6 +150,9 @@ MULTILINE_FORBIDDEN = [
     ("DR bound/overshoot mental model (aa4399c M3: the 5b limit is a heuristic narrowing aid, never a bound; unfreeze needs the Q-22 reconciliation gate)",
      re.compile(r"log-derived (?:enumeration )?bound|enumeration bound|overshoots?\s+(?:its|the)\s+[^.;]{0,60}?bound|falls? back to the K-heuristic", re.I),
      re.compile(r"heuristic starting limit|never a bound|NEVER a bound|FALSE|remains? frozen|lint", re.I)),
+    ("direct POST re-claim after crash (2a19c20 M1: a committed/commit-unknown POST claim ALWAYS expires into MAYBE; no posting re-claim exists)",
+     re.compile(r"pre-?call\s*(?:→|->|-->)\s*re-?claim|re-?claims?\s+(?:the\s+)?POST\b", re.I),
+     re.compile(r"never committed|NEVER committed|provably never|no direct|NO direct|forbidden|corrected|lint", re.I)),
 ]
 
 def _allow_span(text, start, end):
@@ -200,6 +203,9 @@ LINT_FIXTURES = [
     ("DR bound", "step 5b falls back to the K-heuristic when logs are out.", True),
     ("DR bound", "the log-derived figure is a heuristic starting limit, never a bound.", False),
     ("DR bound", "the enumeration bound is taken from the logs.", True),
+    # 2a19c20 M1 - the forbidden direct POST re-claim:
+    ("POST re-claim", "POST pre-call → re-claim, post-call → MAYBE.", True),
+    ("POST re-claim", "the worker re-claims the POST row only after the claim provably never committed.", False),
     ("unqualified 'no journal'", "there is no journal here.", True),
     ("unqualified 'no journal'", "No local journal exists.", True),
     ("unqualified 'no journal'", "no application journal is kept.", True),
@@ -326,6 +332,19 @@ for _p, _sp, _ep in _FIELD_SLICES:
         continue
     for _f in _missing_request_fields(_sl):
         errors.append(f"{rel(_p)}: request field '{_f}' missing from the SCHEMA SLICE (rule 6k, 4dbdf2b L1 — presence elsewhere in the file does not count)")
+
+# ---- Rule 6l (2a19c20 M2): the request_seq conditional unique must
+# appear in every constraint summary — a subtle Oracle expression that
+# summaries silently dropped once already ----
+_RSU_PAT = re.compile(r"payment_obligation_id,\s*request_seq")
+for _p in [ROOT / "requirment-v4.md",
+           PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md",
+           PORTABLE / "09-minimal-context-packets" / "phase-03-schema-and-migration.md",
+           PORTABLE / "03-requirement-classification.md",
+           ROOT / "db-schema-dictionary.md",
+           PORTABLE / "12-companion-artifacts.md"]:
+    if not _RSU_PAT.search("\n".join(lines_of(_p))):
+        errors.append(f"{rel(_p)}: missing the (payment_obligation_id, request_seq) conditional-unique statement (rule 6l, 2a19c20 M2)")
 
 # rule 6k mutation self-tests (4dbdf2b L1 + 6cb3005 L3): exercised
 # through the SAME validator as the real check.

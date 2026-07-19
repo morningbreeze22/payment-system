@@ -57,7 +57,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 25 | CA-9 | HUMAN+AGENT | B-04; CA-4 | phase-02 |
 | 25a | CA-10 (§14.1 attempt-journal spec) | HUMAN+AGENT | §14.1 (PO driver recorded 2026-07-16); CA-4; CA-6 | phase-02 |
 | 25b | AUD-01 (§14.1 journal DDL — off-chain; any time in/after P3; unblocks the K-04/RC-02/ST-10 riders) | AGENT (DBA review) | CA-10 published; CA-4 | phase-03-schema-and-migration.md |
-| 26–34+34a | P3 — EXACT ORDER (round 9, normative; S-11 RETIRED round 10 — greenfield): S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts); S-10 = §2.4 table (round 5, after S-04); S-09 proof pass runs LAST | phase-03-schema-and-migration.md |
+| 26–34+34a | P3 — EXACT ORDER (round 9, normative; S-11 RETIRED round 10 — greenfield): S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts); S-01 may begin after CA-4, but S-02 additionally requires CA-5 PUBLISHED (initial value + init policy + namespace — 2a19c20 L4); S-10 = §2.4 table (round 5, after S-04); S-09 proof pass runs LAST | phase-03-schema-and-migration.md |
 | 35–40 | K-01 → K-06 | AGENT | S-09 green; CA-5 for K-02/K-03 | phase-04-identity-and-idempotency.md |
 | 41–47 | CT-01 → CT-07 | HUMAN+AGENT | B-02 sandbox access; K-02/K-03 (see DD-6 if access missing) | phase-08-provider-contract-tests.md |
 | 48–50 | U-01 → U-03 | AGENT | S-03; K-04 path | phase-05-uetr-response-persistence.md |

@@ -11,8 +11,8 @@
 [K-01] next_request_seq discipline
 Read: §2.1 (seq) §5.1 §11. Invariant: seq incremented under the obligation lock in the request-insert transaction — the row counter, never an Oracle sequence.
 Placeholders: [Payment Request Creation Component] [Obligation Repository]. Mappings: creation sites known.
-Objective: lock → read seq → increment → derive → insert, one transaction, all creation sites.
-Tests: concurrent creations get distinct sequential seqs; rollback atomicity. Stop: merged.
+Objective: lock → read seq → increment → derive → insert WITH the consumed value persisted in payment_request.request_seq (§2.2, write-once — the column, not the obligation counter, is the source of truth for the §14 line field, the §12 keyset order, and the §5.2 heuristic), one transaction, all creation sites. WRITE-ONCE controls (2a19c20 L1, verbatim from the card): repo-wide SQL-inventory assertion — request_seq ONLY in the creation INSERT, in NO UPDATE SET list; mutation tests: CAS/response/feed/lease-expiry/manual paths preserve it unchanged.
+Tests: concurrent creations get distinct sequential seqs; rollback atomicity; the SQL-inventory + mutation suite above. Stop: merged.
 ```
 
 ```text
@@ -51,7 +51,7 @@ Tests: first/changed/unchanged attempt flag values; pre-wire stamping; log line.
 [K-06] Duplicate-prevention verification
 Read: §5.1 (rationale) §7.2 (DUPLICATE row) §2.2. Invariant: a restore-recreated request regenerates the SAME key.
 Placeholders: [Integration Test Suite] [Provider POST Client] (stub). Mappings: integration lane.
-Objective: tests: crash-before-POST retry reuses key; crash-after-POST → MAYBE, no fresh key; restore simulation regenerates equal key via the REAL path; UNIQUE violation loud.
-Tests: the four. Stop: green; Q evidence.
+Objective: tests: crash-before-POST (claim committed) → re-POST ONLY via lease expiry → MAYBE → resolver → §9.2 downgrade (NO direct posting re-claim — 2a19c20 M1), eventual retry reuses key; crash-after-POST → MAYBE, no fresh key; restore simulation regenerates equal key via the REAL path; UNIQUE violation loud.
+Tests: the four (T-08/T-09/T-10). Stop: green; Q evidence.
 ```
 

@@ -348,4 +348,4 @@
 - **Blockers to carry forward:** any unanswered §18 item keeps its dependents BLOCKED — §18-0's residue blocks IN-02 ONLY (the §6 consumer freeze; the scope model is a settled §1 contract fact, so S-02/S-03/S-05, K-02/K-03 and the CA-4/CA-5 freeze are NOT gated — normalized 2026-07-11); §18-1 blocks go-live (CT proof) and P10 auto-downgrade reliance; §18-2 is CLOSED (round 10 — engine owns the calendar); §18-3 default path = OP-01..03.
 - **Local mapping rows expected filled:** none new (document phase).
 - **Tests expected to exist:** none new; CA-5 golden vectors DRAFTED (executed as tests in P4); CA-7 catalog seeded from the test matrix.
-- **Next phase entry condition:** CA-4 published (DBA-reviewed) → schema freeze may proceed (S-01). B-01's residue continues in parallel and gates IN-02, not schema (normalized 2026-07-11).
+- **Next phase entry condition:** CA-4 published (DBA-reviewed) → schema freeze may proceed (S-01); S-02 additionally waits for CA-5 published (counter initial value + init policy + identity namespace — 2a19c20 L4). B-01's residue continues in parallel and gates IN-02, not schema (normalized 2026-07-11).

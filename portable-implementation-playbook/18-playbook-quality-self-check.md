@@ -100,7 +100,9 @@ CA-1: RC-01's classifier SHAPE can start; the code table must exist
       before RC-01 completes. CA-2: IN-05/06 skeleton yes; IN-07's
       ranks need it. CA-3: RC-05 yes; RC-06 needs it. CA-4: NO —
       S-02+ implement it (drafting may overlap D-02). CA-5/CA-6: NO
-      for K-02/K-05 (they IMPLEMENT the specs); K-01 may proceed.
+      for K-02/K-05 (they IMPLEMENT the specs) AND CA-5 also blocks
+      S-02 (the counter-initialization value/policy live there —
+      2a19c20 L4); K-01 may proceed.
       CA-7: tests proceed from Section J; the catalog consolidates.
       CA-8: OB tasks proceed; OB-06 needs the stubs. CA-9: NO —
       OP-01 implements it.

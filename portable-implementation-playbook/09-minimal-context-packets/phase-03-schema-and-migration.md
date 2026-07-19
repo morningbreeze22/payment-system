@@ -52,7 +52,7 @@ Tests: duplicate-insert race clean; FOR UPDATE blocks same-trade, not other trad
 Read: §10.3 (matrix) §2.2 constraints §2.1 (ui_step_status stored set) CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified); the ui_step_status CHECK (IN_PROGRESS/COMPLETED/CANCELLED) lands HERE, not in S-02 (round 13).
 Placeholders: [DB Migration Directory]. Mappings: real-Oracle test lane (STOP if H2-only).
 Objective: enum CHECKs; L2–L8 + L1-shape CHECKs; UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); NULL-ignoring fn-based UNIQUE (payment_obligation_id, request_seq) — plain composite would reject NULL-seq legacy rows (1d8a650 M1); I6 = unique fn index CASE WHEN outcome IS NULL THEN payment_obligation_id END; stamp tripwire CHECK (required_total_at_creation IS NULL OR >= amount — §2.2; a corruption tripwire only — set-once is proven by RG-06's SQL-inventory assertion, not by this CHECK). NOVALIDATE→VALIDATE per plan.
-Tests: one violation test per constraint; I6 second-active rejected; stamp < amount refused. Stop: validated + green.
+Tests: one violation test per constraint; I6 second-active rejected; stamp < amount refused; request_seq index ISOLATION set with DISTINCT idempotency keys (same oblig + same seq rejected BY THIS INDEX; multiple NULL-seq legacy rows allowed; cross-obligation same seq allowed; expression byte-matches CA-4 — 2a19c20 M2). Stop: validated + green.
 ```
 
 ```text
