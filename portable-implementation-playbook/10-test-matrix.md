@@ -516,8 +516,10 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            cumulative counters, and the amount-series stamps
            (2026-07-19): the 100-row shows
            required_total_at_creation 100, the 20-row shows 120;
-           a pre-migration row shows NULL rendered as "predates
-           capture", never a computed value;
+           a pre-F0 row shows NULL rendered as "not captured
+           (pre-F0)", never a computed value (one stamp per
+           payment_request row, NOT per POST attempt — 0e09f09
+           M2);
          - mixed active/terminal (REJECTED predecessor + live
            successor) → both rows visible, history never laundered;
          - fully removed scope (required = 0) → rows remain,

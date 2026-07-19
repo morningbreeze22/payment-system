@@ -81,7 +81,11 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   carries IN_PROGRESS/COMPLETED/CANCELLED — a two-value constraint
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); the required_total_at_creation
-  stamp tripwire CHECK (IS NULL OR >= amount — §2.2, 2026-07-19);
+  stamp tripwire CHECK (IS NULL OR >= amount — §2.2, 2026-07-19;
+  a corruption tripwire, NOT full correctness enforcement — the
+  set-once property is proven by RG-06's SQL-inventory assertion)
+  and its column type = the amount domain EXACTLY
+  (type/precision/scale/Java mapping, 0e09f09 L2);
   freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
   (one per standing scan — EXPLICIT EXCEPTION, review b1d91dc M1:

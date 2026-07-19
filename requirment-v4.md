@@ -389,7 +389,14 @@ required_total_at_creation — the obligation's required_amount as
                       read under the obligation lock inside the
                       §6.8 transaction that created this row
                       (added 2026-07-19 — UI amount-series
-                      requirement): a SET-ONCE display stamp, the
+                      requirement; GRANULARITY, review 0e09f09 M2:
+                      ONE stamp per payment_request row, NOT per
+                      posting attempt — §9.2 re-POSTs and
+                      post_attempt_seq episodes share the row's
+                      single stamp; "total" = THIS obligation's
+                      required amount, one payment scope, NEVER a
+                      trade-wide sum across the trade's
+                      obligations): a SET-ONCE display stamp, the
                       third creation-time stamp beside
                       creating_ordering and created_at, kept for
                       the same reason — the value is NOT
@@ -409,14 +416,27 @@ required_total_at_creation — the obligation's required_amount as
                       (and committed == required immediately after
                       the insert). Never UPDATEd — the §9.2
                       downgrade re-POST reuses the row and keeps
-                      the creation-era stamp. NULL = predates
-                      capture (backfill leaves NULL, never
+                      the creation-era stamp. NULL = not captured
+                      — created before the F0 capture boundary
+                      below (backfill leaves NULL, never
                       back-computes). §5.2 replay caveat: a
                       re-created row stamps the REPLAYED
                       evaluation against the current trade store,
                       which can differ from the lost original —
                       the same known fresh-assembly limitation,
-                      accepted.
+                      accepted. CAPTURE BOUNDARY (review 0e09f09
+                      M1): only the NEW §6.8 writer stamps —
+                      during the Section M dual-run, OLD writers
+                      create rows with NULL stamps, so NULL means
+                      "created before the F0 activation boundary
+                      (M.4/GO-03) or by a pre-fence writer", NOT
+                      merely "pre-migration". F0 activation IS
+                      the capture boundary: GO-03's cutover
+                      evidence includes the FIRST post-F0 request
+                      carrying a NON-NULL stamp, and AFTER the
+                      writer fence a NULL stamp on a newly
+                      created row is a DEFECT (alert-worthy —
+                      still never a money gate).
 provider_reference  — engine-assigned reference, if any, persisted
                       from the POST response; secondary feed-matching
                       key (§8); a distinct field from the uetr,
@@ -1079,17 +1099,29 @@ manual engine-side reconciliation.
    selected on created_at (§2.2).
 5b. Sequence-divergence guard: for EVERY obligation touched in
    the replay window, ENUMERATE the deterministic key space
-   hash(scope | seq) and status-query each key, up to an upper
-   bound derived as MAX(maximum request_seq observed in the §14
+   hash(scope | seq) and status-query each key. Enumeration
+   limit — A HEURISTIC NARROWING AID, NOT A PROVEN BOUND
+   (corrected review 0e09f09 H1; the earlier "PROVEN upper
+   bound" and the 4098532 "+K absorbs it" claims were both
+   FALSE): compute MAX(maximum request_seq observed in the §14
    logs for that obligation across the replay window,
    next_request_seq on the restored row) PLUS K further
-   consecutive sequences (config §16.6) as a mandatory overshoot
-   margin. The log-derived component is BEST-EFFORT, NOT proven
-   (review 4098532 H1 — the §14 delivery contract publishes
-   after commit at-most-once: a crash-window or pipeline gap can
-   hide the highest-seq claim, and stopping at a hidden bound is
-   exactly the duplicate-key hazard this step exists to close;
-   the overshoot margin is what absorbs it). The log platform is
+   consecutive sequences (config §16.6, applied ALWAYS — even
+   with logs available). No finite K makes this a bound: the §14
+   delivery contract is best-effort (afterCommit, at-most-once),
+   so a logging outage can hide MORE than K consecutive
+   high-sequence claims — restored row at seq 10, logs ending at
+   10, provider calls 11–25 made during a pipeline outage, K=10
+   → the sweep stops at 20 and misses executed 21–25.
+   CONSEQUENCE, normative: the heuristic result NARROWS the
+   manual work but NEVER authorizes unfreeze by itself. UNFREEZE
+   AUTHORIZATION additionally requires POSITIVE provider-side
+   reconciliation of the restore interval: a platform-side
+   listing/audit of every key/payment for the affected trades in
+   the window (upstream ask — recorded as a §5.2 PREREQUISITE;
+   until such a listing capability is evidenced, the fallback is
+   a MANUAL platform-team reconciliation, and §5.2 remains
+   runbook-blocked on one or the other). The log platform is
    outside the restored database and its retention floor covers
    the replay window by definition; the posting-claim log lines
    identify which keys hit the wire WHEN their lines exist. Only
@@ -3109,8 +3141,12 @@ ALL-PAYMENTS TABLE projection (added 2026-07-17 — the second
 defined read surface; review 7ab31e5 M4 closed the granularity
 gap). The step CARD above stays obligation-granular; the
 all-payments TABLE is REQUEST-granular, informational only (no
-create/modify/retry/cancel actions), and is a pure projection —
-no schema change, no new state:
+create/modify/retry/cancel actions). The projection itself
+remains READ-ONLY and owns no state of its own; the amount-series
+stamp it displays is STORED on payment_request (§2.2 — the one
+schema addition this feature made, 2026-07-19; wording corrected
+review 0e09f09 M2 — the earlier "no schema change, no new state"
+became false when the stamp landed):
 
 ```text
 Row granularity and identity:
@@ -3129,17 +3165,22 @@ Field separation (amounts can never be conflated):
   - request fields on REQUEST rows only: request amount, §10.4
     display label, blocked_reason, timestamps,
     required_total_at_creation (§2.2 — the required total in
-    force when THIS attempt was created; NULL renders as
-    "predates capture"); empty/n-a on OBLIGATION_ONLY rows.
+    force when THIS request was created; NULL renders as "not
+    captured (pre-F0)"); empty/n-a on OBLIGATION_ONLY rows.
   Example: required 120 fulfilled as 100 + 20 renders as TWO
   REQUEST rows (amounts 100 and 20), each carrying required 120
   and the cumulative counters — never one synthetic 120 row; and
-  the stamps carry the per-attempt history: the 100-row shows
-  required_total_at_creation 100, the 20-row shows 120 — the UI
-  amount series (2026-07-19). SCOPE, stated honestly: the series
-  shows the required total AT EACH ATTEMPT — message versions
-  that never produced a request (decreases, zeroings,
-  enrichment-only changes) are NOT in it, BY DECISION; a full
+  the stamps carry the REQUEST-CREATION history: the 100-row
+  shows required_total_at_creation 100, the 20-row shows 120 —
+  the UI amount series (2026-07-19; terminology per review
+  0e09f09 M2: one stamp per payment_request row, NOT per provider
+  POST attempt — "posting attempt" is reserved for
+  post_attempt_seq episodes, which share the row's single stamp;
+  "total" is obligation-scope, never trade-wide). SCOPE, stated
+  honestly: the series shows the required total AT EACH REQUEST
+  CREATION — message versions that never produced a request
+  (decreases, zeroings, enrichment-only changes) are NOT in it,
+  BY DECISION; a full
   message-version history would need the upstream version-listing
   ask or a history store, neither of which this column pretends
   to be.
@@ -3416,7 +3457,8 @@ FATAL connection/session/transaction/commit failures propagate as
 ordinary host infrastructure failures. The guarantee is "NO
 INCORRECT PAYMENT OUTCOME" — not "no journal failure can ever fail
 an attempt". If the journal has gaps, the fallback is the §14 log
-line (key, seq, hash — always present) plus asking the payment
+line (key, seq, hash — WHEN PRESENT: the §14 delivery contract
+is best-effort, gaps possible) plus asking the payment
 platform: STATUS/outcome/reference are recoverable by
 UETR/idempotency-key QUERY (§9); exact CONTENT is recoverable only
 via a MANUAL platform-team request — an UNPROVEN capability
@@ -3981,12 +4023,28 @@ feed-lag damping threshold     §9.5   = confirmation age
 provider_reference match
   recency window               §8     fail-closed fallback
 freeze propagation bound       §16.1  cluster-wide flip latency
-DR key-enumeration stop count  §5.2   FALLBACK only: the
-                                      step-5b bound is log-derived;
-                                      K consecutive NOT_FOUNDs
-                                      applies only when the log
-                                      platform is unavailable
+DR key-enumeration stop count  §5.2   K serves TWO roles (aligned
+                                      0e09f09 H1): (a) the ALWAYS-
+                                      applied overshoot margin on
+                                      step 5b's heuristic limit —
+                                      which is a narrowing aid,
+                                      never a proven bound and
+                                      never sole unfreeze
+                                      authority; (b) the
+                                      K-consecutive-NOT_FOUNDs
+                                      stop when the log platform
+                                      is unavailable entirely
                                       (post-MVP with the runbook)
+accepted-window diagnostic
+  statement timeout            §6.6   accepted_window_diagnostic_
+                                      timeout_ms — owner ops + DBA
+                                      sign-off; default 10000 ms,
+                                      max 30000 ms; JDBC
+                                      setQueryTimeout on the
+                                      read-only connection (N.1
+                                      safe-execution envelope;
+                                      OB-07 externalizes this like
+                                      every entry here)
 ```
 
 Config-load validation: the loader REJECTS a configuration set

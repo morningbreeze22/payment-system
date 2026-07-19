@@ -50,7 +50,7 @@ collected retroactively at GO-04.**
 | Q23 | Migration/rollout/rollback plan approved; rollback rehearsed; point of no return documented | GO-01/05, Section M | | |
 | Q24 | Shadow validation soak report clean | GO-02 | | |
 | Q25 | Tech-lead / provider / PO question register (Section K) current: all BLOCKING answered; HIGH answered or risk-owned; §16.6 config values have owners | Section K, OB-07 | | |
-| Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup) | T-31 | | |
+| Q26 | UI/card correctness tests green (no false completion; §12 multi-obligation lookup; amount-series stamp: RG-06 creation-stamp suite green + T-31 projection stamps/NULL rendering; GO-03 files the first-post-F0 non-NULL stamp check — 0e09f09 M1/L3) | T-31, RG-06 stamp suite | | |
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
 | Q29 | §20 interim ops surface live: authorized admin endpoints + four queue views deployed, enterprise-role-restricted, exercised on real Oracle. NON-WAIVABLE line items (§20 minimal exit set, with Q4): supersede/close and reprocess-snapshot. Waivable only by PO with owner + dated plan: retry, reject, annotate, views | §20, RG-05, OP-04a–e, T-33 | | |

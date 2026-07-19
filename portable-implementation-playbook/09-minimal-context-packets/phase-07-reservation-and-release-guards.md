@@ -51,8 +51,8 @@ Tests: deny/allow at code AND trigger layers; supersede releases on legal rows o
 [RG-06] Standing shortfall re-evaluation
 Read: §6.8 (whole) §3 (I5) §6.2. Invariant: exactly ONE creation point; triggers T1–T4; successor policy gates REJECTED successors (ordering-newer ∧ count<2 ∧ no live marker).
 Placeholders: [Payment Request Creation Component] [Obligation Repository]. Mappings: ALL legacy creation sites (unroutable → STOP).
-Objective: evaluate() under lock per §6.8's condition list; invoke from T1–T4; route every legacy site through it. The creation INSERT stamps required_total_at_creation := the locked row's required_amount (§2.2 — set-once display stamp; never UPDATEd, never read by money logic; NULL only on pre-migration rows).
-Tests: each trigger, each gate, each successor row; deferred amendment; zero-shortfall no-op; stamp cases — top-up stamps 100 then 120; reject-retry stamps 100 not 200; unchanged on downgrade/re-POST. Stop: merged.
+Objective: evaluate() under lock per §6.8's condition list; invoke from T1–T4; route every legacy site through it. STAMP INVARIANTS (§2.2, 0e09f09): one stamp per payment_request row, NOT per provider POST attempt; write = the creation INSERT only, under the obligation lock; value = the locked obligation.required_amount, same physical amount type; UPDATE forbidden — pre-F0/legacy rows are NULL; read = UI projection only, never money/workflow logic.
+Tests: each trigger, each gate, each successor row; deferred amendment; zero-shortfall no-op; stamp cases — top-up stamps 100 then 120; reject-retry stamps 100 not 200; unchanged on downgrade/re-POST; SQL-inventory assertion: column in NO UPDATE SET list anywhere. Stop: merged.
 ```
 
 ```text

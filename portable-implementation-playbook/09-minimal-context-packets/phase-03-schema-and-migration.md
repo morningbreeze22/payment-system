@@ -27,7 +27,7 @@ Tests: apply on clean+prod-shaped schema; entity round-trip. Stop: merged, D-11 
 [S-03] Request columns
 Read: §2.2 (whole) §16.5. Invariant: dimension columns nullable until S-08 backfill; legacy status column untouched.
 Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: both.
-Objective: add the four dimensions + blocked_reason + identity/uetr/provider_reference + version/claim/retry/next_query_at + created_at/state_changed_at/creating_ordering/required_total_at_creation (§2.2 set-once display stamp) + last_sent_hash/divergence_expected/divergent_payload_at + maybe_since/escalated_at/submitted_at/last_post_attempt_at.
+Objective: add the four dimensions + blocked_reason + identity/uetr/provider_reference + version/claim/retry/next_query_at + created_at/state_changed_at/creating_ordering/required_total_at_creation (§2.2 set-once display stamp — TYPE identical to the amount domain in type/precision/scale, JPY scale-0 + 3-decimal in scope; one stamp per row, NOT per POST attempt; write = RG-06 creation INSERT only; UPDATE forbidden; pre-F0 rows NULL) + last_sent_hash/divergence_expected/divergent_payload_at + maybe_since/escalated_at/submitted_at/last_post_attempt_at.
 Tests: apply tests; entity round-trip. Stop: merged, baseline green.
 ```
 
@@ -51,7 +51,7 @@ Tests: duplicate-insert race clean; FOR UPDATE blocks same-trade, not other trad
 [S-05] CHECKs, UNIQUEs, I6
 Read: §10.3 (matrix) §2.2 constraints §2.1 (ui_step_status stored set) CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified); the ui_step_status CHECK (IN_PROGRESS/COMPLETED/CANCELLED) lands HERE, not in S-02 (round 13).
 Placeholders: [DB Migration Directory]. Mappings: real-Oracle test lane (STOP if H2-only).
-Objective: enum CHECKs; L2–L8 + L1-shape CHECKs; UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); I6 = unique fn index CASE WHEN outcome IS NULL THEN payment_obligation_id END; stamp tripwire CHECK (required_total_at_creation IS NULL OR >= amount — §2.2). NOVALIDATE→VALIDATE per plan.
+Objective: enum CHECKs; L2–L8 + L1-shape CHECKs; UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); I6 = unique fn index CASE WHEN outcome IS NULL THEN payment_obligation_id END; stamp tripwire CHECK (required_total_at_creation IS NULL OR >= amount — §2.2; a corruption tripwire only — set-once is proven by RG-06's SQL-inventory assertion, not by this CHECK). NOVALIDATE→VALIDATE per plan.
 Tests: one violation test per constraint; I6 second-active rejected; stamp < amount refused. Stop: validated + green.
 ```
 
@@ -75,7 +75,7 @@ Tests: EXPLAIN plan assertions on terminal-heavy seed. Stop: merged.
 [S-08] Backfill dimensions
 Read: §10.4 (reverse map) §10.2 §2.2 anchors §7.1. Invariant: ambiguous legacy states backfill to MAYBE_SUBMITTED (fail toward resolver, never NOT_SUBMITTED).
 Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: legacy meanings memo (D-04); unmappable values = BLOCKED, report.
-Objective: reviewed legacy→tuple map; idempotent backfill; anchors defensibly set; terminal rows L1-normalized; required_total_at_creation stays NULL on pre-migration rows (back-compute FORBIDDEN — §2.2); run in a quiet window; THEN re-derive ui_step_status + exceptions for EVERY obligation via the shared §4 derivation (round 14 — never from the legacy label where money predicates are evaluable; batches + per-row lock; greenfield: still run — the zero-NULL evidence is required).
+Objective: reviewed legacy→tuple map; idempotent backfill; anchors defensibly set; terminal rows L1-normalized; required_total_at_creation stays NULL on pre-migration AND dual-run-old-writer rows (back-compute FORBIDDEN — §2.2; capture boundary = F0 activation, GO-03 verifies the first post-F0 stamp); run in a quiet window; THEN re-derive ui_step_status + exceptions for EVERY obligation via the shared §4 derivation (round 14 — never from the legacy label where money predicates are evaluable; batches + per-row lock; greenfield: still run — the zero-NULL evidence is required).
 Tests: idempotency; per-value spot checks; constraint dry-validate; read-model pass per-branch cases + ZERO NULL ui_step_status after the pass. Stop: validated; anomaly list dispositioned.
 ```
 
@@ -83,8 +83,8 @@ Tests: idempotency; per-value spot checks; constraint dry-validate; read-model p
 [S-09] Migration test pass
 Read: §16.5; Section M.1a decision record. Invariant: the OLD app version must run against the NEW schema; the CANCELLED-read proof is CONDITIONAL on M.1a (round 15) — not-read → N/A with proof; defensive reader → test the deployed version; non-defensive → test the COMPATIBILITY release + prove the incompatible original is fenced; name the EXACT build tested.
 Placeholders: [DB Migration Directory] [Integration Test Suite]. Mappings: Oracle lane (set it up first if missing).
-Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema; constraint suite in CI.
-Tests: the four proofs. Stop: green; report filed.
+Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema (old writers create rows with NULL required_total_at_creation — EXPECTED during dual-run, the capture boundary is F0 not the migration; §2.2/0e09f09 M1); constraint suite in CI.
+Tests: the four proofs; old-writer row carries NULL stamp and violates nothing. Stop: green; report filed.
 ```
 
 
