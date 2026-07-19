@@ -21,7 +21,7 @@
 - **How to locate:** F.2 findings.
 - **Implementation instructions:** in the creation path: obligation row locked (SELECT FOR UPDATE) → read seq → increment → use in K-02 derivation → insert request with the consumed value persisted in the payment_request.request_seq COLUMN (§2.2, write-once — 1d8a650 M1: this column, not the obligation counter, is the source of truth for the §14 line field, the §12 keyset order, and the §5.2 log heuristic) — all one transaction.
 - **Do not change:** what triggers creation (that is RG-06).
-- **Tests to add:** two concurrent creations on one obligation → distinct sequential seqs (the lock serializes); rollback does not burn a seq inconsistently with the inserted row (both roll back together).
+- **Tests to add:** two concurrent creations on one obligation → distinct sequential seqs (the lock serializes); rollback does not burn a seq inconsistently with the inserted row (both roll back together); WRITE-ONCE controls (4dbdf2b M1 — request_seq is identity-load-bearing, so it gets the same named pattern as the stamp): repository-wide SQL-inventory assertion that request_seq appears ONLY in the creation INSERT and in NO UPDATE SET list; mutation tests asserting CAS transitions, provider-response processing, feed events, lease expiry, and manual operations all preserve request_seq unchanged.
 - **Edge cases:** obligation created in the same transaction as its first request (seq starts at the spec'd initial value — per CA-5).
 - **Manual validation:** seq column advances by exactly 1 per created request in a local run.
 - **Expected outcome:** deterministic seq per obligation.

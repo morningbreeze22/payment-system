@@ -131,6 +131,13 @@ root-cause incident.
   BY DECISION); candidates go to manual triage. Not detectable
   online (no trade-level watermark)
                                   → on-demand query + manual review
+- post-F0 NULL request_seq (IDENTITY CONTRACT, 4dbdf2b M1 —
+  OB-02): created_at >= the F0 activation timestamp AND
+  request_seq IS NULL                     → ALERT + ticket (rogue
+                                            or pre-fence writer;
+                                            higher severity than
+                                            the stamp ticket;
+                                            never a gate)
 - post-F0 NULL required_total_at_creation (data quality,
   aa4399c L1 — OB-02): created_at >= the F0 activation timestamp
   (signed manifest) AND stamp IS NULL     → LOW ticket (never a

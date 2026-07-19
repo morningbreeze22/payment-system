@@ -484,9 +484,11 @@ Setup:   terminal REJECTED row; new-event_id settlement for it;
          BEFORE it.
 Action:  deliver both events; run the data-quality scan.
 Expect:  new event → CRITICAL alert (zero-row CAS detected); known
-         event → silent inbox skip; post-F0 NULL row → LOW
-         data-quality ticket (never a page); pre-F0 NULL row →
-         silent.
+         event → silent inbox skip; post-F0 NULL-stamp row → LOW
+         data-quality ticket (never a page); post-F0
+         NULL-request_seq row → ALERT + ticket (identity
+         contract, higher severity — 4dbdf2b M1); pre-F0 NULL
+         rows → silent.
 Failure: the replay-divergence signature (a §5.2 tripwire) missed, or
          redelivery noise paging humans, or the NULL-stamp scan
          paging/gating (it is a ticket only).
@@ -527,9 +529,14 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            a pre-F0 row shows NULL rendered as "not captured
            (pre-F0)", never a computed value (one stamp per
            payment_request row, NOT per POST attempt — 0e09f09
-           M2); keyset order stable with NULL-seq legacy rows
-           (request_seq NULLS FIRST, then created_at, then
-           request id — 1d8a650 M1);
+           M2); keyset order = THE CANONICAL TUPLE
+           (obligation_identity, row_type, request_seq NULLS
+           FIRST, created_at NULLS FIRST, source_id — 4dbdf2b M2)
+           asserted on: two+ legacy NULL-seq requests under one
+           obligation (stable order); ordinary non-NULL
+           sequences; an OBLIGATION_ONLY row;
+           placeholder→request replacement between live-browse
+           pages; cursor replay across identical timestamps;
          - mixed active/terminal (REJECTED predecessor + live
            successor) → both rows visible, history never laundered;
          - fully removed scope (required = 0) → rows remain,

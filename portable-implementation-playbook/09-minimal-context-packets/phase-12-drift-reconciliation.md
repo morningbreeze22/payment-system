@@ -19,7 +19,7 @@ Tests: seeded I1/I2 violations page; read-skew non-page; L9 detection; diagnosti
 [OB-02] Reconciliation tripwires
 Read: §8 (anomaly) §15. Invariant: NEW event_id + zero-row CAS on a TERMINAL row = CRITICAL; benign redelivery (known event_id) = silent skip.
 Placeholders: [Payment Status Feed Consumer] [Metrics / Alerting Layer]. Mappings: IN-07.
-Objective: terminal-evidence CRITICAL routed; per-obligation count sanity ticket; post-F0 NULL-stamp data-quality scan (created_at >= F0 activation timestamp from the signed manifest AND required_total_at_creation IS NULL → LOW ticket, never page/gate — aa4399c L1).
-Tests: each fires; benign doesn't; seeded post-F0 NULL → ticket, pre-F0 NULL → silent. Stop: merged.
+Objective: terminal-evidence CRITICAL routed; per-obligation count sanity ticket; post-F0 NULL-stamp data-quality scan (created_at >= F0 activation timestamp from the signed manifest AND required_total_at_creation IS NULL → LOW ticket, never page/gate — aa4399c L1); post-F0 NULL-request_seq scan (same window AND request_seq IS NULL → ALERT + ticket, identity-contract breach, higher severity — 4dbdf2b M1).
+Tests: each fires; benign doesn't; seeded post-F0 NULL stamp → ticket, NULL request_seq → alert; pre-F0 NULLs → silent. Stop: merged.
 ```
 

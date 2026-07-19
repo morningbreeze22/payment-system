@@ -79,7 +79,14 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); the
   NULL-ignoring function-based UNIQUE over
   (payment_obligation_id, request_seq) (1d8a650 M1 — legacy rows
-  carry NULL request_seq); exact I6
+  carry NULL request_seq; the exact conditional expression is a
+  CA-4 deliverable); the exact integer domain + overflow behavior
+  for next_request_seq/request_seq (fail-closed STOP + alert at
+  the bound, never wraparound — 4dbdf2b M1); THE CANONICAL §12
+  KEYSET TUPLE repeated byte-for-byte: (obligation_identity,
+  row_type, request_seq NULLS FIRST, created_at NULLS FIRST,
+  source_id) — CA-4 maps obligation_identity to physical fields
+  but may NOT change the logical order (4dbdf2b M2); exact I6
   expression; enum CHECKs (round 12: the ui_step_status CHECK
   carries IN_PROGRESS/COMPLETED/CANCELLED — a two-value constraint
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
@@ -99,10 +106,11 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   (added 2026-07-17; scoped as a BLOCKING resolution item for
   §12 estate mode per review 4d5cb83 M4 — single-trade mode is NOT
   gated): the RESOLVED SQL with the authorization predicate/join
-  spelled out; the TOTAL keyset order incl. tie-breaker and NULL
-  encoding for OBLIGATION_ONLY rows (suggested: obligation id,
-  then row_type, then request_seq NULLS FIRST); the cursor field
-  set; the SUPPORTED FILTER-SHAPE MATRIX (which
+  spelled out; the TOTAL keyset order = THE CANONICAL TUPLE
+  (obligation_identity, row_type, request_seq NULLS FIRST,
+  created_at NULLS FIRST, source_id) — frozen 4dbdf2b M2, the
+  logical order is NOT resolvable away; the cursor field
+  set encoding every term + its NULL semantics; the SUPPORTED FILTER-SHAPE MATRIX (which
   status/exception/date combinations are served); the exact
   index(es); and a plan/row-count acceptance table — until local
   discovery supplies these, estate mode is a design instruction,
@@ -128,7 +136,13 @@ Purpose: byte-exact, versioned DR keystone.
 Required contents: input list (scope|seq — no discriminator; §1
   contract facts);
   per-field canonicalization; delimiter/encoding (delimiter-in-field
-  rule); algorithm; version; ≥12 vectors authored independently.
+  rule); algorithm; version; ≥12 vectors authored independently;
+  the INITIAL sequence value + the counter-initialization policy
+  for pre-existing/old-writer obligations (S-02/S-08 execute it —
+  4dbdf2b M1); the VERSIONED IDENTITY NAMESPACE with its
+  COLLISION ANALYSIS: proof that new-scheme keys cannot collide
+  with any legacy-scheme key on the same table (historical
+  per-request sequences are NEVER inferred).
 Validation: independent reproduction of all vectors; K-03 suite green;
   a deliberate mutation makes vectors fail.
 Dependent tasks: K-02, K-03, CT harness (real keys), §5.2 step-5b

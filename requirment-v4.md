@@ -208,7 +208,24 @@ next_request_seq    — per-obligation counter, incremented under the
                       obligation lock in the same transaction that
                       inserts a request; input to the deterministic
                       identity derivation (§5); deterministic across
-                      a database restore by construction
+                      a database restore by construction.
+                      INITIALIZATION (review 4dbdf2b M1): every
+                      obligation row MUST carry a NON-NULL value —
+                      in Oracle NULL + 1 IS NULL, so an
+                      uninitialized counter makes request creation
+                      UNAVAILABLE at the K-01 read-increment (fail
+                      closed, but broken). New rows are created
+                      with the CA-5 initial value; the S-02/S-08
+                      migration initializes EVERY pre-existing /
+                      old-writer obligation row to it. Collision
+                      safety for legacy scopes = CA-5's VERSIONED
+                      IDENTITY NAMESPACE + collision analysis
+                      (new-scheme keys provably cannot collide
+                      with legacy-scheme keys) — historical
+                      per-request sequences are NEVER inferred.
+                      Integer domain + overflow behavior = CA-4
+                      (fail-closed STOP + alert at the bound,
+                      never wraparound)
 upstream_ordering   — last-APPLIED message ordering value (§6.7);
                       never set by a failed-validation message
 correlation_id      — from the upstream message (§6.0); persisted for
@@ -361,7 +378,20 @@ request_seq         — the IMMUTABLE per-request sequence: the value
                       plain composite UNIQUE would reject multiple
                       NULL-seq legacy rows on one obligation (the
                       same NULL-ignoring pattern as the uetr
-                      index)
+                      index). WRITE-ONCE CONTROL (4dbdf2b M1 —
+                      named, like the stamp's): a repository-wide
+                      SQL-inventory assertion (the column appears
+                      ONLY in the creation INSERT, in NO UPDATE
+                      SET list) plus mutation tests across the
+                      CAS/response/feed/lease-expiry/manual-op
+                      paths, owned by K-01. POST-F0 CONTROL: the
+                      GO-03 first-sample check asserts request_seq
+                      IS NOT NULL alongside the stamp, and the §15
+                      post-F0 NULL-request_seq detector (ALERT +
+                      ticket — an identity-contract-breach signal,
+                      HIGHER severity than the display stamp's
+                      ticket; still never a gate) catches later
+                      regressions
 blocked_reason      — set iff stage_state = BLOCKED (§13 codes:
                       RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH,
                       CUTOFF_EXPIRED (RESERVED round 10 — never
@@ -3275,11 +3305,20 @@ is an API, not just a row shape):
   - ROW KEY: composite (row_type, source_id) — REQUEST rows keyed
     by request id, OBLIGATION_ONLY rows by obligation id; stable
     across refreshes and pages;
-  - ORDERING/PAGINATION: deterministic order (obligation identity,
-    then request_seq NULLS FIRST, then created_at, then request id
-    — the NULL handling exists because legacy/pre-F0 rows carry
-    NULL request_seq, 1d8a650 M1); keyset cursor on that order
-    (never OFFSET); fixed page cap (config §16.6);
+  - ORDERING/PAGINATION — THE CANONICAL KEYSET TUPLE (frozen
+    review 4dbdf2b M2; repeated BYTE-FOR-BYTE in CA-4/ST-04/T-31,
+    never restated differently):
+      (obligation_identity, row_type, request_seq NULLS FIRST,
+       created_at NULLS FIRST, source_id)
+    — row_type places the OBLIGATION_ONLY placeholder
+    deterministically; request_seq NULLS FIRST because legacy/
+    pre-F0 rows carry NULL; created_at NULLS FIRST because an
+    OBLIGATION_ONLY row has no request created_at; source_id is
+    the final total-order tie-breaker. The cursor encodes EVERY
+    term including its NULL semantics. CA-4 maps
+    obligation_identity to resolved physical fields but may NOT
+    change the logical order. Keyset cursor on that order (never
+    OFFSET); fixed page cap (config §16.6);
   - PAGINATION SEMANTICS = LIVE BROWSE (decided 2026-07-17, review
     c8a92f1 M2): each page is truthful at its read instant (the
     freshness indicator applies per response); no row appears
@@ -3295,8 +3334,10 @@ is an API, not just a row shape):
     single-trade convenience only;
   - ESTATE QUERY CONTRACT (review c8a92f1 M2; scoped per review
     4d5cb83 M4): the CONCEPT is authorization scope first, then
-    server-side filters, ordered by (obligation identity,
-    row_type, request_seq); the EXECUTABLE contract — resolved
+    server-side filters, ordered by THE CANONICAL KEYSET TUPLE
+    above — (obligation_identity, row_type, request_seq NULLS
+    FIRST, created_at NULLS FIRST, source_id), 4dbdf2b M2, one
+    tuple everywhere; the EXECUTABLE contract — resolved
     SQL, authorization predicate/join, total order incl.
     tie-breaker + NULL encoding for OBLIGATION_ONLY rows, cursor
     fields, supported filter-shape matrix, exact index(es), plan
@@ -3787,6 +3828,21 @@ never on blocked_reason as a rule input (§10.1).
 - Engine circuit breaker OPEN                  → ticket; page at 30m
 - Generic stuck-state age (any active request
   older than its per-(stage,stage_state) max)  → ticket
+- Post-F0 NULL request_seq (IDENTITY CONTRACT,
+  4dbdf2b M1): payment_request with created_at
+  >= the F0 activation timestamp AND
+  request_seq IS NULL                          → ALERT + ticket
+                                                 (a rogue or
+                                                 pre-fence writer
+                                                 is creating rows
+                                                 outside the K-01
+                                                 discipline —
+                                                 HIGHER severity
+                                                 than the display
+                                                 stamp's ticket
+                                                 below; still
+                                                 never a gate on
+                                                 other rows)
 - Post-F0 NULL amount-series stamp (data
   quality, aa4399c L1): payment_request with
   created_at >= the F0 activation timestamp

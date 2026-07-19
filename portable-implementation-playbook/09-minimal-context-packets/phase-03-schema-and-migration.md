@@ -19,15 +19,15 @@ Tests: none. Stop: plan approved by owner + DBA.
 [S-02] Obligation columns
 Read: §2.1 (whole) §16.5. Invariant: additive only; nullable-with-default first; scope key per B-01.
 Placeholders: [DB Migration Directory] [Obligation Repository]. Mappings: both.
-Objective: add §2.1 columns (amounts, markers+counters+first_at, ordering fields, read-model fields, reopened_at, next_request_seq), scope-key UNIQUE, amounts>=0 CHECK, business_id index; entity mapping additive.
-Tests: apply on clean+prod-shaped schema; entity round-trip. Stop: merged, D-11 baseline green. Duplicate-scope data → STOP and report.
+Objective: add §2.1 columns (amounts, markers+counters+first_at, ordering fields, read-model fields, reopened_at, next_request_seq), scope-key UNIQUE, amounts>=0 CHECK, business_id index; entity mapping additive. next_request_seq MUST be INITIALIZED on every existing row + defaulted on new rows (CA-5 initial value; Oracle NULL+1 IS NULL — uninitialized wedges K-01; 4dbdf2b M1).
+Tests: apply on clean+prod-shaped schema; entity round-trip; ZERO NULL next_request_seq after apply; overflow bound fails closed. Stop: merged, D-11 baseline green. Duplicate-scope data → STOP and report.
 ```
 
 ```text
 [S-03] Request columns
 Read: §2.2 (whole) §16.5. Invariant: dimension columns nullable until S-08 backfill; legacy status column untouched.
 Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: both.
-Objective: add the four dimensions + blocked_reason + request_seq (§2.2 immutable per-request sequence — write-once at creation, NULL on legacy rows, 1d8a650 M1) + identity/uetr/provider_reference + version/claim/retry/next_query_at + created_at/state_changed_at/creating_ordering/required_total_at_creation (§2.2 set-once display stamp — TYPE identical to the amount domain in type/precision/scale, JPY scale-0 + 3-decimal in scope; one stamp per row, NOT per POST attempt; write = RG-06 creation INSERT only; UPDATE forbidden; pre-F0 rows NULL) + last_sent_hash/divergence_expected/divergent_payload_at + maybe_since/escalated_at/submitted_at/last_post_attempt_at. (post_attempt_seq: added by AUD-01, not here.)
+Objective: add the four dimensions + blocked_reason + request_seq (§2.2 immutable per-request sequence — write-once at creation, NULL on legacy rows, 1d8a650 M1) + identity (idempotency_key/end_to_end_id)/uetr/provider_reference + version/claim/retry/next_query_at + created_at/state_changed_at/creating_ordering/required_total_at_creation (§2.2 set-once display stamp — TYPE identical to the amount domain in type/precision/scale, JPY scale-0 + 3-decimal in scope; one stamp per row, NOT per POST attempt; write = RG-06 creation INSERT only; UPDATE forbidden; pre-F0 rows NULL) + last_sent_hash/divergence_expected/divergent_payload_at + maybe_since/escalated_at/submitted_at/last_post_attempt_at. (post_attempt_seq: added by AUD-01, not here.)
 Tests: apply tests; entity round-trip. Stop: merged, baseline green.
 ```
 
@@ -75,7 +75,7 @@ Tests: EXPLAIN plan assertions on terminal-heavy seed. Stop: merged.
 [S-08] Backfill dimensions
 Read: §10.4 (reverse map) §10.2 §2.2 anchors §7.1. Invariant: ambiguous legacy states backfill to MAYBE_SUBMITTED (fail toward resolver, never NOT_SUBMITTED).
 Placeholders: [DB Migration Directory] [Request Status Persistence Layer]. Mappings: legacy meanings memo (D-04); unmappable values = BLOCKED, report.
-Objective: reviewed legacy→tuple map; idempotent backfill; anchors defensibly set; terminal rows L1-normalized; required_total_at_creation stays NULL on pre-migration AND dual-run-old-writer rows (back-compute FORBIDDEN — §2.2; capture boundary = F0 activation, GO-03 verifies the first post-F0 stamp); request_seq stays NULL on legacy rows (never fabricated — 1d8a650 M1); run in a quiet window; THEN re-derive ui_step_status + exceptions for EVERY obligation via the shared §4 derivation (round 14 — never from the legacy label where money predicates are evaluable; batches + per-row lock; greenfield: still run — the zero-NULL evidence is required).
+Objective: reviewed legacy→tuple map; idempotent backfill; anchors defensibly set; terminal rows L1-normalized; required_total_at_creation stays NULL on pre-migration AND dual-run-old-writer rows (back-compute FORBIDDEN — §2.2; capture boundary = F0 activation, GO-03 verifies the first post-F0 stamp); request_seq stays NULL on legacy rows (never fabricated — 1d8a650 M1); VERIFY zero obligations with NULL next_request_seq (S-02 init ran — 4dbdf2b M1); run in a quiet window; THEN re-derive ui_step_status + exceptions for EVERY obligation via the shared §4 derivation (round 14 — never from the legacy label where money predicates are evaluable; batches + per-row lock; greenfield: still run — the zero-NULL evidence is required).
 Tests: idempotency; per-value spot checks; constraint dry-validate; read-model pass per-branch cases + ZERO NULL ui_step_status after the pass. Stop: validated; anomaly list dispositioned.
 ```
 
@@ -83,8 +83,8 @@ Tests: idempotency; per-value spot checks; constraint dry-validate; read-model p
 [S-09] Migration test pass
 Read: §16.5; Section M.1a decision record. Invariant: the OLD app version must run against the NEW schema; the CANCELLED-read proof is CONDITIONAL on M.1a (round 15) — not-read → N/A with proof; defensive reader → test the deployed version; non-defensive → test the COMPATIBILITY release + prove the incompatible original is fenced; name the EXACT build tested.
 Placeholders: [DB Migration Directory] [Integration Test Suite]. Mappings: Oracle lane (set it up first if missing).
-Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema (old writers create rows with NULL required_total_at_creation — EXPECTED during dual-run, the capture boundary is F0 not the migration; §2.2/0e09f09 M1); constraint suite in CI.
-Tests: the four proofs; old-writer row carries NULL stamp and violates nothing. Stop: green; report filed.
+Objective: prove: clean-schema apply; prod-shaped apply + backfill; old-version boot+smoke on new schema (old writers create rows with NULL required_total_at_creation AND NULL request_seq — EXPECTED during dual-run, the capture boundary is F0 not the migration; §2.2/0e09f09 M1/4dbdf2b M1); constraint suite in CI; evidence: ZERO obligations with NULL next_request_seq; request_seq column + NULL-ignoring unique present.
+Tests: the four proofs; old-writer row carries NULL stamp + NULL request_seq and violates nothing. Stop: green; report filed.
 ```
 
 

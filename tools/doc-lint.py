@@ -284,25 +284,51 @@ for _p in MAINTAINED:
             if int(_m.group(1)) != _max_q:
                 errors.append(f"{rel(_p)}:{_n}: stale range Q-01..Q-{_m.group(1)} — canonical max is Q-{_max_q} (rule 6j, 1d8a650 M2)")
 
-# ---- Rule 6k (1d8a650 M1 class): request-field inventory — every
-# named payment_request column must appear wherever the request schema
-# is stated (spec, S-03 card, S-03 packet, schema dictionary), so a
-# consumed-but-undeclared column cannot recur ----
+# ---- Rule 6k (1d8a650 M1 class; SLICE-SCOPED per 4dbdf2b L1): every
+# named payment_request column must appear inside each file's
+# AUTHORITATIVE SCHEMA SLICE — not merely anywhere in the file, so a
+# field surviving in unrelated text cannot mask its removal from the
+# inventory ----
 REQUEST_FIELDS = ["request_seq", "post_attempt_seq",
     "required_total_at_creation", "creating_ordering", "idempotency_key",
     "uetr", "divergent_payload_at", "maybe_since", "escalated_at",
     "submitted_at", "last_post_attempt_at", "last_sent_hash",
     "divergence_expected", "blocked_reason", "next_query_at",
     "provider_reference", "state_changed_at"]
-_FIELD_FILES = [ROOT / "requirment-v4.md",
-    PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md",
-    PORTABLE / "09-minimal-context-packets" / "phase-03-schema-and-migration.md",
-    ROOT / "db-schema-dictionary.md"]
-for _p in _FIELD_FILES:
-    _txt = "\n".join(lines_of(_p))
+
+def _schema_slice(text, start_pat, end_pat):
+    """The region between two anchors; None if the start anchor is
+    missing (itself an error), file tail if the end anchor is."""
+    s = re.search(start_pat, text)
+    if not s:
+        return None
+    e = re.search(end_pat, text[s.end():])
+    return text[s.end(): s.end() + e.start()] if e else text[s.end():]
+
+_FIELD_SLICES = [
+    (ROOT / "requirment-v4.md", r"### 2\.2 payment_request", r"### 2\.3 "),
+    (PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md",
+     r"### S-03 ", r"### S-04 "),
+    (PORTABLE / "09-minimal-context-packets" / "phase-03-schema-and-migration.md",
+     r"\[S-03\]", r"\[S-04\]"),
+    (ROOT / "db-schema-dictionary.md", r"## 2\. payment_request", r"\n## 3\. "),
+]
+for _p, _sp, _ep in _FIELD_SLICES:
+    _sl = _schema_slice("\n".join(lines_of(_p)), _sp, _ep)
+    if _sl is None:
+        errors.append(f"{rel(_p)}: rule 6k cannot locate the request schema slice (anchor /{_sp}/ missing — heading changed?)")
+        continue
     for _f in REQUEST_FIELDS:
-        if _f not in _txt:
-            errors.append(f"{rel(_p)}: request field '{_f}' missing (rule 6k inventory, 1d8a650 M1 — a consumed column must be declared everywhere the schema is stated)")
+        if _f not in _sl:
+            errors.append(f"{rel(_p)}: request field '{_f}' missing from the SCHEMA SLICE (rule 6k, 4dbdf2b L1 — presence elsewhere in the file does not count)")
+
+# rule 6k mutation self-test (4dbdf2b L1): a field removed from the
+# inventory slice but still mentioned elsewhere in the same file MUST
+# be caught — this proves the check is slice-scoped, not whole-file
+_mut_file = "### S-03 x\nfields: stage, outcome\n### S-04 y\nrequest_seq mentioned here only\n"
+_mut_slice = _schema_slice(_mut_file, r"### S-03 ", r"### S-04 ")
+if _mut_slice is None or "request_seq" in _mut_slice or "request_seq" not in _mut_file:
+    errors.append("LINT-SELFTEST [rule 6k]: mutation fixture failed — the slice-scoped check would miss an inventory removal masked by a stray mention")
 
 # ---- Rule 6: card-ID parity between task-card files and file 20 ----
 card_ids = set()
