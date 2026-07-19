@@ -435,8 +435,12 @@ required_total_at_creation — the obligation's required_amount as
                       evidence includes the FIRST post-F0 request
                       carrying a NON-NULL stamp, and AFTER the
                       writer fence a NULL stamp on a newly
-                      created row is a DEFECT (alert-worthy —
-                      still never a money gate).
+                      created row is a DEFECT surfaced by the §15
+                      post-F0 NULL-stamp DATA-QUALITY ticket (LOW
+                      severity — a ticket, never a page, never a
+                      money gate; keyed on created_at >= the F0
+                      activation timestamp from the signed
+                      manifest — aa4399c L1).
 provider_reference  — engine-assigned reference, if any, persisted
                       from the POST response; secondary feed-matching
                       key (§8); a distinct field from the uetr,
@@ -1118,10 +1122,13 @@ manual engine-side reconciliation.
    AUTHORIZATION additionally requires POSITIVE provider-side
    reconciliation of the restore interval: a platform-side
    listing/audit of every key/payment for the affected trades in
-   the window (upstream ask — recorded as a §5.2 PREREQUISITE;
+   the window — registered as question Q-22 (file 11, FUTURE /
+   BLOCKING-FOR-DR) with its full acceptance/evidence contract;
    until such a listing capability is evidenced, the fallback is
-   a MANUAL platform-team reconciliation, and §5.2 remains
-   runbook-blocked on one or the other). The log platform is
+   the Q-22 MANUAL platform-team reconciliation contract
+   (worksheet, two-person sign-off, unresolved item ⇒ posting
+   stays frozen), and §5.2 remains runbook-blocked on one or the
+   other. The log platform is
    outside the restored database and its retention floor covers
    the replay window by definition; the posting-claim log lines
    identify which keys hit the wire WHEN their lines exist. Only
@@ -1147,7 +1154,12 @@ manual engine-side reconciliation.
    with NO matching row → the §8 evidence-for-terminal CRITICAL
    path; ops resolves before unfreeze.
 6. Drift check (§3).
-7. Unfreeze.
+7. Unfreeze — ONLY after step 5b's provider-listing or
+   manual-reconciliation gate (Q-22) is signed PASS and every
+   unmatched/pending item is resolved. The step-5b heuristic
+   limit alone NEVER authorizes this step (aa4399c M2 — the
+   precondition is restated here, at the irreversible action,
+   so a procedure-follower cannot miss it).
 ```
 
 Retention constraint, written down (owner: §16.2):
@@ -3410,8 +3422,9 @@ processing:
   database, so the log is a durable, restore-surviving,
   BEST-EFFORT-COMPLETE record of issued and POSTED keys —
   "best-effort" is load-bearing: §5.2 step 5b treats the
-  log-derived enumeration bound as best-effort and OVERSHOOTS it,
-  and no consumer may assume the log is gapless; the retention
+  log-derived figure as a HEURISTIC STARTING LIMIT plus margin —
+  never a bound, never sole unfreeze authority (5b/Q-22) — and no
+  consumer may assume the log is gapless; the retention
   floor below already covers the replay window by definition).
   ATTEMPT-class lines (posting claim,
   outcome recording, lease-expiry recovery) ALSO carry
@@ -3732,6 +3745,22 @@ never on blocked_reason as a rule input (§10.1).
 - Engine circuit breaker OPEN                  → ticket; page at 30m
 - Generic stuck-state age (any active request
   older than its per-(stage,stage_state) max)  → ticket
+- Post-F0 NULL amount-series stamp (data
+  quality, aa4399c L1): payment_request with
+  created_at >= the F0 activation timestamp
+  (from the signed activation manifest) AND
+  required_total_at_creation IS NULL           → LOW-severity
+                                                 data-quality
+                                                 ticket (never a
+                                                 page, never a
+                                                 gate — the stamp
+                                                 stays display-
+                                                 only; detects a
+                                                 regressed
+                                                 creation path
+                                                 after GO-03's
+                                                 first-row check
+                                                 passed)
   (split: retry states alert on next_retry_at OVERDUE beyond a
    threshold — a due row nobody claimed is a scanner problem, and
    claim/retry churn resets state_changed_at so it cannot serve

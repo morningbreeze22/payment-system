@@ -146,6 +146,9 @@ MULTILINE_FORBIDDEN = [
     ("unqualified log-completeness absolute (4098532 H1: the external 14 log is BEST-EFFORT complete - afterCommit publication, crash-window gaps possible)",
      re.compile(r"restore-surviving record of every|record of every issued", re.I),
      re.compile(r"best-effort|crash-window|crash window|gap|lint", re.I)),
+    ("DR bound/overshoot mental model (aa4399c M3: the 5b limit is a heuristic narrowing aid, never a bound; unfreeze needs the Q-22 reconciliation gate)",
+     re.compile(r"log-derived (?:enumeration )?bound|enumeration bound|overshoots?\s+(?:its|the)\s+[^.;]{0,60}?bound|falls? back to the K-heuristic", re.I),
+     re.compile(r"heuristic starting limit|never a bound|NEVER a bound|FALSE|remains? frozen|lint", re.I)),
 ]
 
 def _allow_span(text, start, end):
@@ -191,6 +194,11 @@ LINT_FIXTURES = [
     # 4098532 H1 - log-completeness absolutes:
     ("log-completeness", "the log is a durable, restore-surviving record of every issued key.", True),
     ("log-completeness", "a best-effort, restore-surviving record of every issued key (crash-window gaps possible).", False),
+    # aa4399c M3 - the retired bound/overshoot mental model:
+    ("DR bound", "the sweep overshoots its log-derived bound.", True),
+    ("DR bound", "step 5b falls back to the K-heuristic when logs are out.", True),
+    ("DR bound", "the log-derived figure is a heuristic starting limit, never a bound.", False),
+    ("DR bound", "the enumeration bound is taken from the logs.", True),
     ("unqualified 'no journal'", "there is no journal here.", True),
     ("unqualified 'no journal'", "No local journal exists.", True),
     ("unqualified 'no journal'", "no application journal is kept.", True),

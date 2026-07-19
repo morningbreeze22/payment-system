@@ -474,14 +474,22 @@ Implemented by: OB-01.
 ```text
 Section: §8, §15      Type: INTEGRATION    Blocking: YES
 Purpose: evidence-for-terminal is CRITICAL; benign redeliveries are
-         silent.
+         silent. PLUS (aa4399c L1, non-blocking sub-case) the
+         post-F0 NULL-stamp data-quality scan detects and stays
+         quiet correctly.
 Setup:   terminal REJECTED row; new-event_id settlement for it;
-         known-event_id redelivery.
-Action:  deliver both.
+         known-event_id redelivery; a seeded request row with
+         created_at AFTER the configured F0 timestamp and NULL
+         required_total_at_creation; a NULL-stamp row dated
+         BEFORE it.
+Action:  deliver both events; run the data-quality scan.
 Expect:  new event → CRITICAL alert (zero-row CAS detected); known
-         event → silent inbox skip.
+         event → silent inbox skip; post-F0 NULL row → LOW
+         data-quality ticket (never a page); pre-F0 NULL row →
+         silent.
 Failure: the replay-divergence signature (a §5.2 tripwire) missed, or
-         redelivery noise paging humans.
+         redelivery noise paging humans, or the NULL-stamp scan
+         paging/gating (it is a ticket only).
 Implemented by: OB-02, IN-07.
 ```
 

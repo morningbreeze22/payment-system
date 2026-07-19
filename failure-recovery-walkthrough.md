@@ -217,7 +217,7 @@ within escalation age: BLOCKED(ESCALATED) + CRITICAL, ops gets four exits
 | I-8 | Bad config set (ordering violated, e.g. trust-age ≥ escalation age) | Loader REJECTS the set at startup (§16.6) | Fix config; nothing degraded silently | T0 |
 | I-9 | Deployment: two app versions concurrent | — | Expand/contract migrations; defensive enum reads (UNKNOWN sentinel); claim semantics version-compatible across one release (§16.5) | T0/T1 |
 | I-10 | Clock skew between nodes | — | Due-time comparisons use DATABASE time only (§16.4; round 10: no local cutoff calendar exists) | T0 |
-| I-11 | Log platform outage | Ops observability degraded | Money processing unaffected (logs are not in the money path); §5.2 step-5b falls back to the K-heuristic (recorded as heuristic) | T2 |
+| I-11 | Log platform outage | Ops observability degraded | Money processing unaffected (logs are not in the money path). For any later §5.2 restore whose window overlaps the outage: step 5b's limit is a HEURISTIC narrowing aid only — posting REMAINS FROZEN until the Q-22 provider-listing or manual platform reconciliation gate is signed PASS; no K stop ever authorizes unfreeze (aa4399c M3) | T2 |
 | I-12 | Card read surface down | Card shows "unavailable" — never stale-as-authoritative (§12) | At launch the card is ops' only window: alerts (§15) + direct DB reads remain; read-path bulkhead keeps it isolated from posting (§16.1) | T2/T3 |
 | I-13 | Hot scope / upstream floods one obligation | Per-obligation request-count ticket (§15); ~10 tx/s sanity line (§16.5) | Capacity review; the obligation lock serializes so correctness holds while throughput degrades | T2/T3 |
 | I-14 | Hung external call holds Kafka partitions | Rebalance storms averted by per-dependency timeouts (§16.1) | Bounded timeouts everywhere; breaker isolates the dependency | T0/T1 |
@@ -226,10 +226,13 @@ within escalation age: BLOCKED(ESCALATED) + CRITICAL, ops gets four exits
 itself lies. Example from §5.2: pre-restore, an auto-cancel LOST its race and
 the payment executed; the replay (posting frozen) lets the auto-cancel WIN —
 the DB now says CANCELLED for money that moved. The §5.2 pre-unfreeze query
-sweep + per-obligation key-space enumeration finds the executed payment under
-a key the DB no longer owns → CRITICAL evidence-for-terminal path → ops
-reconciles BEFORE posting resumes. Interim (pre-runbook): same logic run as a
-major-incident procedure with the engine's records as truth.
+sweep + per-obligation key-space enumeration is DESIGNED to surface the
+executed payment under a key the DB no longer owns → CRITICAL
+evidence-for-terminal path → ops reconciles BEFORE posting resumes. But the
+enumeration limit is a finite HEURISTIC (it can stop short — §5.2 5b), so
+unfreeze additionally requires the Q-22 positive provider-listing or manual
+reconciliation gate signed PASS (aa4399c M3). Interim (pre-runbook): same
+logic run as a major-incident procedure with the engine's records as truth.
 
 ------
 

@@ -131,6 +131,10 @@ root-cause incident.
   BY DECISION); candidates go to manual triage. Not detectable
   online (no trade-level watermark)
                                   → on-demand query + manual review
+- post-F0 NULL required_total_at_creation (data quality,
+  aa4399c L1 — OB-02): created_at >= the F0 activation timestamp
+  (signed manifest) AND stamp IS NULL     → LOW ticket (never a
+                                            page, never a gate)
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
   alerts, DLT, lag, heartbeats, stuck-state, freeze page, deadlocks,
   inbox growth, breaker, sweep overrun, tie/latched-amendment alerts)

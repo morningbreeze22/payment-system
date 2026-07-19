@@ -43,7 +43,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C15 | §5 | Write-ahead identity: no POST under a caller-supplied identity not durably persisted | MVP | K-04 | K-02 | YES | yes | no |
 | C16 | §5, §5.1 | Deterministic idempotency key: hash(scope + request_seq), byte-exact, versioned, amount NOT in key, golden vectors | MVP + ARTIFACT (CA-5) | K-01..03 | — (scope key settled, §1) | YES | yes | no |
 | C17 | §5 | UETR is SDK/engine-assigned; never generated/validated here; persisted ONLY from acceptance-class responses; never a dedup key | MVP | U-01..03 | D-05 | yes | yes | TL-11 |
-| C18 | §5.2 | Post-restore DR runbook + step-5b enumeration tooling | FUTURE (post-MVP, PO decision) | none now; deterministic key (C16) stays | — | no | no | TL-3 |
+| C18 | §5.2 | Post-restore DR runbook + step-5b enumeration tooling; unfreeze conditional on the Q-22 reconciliation gate (provider listing or manual reconciliation — aa4399c M2) | FUTURE (post-MVP, PO decision) | none now; deterministic key (C16) stays | Q-22 (BLOCKING-FOR-DR) | no | no | TL-3, Q-22 |
 | C19 | §6.0 | Upstream message contract (fields, Kafka key = business_id, payload-equality definition); build-time enforcement | MVP + QUESTION | IN-01; Q upstream 1–4 | — | no | yes | yes |
 | C20 | §6.1–6.2 | Normal processing under obligation lock; zero-shortfall short-circuit; ORA-00001 race retry | MVP | IN-02 | S-xx | yes | yes | no |
 | C21 | §6.3 | Request amount immutable after creation; changes only via new upstream message | MVP | ST-01, RG-06 | — | yes | yes | no |
