@@ -115,40 +115,72 @@ evidence carries an explicit expiry; between final capture and
 deployment either a change freeze holds or the invalidation map
 triggers automatic re-runs.
 
-TWO evidence snapshots, both immutable (review 5156f1f M2 — this is
-how Q5b's PENDING-CUTOVER coexists with immutability):
+EVIDENCE VERSIONS — v1 → v2 → conditional v3, ALL immutable, each
+with its OWN manifest + checksum set, earlier versions never
+changed (review 5156f1f M2 — this is how Q5b's PENDING-CUTOVER
+coexists with immutability; version model clarified 58f5a64 L3):
 
 ```text
-1. GO-04 PRE-CUTOVER pack: every non-waivable row PASS EXCEPT Q5b,
-   which is the sole PENDING-CUTOVER row (legal only with Q5a PASS —
-   round 20). Q5b's subfolder EXISTS at GO-04 and contains the
-   reviewed RUN-2 query pack + checksum (from Q5a) — present, not
-   empty, deliberately incomplete.
-2. GO-03 CLOSURE pack: a NEW manifest VERSION that APPENDS the RUN-2
-   result, DBA + TL signatures, and the Q5b PASS row. The
-   pre-cutover manifest, SHA256SUMS, and signoffs are PRESERVED
-   UNCHANGED as version 1 — closure never overwrites or rewrites
-   captured evidence; it adds a second, final version.
-3. FIRST_REQUEST_CREATION_COLUMNS (7cc9f49 L2 — the ONE other item
-   that may be open at GO-03 closure, beside nothing): a manifest
-   field with values PASS | PENDING_SAMPLE. If the first post-F0
-   payment_request existed inside the change window, the closure
-   pack records PASS with the row evidence (NON-NULL
-   required_total_at_creation + NON-NULL request_seq). If not:
-   the field is PENDING_SAMPLE and MUST carry owner = ops, a
-   bounded follow-up SLA date, and the exact bounded query
-   (payment_request WHERE created_at >= the signed F0 timestamp)
-   + its checksum. CLOSURE MECHANISM, named: a manual SLA-bound
-   query owned by ops, tracked by a durable ticket opened AT
-   closure time (the OB-02 post-F0 NULL-column scans are the
-   alerting BACKSTOP, not the closure evidence — scan silence is
-   not positive proof). The later PASS is a THIRD append-only
-   manifest version. VERIFICATION both ways: a valid first row
-   flips PENDING_SAMPLE → PASS with the row captured; a first
-   row with a NULL column leaves the field OPEN and must show
-   the corresponding OB-02 alert/ticket fired. INVALIDATION: a
-   rollback or writer-fence breach while PENDING_SAMPLE is open
-   reverts the item to MISSING (re-derive after re-activation).
+1. v1 — GO-04 PRE-CUTOVER pack: every non-waivable row PASS EXCEPT
+   Q5b, which is the sole PENDING-CUTOVER row (legal only with Q5a
+   PASS — round 20). Q5b's subfolder EXISTS at GO-04 and contains
+   the reviewed RUN-2 query pack + checksum (from Q5a) — present,
+   not empty, deliberately incomplete.
+2. v2 — GO-03 CLOSURE pack: a NEW manifest VERSION that APPENDS the
+   RUN-2 result, DBA + TL signatures, the Q5b PASS row, and the
+   FIRST_REQUEST_CREATION_COLUMNS field (PASS or PENDING_SAMPLE —
+   the field is ALWAYS present in v2). v1 is PRESERVED UNCHANGED —
+   closure never overwrites or rewrites captured evidence. v2 is
+   FINAL only when FIRST_REQUEST_CREATION_COLUMNS is already PASS;
+   otherwise v2 is the immutable GO-03 closure version and v3
+   (below) is the final sample-closure version.
+3. v3 — CONDITIONAL SAMPLE CLOSURE for
+   FIRST_REQUEST_CREATION_COLUMNS (7cc9f49 L2; mechanism + query
+   frozen 58f5a64 L1/L2 — the ONE item that may be open at GO-03
+   closure, beside nothing): a manifest field with values
+   PASS | PENDING_SAMPLE. If the first post-F0 payment_request
+   existed inside the change window, v2 records PASS with the row
+   evidence (NON-NULL required_total_at_creation + NON-NULL
+   request_seq) and NO v3 exists. If not, v2 carries
+   PENDING_SAMPLE and the MANUAL closure procedure applies — the
+   ONE mechanism, no automation exists or is implied:
+   (1) GO-03 OPENS the durable ticket BEFORE closure is signed;
+   (2) the ticket carries owner = ops, the bounded SLA date, the
+       FROZEN query text + checksum (template below), the signed
+       F0 timestamp, the scope predicate, and the evidence-pack
+       version;
+   (3) ops re-runs the frozen query on the agreed cadence;
+   (4) the first row either produces the append-only PASS
+       evidence or leaves the item OPEN with the OB-02 incident
+       linked (the OB-02 post-F0 NULL-column scans are the
+       alerting BACKSTOP, not closure evidence — scan silence is
+       not positive proof);
+   (5) the ticket closes ONLY after the v3 manifest version is
+       signed.
+   FROZEN QUERY TEMPLATE (58f5a64 L2 — resolve ONLY the physical
+   names and the approved in-scope predicate from D-02/CA-4; the
+   semantics may not change):
+     SELECT <request id>, created_at, request_seq,
+            required_total_at_creation
+     FROM   payment_request
+     WHERE  created_at >= :signed_f0_timestamp
+       AND  <approved_in_scope_predicate>
+     ORDER  BY created_at ASC, <request id> ASC
+     FETCH  FIRST 1 ROW ONLY
+   The ORDER BY + primary-key tie-breaker + one-row limit are
+   what make "the FIRST row" deterministic: an UNORDERED query
+   can capture a LATER good row while an earlier bad row exists
+   and close the item wrongly. NEVER add request_seq IS NOT NULL
+   or required_total_at_creation IS NOT NULL to the predicate —
+   the selected first row is INSPECTED, not curated. ACCEPTANCE
+   CASES, all four: no row → stays PENDING_SAMPLE; valid first
+   row → PASS (v3 signed); INVALID first row followed by a valid
+   row → the item stays OPEN on the invalid row with the OB-02
+   incident linked (the later good row does NOT close it); two
+   rows sharing created_at → the tie-breaker decides
+   deterministically. INVALIDATION: a rollback or writer-fence
+   breach while PENDING_SAMPLE is open reverts the item to
+   MISSING (re-derive after re-activation).
 ```
 
 ## V.3 GO-04 go/no-go script (60–90 min meeting)
