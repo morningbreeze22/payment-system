@@ -488,7 +488,14 @@ required_total_at_creation — the obligation's required_amount as
                       merely "pre-migration". F0 activation IS
                       the capture boundary: GO-03's cutover
                       evidence includes the FIRST post-F0 request
-                      carrying a NON-NULL stamp, and AFTER the
+                      carrying a NON-NULL stamp — or, when no
+                      request exists in the change window, the
+                      manifest item FIRST_REQUEST_CREATION_
+                      COLUMNS=PENDING_SAMPLE (owner ops, bounded
+                      SLA, append-only PASS on the first eligible
+                      row; the ONLY item that may remain open at
+                      GO-03 closure — 7cc9f49 L2, lifecycle in
+                      the file-25 evidence contract) — and AFTER the
                       writer fence a NULL stamp on a newly
                       created row is a DEFECT surfaced by the §15
                       post-F0 NULL-stamp DATA-QUALITY ticket (LOW

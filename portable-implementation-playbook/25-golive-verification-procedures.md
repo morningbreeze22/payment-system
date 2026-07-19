@@ -129,6 +129,26 @@ how Q5b's PENDING-CUTOVER coexists with immutability):
    pre-cutover manifest, SHA256SUMS, and signoffs are PRESERVED
    UNCHANGED as version 1 — closure never overwrites or rewrites
    captured evidence; it adds a second, final version.
+3. FIRST_REQUEST_CREATION_COLUMNS (7cc9f49 L2 — the ONE other item
+   that may be open at GO-03 closure, beside nothing): a manifest
+   field with values PASS | PENDING_SAMPLE. If the first post-F0
+   payment_request existed inside the change window, the closure
+   pack records PASS with the row evidence (NON-NULL
+   required_total_at_creation + NON-NULL request_seq). If not:
+   the field is PENDING_SAMPLE and MUST carry owner = ops, a
+   bounded follow-up SLA date, and the exact bounded query
+   (payment_request WHERE created_at >= the signed F0 timestamp)
+   + its checksum. CLOSURE MECHANISM, named: a manual SLA-bound
+   query owned by ops, tracked by a durable ticket opened AT
+   closure time (the OB-02 post-F0 NULL-column scans are the
+   alerting BACKSTOP, not the closure evidence — scan silence is
+   not positive proof). The later PASS is a THIRD append-only
+   manifest version. VERIFICATION both ways: a valid first row
+   flips PENDING_SAMPLE → PASS with the row captured; a first
+   row with a NULL column leaves the field OPEN and must show
+   the corresponding OB-02 alert/ticket fired. INVALIDATION: a
+   rollback or writer-fence breach while PENDING_SAMPLE is open
+   reverts the item to MISSING (re-derive after re-activation).
 ```
 
 ## V.3 GO-04 go/no-go script (60–90 min meeting)

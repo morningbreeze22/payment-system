@@ -99,10 +99,13 @@ F0 ACTIVATION WINDOW (round 19 — atomic, inside a change freeze):
   + storage pointer + digest AND the FIRST post-F0 payment_request
   row carries NON-NULL required_total_at_creation + NON-NULL
   request_seq (both filed in the evidence pack beside the signed
-  F0 timestamp; NO-SAMPLE rule: no request in the window → file
-  the bounded created_at >= F0 query as "no production sample
-  yet" — the check completes on the first real sample; 6cb3005
-  L2). Any nonzero count → STOP, NO-GO,
+  F0 timestamp; NO-SAMPLE rule: no request in the window → the
+  manifest records FIRST_REQUEST_CREATION_COLUMNS=PENDING_SAMPLE
+  with owner (ops), a bounded SLA date, and the exact bounded
+  created_at >= F0 query + checksum; a durable ticket is opened
+  at closure; the later PASS is an append-only manifest update —
+  file 25 V.2 item 3 carries the full lifecycle; 6cb3005 L2 /
+  7cc9f49 L2). Any nonzero count → STOP, NO-GO,
   architecture review (never proceed, never waive).
 ```
 
@@ -166,9 +169,10 @@ SEGMENT 2 — ATOMIC ACTIVATION (the M.2 F0 window):
    row carries NON-NULL required_total_at_creation + NON-NULL
    request_seq — both filed in the evidence pack beside the signed
    F0 timestamp (NO-SAMPLE rule: no request created in the window
-   → file the bounded created_at >= F0 query as "no production
-   sample yet"; the check completes on the first real sample —
-   6cb3005 L2). Nonzero or missing signature → ABORT
+   → manifest FIRST_REQUEST_CREATION_COLUMNS=PENDING_SAMPLE with
+   owner ops + SLA + query/checksum + durable ticket; append-only
+   PASS on the first real sample — full lifecycle in file 25
+   V.2 item 3; 6cb3005 L2 / 7cc9f49 L2). Nonzero or missing signature → ABORT
    the window (F0 stays OFF), NO-GO, architecture review.
 
 SEGMENT 3 — POST-TRAFFIC (traffic flowing; each stage soaked):

@@ -333,18 +333,46 @@ for _p, _sp, _ep in _FIELD_SLICES:
     for _f in _missing_request_fields(_sl):
         errors.append(f"{rel(_p)}: request field '{_f}' missing from the SCHEMA SLICE (rule 6k, 4dbdf2b L1 — presence elsewhere in the file does not count)")
 
-# ---- Rule 6l (2a19c20 M2): the request_seq conditional unique must
-# appear in every constraint summary — a subtle Oracle expression that
-# summaries silently dropped once already ----
+# ---- Rule 6l (2a19c20 M2; SLICE-SCOPED per 7cc9f49 L1): the
+# request_seq conditional unique must appear inside each file's
+# authoritative CONSTRAINT slice — a stray mention elsewhere in the
+# file (field description, phase handoff) must not mask its removal
+# from the constraints statement ----
 _RSU_PAT = re.compile(r"payment_obligation_id,\s*request_seq")
-for _p in [ROOT / "requirment-v4.md",
-           PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md",
-           PORTABLE / "09-minimal-context-packets" / "phase-03-schema-and-migration.md",
-           PORTABLE / "03-requirement-classification.md",
-           ROOT / "db-schema-dictionary.md",
-           PORTABLE / "12-companion-artifacts.md"]:
-    if not _RSU_PAT.search("\n".join(lines_of(_p))):
-        errors.append(f"{rel(_p)}: missing the (payment_obligation_id, request_seq) conditional-unique statement (rule 6l, 2a19c20 M2)")
+
+def _rsu_present(slice_text):
+    """Shared validator (7cc9f49 L1): the maintained-file loop and the
+    self-tests both call THIS."""
+    return bool(_RSU_PAT.search(slice_text))
+
+_RSU_SLICES = [
+    (ROOT / "requirment-v4.md", r"Constraints \(scoped per review", r"Vocabulary:"),
+    (PORTABLE / "08-task-cards" / "phase-03-schema-and-migration.md",
+     r"### S-05 ", r"### S-06 "),
+    (PORTABLE / "09-minimal-context-packets" / "phase-03-schema-and-migration.md",
+     r"\[S-05\]", r"\[S-06\]"),
+    (PORTABLE / "03-requirement-classification.md", r"\| C7 \|", r"\n\| C8 \|"),
+    (ROOT / "db-schema-dictionary.md", r"### Constraints", r"\n---"),
+    (PORTABLE / "12-companion-artifacts.md", r"### CA-4", r"### CA-5"),
+]
+for _p, _sp, _ep in _RSU_SLICES:
+    _sl = _schema_slice("\n".join(lines_of(_p)), _sp, _ep)
+    if _sl is None:
+        errors.append(f"{rel(_p)}: rule 6l cannot locate the constraint slice (anchor /{_sp}/ missing — heading changed?)")
+    elif not _rsu_present(_sl):
+        errors.append(f"{rel(_p)}: the (payment_obligation_id, request_seq) conditional-unique statement is missing from the CONSTRAINT SLICE (rule 6l, 7cc9f49 L1 — presence elsewhere in the file does not count)")
+
+# rule 6l self-tests (7cc9f49 L1), through the shared validator:
+# (1) mutation — constraint removed from the slice, stray mention kept:
+_rsu_mut = "### S-05 x\nCHECKs only here\n### S-06 y\nUNIQUE over (payment_obligation_id, request_seq) mentioned out of slice\n"
+_rsu_mut_sl = _schema_slice(_rsu_mut, r"### S-05 ", r"### S-06 ")
+if _rsu_mut_sl is None or _rsu_present(_rsu_mut_sl):
+    errors.append("LINT-SELFTEST [rule 6l]: an out-of-slice mention must not satisfy the constraint-slice check")
+# (2) positive — in-slice statement passes:
+_rsu_ok = "### S-05 x\nNULL-ignoring UNIQUE (payment_obligation_id, request_seq)\n### S-06 y\n"
+_rsu_ok_sl = _schema_slice(_rsu_ok, r"### S-05 ", r"### S-06 ")
+if _rsu_ok_sl is None or not _rsu_present(_rsu_ok_sl):
+    errors.append("LINT-SELFTEST [rule 6l]: an in-slice constraint statement must pass")
 
 # rule 6k mutation self-tests (4dbdf2b L1 + 6cb3005 L3): exercised
 # through the SAME validator as the real check.
