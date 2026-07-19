@@ -25,7 +25,7 @@ collected retroactively at GO-04.**
 | # | Item | Source | PASS/FAIL/BLOCKED | Evidence |
 |---|------|--------|-------------------|----------|
 | Q1 | §18 BLOCKING item 0 residue closed: WRITTEN filings of ask 5 (snapshot schema + uniqueness) and ask 8 (store contract incl. IMMUTABILITY) — both CONFIRMED verbally 2026-07-11, the filed papers are the evidence; §6.0 intake validation live; PO-9 (absence = amendment to zero) IMPLEMENTED per §6.1; TL-16 round 5 (admission — S-10/IN-02, T-35 green) | §18-0, B-01 | | |
-| Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
+| Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; every CT-02..05 TYPED consequence record NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED in the deployed RC (289ef66 M2 — an unimplemented IMPLEMENTATION_REQUIRED = FAIL); re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 item 2 CLOSED (round 10 — the engine owns its cutoff calendar; verify the CA-1 table carries the engine's late-submission response class + the written any-time-submission line) | §18-2 (closed), CA-1 | | |
 | Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome OPERATION (authorized application endpoint) EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |
 | Q5a | Schema at CA-4 target: constraints VALIDATED, triggers live, indexes in place; migration test pass green (incl. dual-run); T-35/T-37 green; the CUTOVER_POPULATION_GREENFIELD RUN-2 queries + scope predicate REVIEWED and manifest-bound (round 20) — ALL PASS before the GO-04 authorization | S-05..09, file 26 T.1 | | |
@@ -34,7 +34,7 @@ collected retroactively at GO-04.**
 | Q7 | Legacy status not used for business rules: ST-05 inventory empty or fully dispositioned; display via derived labels only | ST-04/05 | | |
 | Q8 | Idempotency key generation deterministic + persisted write-ahead; K-06 crash/retry/restore set green | K-01..06, T-03/08/09/10 | | |
 | Q9 | Identity golden-vector tests green and frozen in the build | K-03, T-02 | | |
-| Q10 | Provider idempotency sandbox tests green (same as Q2, listed for the test-evidence pack) + SDK contract checks (CT-07) recorded | CT suite, T-11..14 | | |
+| Q10 | Provider idempotency sandbox tests green (same as Q2, incl. the consequence-closure verification — 289ef66 M2) + SDK contract checks (CT-07) recorded | CT suite, T-11..14 | | |
 | Q11 | Duplicate-prevention tests green (I6, UNIQUE key, engine-dedup routing) | T-17, S-05 | | |
 | Q12 | Retry / crash / restore recovery tests green | T-08/09/10, ST-10 | | |
 | Q13 | CLOSED round 10 — no local cutoff calendar exists (engine-owned, §18-2); verify no cutoff machinery crept into the target env config | §18-2 (closed) | | |

@@ -18,11 +18,22 @@ release boundary.
 ```text
 1. Additive columns (S-02, S-03) + inbox table (S-04) — old version
    unaffected (nullable/defaulted).
-2. UNIQUEs + I6 (S-05 part) — verify no legacy violations first
-   (S-02's duplicate-scope check; S-08 ordering for constraints that
-   need backfill).
-3. Backfill dimensions + anchors (S-08), quiet window, idempotent.
-4. CHECK constraints NOVALIDATE → VALIDATE after backfill (S-05).
+2. IMMUTABLE PREFLIGHT + reviewed duplicate DISPOSITION (scope-key,
+   idempotency-key, uetr, request_seq, prospective-I6 — 289ef66
+   M1): each duplicate class dispositioned by the human owner
+   before any constraint DDL.
+3. Backfill dimensions + anchors (S-08), quiet window, idempotent —
+   BEFORE the constraint objects legacy data could violate.
+4. UNIQUEs + I6 + CHECKs (S-05, ORDER CORRECTED 289ef66 M1): I6 is
+   a UNIQUE INDEX — NOVALIDATE does not apply, and pre-backfill
+   every legacy NULL-outcome row counts ACTIVE (2+ legacy requests
+   on one obligation → ORA-01452); with backfill done, constraints
+   validate on clean data (NOVALIDATE stays available for CHECKs
+   where dual-run rows require it). I6 DUAL-RUN RULE: if the D-04
+   disposition shows the legacy flow can hold 2+ concurrently
+   active rows per obligation, I6 creation is DEFERRED to the M.3
+   writer fence by RECORDED decision (it would break the old
+   writer mid-dual-run) — STOP and report.
 5. Triggers (S-06) — freeze + release guard; app code that legally
    writes terminal-negatives must already set the evidence flag
    (deploy order: flag-setting code BEFORE trigger activation, or

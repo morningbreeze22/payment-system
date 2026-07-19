@@ -19,7 +19,7 @@
 - **Local placeholder mappings required before starting:** [DB Migration Directory] Confirmed.
 - **Local code areas to discover:** migration numbering/naming convention.
 - **How to locate:** F.17 findings.
-- **Implementation instructions:** write the ordered migration list (numbers reserved, one concern per migration): obligation columns → request columns → inbox table → UNIQUEs/I6 → CHECKs (NOVALIDATE) → triggers → indexes → backfill → VALIDATE. Each entry: DDL summary, rollback note, dual-run compatibility note (old app version must still run — §16.5). The plan includes the M.1a reader-first ladder decision (round 14): discovery evidence of current-reader behavior for ui_step_status decides N/A vs compatibility-release-first — CANCELLED is never written while an incompatible reader is live.
+- **Implementation instructions:** write the ordered migration list (numbers reserved, one concern per migration; ORDER CORRECTED 289ef66 M1 — backfill precedes the constraint objects legacy data could violate, because I6 is a UNIQUE INDEX and NOVALIDATE does not apply to unique indexes: pre-backfill, every legacy NULL-outcome row counts as ACTIVE and any obligation with 2+ legacy requests fails the I6 build with ORA-01452): obligation columns → request columns → inbox table → IMMUTABLE PREFLIGHT queries + a REVIEWED duplicate DISPOSITION (scope-key, idempotency-key, uetr, request_seq, and prospective-I6 duplicates — each duplicate class dispositioned by the human owner before any constraint DDL) → backfill → zero-violation re-run → UNIQUEs/I6 + CHECKs (validate on clean data; NOVALIDATE remains available for CHECKs where dual-run rows require it) → triggers → indexes → final VALIDATE. Each entry: DDL summary, rollback note, dual-run compatibility note (old app version must still run — §16.5). The plan includes the M.1a reader-first ladder decision (round 14): discovery evidence of current-reader behavior for ui_step_status decides N/A vs compatibility-release-first — CANCELLED is never written while an incompatible reader is live.
 - **Do not change:** any existing migration file.
 - **Tests to add:** none (plan task).
 - **Edge cases:** columns that exist with wrong type/semantics (from D-02) get their own expand/contract sub-sequence (add new column → dual-write → migrate readers → drop later, drop deferred to post-rollout).
@@ -125,7 +125,7 @@
 - **Common mistakes:** treating this as audit history (it is ONE row per trade, overwritten — not an append log); adding columns "while we're here" (SPEC_CONFLICT).
 - **Completion criteria:** merged + green.
 - **Stop condition:** applied.
-- **Next task:** S-05.
+- **Next task:** S-08 (backfill runs BEFORE the constraint objects legacy data could violate — 289ef66 M1).
 
 ### S-05 — Constraints: CHECKs, UNIQUEs, I6
 
@@ -133,7 +133,7 @@
 - **Title:** Add enum CHECKs, L-shape CHECKs (L1-shape, L2–L8), UNIQUE(idempotency_key), UNIQUE(uetr), I6 function-based unique index
 - **Classification:** MVP normative implementation
 - **Purpose:** make illegal states unrepresentable at the DB — the backstop for every DB-ENFORCEABLE invariant named by the schema contract (§2.2, §10.3; scoped per 1d8a650 L2: display-only/cross-system invariants use NAMED non-DB controls — the stamp's set-once = RG-06 SQL-inventory assertion, L9 = code + drift scanner; do NOT invent triggers for them).
-- **Prerequisites:** S-03; S-08 backfill DONE for any constraint that legacy rows could violate (apply NOVALIDATE first otherwise, per S-01 plan).
+- **Prerequisites:** S-03; S-08 backfill DONE — the normative order now runs S-08 BEFORE this task (289ef66 M1: I6 is a UNIQUE INDEX; NOVALIDATE does NOT apply to unique indexes, and pre-backfill every legacy NULL-outcome row counts as ACTIVE — any obligation with 2+ legacy requests fails the build with ORA-01452); the S-01 PREFLIGHT duplicate disposition reviewed. I6 DUAL-RUN RULE: legacy writers keep creating rows until the M.3/F0 fence — if the D-04/preflight disposition shows the legacy flow CAN hold (or cannot be proven NOT to hold) two+ concurrently-active requests on one obligation, I6 duplicates can REAPPEAR after backfill and the index would break the OLD writer mid-dual-run: in that case I6 creation is DEFERRED to the M.3 writer fence as a RECORDED transitional decision — STOP and report, never improvise.
 - **Requirement sections / concepts to read:** §10.3 (matrix, incl. what a CHECK can/cannot see), §2.2 constraints block, CA-4.
 - **Placeholder components involved:** [DB Migration Directory].
 - **Local placeholder mappings required before starting:** [DB Migration Directory]; real Oracle test lane (from D-11 — if H2-only, STOP: lane gap must be fixed first, record under S-09).
@@ -197,7 +197,7 @@
 - **Common mistakes:** functionally-equivalent-but-textually-different expressions in queries (index unused).
 - **Completion criteria:** indexes merged; plan tests green.
 - **Stop condition:** merged.
-- **Next task:** S-08.
+- **Next task:** S-09.
 
 ### S-08 — Backfill factored dimensions for existing rows
 
@@ -221,7 +221,7 @@
 - **Common mistakes:** optimistic NOT_SUBMITTED backfills (the pay-twice direction — §7.1's criterion is "provably cannot execute").
 - **Completion criteria:** backfill complete; anomaly list dispositioned; constraints validated.
 - **Stop condition:** validated.
-- **Next task:** S-09. (S-11 was RETIRED round 10 — §2.4 greenfield fact: nothing to bootstrap.)
+- **Next task:** S-05 (with the backfilled data in place, I6 and the UNIQUEs can now build — 289ef66 M1). (S-11 was RETIRED round 10 — §2.4 greenfield fact: nothing to bootstrap.)
 
 ### S-09 — Migration test pass
 
@@ -235,7 +235,7 @@
 - **Local placeholder mappings required before starting:** real-Oracle test lane available (if D-11 found H2-only, FIRST set up the Oracle lane — that setup is part of this task; split locally if large).
 - **Local code areas to discover:** CI pipeline hooks for migration tests.
 - **How to locate:** D-11 findings.
-- **Implementation instructions:** run/automate: full sequence on clean Oracle; full sequence on a prod-shaped copy (with backfill); OLD application version boots and passes its smoke tests against the NEW schema (dual-run proof — additive columns must not break it); the CANCELLED-read proof is CONDITIONAL on the M.1a decision record (round 15): not-read branch → prove the old binary does not query/deserialize ui_step_status and record the read test as N/A; defensive-existing-reader branch → test the deployed old version directly; non-defensive branch → test the COMPATIBILITY RELEASE (the reader actually live at cutover), prove fleet-wide deployment, and separately prove the incompatible original is FENCED before any CANCELLED write; the report names the EXACT build/version tested — "old application version" is not evidence-grade; constraint violation suite (S-05/S-06 tests) in CI; evidence: ZERO obligation rows with NULL ui_step_status after the S-08 read-model pass (round 14); ZERO obligation rows with NULL next_request_seq + the request_seq column and its NULL-ignoring unique index present, usable, AND behaviorally proven (the four S-05 isolation cases green on real Oracle — 2a19c20 M2).
+- **Implementation instructions:** run/automate: full sequence on clean Oracle; full sequence on a prod-shaped copy (with backfill) whose fixture INCLUDES at least one obligation with MULTIPLE historical requests whose new outcome values start NULL — this proves the S-08-before-S-05 SEQUENCE (I6 buildable only after backfill), not merely the final schema (289ef66 M1); OLD application version boots and passes its smoke tests against the NEW schema (dual-run proof — additive columns must not break it); the CANCELLED-read proof is CONDITIONAL on the M.1a decision record (round 15): not-read branch → prove the old binary does not query/deserialize ui_step_status and record the read test as N/A; defensive-existing-reader branch → test the deployed old version directly; non-defensive branch → test the COMPATIBILITY RELEASE (the reader actually live at cutover), prove fleet-wide deployment, and separately prove the incompatible original is FENCED before any CANCELLED write; the report names the EXACT build/version tested — "old application version" is not evidence-grade; constraint violation suite (S-05/S-06 tests) in CI; evidence: ZERO obligation rows with NULL ui_step_status after the S-08 read-model pass (round 14); ZERO obligation rows with NULL next_request_seq + the request_seq column and its NULL-ignoring unique index present, usable, AND behaviorally proven (the four S-05 isolation cases green on real Oracle — 2a19c20 M2).
 - **Do not change:** migrations retroactively — fix-forward with new migrations only.
 - **Tests to add:** the above as repeatable CI jobs where feasible.
 - **Edge cases:** the old version writing rows WITHOUT new dimensions after backfill → those columns must stay nullable until the old version is gone (contract step deferred to P14 — record).

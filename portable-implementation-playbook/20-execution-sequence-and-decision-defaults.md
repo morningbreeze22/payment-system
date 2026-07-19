@@ -57,7 +57,7 @@ HUMAN+AGENT  the agent drafts/implements; a named human must review,
 | 25 | CA-9 | HUMAN+AGENT | B-04; CA-4 | phase-02 |
 | 25a | CA-10 (§14.1 attempt-journal spec) | HUMAN+AGENT | §14.1 (PO driver recorded 2026-07-16); CA-4; CA-6 | phase-02 |
 | 25b | AUD-01 (§14.1 journal DDL — off-chain; any time in/after P3; unblocks the K-04/RC-02/ST-10 riders) | AGENT (DBA review) | CA-10 published; CA-4 | phase-03-schema-and-migration.md |
-| 26–34+34a | P3 — EXACT ORDER (round 9, normative; S-11 RETIRED round 10 — greenfield): S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts); S-01 may begin after CA-4, but S-02 additionally requires CA-5 PUBLISHED (initial value + init policy + namespace — 2a19c20 L4); S-10 = §2.4 table (round 5, after S-04); S-09 proof pass runs LAST | phase-03-schema-and-migration.md |
+| 26–34+34a | P3 — EXACT ORDER (round 9, normative; REORDERED 289ef66 M1 — backfill BEFORE the constraint objects legacy data could violate, because I6 is a UNIQUE index and NOVALIDATE does not apply to unique indexes; S-11 RETIRED round 10 — greenfield): S-01, S-02, S-03, S-04, S-10, S-08, S-05, S-06, S-07, S-09 | AGENT (S-01 plan + S-08 map need HUMAN approval) | CA-4 published (scope key settled, §1 contract facts); S-01 may begin after CA-4, but S-02 additionally requires CA-5 PUBLISHED (initial value + init policy + namespace — 2a19c20 L4); S-10 = §2.4 table (round 5, after S-04); S-09 proof pass runs LAST | phase-03-schema-and-migration.md |
 | 35–40 | K-01 → K-06 | AGENT | S-09 green; CA-5 for K-02/K-03 | phase-04-identity-and-idempotency.md |
 | 41–47 | CT-01 → CT-07 | HUMAN+AGENT | B-02 sandbox access; K-02/K-03 (see DD-6 if access missing) | phase-08-provider-contract-tests.md |
 | 48–50 | U-01 → U-03 | AGENT | S-03; K-04 path | phase-05-uetr-response-persistence.md |
@@ -115,8 +115,14 @@ DD-5  U-03 feed-side case: defer the feed-event-under-dead-UETR case
 DD-6  CT block placement: run CT-01..CT-07 immediately after K-06 IF
       sandbox access (B-02) exists. If not, continue with U-01 onward
       and run the CT block as soon as access arrives. HARD GATE either
-      way: CT-02..CT-05 must be PASSED before GO-03 stage F4
-      (auto-downgrade) and before checklist items Q2/Q10 can PASS.
+      way (extended 289ef66 M2): CT-02..CT-05 must be PASSED — AND
+      every typed CT consequence record must read
+      NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED — before
+      GO-03 stage F4 (auto-downgrade) and before checklist items
+      Q2/Q10 can PASS. Late CT execution makes this bite: an
+      IMPLEMENTATION_REQUIRED record REOPENS RC-03/RC-04 even if
+      they merged on the working assumptions ("test passed +
+      consequence recorded" is NOT release-sufficient).
       Never interleave CT tasks with implementation tasks.
 
 DD-7  Pending named cases — close them at these points, then update

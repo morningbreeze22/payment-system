@@ -533,8 +533,10 @@ if ca10_present:
     if "### 14.1" not in spec_text or "post_attempt_seq" not in spec_text:
         errors.append("requirment-v4.md: payment_attempt_journal exists in the doc set but the spec lacks §14.1 and/or post_attempt_seq — the journal must be spec-anchored, never playbook-only (rule 6h; review 5156f1f H2)")
 
-# ---- Rule 6c (round 9): the P3 chain order is stated verbatim in file 20 ----
-P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-05, S-06, S-07, S-08, S-09"
+# ---- Rule 6c (round 9; REORDERED 289ef66 M1 — S-08 backfill before
+# S-05 constraint objects: I6 is a UNIQUE index, NOVALIDATE does not
+# apply): the P3 chain order is stated verbatim in file 20 ----
+P3_ORDER = "S-01, S-02, S-03, S-04, S-10, S-08, S-05, S-06, S-07, S-09"
 if P3_ORDER not in seq_text:
     errors.append(f"{rel(seq)}: canonical P3 order not stated verbatim ({P3_ORDER})")
 

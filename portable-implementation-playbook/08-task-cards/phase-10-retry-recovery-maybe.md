@@ -61,7 +61,7 @@
 - **Title:** Implement §7.0's repost_permitted as ONE function, checked by every POST-routing writer AND by the posting claim
 - **Classification:** MVP normative implementation
 - **Purpose:** the single normative re-POST gate; both-ends checking kills the park⇄un-park livelock class structurally; blocked_reason plays NO part.
-- **Prerequisites:** RC-02 (divergent_payload_at written); RC-09 (freeze check — can stub as FROZEN-safe until RC-09 lands). (The former B-03/cutoff prerequisite was RETIRED round 10 — no cutoff term exists, §7.4.)
+- **Prerequisites:** RC-02 (divergent_payload_at written); RC-09 (freeze check — can stub as FROZEN-safe until RC-09 lands). (The former B-03/cutoff prerequisite was RETIRED round 10 — no cutoff term exists, §7.4.) CT-04 REOPEN TERM (289ef66 M2): if CT-04's typed consequence record reads IMPLEMENTATION_REQUIRED — whenever it lands, including AFTER this card merged under DD-6's late-CT path — this card REOPENS: add the TTL term with its own tests and advance the record to IMPLEMENTED_AND_VERIFIED; the release gates stay blocked meanwhile.
 - **Requirement sections / concepts to read:** §7.0 (predicate + both-ends + override), §6.4 (staleness term), §11 (claim carries the durable term).
 - **Placeholder components involved:** [Request Status Persistence Layer], [Retry Resolver Job], [Status Query Resolver], [Provider POST Client].
 - **Local placeholder mappings required before starting:** claim CAS site; POST-routing writers list (ops actions later).
@@ -85,7 +85,7 @@
 - **Title:** Retry scanner per §7.4: per-error-class policy from config, exhaustion → BLOCKED, downgrade policy class, zero-attempt outage windows (structural; round 10 — no cutoff pre-checks, the engine owns the calendar)
 - **Classification:** MVP normative implementation
 - **Purpose:** exactly one retry owner (the DB scanner); §16.1's zero-attempt gating prevents an outage from converting the RETRY_WAIT population to BLOCKED.
-- **Prerequisites:** ST-09 (claims), RC-03 (gate), RC-01/02 (classification + application). (B-03 prerequisite RETIRED round 10.)
+- **Prerequisites:** ST-09 (claims), RC-03 (gate), RC-01/02 (classification + application). (B-03 prerequisite RETIRED round 10.) CT-05 REOPEN TERM (289ef66 M2): if CT-05's typed consequence record reads IMPLEMENTATION_REQUIRED (rejection REPLAYS) — whenever it lands, including AFTER this card merged under DD-6's late-CT path — this card REOPENS: same-key retry for that error class becomes a no-op, the policy switches that class to fresh successors via §6.8 with its own tests, and the record advances to IMPLEMENTED_AND_VERIFIED; the release gates stay blocked meanwhile.
 - **Requirement sections / concepts to read:** §7.4 (whole incl. downgrade class), §16.1 (scanner rules, clock semantics, poison cap), §16.6 (config entries).
 - **Placeholder components involved:** [Retry Resolver Job], [Metrics / Alerting Layer].
 - **Local placeholder mappings required before starting:** job infra; S-07 index expressions (queries must match).

@@ -11,7 +11,7 @@
 [S-01] Migration plan freeze
 Read: §16.5; CA-4; D-02 inventory. Invariant: expand/contract — additive first, VALIDATE after backfill, drops post-rollout.
 Placeholders: [DB Migration Directory]. Mappings: directory Confirmed.
-Objective: ordered migration list (one concern each): columns → inbox → UNIQUEs/I6 → CHECKs NOVALIDATE → triggers → indexes → backfill → VALIDATE; per entry rollback + dual-run note.
+Objective: ordered migration list (one concern each; ORDER CORRECTED 289ef66 M1 — I6 is a UNIQUE index, NOVALIDATE does not apply, pre-backfill legacy NULL-outcome rows all count ACTIVE → ORA-01452): columns → inbox → PREFLIGHT + reviewed duplicate disposition → backfill → UNIQUEs/I6 + CHECKs (validate on clean data) → triggers → indexes → final VALIDATE; per entry rollback + dual-run note.
 Tests: none. Stop: plan approved by owner + DBA.
 ```
 
@@ -49,7 +49,7 @@ Tests: duplicate-insert race clean; FOR UPDATE blocks same-trade, not other trad
 
 ```text
 [S-05] CHECKs, UNIQUEs, I6
-Read: §10.3 (matrix) §2.2 constraints §2.1 (ui_step_status stored set) CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified); the ui_step_status CHECK (IN_PROGRESS/COMPLETED/CANCELLED) lands HERE, not in S-02 (round 13).
+Read: §10.3 (matrix) §2.2 constraints §2.1 (ui_step_status stored set) CA-4. Invariant: DB is the backstop; L9 is NOT a CHECK (drift-scanner verified); the ui_step_status CHECK (IN_PROGRESS/COMPLETED/CANCELLED) lands HERE, not in S-02 (round 13); RUNS AFTER S-08 (289ef66 M1 — I6 is a UNIQUE index, NOVALIDATE does not apply; pre-backfill legacy NULL-outcome rows count ACTIVE → ORA-01452; if the D-04 disposition shows the legacy flow can hold 2+ active rows per obligation, I6 is DEFERRED to the M.3 fence by recorded decision — STOP, never improvise).
 Placeholders: [DB Migration Directory]. Mappings: real-Oracle test lane (STOP if H2-only).
 Objective: enum CHECKs; L2–L8 + L1-shape CHECKs; UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); NULL-ignoring fn-based UNIQUE (payment_obligation_id, request_seq) — plain composite would reject NULL-seq legacy rows (1d8a650 M1); I6 = unique fn index CASE WHEN outcome IS NULL THEN payment_obligation_id END; stamp tripwire CHECK (required_total_at_creation IS NULL OR >= amount — §2.2; a corruption tripwire only — set-once is proven by RG-06's SQL-inventory assertion, not by this CHECK). NOVALIDATE→VALIDATE per plan.
 Tests: one violation test per constraint; I6 second-active rejected; stamp < amount refused; request_seq index ISOLATION set (7cc9f49 M1 — neutralize EVERY competitor mechanically: distinct idempotency keys AND same-obligation rows TERMINAL-NEGATIVE so I6's CASE is NULL — active rows would hit I6 first and fake a pass; distinct request ids, NULL uetr, legal terminal shape): same oblig + same seq (two terminal rows) → ORA-00001 naming the FROZEN index exactly; same oblig + NULL-seq terminal legacy rows → both insert; cross-obligation same seq → both insert; expression byte-matches CA-4; negative-control expression mutation (a VALID, successfully created mutant index — a DDL error is not a pass) makes a SPECIFIC named case change result. Stop: validated + green.

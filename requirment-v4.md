@@ -493,9 +493,14 @@ required_total_at_creation — the obligation's required_amount as
                       manifest item FIRST_REQUEST_CREATION_
                       COLUMNS=PENDING_SAMPLE (owner ops, bounded
                       SLA, append-only PASS on the first eligible
-                      row; the ONLY item that may remain open at
-                      GO-03 closure — 7cc9f49 L2, lifecycle in
-                      the file-25 evidence contract) — and AFTER the
+                      row — or FAILED_INCIDENT_OPEN when the
+                      observed first row carries a NULL creation
+                      column, 289ef66 L1: a later good row never
+                      cures it, requalification per the file-25
+                      contract; the ONLY item that may remain
+                      open at GO-03 closure — 7cc9f49 L2,
+                      lifecycle in the file-25 evidence
+                      contract) — and AFTER the
                       writer fence a NULL stamp on a newly
                       created row is a DEFECT surfaced by the §15
                       post-F0 NULL-stamp DATA-QUALITY ticket (LOW
@@ -4435,7 +4440,17 @@ lives in the payment platform
    this test is the PROOF, and it blocks GO-LIVE, not runtime
    behavior. Because nothing is live until it passes, TL-4's
    revert-to-payload-freeze clause remains executable while it
-   matters.
+   matters. CONSEQUENCE CLOSURE (review 289ef66 M2): (c) and (d)
+   are DECISIONS, not pass/fail tests — each emits a TYPED
+   consequence record (NO_IMPLEMENTATION_CHANGE |
+   IMPLEMENTATION_REQUIRED | UNRESOLVED_BLOCKING).
+   IMPLEMENTATION_REQUIRED reopens the affected implementation
+   (RC-03 for the TTL term, RC-04 for the replay policy) EVEN IF
+   ALREADY MERGED, and go-live authorization requires every such
+   record to read NO_IMPLEMENTATION_CHANGE or
+   IMPLEMENTED_AND_VERIFIED in the deployed release candidate —
+   "test passed + consequence recorded" is NOT
+   release-sufficient.
 2. CLOSED 2026-07-11 (PO answer): the PAYMENT ENGINE owns its own
    cutoff calendar (engine-owned, round 10) — this system initiates at any time and carries
    NO local calendar, cutoff gate, or cutoff config. A late
