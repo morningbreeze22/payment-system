@@ -5,43 +5,59 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The payment engine, reduced to the contract facts the requirement
- * assumes (§1 / §18-1) — including the DANGEROUS ones the sandbox
- * tests CT-02..CT-05 exist to verify:
+ * The payment engine, with TWO explicit modes (external review of the
+ * first demo cut, finding 3):
  *
- *  - same idempotency key while the key is in the DEDUP STORE ->
- *    nothing re-executes, the response is indistinguishable from a
- *    fresh acceptance (§18-1(a); and per the CT-03 hazard class this
- *    engine silently collapses a DIFFERENT payload onto the original
- *    execution — the caller cannot tell from the response);
- *  - dedup entries AGE OUT (§18-1(c)): a re-POST past the retention
- *    edge EXECUTES A DUPLICATE — the reason CT-04 exists;
- *  - the EXECUTION LEDGER (money actually moved) is permanent and
- *    queryable (§9.1 status query) even after the dedup entry aged out;
- *  - POST responses carry status + reference, NOT an amount echo —
- *    like real engines.
+ * CONTRACT_COMPLIANT — the world the requirement ASSUMES and the CT
+ * gates verify:
+ *   - same key + same payload within retention -> dedup, nothing
+ *     re-executes (§18-1(a));
+ *   - same key + DIFFERENT payload -> DISTINGUISHABLE reject, no
+ *     execution (§18-1(b));
+ *   - dedup entries age out (§18-1(c)) — a re-POST past the retention
+ *     edge EXECUTES A DUPLICATE even here: retention is finite in BOTH
+ *     modes, that is the CT-04 fact itself;
+ *   - the status query honors a LOOKBACK WINDOW: inside it, EXECUTED /
+ *     NOT_FOUND are authoritative; beyond it the answer is
+ *     LOOKBACK_EXPIRED and nothing may be concluded (§9.1).
  *
+ * ADVERSARIAL — the world CT-02..05 exist to RULE OUT (failed contract
+ * evidence): a divergent payload is silently collapsed onto the
+ * original execution and still answers ACCEPTED.
+ *
+ * POST responses carry status + reference, never an amount echo.
  * Tests compare each model's BELIEVED state against this class's
  * INTERNAL TRUTH (executions / money actually moved).
  */
 @Component
 public class FakeProvider {
 
+    public enum Mode { CONTRACT_COMPLIANT, ADVERSARIAL }
+
     public record PostResult(String status, String providerRef) {}
     public record QueryResult(String status, long executedAmount) {}
 
     private record Execution(String idemKey, long amount) {}
 
-    private final Map<String, Long> dedupStore = new ConcurrentHashMap<>();
+    private Mode mode = Mode.CONTRACT_COMPLIANT;
+    private final Map<String, Long> dedupStore = new ConcurrentHashMap<>(); // key -> original payload amount
     private final List<Execution> executionLedger = new ArrayList<>();
+    private final Set<String> lookbackExpired = ConcurrentHashMap.newKeySet();
+
+    public synchronized void setMode(Mode m) { this.mode = m; }
 
     public synchronized PostResult post(String idemKey, long amount) {
-        if (dedupStore.containsKey(idemKey)) {
-            // dedup hit — original execution stands; a divergent payload is
-            // silently collapsed; the response looks exactly like success
+        Long original = dedupStore.get(idemKey);
+        if (original != null) {
+            if (original != amount && mode == Mode.CONTRACT_COMPLIANT) {
+                // §18-1(b): divergent payload -> distinguishable reject, no execution
+                return new PostResult("DIVERGENT_REJECTED", "ref-" + idemKey);
+            }
+            // same payload (both modes), or ADVERSARIAL collapse: looks like success
             return new PostResult("ACCEPTED", "ref-" + idemKey);
         }
         dedupStore.put(idemKey, amount);
@@ -49,9 +65,11 @@ public class FakeProvider {
         return new PostResult("ACCEPTED", "ref-" + idemKey);
     }
 
-    /** §9.1 status query by key — the ask-before-retry primitive; reads the
-     *  permanent execution ledger, not the aging dedup store. */
+    /** §9.1 status query — authoritative only inside the lookback window. */
     public synchronized QueryResult query(String idemKey) {
+        if (lookbackExpired.contains(idemKey)) {
+            return new QueryResult("LOOKBACK_EXPIRED", 0);
+        }
         return executionLedger.stream()
                 .filter(e -> e.idemKey().equals(idemKey))
                 .findFirst()
@@ -59,10 +77,11 @@ public class FakeProvider {
                 .orElse(new QueryResult("NOT_FOUND", 0));
     }
 
-    /** Test control: age a key out of the dedup store (§18-1(c) retention edge). */
-    public synchronized void expireDedupEntry(String idemKey) {
-        dedupStore.remove(idemKey);
-    }
+    /** Test control: age a key out of the DEDUP store (§18-1(c) retention edge). */
+    public synchronized void expireDedupEntry(String idemKey) { dedupStore.remove(idemKey); }
+
+    /** Test control: age a key past the QUERY lookback window (§9.1). */
+    public synchronized void expireQueryLookback(String idemKey) { lookbackExpired.add(idemKey); }
 
     /** TRUTH: number of distinct wire executions. */
     public synchronized int executions() { return executionLedger.size(); }
@@ -73,7 +92,9 @@ public class FakeProvider {
     }
 
     public synchronized void reset() {
+        mode = Mode.CONTRACT_COMPLIANT;
         dedupStore.clear();
         executionLedger.clear();
+        lookbackExpired.clear();
     }
 }

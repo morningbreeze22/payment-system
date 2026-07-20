@@ -15,22 +15,17 @@ import java.util.Objects;
  * THE REVIEWED DESIGN, reduced to its essentials (requirment-v4.md):
  *
  *  - the OBLIGATION row = money ledger + serialization point + the
- *    next_request_seq counter (§2.1, §3): every decision runs under
- *    SELECT ... FOR UPDATE on it — decide and act are ONE transaction;
- *  - WRITE-AHEAD identity (§5.1): the request row (idempotency key +
- *    payload hash) is committed BEFORE the wire call, so a crash in
- *    the ambiguity window leaves durable evidence;
- *  - guarded CAS transitions (§10): "the WHERE states the expected
- *    world; the row count is the verdict" — late/duplicate events hit
- *    0 rows;
- *  - DB-enforced invariants as BACKSTOPS: UNIQUE(idem_key),
- *    UNIQUE(obligation, seq), and ACTIVE_KEY UNIQUE emulating Oracle's
- *    I6 (at most one active request per obligation) — they hold
- *    against EVERY writer, including the one nobody routed;
- *  - ask-before-retry (§7.0/§9.1): an IN_FLIGHT row is resolved by
- *    QUERYING the provider, never by blind re-POST;
- *  - release guard (§10.3): ops cannot terminal-reject a row whose
- *    outcome is uncertain.
+ *    next_request_seq counter (§2.1, §3); the documented lock order is
+ *    followed on EVERY mutation: obligation lock -> request CAS ->
+ *    obligation amount changes (review finding 4);
+ *  - §6.7 strictly-newer admission: a stale upstream snapshot can
+ *    never regress REQUIRED_AMOUNT (review finding 5);
+ *  - WRITE-AHEAD identity (§5.1) before the wire; guarded CAS
+ *    transitions (§10); ask-before-retry (§7.0/§9.1); release guard
+ *    (§10.3);
+ *  - DB-enforced invariants as BACKSTOPS — I6 via a GENERATED column
+ *    no writer can supply (review finding 6), UNIQUE(idem_key),
+ *    UNIQUE(obligation, seq), STATE CHECK, FK.
  */
 @Service
 public class GuardedPaymentService {
@@ -48,14 +43,19 @@ public class GuardedPaymentService {
         this.hooks = hooks;
     }
 
-    /** Upstream entry point: upsert the obligation's required amount, then settle. */
-    public void onUpstreamAmount(String scope, long amount) {
+    /** Upstream entry point with the §6.7 strictly-newer ordering guard. */
+    public void onUpstreamAmount(String scope, long amount, long ordering) {
         tx.executeWithoutResult(s -> {
             try {
-                jdbc.update("INSERT INTO OBLIGATION (SCOPE_KEY, REQUIRED_AMOUNT) VALUES (?,?)", scope, amount);
+                jdbc.update("INSERT INTO OBLIGATION (SCOPE_KEY, REQUIRED_AMOUNT, UPSTREAM_ORDERING) VALUES (?,?,?)",
+                        scope, amount, ordering);
             } catch (DuplicateKeyException e) {
-                lockObligation(scope);
-                jdbc.update("UPDATE OBLIGATION SET REQUIRED_AMOUNT = ? WHERE SCOPE_KEY = ?", amount, scope);
+                Map<String, Object> ob = lockObligation(scope);
+                long current = ((Number) Objects.requireNonNull(ob).get("UPSTREAM_ORDERING")).longValue();
+                if (ordering > current) {   // strictly newer wins; a delayed old snapshot is ignored
+                    jdbc.update("UPDATE OBLIGATION SET REQUIRED_AMOUNT = ?, UPSTREAM_ORDERING = ? WHERE SCOPE_KEY = ?",
+                            amount, ordering, scope);
+                }
             }
         });
         settle(scope);
@@ -65,7 +65,7 @@ public class GuardedPaymentService {
 
     /** Decide-and-claim in ONE locked transaction (write-ahead), then wire, then CAS. */
     public void settle(String scope) {
-        hooks.pause("guarded.beforeTx." + scope);  // the zombie's stale pause can only sit HERE —
+        hooks.pause("guarded.beforeTx." + scope);  // the zombie can only park HERE —
                                                    // its "plan" does not exist yet, so it cannot be stale
         Plan plan = tx.execute(s -> {
             Map<String, Object> ob = lockObligation(scope);   // serialization point
@@ -83,9 +83,9 @@ public class GuardedPaymentService {
             jdbc.update("UPDATE OBLIGATION SET NEXT_REQUEST_SEQ = NEXT_REQUEST_SEQ + 1 WHERE ID = ?", obligationId);
             String idemKey = scope + "#" + seq;
             // WRITE-AHEAD (§5.1): identity + payload hash durable BEFORE the wire
-            jdbc.update("INSERT INTO REQUEST (OBLIGATION_ID, SEQ, AMOUNT, IDEM_KEY, PAYLOAD_HASH, STATE, ACTIVE_KEY) "
-                            + "VALUES (?,?,?,?,?, 'IN_FLIGHT', ?)",
-                    obligationId, seq, delta, idemKey, "H" + delta, obligationId);
+            jdbc.update("INSERT INTO REQUEST (OBLIGATION_ID, SEQ, AMOUNT, IDEM_KEY, PAYLOAD_HASH, STATE) "
+                            + "VALUES (?,?,?,?,?, 'IN_FLIGHT')",
+                    obligationId, seq, delta, idemKey, "H" + delta);
             Long requestId = jdbc.queryForObject(
                     "SELECT ID FROM REQUEST WHERE IDEM_KEY = ?", Long.class, idemKey);
             return new Plan(obligationId, Objects.requireNonNull(requestId), seq, idemKey, delta);
@@ -107,14 +107,18 @@ public class GuardedPaymentService {
             FakeProvider.QueryResult q = provider.query((String) r.get("IDEM_KEY"));
             long id = ((Number) r.get("ID")).longValue();
             long obId = ((Number) r.get("OBLIGATION_ID")).longValue();
-            long amount = ((Number) r.get("AMOUNT")).longValue();
             if ("EXECUTED".equals(q.status())) {
                 confirmExecuted(obId, id, q.executedAmount());
-            } else {
-                tx.executeWithoutResult(s -> jdbc.update(
-                        "UPDATE REQUEST SET STATE='REJECTED', ACTIVE_KEY=NULL WHERE ID=? AND STATE='IN_FLIGHT'", id));
-                settle(scope);  // provably-not-executed -> fresh successor with a FRESH seq (§6.8)
+            } else if ("NOT_FOUND".equals(q.status())) {
+                // authoritative inside the lookback window: provably not executed
+                tx.executeWithoutResult(s -> {
+                    lockObligationById(obId);                                // lock order (finding 4)
+                    jdbc.update("UPDATE REQUEST SET STATE='REJECTED' WHERE ID=? AND STATE='IN_FLIGHT'", id);
+                });
+                settle(scope);  // fresh successor with a FRESH seq (§6.8)
             }
+            // LOOKBACK_EXPIRED: nothing may be concluded — the row STAYS
+            // IN_FLIGHT (the design's MAYBE state) for the §9.3 ops path.
         }
     }
 
@@ -137,24 +141,30 @@ public class GuardedPaymentService {
         });
     }
 
+    /** Documented lock order (review finding 4):
+     *  obligation lock -> request CAS -> obligation amount changes. */
     private void confirmExecuted(long obligationId, long requestId, long amount) {
         tx.executeWithoutResult(s -> {
+            lockObligationById(obligationId);
             // CAS: the WHERE states the expected world; the row count is the verdict
             int n = jdbc.update(
-                    "UPDATE REQUEST SET STATE='EXECUTED', ACTIVE_KEY=NULL WHERE ID=? AND STATE='IN_FLIGHT'",
-                    requestId);
+                    "UPDATE REQUEST SET STATE='EXECUTED' WHERE ID=? AND STATE='IN_FLIGHT'", requestId);
             if (n == 1) {
                 jdbc.update("UPDATE OBLIGATION SET CONFIRMED_AMOUNT = CONFIRMED_AMOUNT + ? WHERE ID = ?",
                         amount, obligationId);
-            } // n == 0: a late/duplicate confirmation — refused by the row count, nothing double-counts
+            } // n == 0: a late/duplicate confirmation — refused by the row count
         });
     }
 
     private Map<String, Object> lockObligation(String scope) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT ID, REQUIRED_AMOUNT, CONFIRMED_AMOUNT, NEXT_REQUEST_SEQ, BLOCKED "
+                "SELECT ID, REQUIRED_AMOUNT, CONFIRMED_AMOUNT, NEXT_REQUEST_SEQ, UPSTREAM_ORDERING, BLOCKED "
                         + "FROM OBLIGATION WHERE SCOPE_KEY = ? FOR UPDATE", scope);
         return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private void lockObligationById(long id) {
+        jdbc.queryForList("SELECT ID FROM OBLIGATION WHERE ID = ? FOR UPDATE", id);
     }
 
     // ---- believed state, for truth-vs-belief assertions ----
@@ -163,6 +173,12 @@ public class GuardedPaymentService {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT CONFIRMED_AMOUNT FROM OBLIGATION WHERE SCOPE_KEY = ?", scope);
         return rows.isEmpty() ? 0 : ((Number) rows.get(0).get("CONFIRMED_AMOUNT")).longValue();
+    }
+
+    public long requiredAmount(String scope) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT REQUIRED_AMOUNT FROM OBLIGATION WHERE SCOPE_KEY = ?", scope);
+        return rows.isEmpty() ? 0 : ((Number) rows.get(0).get("REQUIRED_AMOUNT")).longValue();
     }
 
     public int requestCount(String scope) {

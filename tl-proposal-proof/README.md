@@ -1,18 +1,14 @@
-# TL-Proposal Proof — runnable A/B comparison
+# TL-Proposal Proof — a three-model comparison
 
-> **Purpose:** a minimal local Spring Boot app (H2 in-memory, no Kafka, no
-> external services) that puts BOTH designs side by side and drives them
-> through the failure windows the requirement is built around:
+> A minimal local Spring Boot app (H2 in-memory, no Kafka, no external
+> services) that builds THREE designs side by side and drives them through
+> the same deterministic failure windows the requirement is built around.
 >
-> 1. **The proposal:** hash-by-scope-key thread affinity replaces the locks;
->    one insert-only request/event table replaces the obligation table
->    ("reconstruct the whole flow from this table").
-> 2. **The reviewed design** (requirment-v4.md), reduced to its essentials:
->    obligation row (ledger + lock + counter), write-ahead identity, guarded
->    CAS, I6-style unique constraints, ask-before-retry, release guard.
->
-> Nothing here is production code. It exists to make one afternoon's
-> conversation concrete.
+> **What this demo claims — precisely:** fold-then-act without guards fails
+> (proven). The proposal becomes safe exactly when it re-adds the guard set
+> (proven). What remains between the surviving models is a
+> **materialization trade-off**, to be argued on engineering grounds — not
+> a safety argument.
 
 ## Run it
 
@@ -24,62 +20,109 @@ cd tl-proposal-proof
 ./mvnw test            (mac/linux)
 ```
 
-Or open the folder in IntelliJ and run the two test classes.
+Or open the folder in IntelliJ and run the three test classes.
 
-- `NaiveModelFlawsTest` — the proposal, built faithfully. **Every green
-  test is a proven flaw**: the assertions assert the damage happened.
-- `GuardedModelSurvivesTest` — identical scenarios against the reviewed
-  design; the assertions assert the damage did NOT happen and that
-  believed state == the provider's internal truth.
+## The three models
 
-## What the proposal is GIVEN before the tests start (the concessions)
+| | Model 1 — `proof.naive` | Model 2 — `proof.minimal` | Model 3 — `proof.guarded` |
+|---|---|---|---|
+| What it is | The proposal **as literally stated**: insert-only table, fold-then-act, "affinity makes locks unnecessary" | The **strongest reasonable version** of the proposal (added per external review) | The reviewed design, reduced to essentials |
+| Storage | 1 unconstrained event table | 1 append-only event table **with constraints** | obligation row + mutable request rows |
+| Serialization | thread affinity (convention) | **per-scope version fence**: `UNIQUE(scope, version)` — optimistic concurrency; a stale plan loses the insert and must refold | `SELECT FOR UPDATE` on the obligation row — pessimistic; decide+claim are one transaction |
+| Identity | `MAX(seq)+1` from history | **the fenced version slot** (`scope#version`), backstopped by a generated-column `UNIQUE(idem key)` | the locked `next_request_seq` counter, backstopped by `UNIQUE(idem_key)` |
+| Money state | fold (non-idempotent) | fold (**idempotent** — distinct executed keys) | stored `confirmed_amount`, CAS-maintained |
+| Crash recovery | blind re-POST | **write-ahead + ask-before-retry** | write-ahead + ask-before-retry |
+| Stale snapshots | unguarded | strictly-newer ordering guard | strictly-newer ordering guard |
+| One-active-request | nothing | *(implicit via fence + inflight fold check)* | **I6**: generated-column unique — enforced against any writer |
+| Test result | **fails all 4 scenarios** (by assertion) | **survives all 5** | **survives all 5** |
 
-- **Deterministic identity** (`scope#seq`) is borrowed from §5.1 — without
-  it the naive model fails instantly, so it gets our idea for free.
-- **Thread affinity holds in steady state**: each test hands a message to
-  one thread at a time. The scenarios attack only the windows affinity
-  structurally cannot cover — which is the entire argument.
-- The fake provider honors the §18-1 dedup facts (same key + same payload
-  never re-executes while the key is retained).
+## The scenarios (identical across models)
 
-## The scenarios
+1. **Zombie redelivery** — the old partition owner stalls, the partition is
+   reassigned, at-least-once redelivers, the zombie later finishes a stale
+   plan. Naive: corrupt history, double-counted fold, next amendment
+   **silently unpaid** (U-1 class). Minimal: the stale insert **loses the
+   fence** and refolds into a no-op. Guarded: the stale plan cannot exist
+   outside the lock.
+2. **The unrouted writer** — a human ops reject over HTTP (never on any
+   hash ring). Naive: **money moves after the human said stop**. Minimal:
+   the fence serializes every writer, routed or not. Guarded: the row lock
+   does; plus the release guard refuses to terminal-reject an uncertain
+   outcome at all.
+3. **Instance overlap / identity** — two folds race during a rolling
+   deploy. Naive: `MAX+1` reuses seq — one idempotency key, two amounts,
+   undetectable under failed contract evidence. Minimal/guarded: identity
+   allocation is fenced/locked and write-once; the schema refuses reuse
+   from any writer.
+4. **Crash between wire and record + dedup retention edge** (§18-1(c)).
+   Naive: blind re-POST **double-pays** (200 moved for 100 required).
+   Minimal/guarded: write-ahead evidence + **ask** (§9.1 query) — one
+   execution, belief == truth, identity never reused.
+5. **Stale snapshot regression** (minimal/guarded only) — a delayed old
+   amount cannot overwrite a newer one (§6.7 strictly-newer).
 
-| # | Window attacked | Naive result (asserted) | Guarded result (asserted) | Requirement anchor |
-|---|---|---|---|---|
-| 1 | **Zombie redelivery** — the old partition owner stalls (GC/slow wire), Kafka reassigns, at-least-once redelivers; the zombie later finishes its stale plan | Duplicate seq-1 rows admitted; the fold double-counts outcomes (believes 250 paid, truth 150); the next amendment folds "nothing owed" and **100 is silently unpaid — no alert, no trace** (the U-1 disappearance class) | The zombie's plan cannot exist outside the lock; it re-reads and no-ops; history exact; the amendment pays the delta | §11 claim/lease; §10 CAS; U-1 |
-| 2 | **The unrouted writer** — a human rejects via the ops endpoint (HTTP is never on the hash ring) while the routed thread holds a stale fold | **Money moves after the human said stop**; the reject event sits uselessly in the history | Ops serializes on the same row lock; the worker sees BLOCKED and refuses. Bonus: the release guard refuses to let ops terminal-reject an in-flight (uncertain) row at all — resolve-first (§9), then decide | §9.3; §10.3 release guard |
-| 3 | **Instance overlap** (rolling deploy) — two folds both compute `MAX(seq)+1 = 1` | **One idempotency key carries two different amounts** (the CT-03 hazard); the engine silently collapses; responses are indistinguishable; belief diverges from truth permanently | Seq comes from the locked counter, not observed history — reuse impossible; and the schema itself (I6 + UNIQUE(idem_key)) refuses rogue rows **from any writer, including the hotfix script nobody routed** | §5.1; §7.2 collision; I6 |
-| 4 | **Crash between wire call and record** + dedup retention edge (§18-1(c)) | The history cannot distinguish "posted, record lost" from "never posted"; the only options are blind re-POST (**double-pays past the retention edge: 200 moved for 100 required**) or never retry (payment lost) | Write-ahead identity was committed BEFORE the wire; recovery **asks** (§9.1 query) instead of guessing; one execution, belief == truth, and the counter survives so seq is never reused | §5.1 write-ahead; §7.0 ask-before-retry; CT-04 |
-| — | **Belief vs truth** (every test) | The naive model's folded state disagrees with the money the engine actually moved — and nothing inside the model can detect it | `confirmed_amount` == engine truth in every scenario | §10.4; drift scanner I1/I2 |
+**Provider modes** (per external review): `CONTRACT_COMPLIANT` — the world
+the requirement assumes and CT-02..05 verify (divergent payload →
+distinguishable reject; query honors a lookback window; `LOOKBACK_EXPIRED`
+is inconclusive and leaves the row in the MAYBE/ops path).
+`ADVERSARIAL` — the world the CT gates exist to rule out (silent payload
+collapse). The naive suite runs adversarial (and is unsafe in both);
+the surviving suites run compliant. Dedup retention is finite in BOTH
+modes — that is the CT-04 fact itself.
 
-## How to read a "but you could fix that by..."
+**Assertion technique:** every test compares the model's BELIEVED state
+against the fake provider's INTERNAL TRUTH (executions, money actually
+moved). The surviving models end every scenario with belief == truth.
 
-Every patch that fixes a naive failure re-invents a piece of the reviewed
-design:
+## The honest conclusion
 
-- dedup the fold by key → you are hand-writing UNIQUE(idem_key) in
-  application code, in every fold, forever;
-- fence the zombie → that is a lease (§11 claim protocol);
-- route the ops endpoint through the ring → ops is now queued behind a
-  consumer thread, and the NEXT unrouted writer (migration script, support
-  tooling) still is not;
-- record something before the wire call so retry can decide → that is
-  §5.1 write-ahead;
-- query the provider before re-POSTing → that is §7.0/§9.1
-  ask-before-retry;
-- keep a per-scope counter row so seq never reuses → that row IS the
-  obligation table, minus the ledger you also need for release decisions.
+Model 2 survives. So the demo does **not** prove that an append-only,
+no-obligation-row design is unsound. What it proves is sharper and more
+useful:
 
-That is the actual claim of the reviewed design: not that locks are
-pleasant, but that **each mechanism is the minimum durable form of a fix
-you will otherwise write ad hoc after the first incident** — enforced at
-the database, where it holds against every writer, thread, instance, and
-future colleague.
+1. **The original claim was wrong as stated.** "Hash to the same thread →
+   thread-safe → locks unnecessary" and "just insert everything" fail in
+   four distinct, reproducible ways (model 1).
+2. **The proposal becomes safe exactly by re-adding the guard set:** a
+   durable per-scope serialization point (the version fence *is* an
+   optimistic lock on an aggregate), write-once fenced identity, DB
+   uniqueness backstops, write-ahead evidence, idempotent folding,
+   ask-before-retry, and a strictly-newer admission guard (model 2). Every
+   one of these is a mechanism the proposal set out to delete, re-invented
+   in event-sourcing dress.
+3. **The remaining choice is materialization, not safety:**
+   - *fold-on-read vs stored ledger* — in model 2, `required/paid` exist
+     only as folds: every reader (UI amount series, ops console, drift
+     scanner, §12 pagination) must re-implement the fold byte-identically,
+     forever; the schema cannot enforce ledger arithmetic (there is no
+     counter for I1/I2 cross-checks to anchor on);
+   - *optimistic vs pessimistic serialization* — the fence retries on
+     conflict (fold loops under contention) where the lock waits;
+     equivalence under Oracle contention, and the retry-loop's interaction
+     with the outbox/log-delivery contract, would need real-Oracle
+     evidence either way;
+   - *migration* — model 2 is a greenfield shape; the reviewed design's
+     migration/backfill/cutover story (P3/M.x) exists because this system
+     replaces a legacy flow in place.
 
-## What the volume argument actually buys
+   Choosing between the two surviving models on those grounds is a
+   legitimate engineering discussion — with the requirement's evidence
+   gates (real-Oracle tests, provider CT proofs, go-live artifacts)
+   applying equally to whichever is chosen.
 
-At <100k payments/month the obligation row costs nothing measurable, and
-every lock in these tests is uncontended (nanoseconds). Key-affinity
-dispatch is still a fine idea — as an *addition* that reduces contention
-and reasoning load. These tests show what happens when it is used as a
-*replacement*.
+## Notes and limits
+
+- H2 stands in for Oracle: constraint and locking semantics are close but
+  not identical; nothing here is performance evidence. The expectation
+  that uncontended row locks are cheap at <100k payments/month is exactly
+  that — an expectation, to be confirmed by the real-Oracle load tests the
+  playbook already gates on (EXPLAIN plans, T-matrix INTEGRATION lanes).
+- The fake provider is a model of the contract facts, not of any real
+  engine; the real facts are established only by the CT-02..05 sandbox
+  evidence.
+- Model 2's schema enforces fencing and identity; its *ledger arithmetic*
+  lives in fold discipline. A reader that folds differently is a silent
+  correctness bug — the class of risk the stored ledger + drift scanner
+  exist to catch.
+- This demo is isolated from the normative documentation set and is not
+  linted by `tools/doc-lint.py`.
