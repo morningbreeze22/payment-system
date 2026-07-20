@@ -114,8 +114,13 @@ F0 ACTIVATION WINDOW (round 19 — atomic, inside a change freeze):
   manifest records FIRST_REQUEST_CREATION_COLUMNS=PENDING_SAMPLE
   and the durable closure ticket is opened BEFORE closure signs
   (MANUAL model — owner ops, bounded SLA, the FROZEN deterministic
-  first-row query + checksum from file 25 V.2 item 3); the later
-  PASS is the append-only v3 manifest version — file 25 V.2
+  first-row query + checksum from file 25 V.2 item 3); the NEXT
+  append-only version records PASS or FAILED_INCIDENT_OPEN — the
+  ticket closes ONLY after the closing PASS version is signed; a
+  FAILED_INCIDENT_OPEN version keeps the ticket and incident open
+  through requalification (follow-up L1 on 8bf0aba — the first
+  deferred sample may be INVALID; nothing assumes the next version
+  is the closing one) — file 25 V.2
   item 3 carries the full lifecycle; 6cb3005 L2 / 7cc9f49 L2 /
   58f5a64 L1). Any nonzero count → STOP, NO-GO,
   architecture review (never proceed, never waive).
@@ -184,7 +189,10 @@ SEGMENT 2 — ATOMIC ACTIVATION (the M.2 F0 window):
    → manifest FIRST_REQUEST_CREATION_COLUMNS=PENDING_SAMPLE; the
    durable ticket is opened BEFORE closure signs (MANUAL model,
    owner ops + SLA + the frozen deterministic query/checksum);
-   append-only v3 PASS on the first real sample — full lifecycle
+   the NEXT append-only version records PASS or
+   FAILED_INCIDENT_OPEN — ticket closes only after the closing
+   PASS version signs; a failed version keeps ticket + incident
+   open through requalification — full lifecycle
    in file 25 V.2 item 3; 58f5a64 L1). Nonzero or missing signature → ABORT
    the window (F0 stays OFF), NO-GO, architecture review.
 

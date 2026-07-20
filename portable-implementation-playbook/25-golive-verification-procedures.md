@@ -115,7 +115,8 @@ evidence carries an explicit expiry; between final capture and
 deployment either a change freeze holds or the invalidation map
 triggers automatic re-runs.
 
-EVIDENCE VERSIONS — v1 → v2 → conditional v3, ALL immutable, each
+EVIDENCE VERSIONS — v1 → v2 → conditional v3+ (the NEXT
+sample/disposition version, possibly more than one), ALL immutable, each
 with its OWN manifest + checksum set, earlier versions never
 changed (review 5156f1f M2 — this is how Q5b's PENDING-CUTOVER
 coexists with immutability; version model clarified 58f5a64 L3):
@@ -175,8 +176,13 @@ coexists with immutability; version model clarified 58f5a64 L3):
        linked (the OB-02 post-F0 NULL-column scans are the
        alerting BACKSTOP, not closure evidence — scan silence is
        not positive proof);
-   (5) the ticket closes ONLY after the v3 manifest version is
-       signed.
+   (5) the NEXT append-only manifest version records PASS or
+       FAILED_INCIDENT_OPEN; the ticket closes ONLY after the
+       closing PASS version is signed — a FAILED_INCIDENT_OPEN
+       version keeps the ticket AND the incident open through
+       requalification (follow-up L1 on 8bf0aba: the first
+       deferred sample may be invalid; closing on "the next
+       version signed" would close the ticket on a FAILURE).
    FROZEN QUERY TEMPLATE (58f5a64 L2 — resolve ONLY the physical
    names and the approved in-scope predicate from D-02/CA-4; the
    semantics may not change):

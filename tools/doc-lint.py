@@ -602,6 +602,24 @@ assert _CONSEQ_MISATTR.search("CT-02's typed consequence record"), "6m must catc
 assert not _CONSEQ_MISATTR.search("CT-02..CT-05 must be PASSED — AND BOTH typed consequence records (CT-04's and CT-05's"), "6m must not flag the corrected DD-6 wording"
 assert not _CONSEQ_MISATTR.search("CT-04's typed consequence record reads IMPLEMENTATION_REQUIRED"), "6m must not flag legitimate CT-04 attribution"
 
+# ---- Rule 6n (follow-up L1 on 8bf0aba): the sample-closure lifecycle
+# deliberately permits a FAILED_INCIDENT_OPEN "v3" — the fixed-v3
+# idiom ("v3 PASS", "ticket closes ... v3") is therefore a forbidden
+# phrase class: the canonical rule is "the NEXT append-only version
+# records PASS or FAILED_INCIDENT_OPEN; the ticket closes only after
+# the closing PASS version is signed" ----
+_FIXED_V3 = re.compile(r"v3\s+PASS|(?:ticket|item)\s+closes[^.;)]{0,100}?\bv3\b", re.I)
+for path in MAINTAINED:
+    _pt = _ws_norm("\n".join(lines_of(path)))
+    _mv = _FIXED_V3.search(_pt)
+    if _mv:
+        errors.append(f"{rel(path)}: fixed-v3 closure idiom ('{_mv.group(0)}') — the next version may be FAILED_INCIDENT_OPEN; say 'the closing PASS version' (rule 6n)")
+# rule-6n self-tests (executed every run)
+assert _FIXED_V3.search("append-only v3 PASS on the first real sample"), "6n must catch 'v3 PASS'"
+assert _FIXED_V3.search("the ticket closes ONLY after the v3 manifest version is signed"), "6n must catch 'ticket closes ... v3'"
+assert not _FIXED_V3.search("conditional v3+ (the NEXT sample/disposition version)"), "6n must not flag the v3+ generalization"
+assert not _FIXED_V3.search("the ticket closes ONLY after the closing PASS version is signed"), "6n must not flag the canonical rule"
+
 # ---- Rule 7: every §N(.N) cited in the portable package exists in the spec ----
 spec_lines = lines_of(ROOT / "requirment-v4.md")
 headings = set()
