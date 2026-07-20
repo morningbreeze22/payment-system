@@ -139,7 +139,7 @@ survives only as a §10.4 display label — no rule may key on it.
 |---|---|
 | `payment_obligation_id` | Owner. I6 (function-based unique index on `CASE WHEN outcome IS NULL THEN payment_obligation_id END`) enforces at most one active request per obligation AT THE DB. |
 | `amount` | IMMUTABLE after creation (§6.3). Amendments never mutate an in-flight request — they supersede or top-up via §6.8. |
-| `request_seq` | The IMMUTABLE per-request sequence (1d8a650 M1): the `next_request_seq` value this row consumed, persisted write-once in the creation transaction. Source of truth for the §5.1 identity-hash input (the hash is not invertible), the `request_seq` field on every §14 log line, the §12 keyset order, and the §5.2 DR heuristic. NULL on legacy/pre-F0 rows, never fabricated. NULL-ignoring unique over (obligation, seq). |
+| `request_seq` | The IMMUTABLE per-request sequence: the `next_request_seq` value this row consumed, persisted write-once in the creation transaction. Source of truth for the §5.1 identity-hash input (the hash is not invertible), the `request_seq` field on every §14 log line, the §12 keyset order, and the §5.2 DR heuristic. NULL on legacy/pre-F0 rows, never fabricated. NULL-ignoring unique over (obligation, seq). |
 | `blocked_reason` | Set iff `stage_state = BLOCKED` (L8 CHECK both ways). The §13 code vocabulary (RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH, ENGINE_INCONSISTENCY, AMENDMENT_PARKED, OPS_PARKED, ESCALATED — ESCALATED kept distinct so the §15 BLOCKED queue ranks the money-critical class first; CUTOFF_EXPIRED reserved, never produced). Display/queue-routing ONLY — §10.1: no rule may key on it. |
 | `idempotency_key` / `end_to_end_id` | The deterministic identity `hash(scope | seq)` (§5.1) — computed and persisted BEFORE any POST (write-ahead: K-02 at creation, re-verified at first claim K-04). UNIQUE. This is the duplicate-payment defense: the same logical attempt always presents the same key, even after crash or restore. |
 | `uetr` | SDK/engine-assigned (NEVER generated here — BA/§5); persisted ONLY from acceptance-class responses; UNIQUE, NULL until assigned (NULL-ignoring index). The key for platform status queries. Never a dedup key. |
@@ -184,7 +184,7 @@ survives only as a §10.4 display label — no rule may key on it.
 `UNIQUE(idempotency_key)`; NULL-ignoring `UNIQUE(uetr)`; the
 NULL-ignoring conditional unique over `(payment_obligation_id,
 request_seq)` (legacy NULL-seq rows exempt — behavior proven by the
-S-05 isolation tests, 2a19c20 M2); I6 (one active
+S-05 isolation tests); I6 (one active
 request per obligation); per-column enum CHECKs; the §10.3 legality
 matrix as CHECKs (L2–L8, L1 terminal shape — e.g. L4: EXECUTED ⇒
 SUBMITTED; L8: BLOCKED ⇔ blocked_reason); freeze + release-guard

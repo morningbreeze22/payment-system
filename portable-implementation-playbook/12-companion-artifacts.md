@@ -78,16 +78,16 @@ Purpose: the authoritative schema spec P3 implements.
 Required contents: all columns/types; scope-key UNIQUE (per B-01);
   UNIQUE(idempotency_key); NULL-ignoring UNIQUE(uetr); the
   NULL-ignoring function-based UNIQUE over
-  (payment_obligation_id, request_seq) (1d8a650 M1 — legacy rows
+  (payment_obligation_id, request_seq) (legacy rows
   carry NULL request_seq; the exact conditional expression is a
   CA-4 deliverable); the exact integer domain + overflow behavior
   for next_request_seq/request_seq (fail-closed STOP + alert at
-  the bound, never wraparound — 4dbdf2b M1); THE CANONICAL §12
+  the bound, never wraparound); THE CANONICAL §12
   KEYSET TUPLE repeated byte-for-byte: (obligation_identity,
   row_type, request_seq NULLS FIRST, created_at NULLS FIRST,
   source_id) — CA-4 maps obligation_identity to physical fields
-  but may NOT change the logical order (4dbdf2b M2); exact I6
-  expression; enum CHECKs (round 12: the ui_step_status CHECK
+  but may NOT change the logical order; exact I6
+  expression; enum CHECKs (the ui_step_status CHECK
   carries IN_PROGRESS/COMPLETED/CANCELLED — a two-value constraint
   is WRONG, §2.1/§4.1); L1-shape + L2–L8 CHECK expressions (with
   the dimension-ordering encoding); the required_total_at_creation
@@ -98,30 +98,30 @@ Required contents: all columns/types; scope-key UNIQUE (per B-01);
   (type/precision/scale/Java mapping, 0e09f09 L2);
   freeze + release-guard triggers +
   evidence-flag mechanics; normative active-row-bounded index list
-  (one per standing scan — EXPLICIT EXCEPTION, review b1d91dc M1:
+  (one per standing scan — EXPLICIT EXCEPTION,:
   the §6.6 accepted-window candidate diagnostic is OPTIONAL and
   ON-DEMAND, reads historical rows by design, and gets NO entry
   here — no index, no schedule, no plan contract) PLUS the §12
   ESTATE-QUERY RESOLUTION
   (added 2026-07-17; scoped as a BLOCKING resolution item for
-  §12 estate mode per review 4d5cb83 M4 — single-trade mode is NOT
+  §12 estate mode per — single-trade mode is NOT
   gated): the RESOLVED SQL with the authorization predicate/join
   spelled out; the TOTAL keyset order = THE CANONICAL TUPLE
   (obligation_identity, row_type, request_seq NULLS FIRST,
-  created_at NULLS FIRST, source_id) — frozen 4dbdf2b M2, the
+  created_at NULLS FIRST, source_id) —, the
   logical order is NOT resolvable away; the cursor field
   set encoding every term + its NULL semantics; the SUPPORTED FILTER-SHAPE MATRIX (which
   status/exception/date combinations are served); the exact
   index(es); and a plan/row-count acceptance table — until local
   discovery supplies these, estate mode is a design instruction,
-  not a contract; trade_snapshot_state DDL (§2.4, round 5 —
+  not a contract; trade_snapshot_state DDL (§2.4, —
   business_id PK, ordering, storage id, digest, updated_at);
   expand/contract sequencing.
 Validation: DBA review; S-05/S-06/S-07 violation + plan tests green
   on real Oracle; S-09 dual-run proof.
 Dependent tasks: S-01..S-10, OP-01 (flag mechanics), OB-01 (indexes).
 Go-live relevance: YES — the DB backstop for every DB-ENFORCEABLE
-  invariant (1d8a650 L2: the stamp's set-once and L9 use named
+  invariant (the stamp's set-once and L9 use named
   non-DB controls by decision).
 Failure if omitted: illegal states representable; fat-finger releases
   silent; scans degrade with terminal-row growth.
@@ -139,7 +139,7 @@ Required contents: input list (scope|seq — no discriminator; §1
   rule); algorithm; version; ≥12 vectors authored independently;
   the INITIAL sequence value + the counter-initialization policy
   for pre-existing/old-writer obligations (S-02/S-08 execute it —
-  4dbdf2b M1); the VERSIONED IDENTITY NAMESPACE with its
+   ); the VERSIONED IDENTITY NAMESPACE with its
   COLLISION ANALYSIS: proof that new-scheme keys cannot collide
   with any legacy-scheme key on the same table (historical
   per-request sequences are NEVER inferred).
@@ -161,7 +161,7 @@ Purpose: make hash comparisons across attempts and DR replays
   meaningful; the §7.2 branch discriminator's foundation.
 Required contents: hashed field set (business content only; envelope
   excluded); canonical order; canonicalization; algorithm; version;
-  the QUALIFIED persistence rule (review 928341a M1): canonical
+  the QUALIFIED persistence rule: canonical
   instruction content is never stored in payment tables, logs,
   traces, or any other local store — the ONLY permitted
   persistence is the switch-gated §14.1 journal under its security
@@ -185,7 +185,7 @@ Owner type: TEAM, named owner.
 Purpose: single owned index of every required test.
 Required contents: Section J's T-01..T-38 (T-38 carries gate
   JOURNAL_ENABLEMENT — record the gate, not a bare yes/no;
-  review 1d8a650 M2); the spec-named entries
+   ); the spec-named entries
   (downgrade re-POST answered DUPLICATE_REQUEST leaves prior uetr
   intact; §11 ambiguous claim-commit; §8 concurrent in-flight
   duplicates); per-entry §-traceability, owner type, implementing
@@ -224,15 +224,15 @@ Failure if omitted: 03:00 alerts without actions; operators improvise
 Section: §16.6 artifact 8; §9.3, §18-3, §20-8.
 Owner type: TEAM + DBA + OPS.
 Purpose: the implementable spec for OP-01 and the §18-3 drill.
-Required contents: execution signature = approval_id ONLY (round 4 —
+Required contents: execution signature = approval_id ONLY (
   identities derived from the approval record, never parameters);
   approval-record schema + PENDING→APPROVED→CONSUMED state machine
   (version/nonce uniqueness; binding fields incl. the reprocess
   content digest); consumption semantics PER OPERATION CLASS
-  (round 5): single-transition → CONSUMED CAS + payment transition
+   : single-transition → CONSUMED CAS + payment transition
   in ONE transaction; reprocess-snapshot → CONSUME-AT-START after
   the digest check, crash mid-fan-out remedied by a NEW approval
-  (§9.3 — never resurrect a consumed approval); round 6: completed_at
+  (§9.3 — never resurrect a consumed approval);: completed_at
   + per-block summary stamped on the approval record after the last
   block + the §15 consumed-without-completion alert + runbook
   (stale → annotate/close; else new approval); evidence-flag
@@ -269,7 +269,7 @@ Purpose: the implementable spec of §14.1 — the TYPED DDL TEMPLATE
   package, retention. AUD-01 deploys the resolved DDL; K-04,
   RC-02, and ST-10 carry the riders.
 Required contents:
-  - THE DDL TEMPLATE (review 4d5cb83 M1 — this is formally a
+  - THE DDL TEMPLATE (this is formally a
     TEMPLATE with typed <placeholders>; the RESOLVED migration is
     AUD-01's deliverable and must contain ZERO angle-bracket
     tokens, verified by preflight, with a substitution manifest
@@ -293,7 +293,7 @@ Required contents:
                        -- <request_id_type> is a MANDATORY discovery
                        -- fact (the EXACT DB type of payment_request's
                        -- id, from D-02/CA-4) — AUD-01 is not READY
-                       -- until it is recorded (review c8a92f1 H4)
+                       -- until it is recorded
       idempotency_key  VARCHAR2(64)  NOT NULL,
       post_attempt_seq NUMBER        NOT NULL,  -- §2.2, never attempt_count
       event_type       VARCHAR2(16)  NOT NULL,
@@ -307,7 +307,7 @@ Required contents:
         CONSTRAINT paj_outcome_ck CHECK (outcome IS NULL OR outcome IN
           (<the CA-1 category tokens VERBATIM>, 'LEASE_EXPIRED_MAYBE')),
         -- the list is GENERATED from CA-1's canonical categories at
-        -- CA-10 authoring time — never hand-typed (review c8a92f1 H4)
+        -- CA-10 authoring time — never hand-typed
       error_code       VARCHAR2(64),
       error_detail     VARCHAR2(4000),
       response_excerpt VARCHAR2(4000),
@@ -328,7 +328,7 @@ Required contents:
        (TIMESTAMP '2026-08-01 00:00:00 UTC'));
 
     -- CLOB row-shape — trigger, because a CHECK cannot reference a
-    -- LOB. BOTH directions enforced (review c8a92f1 H4): STARTED
+    -- LOB. BOTH directions enforced: STARTED
     -- requires non-empty content; RESOLVED must carry NONE (content
     -- is STARTED-only). NOTE the honest limit: the trigger proves
     -- PRESENCE (length > 0), not full-content fidelity — T-38 E
@@ -363,7 +363,7 @@ Required contents:
     -- No UPDATE/DELETE grants to application or reporting roles;
     -- owner/DBA access is change-controlled and audited.
 
-    -- Unified audit (review 4d5cb83 M2): scope = EVERY auditable
+    -- Unified audit: scope = EVERY auditable
     -- object action (covers ALTER-based partition retention too);
     -- name environment-qualified; and CREATE AUDIT POLICY requires
     -- AUDIT_ADMIN/AUDIT SYSTEM — an ordinary Flyway app principal
@@ -379,7 +379,7 @@ Required contents:
     RC-02's §7.2 classification or ST-10's lease-expiry recovery
     (LEASE_EXPIRED_MAYBE) — only on rowCount==1.
   - Coupling (§14.1 — the ONE canonical formulation, review
-    c8a92f1 H1): the journal is never a business or money-safety
+     ): the journal is never a business or money-safety
     gate. STATEMENT-LOCAL insert failures proven by T-38 are
     caught around the single JDBC statement, recorded in memory,
     and alerted only AFTER host commit; FATAL connection/session/

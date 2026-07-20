@@ -63,7 +63,7 @@ Edge cases:      CA-4/CA-5 freeze is NOT gated on §18-0 — no
                  trade's obligations. IN-02 residue: upstream ask 5
                  (written uniqueness — confirmed, paper pending),
                  §6.0 intake validation. (PO-9 ANSWERED: absence =
-                 zero; TL-16 answered round 5.)
+                 zero; TL-16.)
 Common mistakes: treating a written "yes" as closing TL-4/TL-6 (only
                  the §18-1 sandbox test closes them); letting artifact
                  authoring drift unowned; promoting PO-discussion
@@ -85,8 +85,8 @@ Goal:            Bring the four-table model to the §2/§10.3 target
                  L-shape CHECKs, UNIQUE keys, I6 function-based unique
                  index, L1-freeze + release-guard triggers,
                  active-row-bounded index set, inbox table + purge,
-                 trade_snapshot_state (S-10, §2.4 — round 5;
-                 greenfield, no bootstrap — round 10).
+                 trade_snapshot_state (S-10, §2.4 —;
+                 greenfield, no bootstrap).
 Why here:        D graph #2 — schema before state-machine persistence.
 Sections:        §2.1, §2.2, §2.3, §10.3, §16.5, §16.6-4, §3 (I6).
 Classification:  MVP normative.
@@ -394,7 +394,7 @@ Goal:            POST classifier per CA-1 (closed taxonomy, fail
                  handling on divergence_expected; repost_permitted
                  implemented once, checked at both ends; retry scanner
                  with per-class policy, exhaustion
-                 (bound = MAX ATTEMPTS, §7.4 round 10 — no cutoff, no
+                 (bound = MAX ATTEMPTS, §7.4 — no cutoff, no
                  wall-clock deadline; gated scanners make zero
                  attempts, so nothing needs suspending); resolver sweep
                  (submission-keyed scope, bounded prioritized batches,
@@ -452,7 +452,7 @@ Goal:            Implement CA-9's spec: the audited verified-outcome
                  application endpoint calling the shared transition
                  service (execution boundary decided 2026-07-11;
                  §10.3 triggers stay as the DB backstop); inputs =
-                 the §9.3 approval_id ONLY (round 4 — a prior
+                 the §9.3 approval_id ONLY (a prior
                  two-step approval bound the action; identities
                  derived from the record; APPROVED→CONSUMED CAS
                  atomic with the transition);
@@ -552,7 +552,7 @@ Tests required:  each alert fires on a seeded condition; rollup
                  groups under breaker-OPEN/freeze; config loader
                  REJECTS mis-ordered values (trust_age + cadence <
                  escalation < tier-2 — cutoff margin retired
-                 round 10); dead-gauge
+                  ); dead-gauge
                  alerting.
 Edge cases:      freeze is silent by design — the freeze-effective-
                  without-ticket page is the ONLY signal; duplicate-skip
@@ -592,11 +592,11 @@ Edge cases:      what cannot be rolled back once money-affecting
 Common mistakes: enabling the auto-downgrade before P8 PASS; VALIDATE
                  constraints before backfill; dropping legacy columns
                  while the old version can still run.
-Completion:      all five GO cards done in the round-19 order
+Completion: all five GO cards done in the order
                  (GO-01 → GO-02 → GO-05 → GO-04 → GO-03); Section Q
                  all PASS — waivers exist ONLY outside the two
                  non-waivable classes (§18 BLOCKING and
-                 MONEY_SAFETY_BLOCKING, rounds 16/20; Q5b's
+                 MONEY_SAFETY_BLOCKING, Q5b's
                  PENDING-CUTOVER converts to PASS inside GO-03's
                  F0 window, never stays open).
 Verify locally:  release process, environment promotion path.

@@ -9,7 +9,7 @@
 
 ## T.1 What you are starting from (the handover premise)
 
-This kit rests on TWO INDEPENDENT premises (round 17 — do not
+This kit rests on TWO INDEPENDENT premises (do not
 conflate them); discovery verifies both (F.3/F.4/F.24 for the
 first, the D-12 population proof for the second):
 
@@ -32,12 +32,12 @@ PREMISE P-B (population — the §2.4 greenfield fact; NOT implied by
   happy path" means existing CODE (and possibly OTHER/legacy
   populations covered by the S-08 status backfill); it NEVER means
   pre-existing trades in this flow's admission scope. The retired
-  bootstrap/pointer machinery (rounds 6–9; git 9a53c75) was removed
+  bootstrap/pointer machinery was removed
   BECAUSE of P-B — P-B failing silently would reopen the
   stale-snapshot money hole the machinery guarded.
 ```
 
-PROOF REQUIRED — RUN TWICE (rounds 17–18; a discovery snapshot is
+PROOF REQUIRED — RUN TWICE (18; a discovery snapshot is
 NOT a cutover invariant — populations change between D-12 and
 go-live):
 
@@ -52,7 +52,7 @@ RUN 2 (controlled cutover, go-live evidence): the SAME queries
   path, AFTER old in-scope writers are drained/fenced (or inside
   an equivalent change freeze) so no row can appear between the
   query and enablement. Converts Q5b from PENDING-CUTOVER to
-  PASS (round 20); filed as Q5b evidence.
+  PASS; filed as Q5b evidence.
 BINDING (both runs, in the evidence manifest): exact environment,
   the schema/service SCOPE PREDICATE used, query checksum,
   timestamp, RC/config version, owner, reviewer.
@@ -64,7 +64,7 @@ TEST DATA: a non-production fixture demonstrably OUTSIDE the
   production cutover scope does not fail P-B — but its exclusion
   predicate is REVIEWED and RECORDED in the register, never
   improvised by the executor.
-LIFECYCLE (round 19): the ZERO-population form applies to INITIAL
+LIFECYCLE: the ZERO-population form applies to INITIAL
   activation ONLY. Any post-activation re-enable (rollback
   recovery, incident restart) instead uses the ADMISSION-COVERAGE
   form: every in-scope trade/obligation is attributable to an
@@ -74,9 +74,9 @@ LIFECYCLE (round 19): the ZERO-population form applies to INITIAL
   rerun: STOP/disable F0, preserve evidence, classify affected
   rows, incident + architecture review before resumption
   (uncovered rows may require restoring the retired bootstrap
-  machinery — git 9a53c75). The EXECUTABLE procedure for the
+  machinery — git). The EXECUTABLE procedure for the
   admission-coverage form is runbook RB-F0 (file 14) — owner,
-  queries, zero-uncovered threshold, sign-offs, evidence (round 20).
+  queries, zero-uncovered threshold, sign-offs, evidence.
 ```
 
 If P-A fails (no happy path): STOP after D-12 — the human owner
@@ -119,7 +119,7 @@ DIV-2 TYPE/SHAPE     Same meaning, different representation. →
                      DDL; adapt the snippet per M0 (file 24); the
                      card's tests must still prove the spec
                      invariant against the REAL shape; the phase
-                     reviewer sees the entry. Round 17 — DIV-2
+                     reviewer sees the entry. — DIV-2
                      WITHOUT approval is allowed ONLY when the
                      executor proves ALL of: exact precision AND
                      rounding preserved; equivalent NULL
@@ -241,7 +241,7 @@ Then, concurrently:
 STREAM A  "Spine": P3 schema (S-01..S-10) → P4 identity (K) →
           P5 UETR (U). DBA involvement in P3. One owner per phase.
 STREAM B  "Provider proof": P8 contract tests. HUMAN+AGENT. TWO
-          SUB-STAGES (round 17): B-prep — sandbox access requests,
+          SUB-STAGES: B-prep — sandbox access requests,
           credentials, test-plan DRAFTING — may start right after
           D-12; B-execute — the CT-01 harness build and CT-02..07
           runs — WAITS for its card prerequisites on merged main
@@ -254,7 +254,7 @@ STREAM C  "Papers": P2 B-cards (external asks/filings) + CA
           immediately (B-01..B-03 "ask immediately" rows).
 
 After STREAM A's P3 merges to main, STREAM A continues P4 → P5.
-After P3 → P4 → P5 have ALL merged to main (round 17: P6 sits
+After P3 → P4 → P5 have ALL merged to main (P6 sits
 downstream of identity/persistence work in the authoritative
 order; no "safe early P6 subset" is enumerated, so none is
 offered — do not invent one):
@@ -287,12 +287,12 @@ every stream's phases are merged and reviewed.
 Binding constraints (rule 22 in file 16):
 
 ```text
-- AUTHORITY (round 17): card prerequisites + file 20's gates are
+- AUTHORITY: card prerequisites + file 20's gates are
   the ONLY scheduling authority. This stream map is an
   OPTIMIZATION HINT constrained by them — wherever this section
   and a card's prerequisites seem to disagree, the CARD wins and
   the stream waits. (A machine-readable dependency manifest was
-  considered and remains NOT adopted — round-9 decision:
+  considered and remains NOT adopted — decision:
   lint-enforced parity + file-20 authority instead; this
   AUTHORITY rule is the compensating control.)
 - One stream holds ONE ACTIVE phase integration branch at a time

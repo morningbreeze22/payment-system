@@ -95,7 +95,7 @@ Confirmed contract facts this design relies on:
   upstream ask 5. Both consequences are now ANSWERED: absence
   semantics (PO-9, 2026-07-11 — absence = amendment to zero, BA-2
   amended §1.1) and the snapshot ordering-watermark rule (TL-16,
-  round 5 — trade-level admission §6.1/§2.4).
+    — trade-level admission §6.1/§2.4).
 ```
 
 Assumed contract facts — the design ASSUMES these are true and
@@ -148,7 +148,7 @@ BA-2 (AMENDED 2026-07-11 by the PO's PO-9 answer) Upstream's ONE
      signal exists or is planned: intake keeps rejecting
      zero/absent BLOCK amounts (a zero can only be written by the
      absence path — §4.1). A cleanly unwound removed payment is
-     TERMINAL: the §4.1 CANCELLED branch (round 11), displayed
+     TERMINAL: the §4.1 CANCELLED branch, displayed
      CANCELLED. Removal of a trade's ONLY payment is representable:
      the derived payment set is 0..N (§1 role derivation — a valid
      snapshot can carry zero payments for us), so the cancelling
@@ -209,7 +209,7 @@ next_request_seq    — per-obligation counter, incremented under the
                       inserts a request; input to the deterministic
                       identity derivation (§5); deterministic across
                       a database restore by construction.
-                      INITIALIZATION (review 4dbdf2b M1): every
+                      INITIALIZATION: every
                       obligation row MUST carry a NON-NULL value —
                       in Oracle NULL + 1 IS NULL, so an
                       uninitialized counter makes request creation
@@ -292,11 +292,11 @@ Read-model fields (consumed by the card, derived only — §4, §12):
 ui_step_status                  — IN_PROGRESS / COMPLETED / CANCELLED
                                   as stored values (CANCELLED = the
                                   §4.1 zero-required terminal branch,
-                                  round 11; the Java enum, the DB
+                                   ; the Java enum, the DB
                                   CHECK, and the serialization/API
                                   contract ALL carry the three values
                                   — CA-4/S-02/S-05 (the CHECK
-                                  is S-05's — round 13), rollout-safe per
+                                  is S-05's), rollout-safe per
                                   §16.5); NOT_STARTED is virtual —
                                   represented by row absence (§12)
 active_exception_category
@@ -378,7 +378,7 @@ request_seq         — the IMMUTABLE per-request sequence: the value
                       plain composite UNIQUE would reject multiple
                       NULL-seq legacy rows on one obligation (the
                       same NULL-ignoring pattern as the uetr
-                      index). WRITE-ONCE CONTROL (4dbdf2b M1 —
+                      index). WRITE-ONCE CONTROL (
                       named, like the stamp's): a repository-wide
                       SQL-inventory assertion (the column appears
                       ONLY in the creation INSERT, in NO UPDATE
@@ -394,7 +394,7 @@ request_seq         — the IMMUTABLE per-request sequence: the value
                       regressions
 blocked_reason      — set iff stage_state = BLOCKED (§13 codes:
                       RETRY_EXHAUSTED, UNMAPPED_CODE, AMOUNT_MISMATCH,
-                      CUTOFF_EXPIRED (RESERVED round 10 — never
+                      CUTOFF_EXPIRED (RESERVED — never
                       produced; the engine owns the calendar, §7.4;
                       kept to avoid CHECK churn),
                       ENGINE_INCONSISTENCY,
@@ -444,7 +444,7 @@ required_total_at_creation — the obligation's required_amount as
                       read under the obligation lock inside the
                       §6.8 transaction that created this row
                       (added 2026-07-19 — UI amount-series
-                      requirement; GRANULARITY, review 0e09f09 M2:
+                      requirement; GRANULARITY,:
                       ONE stamp per payment_request row, NOT per
                       posting attempt — §9.2 re-POSTs and
                       post_attempt_seq episodes share the row's
@@ -479,7 +479,7 @@ required_total_at_creation — the obligation's required_amount as
                       evaluation against the current trade store,
                       which can differ from the lost original —
                       the same known fresh-assembly limitation,
-                      accepted. CAPTURE BOUNDARY (review 0e09f09
+                      accepted. CAPTURE BOUNDARY (
                       M1): only the NEW §6.8 writer stamps —
                       during the Section M dual-run, OLD writers
                       create rows with NULL stamps, so NULL means
@@ -495,10 +495,10 @@ required_total_at_creation — the obligation's required_amount as
                       SLA, append-only PASS on the first eligible
                       row — or FAILED_INCIDENT_OPEN when the
                       observed first row carries a NULL creation
-                      column, 289ef66 L1: a later good row never
+                      column,: a later good row never
                       cures it, requalification per the file-25
                       contract; the ONLY item that may remain
-                      open at GO-03 closure — 7cc9f49 L2,
+                      open at GO-03 closure —,
                       lifecycle in the file-25 evidence
                       contract) — and AFTER the
                       writer fence a NULL stamp on a newly
@@ -507,7 +507,7 @@ required_total_at_creation — the obligation's required_amount as
                       severity — a ticket, never a page, never a
                       money gate; keyed on created_at >= the F0
                       activation timestamp from the signed
-                      manifest — aa4399c L1).
+                      manifest).
 provider_reference  — engine-assigned reference, if any, persisted
                       from the POST response; secondary feed-matching
                       key (§8); a distinct field from the uetr,
@@ -623,7 +623,7 @@ release guard are trigger backstops — §10.3); and:
                                  NULLs in the index
 - UNIQUE (payment_obligation_id, request_seq) — NULL-IGNORING
   function-based form (rows with NULL request_seq are excluded;
-  legacy/pre-F0 rows carry NULL — 1d8a650 M1)
+  legacy/pre-F0 rows carry NULL)
 - I6: at most ONE ACTIVE request per obligation, enforced with a
   function-based unique index ON THIS TABLE
   (CASE WHEN outcome IS NULL THEN payment_obligation_id END)
@@ -675,7 +675,7 @@ last_payload_digest      — the canonical business-payload digest of
                            that snapshot (SAME algorithm as the §9.3
                            approval digest); what makes §6.0/§6.7 tie
                            equality — including the trade reference —
-                           EVALUABLE against applied state (round 5)
+                           EVALUABLE against applied state
 updated_at               — audit timestamp (DB time, §16.4)
 ```
 
@@ -706,7 +706,7 @@ to one this flow itself created. Consequences:
   created by its trade's FIRST ADMITTED message WITH storage id
   and digest populated. A NULL digest/pointer row CANNOT exist.
 - Considered and REMOVED (drivers gone with the greenfield
-  fact; retained in git history at commit 9a53c75 — restore
+  fact; retained in git history at commit — restore
   ONLY if a future deployment inherits pre-existing trades):
   the S-11 bootstrap job (retired) + digest-NULL semantics (retired),
   the transitional legacy-assembly flag (retired), the
@@ -841,7 +841,7 @@ step complete ⇔
          §2.1/§6.9 — a stored, ordering-gated marker, NOT the derived
          exception itself, to avoid circular derivation)
 
-step cancelled ⇔                      (round 11 — the zero-required
+step cancelled ⇔ (the zero-required
     required_amount = 0                terminal branch; PO-9 absence
     AND committed_amount = 0           = amendment to zero, §6.1)
     AND confirmed_amount = 0
@@ -860,7 +860,7 @@ returns the step to IN_PROGRESS. If money already moved
 (confirmed > 0), the zeroing write instead trips the §6.5/§13
 overpay latch — the OBLIGATION derives IN_PROGRESS with
 overpay_blocked = true and active exception OVERPAY_DETECTED,
-never CANCELLED. NO request-state mutation is implied (round 12):
+never CANCELLED. NO request-state mutation is implied:
 an executed request is terminal/frozen; BLOCKED is a
 payment_request stage_state, and no active request need exist on
 a zeroed scope. Ops disposition per §10/§13 governs (the PO's
@@ -873,7 +873,7 @@ a zeroed scope. Ops disposition per §10/§13 governs (the PO's
   data was rejected. A later valid message makes `validation_failed`
   not-live in the same transaction that applies it, so a recovered
   scope can complete.
-- `required_amount = 0` vs `NULL` is load-bearing (round 11): inbound
+- `required_amount = 0` vs `NULL` is load-bearing: inbound
   blocks are strictly POSITIVE (§6.0), so 0 can only be written by the
   §6.1 absence path — it is the removal tombstone, and it needs no new
   column or state. NULL remains "no valid data ever applied" (anchor);
@@ -881,13 +881,13 @@ a zeroed scope. Ops disposition per §10/§13 governs (the PO's
   ordering-aware anchor retirement (which zeroes it AND advances the
   watermark past the failure marker in one write).
 - `provider_rejected` is DELIBERATELY absent from the CANCELLED branch
-  (round 12): removal does not launder reject history, and reject
+   : removal does not launder reject history, and reject
   history does not resurrect a removed payment. At count 1 the zeroing
   write's watermark advance makes the marker not-live naturally; at
   count >= 2 the marker stays LIVE (§2.1 — ops-only clearing) yet the
   scope STILL derives CANCELLED — the payment no longer exists, so
   nothing is being refused. While required_amount = 0, §4.2 suppresses
-  ONLY the historical provider-reject exception (round 13 — markers
+  ONLY the historical provider-reject exception (markers
   stay STORED, never cleared by removal; a LIVE validation marker
   still surfaces: it is the malformed-reappearance signature). If the
   payment REAPPEARS (§6.5), required becomes positive,
@@ -919,7 +919,7 @@ particular, a corrected message clears a DATA_VALIDATION_FAILED
 exception by construction (it makes the validation_failed marker
 not-live), which also unblocks the §4.1 completion predicate.
 
-Zero-required suppression (round 12; NARROWED round 13 — the
+Zero-required suppression (NARROWED — the
 broad "skip all marker ranks" rule silently hid a malformed
 reappearance): a scope with required_amount = 0 (removed by
 upstream truth, §6.1) suppresses EXACTLY ONE condition:
@@ -1097,7 +1097,7 @@ request_seq     = payment_obligation.next_request_seq (§2.1),
                   PERSISTED on the row as payment_request.request_seq
                   (§2.2, write-once — the hash is not invertible,
                   so the clear-text sequence must be stored;
-                  1d8a650 M1)
+                   )
 ```
 
 The UETR is deliberately NOT part of this derivation: UETR
@@ -1185,8 +1185,8 @@ manual engine-side reconciliation.
    the replay window, ENUMERATE the deterministic key space
    hash(scope | seq) and status-query each key. Enumeration
    limit — A HEURISTIC NARROWING AID, NOT A PROVEN BOUND
-   (corrected review 0e09f09 H1; the earlier "PROVEN upper
-   bound" and the 4098532 "+K absorbs it" claims were both
+   (the earlier "PROVEN upper
+   bound" and the "+K absorbs it" claims were both
    FALSE): compute MAX(maximum request_seq observed in the §14
    logs for that obligation across the replay window,
    next_request_seq on the restored row) PLUS K further
@@ -1237,7 +1237,7 @@ manual engine-side reconciliation.
 7. Unfreeze — ONLY after step 5b's provider-listing or
    manual-reconciliation gate (Q-22) is signed PASS and every
    unmatched/pending item is resolved. The step-5b heuristic
-   limit alone NEVER authorizes this step (aa4399c M2 — the
+   limit alone NEVER authorizes this step (the
    precondition is restated here, at the irreversible action,
    so a procedure-follower cannot miss it).
 ```
@@ -1297,7 +1297,7 @@ it → amendment to zero (§6.1). It creates no obligations — but it
 DOES create/advance the §2.4 trade admission row like any admitted
 snapshot (otherwise a DELAYED OLDER snapshot carrying a payment
 this newer truth removed would find no watermark and pay it — the
-round-5 hole). Display: a trade with only zeroed/no obligations
+  hole). Display: a trade with only zeroed/no obligations
 renders per §12; it is never an error.
 ```
 
@@ -1350,7 +1350,7 @@ This schema is one of the three build-time-enforced contracts
 
 ### 6.1 Normal processing
 
-ADMISSION (trade-level, normative — added 2026-07-11 round 5; runs
+ADMISSION (trade-level, normative — added 2026-07-11; runs
 BEFORE any per-block work, in its own transaction):
 
 ```text
@@ -1373,12 +1373,12 @@ BEFORE any per-block work, in its own transaction):
        digest.
    doc.ordering <  last_accepted_ordering
      → REFUSE the whole document as stale: counted (stale metric),
-       no block applied, and — the round-5 rule — NO NEW SCOPE IS
+       no block applied, and — the rule — NO NEW SCOPE IS
        EVER CREATED from a refused document.
 3. Only an ADMITTED document may create or mutate obligations —
-   and admission is a POINT-IN-TIME fact (round 6), so every
+   and admission is a POINT-IN-TIME fact, so every
    BLOCK transaction passes the TRADE-SNAPSHOT FENCE (renamed
-   round 7 — never "currency check": currency is a scope-key
+     — never "currency check": currency is a scope-key
    field in this system): it locks the trade row FIRST
    (SELECT ... FOR UPDATE — the global lock order is trade row →
    obligation → request), confirms that (last_accepted_ordering,
@@ -1387,7 +1387,7 @@ BEFORE any per-block work, in its own transaction):
    fan-out STOPS: a newer snapshot owns the trade and the
    remaining blocks are ABANDONED — each abandoned block is
    LOGGED with its scope identifiers and counted (metric,
-   round 7). Consequences: block transactions for one trade
+    ). Consequences: block transactions for one trade
    SERIALIZE on the trade row (this is what makes "no
    interleaved block application" literally true), and a stale
    worker can never create a scope — creation commits in the
@@ -1403,7 +1403,7 @@ BEFORE any per-block work, in its own transaction):
    exists for the paths that ARE concurrent (§20-10 reprocess vs
    live intake; rebalance-zombie consumers).
 5. BLOCK-LEVEL SUPERSESSION — the explicit business rule
-   (round 7, replacing an INCORRECT round-6 sequential-
+   (replacing an INCORRECT sequential-
    equivalence claim; ratified by the design owner 2026-07-11;
    PO RATIFIED with the PO-9 answer, same day): a strictly newer ADMITTED
    snapshot supersedes the UNAPPLIED remainder of an older
@@ -1419,8 +1419,8 @@ BEFORE any per-block work, in its own transaction):
    older adjudication is the intended answer — the same
    newest-wins stance as refusing to re-approve a stale
    document. Reprocess approvers are TOLD this at approval time
-   (§9.3 display). Considered and REJECTED (round 6, upheld
-   round 7): (a) an APPLYING → COMPLETE application state
+   (§9.3 display). Considered and REJECTED (upheld
+    ): (a) an APPLYING → COMPLETE application state
    machine on the trade row (generation, owner, lease, fencing);
    (b) one atomic whole-snapshot transaction — both purchase
    full-snapshot completion for a path where supersession is the
@@ -1452,14 +1452,14 @@ apply normally. No cross-obligation transaction is required.
 
 A payment block whose scope tuple has no existing obligation creates
 one (the normal first-message path) — safe ONLY because the document
-passed admission: a stale document never reaches this path (round-5
+passed admission: a stale document never reaches this path (
 H-1; a new scope has no per-obligation watermark of its own). Two
 concurrent first messages can race the obligation insert; the
 scope-key unique constraint is the backstop — on `ORA-00001`, retry
 the transaction and re-read.
 
 RESOLVED — absence semantics (PO-9, ANSWERED by the PO 2026-07-11;
-BA-2 amended accordingly, §1.1; lifecycle completed round 11): a
+BA-2 amended accordingly, §1.1; lifecycle completed): a
 payment that exists as an obligation but is ABSENT from a newer
 ADMITTED snapshot no longer exists — ABSENCE = AMENDMENT TO ZERO.
 After the per-block fan-out, the same worker enumerates the trade's
@@ -1468,8 +1468,8 @@ transaction, trade-snapshot fence + obligation lock, ordinary
 strictly-newer guard against doc.ordering), sets
 required_amount := 0 AND advances upstream_ordering := doc.ordering
 — the zeroing IS an application of the document to that obligation,
-so it advances the watermark like any applied block (round 11: this
-supersedes the older round-5 "no write for absent obligations"
+so it advances the watermark like any applied block (this
+supersedes the older "no write for absent obligations"
 wording — absence was a no-op then; it is a WRITE now).
 Everything downstream is EXISTING machinery: unsent active request
 → §6.4 auto-cancel + release; in-flight → wait-then-decide (§6.4);
@@ -1478,10 +1478,10 @@ as overpay"). A cleanly unwound row (0/0/0, no active request)
 derives the §4.1 CANCELLED terminal branch — displayed CANCELLED,
 never COMPLETED (§12).
 
-Reappearance (round 11): removal is not a tombstone forever — a
+Reappearance: removal is not a tombstone forever — a
 STRICTLY NEWER snapshot carrying the block again applies normally
 (required_amount := the new positive value; the §6.8 trigger
-inventory fires) and the step returns to IN_PROGRESS. Round 12:
+inventory fires) and the step returns to IN_PROGRESS.:
 request creation on a reappeared scope remains subject to ALL
 §6.8 gates — a live provider_rejected marker (count >= 2 =
 ops-only clear, §2.1) still blocks the automatic successor;
@@ -1498,7 +1498,7 @@ no longer exists; the same zeroing write applies (required := 0,
 upstream_ordering := doc.ordering), which makes the marker not-LIVE
 and the row derives CANCELLED. A document whose ordering is NOT
 strictly newer than the failure marker still cannot touch the
-anchor (the round-10 protection this rule keeps: a failed snapshot
+anchor (the protection this rule keeps: a failed snapshot
 never advanced the trade watermark, so a later-ADMITTED document
 can still be older than the failure — a malformed trade's scopes
 must not be cancelled by a valid snapshot that predates their fix).
@@ -1513,8 +1513,8 @@ removal of the trade's ONLY payment — is represented.
 
 RESOLVED — snapshot ordering-watermark rule (TL-16, §18; ANSWERED
 2026-07-11 round 5; superseded detail round 11): the trade-level
-ADMISSION gate above is the answer. Round-11 correction: the
-round-5 clause "per-obligation watermarks are not advanced for
+ADMISSION gate above is the answer. correction: the
+  clause "per-obligation watermarks are not advanced for
 absent obligations" described the PRE-PO-9 no-op world and is
 RETIRED — under absence = amendment to zero, the zeroing write
 advances the per-obligation watermark (see the RESOLVED block
@@ -1522,7 +1522,7 @@ above); per-block watermarks otherwise remain the per-block
 convergence/re-run guard. Both TL-16 failure traces still close at
 admission: a delayed older snapshot is refused WHOLE, so it can
 neither apply stale amounts to an existing absent-from-newer
-obligation NOR create a never-seen scope (the sharper round-5
+obligation NOR create a never-seen scope (the sharper
 trace). The absence answer terminalizes absent obligations via the
 §4.1 CANCELLED branch.
 
@@ -1545,7 +1545,7 @@ required_amount increases → shortfall re-evaluated (§6.8) → new
   request immediately if no request is active; otherwise DEFERRED —
   created by §6.8 when the in-flight request resolves. Never lost.
   (Step reopening per §6.5 if already COMPLETED or CANCELLED
-   (round 12); never if overpay-latched — §6.5 latch guard.)
+    ; never if overpay-latched — §6.5 latch guard.)
 required_amount decreases → attempt auto-cancel of un-posted requests
   (§6.4); posted/in-flight requests are never auto-amended
 ```
@@ -1631,13 +1631,13 @@ This prevents re-posting a stale amount after an amendment.
 
 If `required_amount` increases via a newer upstream message after the
 step reached `COMPLETED` — or becomes positive again after the step
-reached `CANCELLED` (round 12: a reappeared removed payment reopens
+reached `CANCELLED` (a reappeared removed payment reopens
 IDENTICALLY; §4.1's two terminal branches share one reopening rule):
 
 ```text
 1. The obligation re-activates: shortfall recalculated under the
    obligation lock; §6.8 may create new requests — MAY: every §6.8
-   gate applies, incl. live markers (round 12: a reappeared
+   gate applies, incl. live markers (a reappeared
    payment with provider_reject_count >= 2 gets NO automatic
    successor until the ops-only clear; removal never laundered
    the reject history).
@@ -1758,8 +1758,8 @@ ratified as the DEFINED behavior, not a gap):
     fields carry no source discriminator (whole-snapshot vs
     enrichment vs engine invalid-data share them) — none is
     added, BY DECISION (schema churn for an observability aid).
-    Delivery semantics (review b760786 M1; corrected review
-    4098532 M1 — the earlier "blocks OB-01 completion" made
+    Delivery semantics (corrected review
+      — the earlier "blocks OB-01 completion" made
     "never gates go-live" FALSE under the dependency graph, since
     OB-01 blocks P12 and P12/Q19 gate go-live): SHIPPING the
     query + its correctness test is a REQUIRED deliverable within
@@ -1850,7 +1850,7 @@ Guard:
 - The obligation persists the last-applied ordering value
   (upstream_ordering); the TRADE persists the last-ADMITTED ordering,
   storage id, and canonical digest (trade_snapshot_state, §2.4 —
-  round 5). The §6.1 admission gate consults the trade watermark
+   ). The §6.1 admission gate consults the trade watermark
   FIRST; per-obligation watermarks remain the per-block
   convergence/re-run guard.
 - A message mutates required_amount only if its ordering value is
@@ -1870,7 +1870,7 @@ Guard:
     Snapshot note: equality is evaluated over the WHOLE snapshot
     (§6.0), concretely as digest-vs-stored-digest at the §6.1
     admission gate (trade_snapshot_state.last_payload_digest, §2.4
-    — round 5: this is what makes equality INCLUDING the trade
+    —: this is what makes equality INCLUDING the trade
     reference evaluable against applied state). Two tying snapshots
     differing in only one payment block therefore raise the
     tie-conflict for the snapshot as a whole — deliberately
@@ -1887,7 +1887,7 @@ Guard:
     SERVER-VERIFIED, not attested: the operation takes the XML
     STORAGE ID ALONE (no caller-supplied ordering), fetches the
     document, and RECOMPUTES the tie condition itself at execution
-    time — at the §6.1 ADMISSION gate (round 5): the ≥ relaxation
+    time — at the §6.1 ADMISSION gate: the ≥ relaxation
     applies iff the FETCHED document's own ordering value equals
     trade_snapshot_state.last_accepted_ordering AND its canonical
     digest differs from the stored one (which IS the definition of
@@ -2050,7 +2050,7 @@ unspecified):
   upstream data is ALWAYS the ground truth: a party-information
   update between attempts is picked up automatically. There is no
   payload freeze. SOURCE of the trade reference (made normative
-  2026-07-11 round 5, PO-confirmed): every attempt re-reads the
+  2026-07-11, PO-confirmed): every attempt re-reads the
   trade's MOST RECENT admitted snapshot — fetched by
   trade_snapshot_state.last_xml_storage_id (§2.4) — and re-does ALL
   enrichment steps against it (account mappings and party addresses
@@ -2281,7 +2281,7 @@ episode under a new error class, the old counter belonged to the
 original failure class (`post_attempt_seq` is NOT reset — it is
 monotonic journal identity, §2.2/§14.1, never a retry budget);
 small max attempts (suggest 2–3, config
-§16.6) — MAX ATTEMPTS is the ONLY bound (round 10: no cutoff
+§16.6) — MAX ATTEMPTS is the ONLY bound (no cutoff
 pre-check exists, the engine owns its calendar; no wall-clock
 deadline exists). Exhaustion
 → BLOCKED (RETRY_EXHAUSTED) with submission_state still
@@ -2585,7 +2585,7 @@ AFTER the money.
   with: request_id, the verified outcome (EXECUTED or REJECTED), a
   mandatory ticket/evidence reference (§20-8), and dual control
   enforced by the operation itself, not by convention. PROTOCOL
-  (decided 2026-07-11 round 3; CANONICALIZED round 4 — an
+  (decided 2026-07-11; CANONICALIZED — an
   authenticated caller plus a second identity FIELD is not dual
   control, and execution inputs shall NEVER carry approver
   identities): THE MVP mechanism is the TWO-STEP APPROVAL WORKFLOW.
@@ -2596,7 +2596,7 @@ AFTER the money.
   nonce UNIQUE); for reprocess-snapshot the binding additionally
   carries (business_id, xml_storage_id/version, and the CANONICAL
   BUSINESS-PAYLOAD DIGEST of the snapshot fetched and validated AT
-  APPROVAL TIME — round 4: approval authorizes CONTENT, not an
+  APPROVAL TIME —: approval authorizes CONTENT, not an
   opaque id). (2) The second approver, in their OWN authenticated
   session, is shown the binding — including the digest and the
   masked diff, and (reprocess-snapshot, round 7) the notice that a
@@ -2608,7 +2608,7 @@ AFTER the money.
   DERIVED from the trusted record, never from parameters. The
   approval-state machine is PENDING → APPROVED → CONSUMED (plus
   REJECTED / EXPIRED), each move a row-count-checked CAS on a
-  version column. ATOMICITY (round 4; SCOPED round 5 — the round-4
+  version column. ATOMICITY (SCOPED — the
   rule as written could not cover a multi-transaction operation):
   for SINGLE-TRANSITION operations (verified-outcome, retry/reject,
   supersede/close), the APPROVED → CONSUMED CAS and the privileged
@@ -2624,7 +2624,7 @@ AFTER the money.
   changed behind an id is a HARD refusal + alert, never applied —
   and a refusal burns nothing); then the CONSUMED CAS commits ALONE,
   BEFORE the §6.1 admission/fan-out. Consequences (accepted,
-  round 5): consumption precedes any money movement, so NO replay
+   ): consumption precedes any money movement, so NO replay
   window exists and concurrent executors still race exactly one
   CAS; a crash mid-fan-out leaves the approval CONSUMED and the
   trade partially applied — the remedy is a NEW approval of the
@@ -2749,7 +2749,7 @@ stage_state, or how a row got where it is:
 ```
 
 Sweep load shaping (normative): the sweep queries in BOUNDED,
-prioritized batches — oldest first (round 10: no local cutoff
+prioritized batches — oldest first (no local cutoff
 knowledge exists; the engine owns the calendar)
 maybe_since — under a per-sweep query budget derived from the
 engine's stated query-API rate limit (§18 tech-lead ask; that number
@@ -2958,7 +2958,7 @@ stage_state  READY → CLAIMED    worker claim (lease, §11)
                                 (write-ahead: a dead worker cannot
                                 testify; NO direct posting
                                 re-claim exists — §11; corrected
-                                2a19c20 M1, where the earlier
+                                 , where the earlier
                                 "POST-pre-call → re-claimable"
                                 wording was the forbidden
                                 carve-out; caught by the new lint
@@ -3223,7 +3223,7 @@ ui_step_status:      NOT_STARTED → IN_PROGRESS → COMPLETED
                      (IN_PROGRESS again after reopening, §6.5 —
                       from COMPLETED or CANCELLED alike; CANCELLED
                       = the §4.1 zero-required terminal branch,
-                      round 11: the payment was removed by newer
+                       : the payment was removed by newer
                       upstream truth and fully unwound. NEVER
                       displayed as COMPLETED.)
 
@@ -3244,14 +3244,14 @@ backs the lookup. `ui_process_instance_id` / `ui_step_instance_id`
 remain stored as display/reference fields.
 
 ALL-PAYMENTS TABLE projection (added 2026-07-17 — the second
-defined read surface; review 7ab31e5 M4 closed the granularity
+defined read surface; closed the granularity
 gap). The step CARD above stays obligation-granular; the
 all-payments TABLE is REQUEST-granular, informational only (no
 create/modify/retry/cancel actions). The projection itself
 remains READ-ONLY and owns no state of its own; the amount-series
 stamp it displays is STORED on payment_request (§2.2 — the one
 schema addition this feature made, 2026-07-19; wording corrected
-review 0e09f09 M2 — the earlier "no schema change, no new state"
+  — the earlier "no schema change, no new state"
 became false when the stamp landed):
 
 ```text
@@ -3279,7 +3279,7 @@ Field separation (amounts can never be conflated):
   the stamps carry the REQUEST-CREATION history: the 100-row
   shows required_total_at_creation 100, the 20-row shows 120 —
   the UI amount series (2026-07-19; terminology per review
-  0e09f09 M2: one stamp per payment_request row, NOT per provider
+   : one stamp per payment_request row, NOT per provider
   POST attempt — "posting attempt" is reserved for
   post_attempt_seq episodes, which share the row's single stamp;
   "total" is obligation-scope, never trade-wide). SCOPE, stated
@@ -3292,7 +3292,7 @@ Field separation (amounts can never be conflated):
   to be.
 Pre-request visibility: the OBLIGATION_ONLY row shows the scope
   tuple, the required amount (blank for a §6.6 anchor), "no
-  request created", and a NULLABLE reason (review d00ef6a M2):
+  request created", and a NULLABLE reason:
   the derived active exception (§4.2) when one is LIVE; otherwise
   NULL, with the status itself carrying the story — a §6.2
   covered-on-arrival scope shows COMPLETED with no exception; an
@@ -3330,7 +3330,7 @@ is an API, not just a row shape):
     by request id, OBLIGATION_ONLY rows by obligation id; stable
     across refreshes and pages;
   - ORDERING/PAGINATION — THE CANONICAL KEYSET TUPLE (frozen
-    review 4dbdf2b M2; repeated BYTE-FOR-BYTE in CA-4/ST-04/T-31,
+     ; repeated BYTE-FOR-BYTE in CA-4/ST-04/T-31,
     never restated differently):
       (obligation_identity, row_type, request_seq NULLS FIRST,
        created_at NULLS FIRST, source_id)
@@ -3344,7 +3344,7 @@ is an API, not just a row shape):
     change the logical order. Keyset cursor on that order (never
     OFFSET); fixed page cap (config §16.6);
   - PAGINATION SEMANTICS = LIVE BROWSE (decided 2026-07-17, review
-    c8a92f1 M2): each page is truthful at its read instant (the
+     ): each page is truthful at its read instant (the
     freshness indicator applies per response); no row appears
     twice within one traversal, but CROSS-PAGE COMPLETENESS under
     concurrent writes is NOT guaranteed — rows inserted or
@@ -3356,11 +3356,11 @@ is an API, not just a row shape):
   - FILTERS: server-side in estate mode at production history
     volumes (status/exception/date); client-side filtering is a
     single-trade convenience only;
-  - ESTATE QUERY CONTRACT (review c8a92f1 M2; scoped per review
-    4d5cb83 M4): the CONCEPT is authorization scope first, then
+  - ESTATE QUERY CONTRACT (scoped per review
+     ): the CONCEPT is authorization scope first, then
     server-side filters, ordered by THE CANONICAL KEYSET TUPLE
     above — (obligation_identity, row_type, request_seq NULLS
-    FIRST, created_at NULLS FIRST, source_id), 4dbdf2b M2, one
+    FIRST, created_at NULLS FIRST, source_id), one
     tuple everywhere; the EXECUTABLE contract — resolved
     SQL, authorization predicate/join, total order incl.
     tie-breaker + NULL encoding for OBLIGATION_ONLY rows, cursor
@@ -3374,7 +3374,7 @@ Step granularity (open, folded into the TL-2 read contract, §18):
 does the UI render one step per PAYMENT, or one rolled-up step per
 TRADE? The §4 derivations are per obligation; a per-trade rollup
 is a display aggregation the read contract must define — and the
-answer must cover the FULL state algebra (round 12), not the old
+answer must cover the FULL state algebra, not the old
 completed/not-completed binary: {NOT_STARTED, IN_PROGRESS,
 COMPLETED, CANCELLED} × active exceptions, including MIXED
 COMPLETED/CANCELLED (suggested: rolled-up COMPLETED when every
@@ -3429,7 +3429,7 @@ BLOCKED (derived)             retryable = false,
                               codes = blocked_reason (§2.2):
                               RETRY_EXHAUSTED, UNMAPPED_CODE,
                               AMOUNT_MISMATCH (CRITICAL, §8),
-                              CUTOFF_EXPIRED (RESERVED round 10 —
+                              CUTOFF_EXPIRED (RESERVED —
                               never produced; §2.2),
                               ENGINE_INCONSISTENCY (§9.2, §7.2),
                               AMENDMENT_PARKED (§6.4),
@@ -3486,7 +3486,7 @@ processing:
   audit trail is the §14 log line plus the payment platform —
   "authoritative" means the DESIGNATED record, not a gapless one:
   completeness is BEST-EFFORT per the delivery contract below
-  (review 4098532 H1). (The
+   . (The
   §14.1 attempt journal, added 2026-07-16, is a CONTENT record, not
   transition history — it does not change this rule.)
 - Posting-claim log lines additionally carry the sent instruction
@@ -3536,8 +3536,8 @@ processing:
   ATTEMPT-class lines (posting claim,
   outcome recording, lease-expiry recovery) ALSO carry
   `post_attempt_seq` and `attempt_event_type` (2026-07-17 —
-  review 7ab31e5 M5; field name + token vocabulary FROZEN per
-  review b760786 M2): `attempt_event_type` is the EXACT
+   ; field name + token vocabulary FROZEN per
+   ): `attempt_event_type` is the EXACT
   structured-field name, and its values are BYTE-EQUAL to the
   §14.1 journal's event_type tokens — the posting-claim line
   carries exactly 'ATTEMPT_STARTED'; the outcome-recording and
@@ -3568,7 +3568,7 @@ its content is not. The team therefore keeps a local record of the
 CANONICAL INSTRUCTION each posting attempt submitted to the SDK.
 
 GOVERNING STANCE (PO 2026-07-17, review 7ab31e5; wording unified
-per review c8a92f1 H1 — ONE formulation, used verbatim everywhere):
+per — ONE formulation, used verbatim everywhere):
 this journal is PURELY team-internal tracking and audit. THE
 JOURNAL IS NEVER A BUSINESS OR MONEY-SAFETY GATE: statement-local
 insert failures proven by T-38 are caught around the single JDBC
@@ -3591,7 +3591,7 @@ Position in the model: the §14 log line remains the transition
 record; this journal is the CONTENT record — two sinks of one
 attempt, joined by (request_id, post_attempt_seq,
 attempt_event_type), the log value byte-equal to the journal's
-event_type token (§14 / review b760786 M2). It
+event_type token. It
 REPLACES NOTHING: divergence_expected, last_sent_hash, and the log
 line all stay (the §2.2 rejection of replacing those columns
 stands unchanged), and NO runtime rule, scanner, gate, resolver,
@@ -3632,7 +3632,7 @@ payment_attempt_journal
 ```
 
 SIMPLICITY RULE (2026-07-17 — the dedup-by-hash design was REJECTED
-as unimplementable under the no-read invariant, review 7ab31e5 H1;
+as unimplementable under the no-read invariant,
 this rule replaces it): payload_content is stored IN FULL on EVERY
 ATTEMPT_STARTED row. Retries usually repeat identical bytes; that
 redundancy is ACCEPTED — storage is bounded by partitions and is
@@ -3671,7 +3671,7 @@ as was the over-broad "any error is harmless" claim):
   ORA-00001, ORA-02290, the two journal-trigger codes, the
   evidenced space-error family; TIMEOUTS AND EVERY UNKNOWN OR
   AMBIGUOUS TRANSLATION ARE FATAL BY DEFAULT (2026-07-17, review
-  928341a H2 — a timeout does not prove the session is usable).
+    — a timeout does not prove the session is usable).
   Allowed failures are swallowed: the gap is recorded in
   memory/metrics
   and the host transaction proceeds; the AUDIT-GAP alert is
@@ -3703,8 +3703,8 @@ explicitly approved, expiry-dated compensating-control exception)
 AND the compliance-approved retention schedule. Payments go-live
 does NOT wait for journal enablement — an OFF journal is simply the
 pre-2026-07-16 designed state (log-only forensics).
-SWITCH-TRANSITION RULE (review d00ef6a M3; drain defined per
-review c8a92f1 M1): the switch may change state ONLY under posting
+SWITCH-TRANSITION RULE (drain defined per
+ ): the switch may change state ONLY under posting
 freeze + drain (§16.1) — flipping mid-traffic manufactures
 half-pairs (a RESOLVED without its STARTED, or vice versa) that
 would false-alarm the unmatched-pair alert. DRAIN COMPLETION means
@@ -3727,11 +3727,11 @@ rule:
   replaces it; the card, logs, and traces remain masked exactly as
   before.
 
-Honesty note — what this journal proves (review 7ab31e5 M2): the
+Honesty note — what this journal proves: the
 CANONICAL INSTRUCTION COMMITTED BEFORE ATTEMPTED TRANSMISSION —
 application intent. It is NOT proof of the post-SDK wire bytes
 (the SDK may transform the message); the wire-capture ask below
-governs that gap. Restore posture (review 7ab31e5 M1): the journal
+governs that gap. Restore posture: the journal
 lives in the SAME database as the payment tables, so a
 full-database point-in-time restore rewinds it with everything
 else; it survives logical/schema-level restores of the payment
@@ -3805,13 +3805,13 @@ never on blocked_reason as a rule input (§10.1).
 - AMENDMENT_TIE_CONFLICT (§6.7)                → alert (manual
                                                  application needed)
 - Reprocess approval CONSUMED, no completion
-  evidence past SLA (§9.3 round 6)             → alert (crash or
+  evidence past SLA → alert (crash or
                                                  newest-wins
                                                  abandonment —
                                                  runbook decides)
 - AMENDMENT_ON_LATCHED_SCOPE (§6.5)            → alert (manual
                                                  handling)
-- Payment DISAPPEARANCE (round 11 — the §6.1
+- Payment DISAPPEARANCE (the §6.1
   absence fan-out zeroed ≥ 1 obligation)       → metric + mandatory
   log line (business_id, zeroed scope tuples
   MASKED per §16.3 — never a raw debit_account;
@@ -3826,7 +3826,7 @@ never on blocked_reason as a rule input (§10.1).
 - Live marker (validation_failed or
   provider_rejected) with NO active request,
   older than max age                           → alert
-  (round 13: on required_amount = 0 scopes, ONLY the historical
+  (on required_amount = 0 scopes, ONLY the historical
    provider_rejected marker is excluded — ordering <
    upstream_ordering, live solely via count >= 2; nothing is being
    refused. A LIVE validation_failed marker on a zeroed scope STAYS
@@ -3853,7 +3853,7 @@ never on blocked_reason as a rule input (§10.1).
 - Generic stuck-state age (any active request
   older than its per-(stage,stage_state) max)  → ticket
 - Post-F0 NULL request_seq (IDENTITY CONTRACT,
-  4dbdf2b M1): payment_request with created_at
+   ): payment_request with created_at
   >= the F0 activation timestamp AND
   request_seq IS NULL                          → ALERT + ticket
                                                  (a rogue or
@@ -3868,7 +3868,7 @@ never on blocked_reason as a rule input (§10.1).
                                                  never a gate on
                                                  other rows)
 - Post-F0 NULL amount-series stamp (data
-  quality, aa4399c L1): payment_request with
+  quality): payment_request with
   created_at >= the F0 activation timestamp
   (from the signed activation manifest) AND
   required_total_at_creation IS NULL           → LOW-severity
@@ -3992,7 +3992,7 @@ so one id greps the whole story.
   while posting is frozen, and consumption must never be stopped.
 - Freeze/outage clock semantics (simplified by the 2026-07-11 retry
   bounds decision, §7.4): retry limits are max attempts + the
-  attempt budget (round 10: max attempts only — the engine
+  attempt budget (max attempts only — the engine
   owns the cutoff calendar) — there is NO wall-clock retry deadline, so there
   is nothing to "suspend" and no outage bookkeeping to persist.
   While posting is frozen or a breaker is OPEN, gated scanners make
@@ -4149,7 +4149,7 @@ MAYBE escalation max age       §9.3   suggested 30m (§18 PO-3);
 MAYBE tier-2 escalation age    §9.3   re-page/incident threshold
 downgrade retry class          §7.4   next_retry_at = now, max
                                       attempts 2–3 (no deadline —
-                                      attempts only, round 10)
+                                      attempts only)
 validation reject alert count  §2.1   suggest 3 (alert only,
                                       no gate)
 status-query cadence           §9     suggested 2m (§18 PO-2)
@@ -4176,7 +4176,7 @@ provider_reference match
   recency window               §8     fail-closed fallback
 freeze propagation bound       §16.1  cluster-wide flip latency
 DR key-enumeration stop count  §5.2   K serves TWO roles (aligned
-                                      0e09f09 H1): (a) the ALWAYS-
+                                       ): (a) the ALWAYS-
                                       applied overshoot margin on
                                       step 5b's heuristic limit —
                                       which is a narrowing aid,
@@ -4253,7 +4253,7 @@ tests point at them):
    (c) the §11 claim-protocol concurrency/deadlock test on real
    Oracle (scanner vs feed vs auto-cancel interleavings — no
    lock-order inversion, no ORA-00060); (d) reprocess-snapshot
-   adversarial set (§20-10 rounds 3–4): non-tying document → no
+   adversarial set: non-tying document → no
    relaxation (ordinary guard only); document business_id ≠
    addressed trade → refused; re-run after apply → no-op (single
    use); purged/missing id → clean refusal, no partial apply;
@@ -4262,12 +4262,12 @@ tests point at them):
    lock (round 4 — never merely "inside the ordering guard");
    plus the §20-10 mixed-snapshot per-block set: one changed tied
    block + one identical tied block + one new block + one
-   already-newer obligation + one absent obligation (round 10:
+   already-newer obligation + one absent obligation (
    asserts the PO-9 amendment-to-zero consequences — cancel /
    wait / latch) +
-   trade-reference-only difference (round 5: converges via the
+   trade-reference-only difference (converges via the
    admission update — re-run digest-equal, no-op) +
-   crash-mid-reprocess re-run under a NEW approval (round 5:
+   crash-mid-reprocess re-run under a NEW approval (
    consumed approval refused; new approval applies only the
    remainder); (e) dual-control negative set (§9.3): parameter
    substitution, expired approval, replayed consumed approval,
@@ -4277,17 +4277,17 @@ tests point at them):
    (approval survives unconsumed — single-transition atomicity),
    crash-after-consume-before-fan-out (reprocess consume-at-start:
    approval burned, nothing applied, NEW approval succeeds);
-   (f) admission-gate set (§6.1/§2.4, rounds 5–6): the
+   (f) admission-gate set: the
    never-seen-scope trace (newer snapshot without B commits first;
    delayed older snapshot containing B is refused whole — B and
    its request are NEVER created); two disjoint first snapshots
    serialize on the trade row (both scopes exist afterwards, one
    ordering wins the row); a failed-validation message advances
-   neither watermark; round-6 fence set: pause a worker AFTER
+   neither watermark; fence set: pause a worker AFTER
    admission and AFTER block 1, admit a newer snapshot, resume —
    the paused worker's next block ABORTS on the trade-snapshot
    fence and creates nothing (abandoned blocks logged + counted,
-   round 7); kill the paused worker — redelivery/alert
+    ); kill the paused worker — redelivery/alert
    recovers; zombie consumer re-applying an already-converged
    document → all no-ops. (The former bootstrap/digest-NULL set was REMOVED round 10 —
    greenfield fact, §2.4.)
@@ -4300,13 +4300,13 @@ tests point at them):
    the payment application calling the shared transition service —
    never a PL/SQL reimplementation; §10.3 triggers stay as the DB
    backstop): endpoint authorization + operation contract —
-   EXECUTION INPUT IS THE approval_id (round 4: identities are
+   EXECUTION INPUT IS THE approval_id (identities are
    derived from the approval record, NEVER passed as parameters) —
    the §9.3 two-step approval workflow (approval-record schema +
    PENDING→APPROVED→CONSUMED state machine with version/nonce
    uniqueness; binding fields incl. the reprocess content digest;
    approver ≠ initiator; consumption semantics PER OPERATION CLASS
-   (round 5): single-transition → the CONSUMED CAS and the payment
+    : single-transition → the CONSUMED CAS and the payment
    transition commit in ONE transaction/session; reprocess-snapshot
    → CONSUME-AT-START after the digest check, crash remedied by a
    NEW approval — §9.3), with
@@ -4401,9 +4401,9 @@ lives in the payment platform
      b. The within-snapshot uniqueness intake validation (§6.0)
         implemented — the runtime-checkable half.
      c. CLOSED 2026-07-11: PO-9 ANSWERED (absence = amendment to
-        zero; BA-2 amended §1.1) and TL-16 ANSWERED round 5 (§6.1
+        zero; BA-2 amended §1.1) and TL-16 (§6.1
         admission + §2.4). Nothing in 0(c) remains open.
-     d. Upstream ask 8 IN WRITING (added round 4 — elevated from
+     d. Upstream ask 8 IN WRITING (elevated from
         the ask list because intake itself fetches by id and the
         NON-WAIVABLE reprocess-snapshot operation depends on it):
         sanctioned fetch-by-id, stable unique versioned ids,
@@ -4426,7 +4426,7 @@ lives in the payment platform
         duplicate. If TTL < max row lifetime (incl. ops-queue SLA),
         re-POSTs past the TTL are forbidden — repost_permitted
         (§7.0) gains a TTL term — and such rows are ops-only.
-        DECISION HYGIENE (round 9): the TTL outcome is recorded as
+        DECISION HYGIENE: the TTL outcome is recorded as
         a NAMED design decision here and in §7.0/§16.6 by the
         design owner BEFORE any implementation card acts on it —
         an implementation card (RC-03) implements the resulting
@@ -4440,8 +4440,8 @@ lives in the payment platform
    this test is the PROOF, and it blocks GO-LIVE, not runtime
    behavior. Because nothing is live until it passes, TL-4's
    revert-to-payload-freeze clause remains executable while it
-   matters. CONSEQUENCE CLOSURE (review 289ef66 M2; state model
-   completed follow-up M2 on 0bcb536): (c) and (d) are DECISIONS,
+   matters. CONSEQUENCE CLOSURE (state model
+   completed): (c) and (d) are DECISIONS,
    not pass/fail tests — ONLY these two (CT-04 and CT-05) emit a
    TYPED consequence record; (a) and (b) (CT-02/CT-03) are plain
    blocking pass/fail proofs with no consequence record. The
@@ -4544,10 +4544,10 @@ lives in the payment platform
    amendment to zero (BA-2 amended, §1.1; §6.1 RESOLVED block).
    Unsent → §6.4 auto-cancel; in-flight → wait-then-decide;
    already-paid → the §6.5 overpay latch, WE STOP (the PO's "same
-   as overpay"). The round-7 RIDER is satisfied: the PO's answer
+   as overpay"). The RIDER is satisfied: the PO's answer
    RATIFIES the §6.1 BLOCK-LEVEL SUPERSESSION rule (relayed with
    the PO-9 answer by the design owner, 2026-07-11).
-   Round 11: lifecycle COMPLETED — §4.1 CANCELLED terminal branch;
+    : lifecycle COMPLETED — §4.1 CANCELLED terminal branch;
    0..N derived payment set (§1 role derivation, PO 2026-07-12);
    ordering-aware anchor retirement; watermark advance (§6.1).
 ```
@@ -4565,7 +4565,7 @@ lives in the payment platform
    (§12). Also (multi-payment, §12): step granularity — one step per
    PAYMENT, or one rolled-up step per TRADE? The §4 derivations are
    per obligation; a rollup is a display aggregation this contract
-   must define — round 12: the answer must specify the FULL
+   must define —: the answer must specify the FULL
    aggregation table over {NOT_STARTED, IN_PROGRESS, COMPLETED,
    CANCELLED} + exceptions (mixed completed/cancelled, all-cancelled,
    empty-derived-set trade = row absence); trade-cancel (PO-5) and
@@ -4648,14 +4648,14 @@ lives in the payment platform
     money invariants: at archival each obligation gains an
     archived-confirmed rollup and I1/I2 become rollup + Σ live rows;
     the §5.2 created_at query window must survive archival. (§2.2's
-    terminal-time convention is the enabler.) Round 6: the
+    terminal-time convention is the enabler.): the
     trade_snapshot_state row archives WITH its trade.
 15. Production measurement, first quarter: NOT_FOUND-after-
     trust-age frequency — how often the §9.2 downgrade would fire —
     to revisit auto vs ops-triggered enablement with data (§9.2).
 16. ANSWERED 2026-07-11 (round 5, design owner): option (b),
     STRENGTHENED — trade_snapshot_state (§2.4) + the §6.1 admission
-    gate. The round-5 review exposed the sharper failure the
+    gate. The review exposed the sharper failure the
     original options missed: neither (a) nor per-obligation
     watermarks can stop a delayed older snapshot from CREATING a
     never-seen scope (no row → no watermark → the first-message
@@ -4666,8 +4666,8 @@ lives in the payment platform
     Option (c) was rejected — it contradicts the stated
     out-of-order condition (§6.7's own motivating trace is a late
     original). (PO-9 was later ANSWERED 2026-07-11: absence =
-    amendment to zero, §6.1; round 11 — the zeroing write ADVANCES
-    the per-obligation watermark, superseding the round-5 no-write
+    amendment to zero, §6.1; — the zeroing write ADVANCES
+    the per-obligation watermark, superseding the no-write
     detail.)
 ```
 
@@ -4686,7 +4686,7 @@ lives in the payment platform
 4. Emission contract: confirm a new message is emitted ONLY
    when a business field changed — no blind re-emissions of
    identical snapshots (§6.0 contract fact; bounds the validation
-   reject cycle, §2.1). HONESTY NOTE (round 11 — this ask is NOT
+   reject cycle, §2.1). HONESTY NOTE (this ask is NOT
    a complete guard): ask 4 prevents blind RE-emissions, but a
    producer can emit only on real changes and still serialize an
    INCOMPLETE payment set, and no consumer check can distinguish
@@ -4710,11 +4710,11 @@ lives in the payment platform
    payment (§1 contract facts, §18 BLOCKING item 0a). We validate
    the within-snapshot half at intake (§6.0); the cross-snapshot
    half is unverifiable at runtime and rests on this written
-   contract alone. ROUND-11 ADDITION (goes in the SAME written
+   contract alone. ADDITION (goes in the SAME written
    filing): each snapshot carries the COMPLETE current settlement
    set of the trade — a GUARANTEE, not "usually" (absence is now
    the cancellation signal, BA-2; an incomplete serialization
-   cancels real payments, H-1 round 11).
+   cancels real payments, H-1).
 6. Scope-key provenance IN WRITING: payment_type, debit_account,
    and currency are carried IN the message as stable identifiers
    (§6.0) — none of them is derived by this system via any external
@@ -4754,7 +4754,7 @@ lives in the payment platform
    forever (or the id embeds an immutable version), reads are
    consistent, and any correction is a NEW id/version with a new
    notification — content behind an existing id never changes.
-   THIS ASK IS PART OF §18 BLOCKING ITEM 0(d) (round 4): the
+   THIS ASK IS PART OF §18 BLOCKING ITEM 0(d): the
    ordering guard alone proves a fetched document is a valid
    tie/newer snapshot, NOT that it is the content the approvers
    reviewed — that provenance comes from the §9.3 digest binding
@@ -4890,7 +4890,7 @@ apply-platform-verified-outcome operation is the §18 BLOCKING
 item-3 gate (the guaranteed terminal exit for
 otherwise-unresolvable MAYBE rows); together with supersede/close
 and reprocess-snapshot it forms the NON-WAIVABLE minimal exit set
-below (round-4 normalization — the earlier "exactly one
+below (normalization — the earlier "exactly one
 non-waivable operation" phrasing described only the §18-3 gate;
 there are THREE non-waivable operations, one of which is
 additionally a §18 BLOCKING item).
@@ -4921,7 +4921,7 @@ overpay latches) make the dead-end states findable — the card (§12)
 is a user surface keyed by business_id and does not serve this.
 
 Exit honesty (wording fixed 2026-07-11; scoped round 3; NARROWED
-round 4): the exit GUARANTEE covers exactly THREE dead-end
+ ): the exit GUARANTEE covers exactly THREE dead-end
 classes — (1) MAYBE/SUBMITTED rows → verified-outcome; (2)
 provably-unsent ACTIVE requests → supersede/close (and reject);
 (3) snapshot ties → reprocess-snapshot — where "exit" may be a
@@ -4931,7 +4931,7 @@ STATE, deliberately WITHOUT a current exit: a scope whose
 provider_rejected marker is live with NO active request waits on a
 strictly-newer valid message or the FUTURE §19.3/O11 clear; an
 overpay-latched scope is a one-way door (§13) resolved
-platform-side (§19.2). Considered and REJECTED (round 4): an
+platform-side (§19.2). Considered and REJECTED: an
 obligation-level terminal/give-up state for marker-only and
 latched scopes — new state-model machinery whose only yield is
 renaming a documented stop state; the markers and latch already
@@ -4970,7 +4970,7 @@ are obsolete, and its state displays should use the §10.4 labels):
 8. Audit: with no local manual-action or transition-history
    journal (§14; the switch-gated §14.1 attempt-content journal is
    a SEPARATE same-database audit sink and rewinds with a restore —
-   NOT restore-surviving; review b1d91dc M2), every manual action
+   NOT restore-surviving), every manual action
    must be logged with operator identity AND carry a mandatory
    external ticket reference — the ticket trail is the only record
    that survives a database restore.
@@ -4978,7 +4978,7 @@ are obsolete, and its state displays should use the §10.4 labels):
    provider_rejected marker so §6.8 creates a fresh successor.
    Pending PO approval (§18 item 7).
 10. Tie resolution (§6.7, REVISED 2026-07-11 round 3 —
-    server-verified; round 4 — digest-bound approval + per-block
+    server-verified; — digest-bound approval + per-block
     algorithm): the REPROCESS-SNAPSHOT operation — trade-level,
     4-eyes ALWAYS via the §9.3 approval workflow (it can initiate
     money movement via §6.8). Approval time: fetch + validate the
@@ -4988,25 +4988,25 @@ are obsolete, and its state displays should use the §10.4 labels):
     Execution input = the approval_id; the operation re-fetches,
     recomputes the digest, and REFUSES on mismatch (hard refusal +
     alert) BEFORE any consumption or lock; then consumes the
-    approval (CONSUME-AT-START — §9.3 round-5 scoping; a crash
+    approval (CONSUME-AT-START — §9.3 scoping; a crash
     mid-fan-out is remedied by a NEW approval of the same
     document), verifies the document's business_id, and re-runs
-    the normal §6.1 fan-out THROUGH THE ADMISSION GATE (round 5):
+    the normal §6.1 fan-out THROUGH THE ADMISSION GATE:
     the approved digest authorizes the ≥ relaxation AT ADMISSION
     (== trade watermark + differing digest → admit + update
     trade_snapshot_state); a document OLDER than the trade
     watermark is refused even with an approval — a stale
     adjudication is re-initiated against current state, never
-    applied. Round 6: reprocess block transactions carry the SAME
+    applied. reprocess block transactions carry the SAME
     §6.1 TRADE-SNAPSHOT FENCE (trade row locked first, admitted
     ordering + digest re-verified per block) — if live intake
     admits a newer snapshot mid-reprocess, the remaining blocks
-    are ABANDONED (§6.1 block-level supersession, round 7 — the
+    are ABANDONED (§6.1 block-level supersession, — the
     approvers were told at approval time), the §9.3
     consumed-without-completion alert surfaces it, and a
     re-approval of the now-stale document is REFUSED at
     admission — the right answer, not a defect.
-    PER-BLOCK ALGORITHM (normative, round 4 — the relaxation
+    PER-BLOCK ALGORITHM (normative, — the relaxation
     decision is PER OBLIGATION; whole-snapshot equality is only
     the §6.7 tie-DETECTION rule at intake; no whole-snapshot
     digest or id is persisted on obligations, and per-block
@@ -5016,7 +5016,7 @@ are obsolete, and its state displays should use the §10.4 labels):
 PRECONDITION: the document has passed §6.1 ADMISSION (trade row
   locked; ordinary strictly-newer, OR the approved-tie ≥ relaxation
   applied THERE; trade_snapshot_state updated). A refused document
-  reaches no rule below and creates nothing. Round 6: EACH block
+  reaches no rule below and creates nothing. EACH block
   transaction re-locks the trade row and re-verifies the admitted
   (ordering, digest) — the trade-snapshot FENCE — before the rules
   below run; mismatch stops the fan-out (§6.1 block-level
@@ -5026,7 +5026,7 @@ for each payment block of the ADMITTED document,
   no obligation exists            -> create (normal first-message
                                      path, §6.1 — safe only because
                                      admission refused stale
-                                     documents, round 5)
+                                     documents)
   doc.ordering >  watermark       -> apply (ordinary strictly-newer)
   doc.ordering == watermark:
       block payload == applied    -> no-op (this is what makes a
@@ -5037,7 +5037,7 @@ for each payment block of the ADMITTED document,
   doc.ordering <  watermark       -> drop as stale (guard)
 obligations ABSENT from the document -> AMENDMENT TO ZERO (PO-9
                                      ANSWERED 2026-07-11; lifecycle
-                                     round 11): required := 0 AND
+                                      ): required:= 0 AND
                                      upstream_ordering := doc.ordering
                                      under fence + obligation lock,
                                      strictly-newer guard; then §6.4
@@ -5057,7 +5057,7 @@ trade-reference-only difference   -> blocks no-op per the rules
                                      above; the ADMISSION update to
                                      trade_snapshot_state (ordering,
                                      storage id, digest) IS the
-                                     application (round 5): §7.0
+                                     application: §7.0
                                      fresh assembly picks the new
                                      reference up from the stored
                                      pointer, and a re-run compares

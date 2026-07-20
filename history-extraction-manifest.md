@@ -1,4 +1,14 @@
-# History-Extraction Manifest (Phase 0 proposal — nothing applied)
+# History-Extraction Manifest — APPLIED (descoped, deletion-only)
+
+> **OUTCOME 2026-07-19 (PO decision — descoped to zero-risk pure deletions):**
+> 411 line entries APPLIED (pure-provenance A/B deletions only; strict purity
+> re-check demoted 130 borderline entries; 3 further lines REVERTED because the
+> lint proved their annotation load-bearing — two cutoff-rule allow tokens, one
+> rule-6l slice anchor). 381 entries KEPT byte-identical (all REWRITE/DECIDE/KEEP
+> buckets + demotions — class-C rewrites, ADR register, and annotation-ban rule
+> were dropped from scope). Per-entry approvals live in the .json. Verified:
+> tools/history-verify.py --strict PROOF HOLDS (byte-exact vs the frozen 5597dcd
+> blobs + this manifest); DOC-LINT clean; git diff --check clean.
 
 Source commit: `5597dcd75163110122b808597a3e0572b1370597` (all old_line values are against these blobs)
 Line entries: **792** across 56 files

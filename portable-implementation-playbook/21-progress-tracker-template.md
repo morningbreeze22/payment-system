@@ -113,7 +113,7 @@ a status; every DONE row has a filed execution report (file 19).
 | 91 | OP-01 | TODO | | | |
 | 92 | OP-02 | TODO | | | |
 | 93 | OP-03 | TODO | | | (HUMAN drill) |
-| 93a | OP-04a | TODO | | | (round-9 pre-split 1/5) |
+| 93a | OP-04a | TODO | | | |
 | 93b | OP-04b | TODO | | | |
 | 93c | OP-04c | TODO | | | |
 | 93d | OP-04d | TODO | | | |

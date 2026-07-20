@@ -201,7 +201,7 @@ Mode:         NEW files appended.
 
 ```text
 Meaning:      where PL/SQL objects (triggers, procedures) are
-              defined/migrated. NAME IS DELIBERATE (round 7 note):
+              defined/migrated. NAME IS DELIBERATE:
               placeholder labels are stable local-mapping keys;
               "Procedure" here names real DB object areas — it is
               NOT the retired §9.3 "procedure" terminology (ops

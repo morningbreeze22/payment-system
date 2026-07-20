@@ -19,7 +19,7 @@ Result:
 Failed tests:
 Unexpected findings:
 Business logic changed? yes/no
-DIV-2 adaptations used? no / yes → six-item proof per row (round 18:
+DIV-2 adaptations used? no / yes → six-item proof per row (
   precision+rounding / NULL semantics / same atomic tx /
   lockability / one writer / no mutable copy):
 Requirement sections satisfied:

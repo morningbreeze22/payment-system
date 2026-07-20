@@ -140,7 +140,7 @@ UPDATE payment_obligation SET committed_amount = committed_amount - :amt
 
 -- STEP 8 · BUFFER the §14 structured log line + register the
 --   after-commit publication callback (§14 delivery contract,
---   review 4098532 H1 — NEVER publish inside the transaction):
+-- — NEVER publish inside the transaction):
 --   request_id, idempotency_key, request_seq, correlation_id,
 --   (stage, stage_state, submission_state, outcome) before→after,
 --   display label, trigger_source, trigger_event_id / ticket ref.
@@ -186,7 +186,7 @@ lock (§11).
 - Obligation lock = `SELECT ... FOR UPDATE` on the payment_obligation
   row. It owns ALL money math: shortfall, creation, amount updates,
   overpay latch, completion + exception derivation (§11).
-- Global order (round 6): trade row (§2.4, snapshot paths only) →
+- Global order: trade row (§2.4, snapshot paths only) →
   obligation → request CAS. Never the reverse; never lock two
   obligations except in the §6.1 fan-out — and there strictly in
   sorted scope-tuple order, one block's transaction at a time (no
@@ -247,12 +247,12 @@ the claim transaction, committed BEFORE the HTTP call:
 
 - WHERE additionally carries `divergent_payload_at IS NULL`; code
   re-checks the derived repost_permitted terms (§7.0:
-  freeze, amount-vs-shortfall staleness for MAYBE rows — round 10:
+  freeze, amount-vs-shortfall staleness for MAYBE rows —:
   no cutoff term, the engine owns the calendar).
-- (The rounds-8/9 pointer-presence claim-gate was REMOVED in
-  round 10 — §2.4 greenfield fact: every trade row is born from an
+- (The pointer-presence claim-gate was REMOVED in
+    — §2.4 greenfield fact: every trade row is born from an
   admitted message with its pointer populated, so a NULL pointer
-  is unreachable; git history at 9a53c75.)
+  is unreachable; git history at.)
 - Persist: identity (first claim — idempotency key §5.1),
   `last_sent_hash` of the freshly assembled instruction,
   `divergence_expected` (compare against the PRIOR hash BEFORE
@@ -307,12 +307,12 @@ SELECT id FROM payment_request
   (submission_state='SUBMITTED' AND submitted_at < :now - :confirmation_age))`
   — ANY stage, ANY stage_state, including BLOCKED. Never scope by
   stage or by how a row got somewhere (§9.5).
-- The retry bound is MAX ATTEMPTS ONLY (round 10 — the engine
+- The retry bound is MAX ATTEMPTS ONLY (the engine
   owns the cutoff calendar; §7.4,
   2026-07-11 decision) — retry_deadline_at is reserved/unused; wire
   no rule to it. While frozen / breaker OPEN, gated scanners make
   zero attempts, so the attempt budget is structurally safe — there
-  is no suspension mechanism to implement. (Round 10: NO cutoff
+  is no suspension mechanism to implement. (NO cutoff
   check exists at attempt time — the engine owns its calendar and
   classifies late submissions itself, CA-1.)
 - Every scanner exports a heartbeat (§15: silent 3× interval → page).
@@ -336,13 +336,13 @@ poll → for each record:
 - `enable-auto-commit=false`, ack-mode=record, offsets commit only
   after the DB commit (§16.2). auto-offset-reset=earliest.
 - Upstream flow: whole-snapshot validation FIRST (§6.0), then the
-  trade-level ADMISSION transaction (§6.1/§2.4, round 5): upsert-lock
+  trade-level ADMISSION transaction: upsert-lock
   the trade_snapshot_state row, compare orderings — newer → admit +
   update row; equal + digest-equal → admit without update; equal +
   digest-differs → tie alert, STOP; older → refuse WHOLE (a refused
   document never creates a scope); THEN fan out per payment block in
-  sorted tuple order, ONE transaction per block (§6.1). ROUND 6 —
-  the TRADE-SNAPSHOT FENCE, NOT optional (round-7 rename; the old
+  sorted tuple order, ONE transaction per block (§6.1). —
+  the TRADE-SNAPSHOT FENCE, NOT optional (rename; the old
   name collided with the currency scope-key field): every block
   transaction locks the trade row FIRST (SELECT FOR UPDATE),
   re-verifies the admitted (ordering, digest), THEN locks the
@@ -444,7 +444,7 @@ named exceptions) in the report (19). Rule 18 makes this mandatory.
 [ ] breaker-gated before claiming; jittered backoff
 [ ] DB time everywhere; AGE rules on set-once anchors
 [ ] freeze/breaker windows: zero attempts made (attempt budget
-    structurally safe); no cutoff exists to check (round 10), never
+    structurally safe); no cutoff exists to check, never
     suspended; nothing wired to retry_deadline_at
 [ ] poison-row cap → BLOCKED + alert (no infinite loop)
 [ ] heartbeat metric exported; overrun behavior defined (no overlap)
@@ -478,9 +478,9 @@ triggers stay as the DB backstop:**
 [ ] mandatory inputs enforced IN the operation contract: operator
     id, reason, ticket ref; where the catalog says 4-eyes/dual the
     execution input is the §9.3 approval_id ONLY — identities are
-    DERIVED from the approval record (round 4: never approver-
+    DERIVED from the approval record (never approver-
     identity parameters, never free-text strings)
-[ ] approval consumption matches the OPERATION CLASS (round 5):
+ approval consumption matches the OPERATION CLASS:
     SINGLE-TRANSITION ops → the APPROVED→CONSUMED CAS (row count 1)
     and the payment CAS commit in ONE transaction/session; refusal
     or exception rolls back BOTH (test: concurrent double-execution
@@ -526,14 +526,14 @@ gate, resolver, or derivation may ever read it (rule 13(b)). The
 riders are single INSERT statements added INSIDE two transactions
 that already exist — no new commit points, no new locks, no SHAPE
 changes. NEVER LOAD-BEARING, as a NARROW GUARANTEE (§14.1, revised
-per review d00ef6a H3): every rider is SWITCH-GATED (§14.1 switch
+per): every rider is SWITCH-GATED (§14.1 switch
 OFF → skip entirely, no error) and STATEMENT-ISOLATED — a plain
 try/catch around the single INSERT with NO inner @Transactional
 boundary (inner participation would mark the host rollback-only:
 the exact Spring trap this rule forbids). Statement-local means
 ONLY the pinned ORA-code allowlist (00001, 02290, 20141/20142,
 evidenced space-error family) — TIMEOUTS AND UNKNOWN TRANSLATIONS
-ARE FATAL BY DEFAULT (review 928341a H2). Allowed failures are
+ARE FATAL BY DEFAULT. Allowed failures are
 swallowed: record the gap in memory/metrics and CONTINUE; the
 AUDIT-GAP alert is emitted AFTER the host COMMIT (side effects
 after commit — a rolled-back host never reports a phantom gap).

@@ -189,9 +189,9 @@
 - **Edge cases:** existing-column type conflicts from D-02 → each gets an explicit expand/contract path in the spec.
 - **Manual validation:** DBA-owner review (privileges for triggers/procedures confirmed — from D-02).
 - **Expected outcome:** versioned DDL spec ready for S-02..S-07.
-- **Failure signs:** CHECK constraints written VALIDATE-first against unmigrated data; a spec missing the request_seq unique expression, the integer/overflow domain, or the keyset tuple — S-02/ST-04 become under-specified (6cb3005 M1).
+- **Failure signs:** CHECK constraints written VALIDATE-first against unmigrated data; a spec missing the request_seq unique expression, the integer/overflow domain, or the keyset tuple — S-02/ST-04 become under-specified.
 - **Common mistakes:** forgetting Oracle NULL-in-unique-index semantics for uetr; omitting the active-row-bounded trick on scan indexes.
-- **Completion criteria:** spec complete INCLUDING the (payment_obligation_id, request_seq) conditional unique expression, the integer/overflow domain, and the canonical keyset tuple — absence of ANY of the three = NOT complete (6cb3005 M1); DBA-reviewed.
+- **Completion criteria:** spec complete INCLUDING the (payment_obligation_id, request_seq) conditional unique expression, the integer/overflow domain, and the canonical keyset tuple — absence of ANY of the three = NOT complete; DBA-reviewed.
 - **Stop condition:** published; S-02..S-07 unblocked (schema freeze).
 - **Next task:** CA-5.
 
@@ -213,9 +213,9 @@
 - **Edge cases:** fields that can legally contain the delimiter — the spec must make that unambiguous (length-prefix or escaping — choose and freeze).
 - **Manual validation:** two independent implementations (or one implementation + manual computation) reproduce all vectors.
 - **Expected outcome:** frozen versioned spec + vector file.
-- **Failure signs:** vectors computed only by the code under test (circular); a spec missing the initial value, the initialization policy, or the namespace/collision analysis — S-02 becomes under-specified (6cb3005 M1).
+- **Failure signs:** vectors computed only by the code under test (circular); a spec missing the initial value, the initialization policy, or the namespace/collision analysis — S-02 becomes under-specified.
 - **Common mistakes:** locale-dependent case folding; unspecified encoding.
-- **Completion criteria:** spec + vectors published INCLUDING the initial sequence value, the counter-initialization policy, and the versioned namespace + collision analysis — absence of ANY = NOT complete (6cb3005 M1).
+- **Completion criteria:** spec + vectors published INCLUDING the initial sequence value, the counter-initialization policy, and the versioned namespace + collision analysis — absence of ANY = NOT complete.
 - **Stop condition:** published; K-02/K-03 unblocked.
 - **Next task:** CA-6.
 
@@ -231,7 +231,7 @@
 - **Local placeholder mappings required before starting:** D-05 memo (instruction field inventory — kept local; the artifact defines RULES, not values).
 - **Local code areas to discover:** none beyond D-05.
 - **How to locate:** n/a.
-- **Implementation instructions:** define: which instruction fields enter the hash (the business content actually sent — MUST_VERIFY_LOCALLY against the real payload shape, recorded locally); canonical field order; canonicalization rules per CA-5's discipline; hash algorithm + versioning; the QUALIFIED persistence rule (review 928341a M1): content is never stored in payment tables, logs, traces, or other local stores — the ONLY permitted persistence is the switch-gated §14.1 journal under its controls; otherwise hash only (§16.3/§7.0/§14.1). CA-6's output is therefore BOTH the canonical bytes (the §14.1 rider consumes them) AND the hash derived from those exact bytes — one serialization, two consumers.
+- **Implementation instructions:** define: which instruction fields enter the hash (the business content actually sent — MUST_VERIFY_LOCALLY against the real payload shape, recorded locally); canonical field order; canonicalization rules per CA-5's discipline; hash algorithm + versioning; the QUALIFIED persistence rule: content is never stored in payment tables, logs, traces, or other local stores — the ONLY permitted persistence is the switch-gated §14.1 journal under its controls; otherwise hash only (§16.3/§7.0/§14.1). CA-6's output is therefore BOTH the canonical bytes (the §14.1 rider consumes them) AND the hash derived from those exact bytes — one serialization, two consumers.
 - **Do not change:** the no-payload-freeze decision (§7.0 — details re-resolved fresh per attempt).
 - **Tests to add:** none here (K-05 tests).
 - **Edge cases:** envelope/transport fields (timestamps, message ids) must be EXCLUDED — else every attempt looks divergent and divergence_expected is always true.

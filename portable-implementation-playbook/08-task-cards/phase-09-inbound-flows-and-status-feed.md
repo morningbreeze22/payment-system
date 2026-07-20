@@ -34,10 +34,10 @@
 ### IN-02 — Snapshot admission + obligation upsert + §6.7 ordering guard
 
 - **Task ID:** IN-02
-- **Title:** Trade-level snapshot ADMISSION (round 5); snapshot fan-out; locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
+- **Title:** Trade-level snapshot ADMISSION; snapshot fan-out; locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
 - **Classification:** MVP normative implementation
 - **Purpose:** §6.1/§6.7/§2.4: a message is a FULL-TRADE SNAPSHOT that must pass the trade-level ADMISSION gate before ANY per-block work (round 5: per-obligation watermarks cannot stop a stale snapshot from CREATING a never-seen scope), then fans out to one application per payment block; a redelivered older message must never regress required_amount; ties are digest-detected at admission; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
-- **Prerequisites:** IN-01; S-02; S-10 (trade_snapshot_state); B-01 RESIDUE (upstream asks 5 + 8 CONFIRMED 2026-07-11, WRITTEN docs pending — §18-0(a)/(d): the freeze needs the filed paper, the design questions are settled; PO-9 ANSWERED — absence = amendment to zero; TL-16 ANSWERED round 5 — the admission gate below).
+- **Prerequisites:** IN-01; S-02; S-10 (trade_snapshot_state); B-01 RESIDUE (upstream asks 5 + 8 CONFIRMED 2026-07-11, WRITTEN docs pending — §18-0(a)/(d): the freeze needs the filed paper, the design questions are settled; PO-9 ANSWERED — absence = amendment to zero; TL-16 — the admission gate below).
 - **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §2.4 (trade_snapshot_state), §6.0 (snapshot shape + within-snapshot uniqueness validation), §6.1 (ADMISSION + fan-out + convergence + the RESOLVED absence block), §6.7 (whole), §6.9 (required_amount row).
 - **Placeholder components involved:** [Obligation Repository].
 - **Local placeholder mappings required before starting:** obligation upsert path.
@@ -67,9 +67,9 @@
 - **Local placeholder mappings required before starting:** upstream consumer + DLT (D-07).
 - **Local code areas to discover:** DLT publish path.
 - **How to locate:** D-07.
-- **Implementation instructions:** validation failure with extractable scope + ui_process_instance_id → persist anchor INPUTS only (round 13): the row with required_amount NULL + the validation_failed marker via the shared helper (validation_failed_at/_ordering = failing message's ordering; first_at + count per §2.1), then invoke the shared §4 derivation under the obligation lock in the SAME transaction — ui_step_status (IN_PROGRESS) and DATA_VALIDATION_FAILED (retryable=false) are DERIVATION OUTPUTS, never written directly by this consumer (RG-08/RG-09 own the writers); upstream_ordering untouched; too-malformed-to-identify → DLT + ops alert (accepted blind spot).
+- **Implementation instructions:** validation failure with extractable scope + ui_process_instance_id → persist anchor INPUTS only: the row with required_amount NULL + the validation_failed marker via the shared helper (validation_failed_at/_ordering = failing message's ordering; first_at + count per §2.1), then invoke the shared §4 derivation under the obligation lock in the SAME transaction — ui_step_status (IN_PROGRESS) and DATA_VALIDATION_FAILED (retryable=false) are DERIVATION OUTPUTS, never written directly by this consumer (RG-08/RG-09 own the writers); upstream_ordering untouched; too-malformed-to-identify → DLT + ops alert (accepted blind spot).
 - **Do not change:** scope of key-only anchoring (tiers 2–3 of §6.6 are TL-7 future — do NOT implement).
-- **Tests to add:** anchor created with NULL amount; §4.1 cannot complete it; both read-model fields provably come from the derivation hook — no direct writer remains (round 13); later valid message populates + clears liveness + creates first request (via RG-06); DLT on unidentifiable.
+- **Tests to add:** anchor created with NULL amount; §4.1 cannot complete it; both read-model fields provably come from the derivation hook — no direct writer remains; later valid message populates + clears liveness + creates first request (via RG-06); DLT on unidentifiable.
 - **Edge cases:** repeat failing messages → monotonic marker re-tags + count increments (validation_reject_count alert ≥3 is OB-04's — the counter behavior lands with IN-04).
 - **Manual validation:** card shows the anchor's exception locally.
 - **Expected outcome:** no invisible NOT_STARTED for broken messages with readable scope.

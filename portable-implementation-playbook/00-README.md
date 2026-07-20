@@ -60,7 +60,7 @@ For any single task you need ONLY:
   tables/components (file 26 T.2).
 
 Do not read the whole package per task. Repository handling follows
-rule 4's split (round 18): when a card uses inventory/audit wording
+rule 4's split: when a card uses inventory/audit wording
 ("every site", "all writers", "grep"), repository-wide READ-ONLY
 SEARCH is mandatory — search wide, LOAD only the relevant hits,
 MODIFY only the card's scope. Bulk-loading the repository is never

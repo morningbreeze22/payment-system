@@ -137,7 +137,7 @@ ENRICH on that durable row. Retry needs nothing from upstream.
 | P-8 | Insufficient balance (business reject) | Rank-3 exception, retryable per policy | Policy retry (T1); if funding is the issue: client/treasury funds the account (T4); optionally OPS_PARKED (T3) | T1/T3/T4 |
 | P-9 | Invalid-data sync reject | REJECTED + validation_failed marker | Corrected upstream message → §6.8 successor | T4 |
 | P-10 | Other definitive sync reject | REJECTED + provider_rejected marker + alert (§15 — a requested payment is NOT happening) | ONE newer valid message may retry (§6.8); from the 2nd reject: ops-only marker clear (§2.1, §19.3 pattern) — stops upstream-paced reject/re-pay loops | T4 → T3 |
-| P-11 | Retry exhaustion | BLOCKED(RETRY_EXHAUSTED) — round 10: MAX ATTEMPTS is the only bound; CUTOFF_EXPIRED stays RESERVED, never produced | Ops decision: retry (repost_permitted-gated), reject, or supersede (§20-1) | T3 |
+| P-11 | Retry exhaustion | BLOCKED(RETRY_EXHAUSTED) —: MAX ATTEMPTS is the only bound; CUTOFF_EXPIRED stays RESERVED, never produced | Ops decision: retry (repost_permitted-gated), reject, or supersede (§20-1) | T3 |
 | P-12 | Engine total outage | Breaker OPEN → ticket, page at 30m; ONE rolled-up incident (§15) | Scanners gate quietly; zero attempts while breaker open — the attempt budget is structurally safe (§16.1/§7.4) — no BLOCKED flood at recovery; automatic resume | T1/T2 |
 | P-13 | Engine accepts but its ingest lags → mass NOT_FOUND | Observed-lag watchdog (§15) | Trust-age rule makes NOT_FOUND = INDETERMINATE until safe; auto-downgrade self-heals the population after trust-age (§9.2) | T1/T2 |
 | P-14 | Hazelcast grid unreachable | Freeze-effective-without-ticket PAGE (§15) | Fail-safe: posting DISABLED (PO signed off); feed/resolver/card continue; infra restore un-freezes | T2 (halt) |
@@ -217,7 +217,7 @@ within escalation age: BLOCKED(ESCALATED) + CRITICAL, ops gets four exits
 | I-8 | Bad config set (ordering violated, e.g. trust-age ≥ escalation age) | Loader REJECTS the set at startup (§16.6) | Fix config; nothing degraded silently | T0 |
 | I-9 | Deployment: two app versions concurrent | — | Expand/contract migrations; defensive enum reads (UNKNOWN sentinel); claim semantics version-compatible across one release (§16.5) | T0/T1 |
 | I-10 | Clock skew between nodes | — | Due-time comparisons use DATABASE time only (§16.4; round 10: no local cutoff calendar exists) | T0 |
-| I-11 | Log platform outage | Ops observability degraded | Money processing unaffected (logs are not in the money path). For any later §5.2 restore whose window overlaps the outage: step 5b's limit is a HEURISTIC narrowing aid only — posting REMAINS FROZEN until the Q-22 provider-listing or manual platform reconciliation gate is signed PASS; no K stop ever authorizes unfreeze (aa4399c M3) | T2 |
+| I-11 | Log platform outage | Ops observability degraded | Money processing unaffected (logs are not in the money path). For any later §5.2 restore whose window overlaps the outage: step 5b's limit is a HEURISTIC narrowing aid only — posting REMAINS FROZEN until the Q-22 provider-listing or manual platform reconciliation gate is signed PASS; no K stop ever authorizes unfreeze | T2 |
 | I-12 | Card read surface down | Card shows "unavailable" — never stale-as-authoritative (§12) | At launch the card is ops' only window: alerts (§15) + direct DB reads remain; read-path bulkhead keeps it isolated from posting (§16.1) | T2/T3 |
 | I-13 | Hot scope / upstream floods one obligation | Per-obligation request-count ticket (§15); ~10 tx/s sanity line (§16.5) | Capacity review; the obligation lock serializes so correctness holds while throughput degrades | T2/T3 |
 | I-14 | Hung external call holds Kafka partitions | Rebalance storms averted by per-dependency timeouts (§16.1) | Bounded timeouts everywhere; breaker isolates the dependency | T0/T1 |
@@ -231,7 +231,7 @@ executed payment under a key the DB no longer owns → CRITICAL
 evidence-for-terminal path → ops reconciles BEFORE posting resumes. But the
 enumeration limit is a finite HEURISTIC (it can stop short — §5.2 5b), so
 unfreeze additionally requires the Q-22 positive provider-listing or manual
-reconciliation gate signed PASS (aa4399c M3). Interim (pre-runbook): same
+reconciliation gate signed PASS. Interim (pre-runbook): same
 logic run as a major-incident procedure with the engine's records as truth.
 
 ------
@@ -259,7 +259,7 @@ logic run as a major-incident procedure with the engine's records as truth.
 | B-3 | Client double-funded / duplicate payment suspicion | Deterministic identity chain (§5): one key per logical attempt, engine dedup proven by §18-1 sandbox gate | Evidence available by construction: key + UETR + platform records | T4 |
 | B-4 | Business wants payment despite engine reject (transient beneficiary-side condition) | provider_rejected marker + alert | Today: one newer upstream message (§6.8) or wait; FUTURE §19.3 ops retry-after-reject (4-eyes) pending PO-7 | T3/T4 (partly FUTURE) |
 | B-5 | Funds returned to our account (post-settlement return) | CRITICAL log-only event (§8) | §19.2 future workstream — detection, RETURNED outcome, confirmed decrement all deliberately absent today; platform owns the truth | T4 |
-| B-6 | Engine-side bank cutoff elapses (external event) while payment unresolved | Nothing local — the ENGINE owns its calendar (round 10, §18-2 CLOSED); a late submission returns as an ordinary engine response (CA-1) | Engine response classifies normally; escalation stays age-based (§9.3); §9.3 operation for stuck MAYBE (PO-4 closed with §18-2) | T1/T3 |
+| B-6 | Engine-side bank cutoff elapses (external event) while payment unresolved | Nothing local — the ENGINE owns its calendar; a late submission returns as an ordinary engine response (CA-1) | Engine response classifies normally; escalation stays age-based (§9.3); §9.3 operation for stuck MAYBE (PO-4 closed with §18-2) | T1/T3 |
 
 ------
 
@@ -314,7 +314,7 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
   exit (operation + drill). (§18-2 cutoff calendar: CLOSED round 10 —
   engine-owned.)
 - PO-9 ANSWERED 2026-07-11 (U-15: absence = amendment to zero). (TL-16
-  ANSWERED round 5 — U-16: §6.1 admission + §2.4.)
+    — U-16: §6.1 admission + §2.4.)
 - TL-5 / Q-10: query lookback ≥ max row lifetime (R-3).
 - TL-10 / Q-12: platform formal reject — the cleanest parked-MAYBE exit.
 - PO-7 / §19.3: ops retry-after-provider-reject (B-4) — FUTURE.
@@ -323,7 +323,7 @@ GAP-3  Tie application had no operation (§20-10 + O12 — NEW, found by
   NON-WAIVABLE minimal exit set is verified-outcome (§9.3, also
   §18-3), supersede/close, and reprocess-snapshot; retry, reject,
   annotation, and the four queue views are Q29-waivable ergonomics
-  (authorized application endpoints, RG-05 + OP-04a–e). Round-4 exit
+  (authorized application endpoints, RG-05 + OP-04a–e). exit
   honesty: the exit guarantee covers exactly three classes —
   MAYBE/SUBMITTED rows, provably-unsent ACTIVE requests, ties;
   marker-only scopes (repeat-reject, no active request) and

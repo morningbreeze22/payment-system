@@ -57,7 +57,7 @@ the sections that govern it.
 12. If a task needs more context than you can hold, split it locally
     into sub-tasks (Task-ID.1, .2, …), each with its own report; the
     ST-05 card is explicitly designed to be split per rule site.
-    EXCEPTIONS (round 17 — rule 22's no-split list WINS over this
+    EXCEPTIONS (rule 22's no-split list WINS over this
     rule): IN-02 is NEVER split across sessions or owners — if it
     cannot fit your context, STOP and escalate to a larger-context
     executor; S-08/S-09 and the GO sequence keep one owner, and any
@@ -117,7 +117,7 @@ the sections that govern it.
     intentionally unwired must NAME its integration gate (the task
     ID or phase boundary that closes it) in the execution report —
     unnamed dangling paths fail the phase review.
-20. HUMAN REVIEW CHECKPOINTS (round 16): a human review is REQUIRED
+20. HUMAN REVIEW CHECKPOINTS: a human review is REQUIRED
     at each of these risk boundaries before the phase branch merges
     — P3 schema/migrations, P4 identity/write-ahead persistence,
     P6 factored state/CAS helpers, P7 reservation/release guards,
@@ -137,7 +137,7 @@ the sections that govern it.
     NEVER edited to local names — translate at execution time via
     the mapping + register. An OPEN DIV-3/DIV-4 row BLOCKS every
     card touching it. DIV-2 WITHOUT approval requires proving ALL
-    SIX (round 18 — the file-26 T.2 checklist, repeated here
+    SIX (the file-26 T.2 checklist, repeated here
     because this file is in every session's context): exact
     precision + rounding preserved; equivalent NULL semantics;
     same atomic transaction; equivalent lockability; ONE
@@ -146,7 +146,7 @@ the sections that govern it.
     AUTO-PROMOTES to DIV-3/DIV-4 BEFORE implementation.
 22. TEAM PARALLELISM (file 26 T.4): rule 3's "one card at a time"
     applies PER WORK STREAM. A stream holds ONE ACTIVE phase
-    integration branch at a time (round 18 — the next phase's
+    integration branch at a time (the next phase's
     branch opens only after the previous phase's rule-19 review +
     merge); one owner per active branch; card prerequisites +
     file-20 gates ALWAYS outrank the stream map. Streams consume

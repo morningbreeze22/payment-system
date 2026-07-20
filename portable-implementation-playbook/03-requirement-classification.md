@@ -37,7 +37,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C9 | §3 | Reservation semantics: +committed at creation, −committed on terminal-negative row-count-1, no movement at POST/confirm; I1–I6 | MVP | RG-01..03, RG-06 | S-xx | yes | yes | no |
 | C10 | §3 | Drift scanner: recompute I1/I2, snapshot + re-check under lock, page on mismatch; verifies L9 | MVP | OB-01 | RG-xx | yes | yes | no |
 | C11 | §3, §20 | Supersede/close operation (release-guarded); at MVP exercised via the RG-05 authorized application endpoint (2026-07-11 Java boundary) under §10.3 backstops, not a console | MVP guard + RUNBOOK | RG-05, S-06, CA-8 | S-06 | no | yes | no |
-| C12 | §4.1 | Step-status predicate — BOTH branches: COMPLETED + the round-11 CANCELLED zero-required terminal (incl. vacuous-completion guards; required = 0 writable only by the §6.1 absence path) | MVP | RG-08 | RG-01..03 | no | yes | no |
+| C12 | §4.1 | Step-status predicate — BOTH branches: COMPLETED + the CANCELLED zero-required terminal (incl. vacuous-completion guards; required = 0 writable only by the §6.1 absence path) | MVP | RG-08 | RG-01..03 | no | yes | no |
 | C13 | §4.2, §4.5 | Active-exception derivation (precedence ranks) + next-actor derivation — derived, never stored/accumulated | MVP | RG-09 | RG-08 | no | yes | no |
 | C14 | §4.4, §10.1 | Evidence rules: terminal evidence → any active row; intermediate → non-CLAIMED only; stale/duplicate → zero rows | MVP | IN-07, RC-06 | ST-02 | yes | yes | no |
 | C15 | §5 | Write-ahead identity: no POST under a caller-supplied identity not durably persisted | MVP | K-04 | K-02 | YES | yes | no |
@@ -91,7 +91,7 @@ provider / tech-lead / PO / upstream confirmation.
 | C63 | §18-1 | BLOCKING: engine idempotency-collision contract proven by sandbox test (a–d), re-run on engine releases | GATE | B-02, CT-01..05 | sandbox access | YES | no | YES |
 | C64 | §18-2 | CLOSED 2026-07-11: the engine owns its cutoff calendar — no local calendar work; B-03 records the fact + the CA-1 late-submission ask | CLOSED | B-03 | — | no | no | no |
 | C65 | §18-3 | BLOCKING: MVP MAYBE-row terminal exit (operation EXISTS + DRILLED, or TL-10 ∧ TL-5 alternative) | GATE | B-04, OP-01..03 | CA-9 | YES | yes | possibly |
-| C66 | §18 PO 1–8 | PO items: ask-then-retry approval, query cadence, escalation age, cutoff-passed-while-MAYBE (closed round 10), cancelled-trade display, deferral latency, retry-after-reject concept, fresh-assembly consequence | QUESTION | Section K | — | no | no | YES |
+| C66 | §18 PO 1–8 | PO items: ask-then-retry approval, query cadence, escalation age, cutoff-passed-while-MAYBE, cancelled-trade display, deferral latency, retry-after-reject concept, fresh-assembly consequence | QUESTION | Section K | — | no | no | YES |
 | C67 | §18 TL 1–15 | Tech-lead items: event_id stability, card read contract, RPO/RTO, collision contract, ingest lag + lookback, re-execute-after-reject, key-only anchoring, confirmation age, artifact owners, TL-10 platform reject, SDK contract, provider_reference, rate limits, archival, downgrade telemetry | QUESTION | Section K | — | TL-4/5 feed gates | no | YES |
 | C68 | §18 upstream 1–4 | Upstream asks: strict ordering, business_id as Kafka key, schema formalization, emission contract | QUESTION | Section K | — | no | no | YES |
 | C69 | §19.1 | Outbound completion signal | FUTURE | none | — | no | no | no |

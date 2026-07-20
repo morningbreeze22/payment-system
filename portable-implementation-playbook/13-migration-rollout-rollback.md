@@ -19,7 +19,7 @@ release boundary.
 1. Additive columns (S-02, S-03) + inbox table (S-04) — old version
    unaffected (nullable/defaulted).
 2. IMMUTABLE PREFLIGHT + reviewed duplicate DISPOSITION (scope-key,
-   idempotency-key, uetr, request_seq, prospective-I6 — 289ef66
+   idempotency-key, uetr, request_seq, prospective-I6 —
    M1): each duplicate class dispositioned by the human owner
    before any constraint DDL.
 3. Backfill dimensions + anchors (S-08), quiet window, idempotent —
@@ -44,10 +44,10 @@ release boundary.
    deferred until after full rollout + soak; a separate,
    individually-approved migration set. The legacy status column
    is dropped LAST, after ST-05 shows zero rule sites and GO-02's
-   soak is clean (round 13: clean = zero UNEXPLAINED disagreements;
+   soak is clean (clean = zero UNEXPLAINED disagreements;
    CANCELLED rows are EXPECTED, classified deltas — legacy display
    has no such label). ui_step_status tightens to NOT NULL here too
-   (round 14): only after the old writer is gone AND the M.3
+    : only after the old writer is gone AND the M.3
    catch-up derivation pass reports ZERO NULL rows;
    active_exception_* fields stay nullable.
 ```
@@ -68,10 +68,10 @@ incompatibility. Ladder, decided by DISCOVERY EVIDENCE:
    CANCELLED (or maps unknown values to the sanctioned sentinel)
    and does NOT write the new value.
 4. Verify the ENTIRE reader fleet is upgraded; only THEN enable
-   the round-11 derivation that WRITES CANCELLED.
+   the derivation that WRITES CANCELLED.
 5. Soak + rollback rehearsal precede the M.1-7 contract step.
 6. Reader-fleet upgrade and writer-fleet drain are SEPARATE
-   evidence items (round 15): a compatibility release may READ
+   evidence items: a compatibility release may READ
    CANCELLED while still WRITING legacy/NULL status; the M.3
    fenced cutover requires the WRITER drain, not just the reader
    upgrade.
@@ -84,7 +84,7 @@ Structural changes (dual-write, CAS discipline, derivation) ship as
 code — no flag (they are behavior-preserving against the legacy
 representation and proven by GO-02's shadow comparison).
 Config-flagged enablement (default OFF):
-  F0 NEW-FLOW TRAFFIC GATE (round 19 — the activation boundary the
+  F0 NEW-FLOW TRAFFIC GATE (the activation boundary the
      RUN-2 proof anchors to): whether upstream traffic reaches this
      flow AT ALL (product launch / routing). Default OFF. F0 gates
      TRAFFIC ONLY and NEVER bypasses admission — once ON, every
@@ -118,11 +118,11 @@ F0 ACTIVATION WINDOW (round 19 — atomic, inside a change freeze):
   append-only version records PASS or FAILED_INCIDENT_OPEN — the
   ticket closes ONLY after the closing PASS version is signed; a
   FAILED_INCIDENT_OPEN version keeps the ticket and incident open
-  through requalification (follow-up L1 on 8bf0aba — the first
+  through requalification (the first
   deferred sample may be INVALID; nothing assumes the next version
   is the closing one) — file 25 V.2
-  item 3 carries the full lifecycle; 6cb3005 L2 / 7cc9f49 L2 /
-  58f5a64 L1). Any nonzero count → STOP, NO-GO,
+  item 3 carries the full lifecycle; / /
+   ). Any nonzero count → STOP, NO-GO,
   architecture review (never proceed, never waive).
 ```
 
@@ -132,8 +132,8 @@ F0 ACTIVATION WINDOW (round 19 — atomic, inside a change freeze):
 GO-02: dual-write soak with tuple-vs-legacy comparison (report must
 be CLEAN — zero UNEXPLAINED disagreements, each dispositioned;
 EXPECTED CANCELLED semantic deltas are classified, not fixed —
-round 13).
-Catch-up + FENCED CUTOVER (rounds 14-15): during dual-run, OLD
+ ).
+Catch-up + FENCED CUTOVER: during dual-run, OLD
 writers may leave ui_step_status NULL. A one-time batch cannot
 hold an invariant while a writer capable of violating it stays
 live, so the card read switch requires this ORDER:
@@ -160,7 +160,7 @@ write mode — validates scope + mapping against production answers.
 ### M.4 Safe enablement order (GO-03 executes — round-20 THREE SEGMENTS)
 
 ```text
-ENTRY CONDITION (round 20): the GO-04 PRE-CUTOVER CONDITIONAL GO is
+ENTRY CONDITION: the GO-04 PRE-CUTOVER CONDITIONAL GO is
 recorded — every gate PASS, Q5b alone PENDING-CUTOVER. GO-04 is a
 PREREQUISITE of this sequence, not a step inside it.
 
@@ -193,7 +193,7 @@ SEGMENT 2 — ATOMIC ACTIVATION (the M.2 F0 window):
    FAILED_INCIDENT_OPEN — ticket closes only after the closing
    PASS version signs; a failed version keeps ticket + incident
    open through requalification — full lifecycle
-   in file 25 V.2 item 3; 58f5a64 L1). Nonzero or missing signature → ABORT
+   in file 25 V.2 item 3). Nonzero or missing signature → ABORT
    the window (F0 stays OFF), NO-GO, architecture review.
 
 SEGMENT 3 — POST-TRAFFIC (traffic flowing; each stage soaked):
@@ -240,8 +240,8 @@ idempotency keys forever (K-02 rule).
   a NEW feature; no prior application version consumes its
   snapshots and no pre-existing trades exist. Admission enforcement
   is ON from day one — no bootstrap, no drain step, no §7.0
-  assembly flag, no second point of no return. (The round-6..9
-  gate/ladder lives in git history at 9a53c75.)
+  assembly flag, no second point of no return. (The..9
+  gate/ladder lives in git history at.)
 ```
 
 ### M.7 Data compatibility

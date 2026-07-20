@@ -47,7 +47,7 @@ audited UI, not about adding capability.
    un-park, and downgrade actions fire only where the gate passes
    (divergent_payload_at NULL, amount not stale on a MAYBE row,
    freeze off, active row — the former cutoff term is RETIRED,
-   round 10: the engine owns its calendar). The ONLY overridable
+    : the engine owns its calendar). The ONLY overridable
    term is amount staleness, via the dual-control override (O8).
    blocked_reason is display/queue-routing only — no action keys
    on it (§10.1).
@@ -168,7 +168,7 @@ corrected message     U-3, U-6, E-3, P-9, M-7 — upstream is the fix;
 dimension columns; blocked_reason used for grouping/display only:
 BLOCKED by reason with the **ESCALATED (money-critical) class ranked
 first** (§2.2); stuck reservations by age; MAYBE_SUBMITTED by
-maybe_since age; overpay latches (round 10: no cutoff proximity —
+maybe_since age; overpay latches (no cutoff proximity —
 the engine owns the calendar). Each row:
 scope key, business_id, amount, age (episode-anchor clocks, §15),
 last error, §10.4 label chip, deep-link to S2. This is the screen the
@@ -218,10 +218,10 @@ POST /requests/{id}/resolve-now              {reason, ticketRef}                
 POST /requests/{id}/downgrade-repost         {reason, ticketRef}                  (O7; repost_permitted-gated)
 POST /requests/{id}/stale-amount-repost      {reason, ticketRef}                  (O8; staleness override only; 4-eyes
                                                                                      via the §9.3 approval workflow —
-                                                                                     round 5: NEVER an approver identity
+                                                                                      : NEVER an approver identity
                                                                                      in the body)
 POST /requests/{id}/platform-verified-outcome {outcome: EXECUTED|REJECTED, evidenceRef, ticketRef} (O10 → §9.3 operation; approvals via the §9.3 two-step workflow, not inline)
-POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, reason, ticketRef}       (O12 rounds 3–5; trade-level —
+POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, reason, ticketRef} (O12 –5; trade-level —
                                                                                      INITIATES the §9.3 approval: fetch +
                                                                                      validate + bind digest; payload
                                                                                      fetched from the XML store by id,
@@ -231,7 +231,7 @@ POST /trades/{businessId}/reprocess-snapshot {xmlStorageId, reason, ticketRef}  
                                                                                      admission entry, tie recomputed
                                                                                      SERVER-side, no ordering parameter)
 POST /approvals/{id}/approve | /reject
-POST /approvals/{id}/execute                 (round 5: the ONE execution entry —
+POST /approvals/{id}/execute (the ONE execution entry —
                                               input is the approval_id only)
 ```
 
@@ -256,7 +256,7 @@ O1  SET stage_state=RETRY_WAIT, blocked_reason=NULL, next_retry_at
     WHERE outcome IS NULL ∧ stage_state='BLOCKED'
       ∧ submission_state='NOT_SUBMITTED' ∧ divergent_payload_at IS NULL.
     POST-stage rows: remaining repost_permitted terms (§7.0 —
-    freeze, divergence; round 10: no cutoff term exists) checked
+    freeze, divergence;: no cutoff term exists) checked
     in code; stage NEVER changes (an ENRICH-blocked row
     re-enriches, §10.5). No money movement.
 O2  SET outcome='REJECTED' WHERE outcome IS NULL ∧ stage_state=
@@ -334,7 +334,7 @@ numbers match what execution would compute.
 3. Which ticket system anchors the audit trail (§20-8), and is the
    reference validated against its API or free-text?
 4. Retention for console approval/action records.
-5. ~~May retry bypass the payment cutoff?~~ **OBSOLETE — no local cutoff exists (round 10):**
+5. ~~May retry bypass the payment cutoff?~~ **OBSOLETE — no local cutoff exists:**
    the engine owns its calendar (§18-2
    CLOSED); the question has no subject. The ONLY overridable
    repost_permitted term is amount staleness (O8, dual-control).

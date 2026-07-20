@@ -438,7 +438,7 @@ Implemented by: OP-02's wedge assertion + RC-07/RC-08.
 ```text
 Section: §3, §10.3 L9, §6.6   Type: INTEGRATION + OPERATIONAL   Blocking: YES
 Purpose: I1/I2 violations page; read skew does not; L9 verified.
-         PLUS (b1d91dc M1 + b760786 M1; corrected 4098532 M1) the
+         PLUS the
          §6.6 accepted-window candidate diagnostic: query
          correctness only. Delivery semantics: a REQUIRED
          deliverable, but this sub-case failing does NOT block
@@ -474,7 +474,7 @@ Implemented by: OB-01.
 ```text
 Section: §8, §15      Type: INTEGRATION    Blocking: YES
 Purpose: evidence-for-terminal is CRITICAL; benign redeliveries are
-         silent. PLUS (aa4399c L1 + 4dbdf2b M1 + 6cb3005 L1,
+         silent. PLUS (
          non-blocking sub-cases) BOTH post-F0 creation-column
          scans detect and stay quiet correctly: NULL stamp → LOW
          ticket; NULL request_seq → ALERT + ticket at its HIGHER
@@ -491,13 +491,13 @@ Expect:  new event → CRITICAL alert (zero-row CAS detected); known
          event → silent inbox skip; post-F0 NULL-stamp row → LOW
          data-quality ticket (never a page); post-F0
          NULL-request_seq row → ALERT + ticket (identity
-         contract, higher severity — 4dbdf2b M1); pre-F0 NULL
+         contract, higher severity); pre-F0 NULL
          rows → silent.
 Failure: the replay-divergence signature (a §5.2 tripwire) missed, or
          redelivery noise paging humans, or the NULL-stamp scan
          paging/gating (it is a ticket only), or a MISSING or
          MISROUTED NULL-request_seq alert (wrong severity or
-         routing — 6cb3005 L1).
+         routing).
 Implemented by: OB-02, IN-07.
 ```
 
@@ -513,7 +513,7 @@ Setup:   scopes at each §4-derivable state incl. anchors, MAYBE rows,
 Action:  read through the card path AND the §12 all-payments TABLE
          projection (request-granular; added 2026-07-17).
 Expect:  NOT_STARTED = absence; a zeroed removed payment shows
-         CANCELLED, never COMPLETED (round 11 — §4.1 second
+         CANCELLED, never COMPLETED (§4.1 second
          branch); anchors show DATA_VALIDATION_FAILED;
          MAYBE shows PAYMENT_OUTCOME_UNKNOWN (rank 1, never
          SYSTEM_UNAVAILABLE); labels per §10.4; the multi-payment
@@ -534,10 +534,10 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            required_total_at_creation 100, the 20-row shows 120;
            a pre-F0 row shows NULL rendered as "not captured
            (pre-F0)", never a computed value (one stamp per
-           payment_request row, NOT per POST attempt — 0e09f09
+           payment_request row, NOT per POST attempt —
            M2); keyset order = THE CANONICAL TUPLE
            (obligation_identity, row_type, request_seq NULLS
-           FIRST, created_at NULLS FIRST, source_id — 4dbdf2b M2)
+           FIRST, created_at NULLS FIRST, source_id)
            asserted on: two+ legacy NULL-seq requests under one
            obligation (stable order); ordinary non-NULL
            sequences; an OBLIGATION_ONLY row;
@@ -549,13 +549,13 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
            obligation context CANCELLED;
          - reappearance after CANCELLED → rows return to
            IN_PROGRESS context, no duplicate placeholders;
-         - NULLABLE-reason edges (review d00ef6a M2): a §6.2
+         - NULLABLE-reason edges: a §6.2
            covered-on-arrival scope → OBLIGATION_ONLY row,
            COMPLETED, reason NULL; an anchor retired by absence →
            OBLIGATION_ONLY row, CANCELLED, reason NULL
            (REMOVED_BEFORE_REQUEST display note);
          - API contract (§12, LIVE-BROWSE semantics — review
-           c8a92f1 M2): deterministic ordering + keyset pagination —
+            ): deterministic ordering + keyset pagination —
            no row appears TWICE within one traversal; under
            CONCURRENT WRITES cross-page completeness is NOT asserted
            (the test inserts rows mid-traversal and asserts the
@@ -606,9 +606,9 @@ Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          layer (raw-SQL demo); reprocess-snapshot executes by
          approval_id, re-fetches and HARD-REFUSES on digest
          mismatch BEFORE any consumption or lock
-         (content-changed-behind-id → alert fired — round 4; the
+         (content-changed-behind-id → alert fired —; the
          refused approval is NOT burned), consumes AT START
-         (round 5: crash-after-consume seeded → approval burned,
+         (crash-after-consume seeded → approval burned,
          nothing applied, a NEW approval of the same document
          applies the remainder — the consumed one stays refused),
          enters through the §6.1 ADMISSION gate (≥ relaxation at
@@ -629,7 +629,7 @@ Expect:  retry → SAME-stage RETRY_WAIT (an ENRICH row re-enriches);
          and list one row per obligation.
 Failure: any dead-end exit that works only via raw SQL, or an
          endpoint whose audit inputs are optional in practice.
-Implemented by: OP-04a..OP-04e (pre-split round 9), RG-05.
+Implemented by: OP-04a..OP-04e, RG-05.
 ```
 
 ### T-34 — Claim protocol: lock order, lost races, deadlock freedom
@@ -642,7 +642,7 @@ Purpose: the scanner claim protocol cannot invert the global lock
 Setup:   one obligation with a claimable request; concurrent actors
          on real Oracle: retry scanner, feed consumer applying
          evidence, auto-cancel amendment, second scanner instance.
-Action:  TWO LANES (round 16). DETERMINISTIC lane: separate
+Action: TWO LANES. DETERMINISTIC lane: separate
          physical DB sessions with barriers/latches at transaction
          boundaries forcing exact schedules for scanner-vs-feed,
          scanner-vs-auto-cancel, two scanners, lease-expiry-vs-
@@ -663,7 +663,7 @@ Expect:  every both-table transaction locks the obligation FIRST
          amount invariants, lock acquisition order; recorded with
          the evidence: exact Oracle edition/version, isolation
          level, driver/pool versions, DDL, seeds, lock/deadlock
-         traces (round 16 — "no deadlock observed under load"
+         traces ("no deadlock observed under load"
          alone is NOT proof; the deterministic lane is the proof;
          H2/mock-DB results NEVER satisfy this gate).
 Failure: any FOR UPDATE on payment_request before the obligation
@@ -673,16 +673,16 @@ Implemented by: ST-09..11, RC-04/RC-05 (protocol per §11 + mechanics
 M5), OB-xx dashboards unaffected.
 ```
 
-### T-35 — Snapshot admission gate + trade-snapshot fence (rounds 5–7)
+### T-35 — Snapshot admission gate + trade-snapshot fence
 
 ```text
 Section: §6.1, §2.4, §20-10   Type: INTEGRATION / CONCURRENCY
 Blocking: YES
 Purpose: a stale snapshot can neither mutate NOR CREATE anything;
          BLOCK transactions serialize on the trade row and pass the
-         trade-snapshot FENCE (round 6 — admission alone is a
+         trade-snapshot FENCE (admission alone is a
          point-in-time fact, not ownership); §6.1 BLOCK-LEVEL
-         SUPERSESSION is the ratified outcome rule (round 7 — NOT
+         SUPERSESSION is the ratified outcome rule (NOT
          full-snapshot convergence); the reference-only tie
          converges.
 Setup:   real Oracle; trade with snapshot S2 (ordering 200, payment
@@ -702,9 +702,9 @@ Action:  deliver S1 after S2; run two concurrent FIRST snapshots
          through detection + approved reprocess + re-run.
 Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          B NEVER created, no payment_request for B ever exists (the
-         round-5 H-1 trace); concurrent first snapshots serialize
+           H-1 trace); concurrent first snapshots serialize
          on the trade-row insert/lock and the outcome follows
-         BLOCK-LEVEL SUPERSESSION (round 7 — deterministic per
+         BLOCK-LEVEL SUPERSESSION (deterministic per
          schedule, NOT "both scopes exist": blocks the older worker
          applied BEFORE the newer admission exist; its unapplied
          remainder is abandoned — test BOTH paused schedules:
@@ -722,14 +722,14 @@ Expect:  S1 refused WHOLE at admission (stale metric): A untouched,
          (reprocess); the zombie's blocks all no-op; the
          failed-validation message advances NEITHER
          trade_snapshot_state nor upstream_ordering — AND (review
-         c8a92f1 H3) its validation_failed marker lands on the
+          ) its validation_failed marker lands on the
          UNION of the document's extractable scopes and EVERY
          existing obligation/anchor of the trade: regression case =
          last valid snapshot carried A + B, the invalid document
          carries only a malformed A block → B's existing obligation
          is ALSO marked (no new request creation for B until a
          corrected message), while A gets its anchor/marker;
-         DEFINED-WINDOW trace (review 4d5cb83 H1 — ratified
+         DEFINED-WINDOW trace (ratified
          behavior, NOT a defect): valid 100 (A only) → invalid 200
          (malformed A; A marked at 200) → out-of-order VALID 150
          introducing NEW scope B → 150 ADMITS (150 > 100), B's
@@ -768,7 +768,7 @@ ID kept — IDs are stable; body retained in git history
 (commit 9a53c75). Admission itself is fully covered by T-35.
 ```
 
-### T-37 — Absence lifecycle: removal, CANCELLED terminal, anchors, reappearance (round 11)
+### T-37 — Absence lifecycle: removal, CANCELLED terminal, anchors, reappearance
 
 ```text
 Section: §6.1, §4.1, §4.2, §6.5, §6.0, §12, §15   Type: INTEGRATION
@@ -792,15 +792,15 @@ Setup:   real Oracle; trade with payments A (unsent active request)
          document; a payment F with provider_reject_count = 1
          (marker ordering below the removal ordering) and a
          payment G with provider_reject_count = 2, each with
-         removal + reappearance snapshots (round 12); a payment H
+         removal + reappearance snapshots; a payment H
          removed (zeroed), then targeted by a NEWER snapshot that
          FAILS validation (H's scope extractable), then by a
-         corrected valid snapshot (round 13).
+         corrected valid snapshot.
 Action:  deliver each snapshot; for D deliver removal first, then
          REJECTED evidence, then (separate run) EXECUTED evidence;
          re-deliver the zeroing documents; run removal +
-         reappearance for F and G (round 12); deliver H's
-         malformed then corrected snapshots (round 13); read
+         reappearance for F and G; deliver H's
+         malformed then corrected snapshots; read
          every affected card through the §12 path.
 Expect:  A: required := 0, upstream_ordering advanced, §6.4
          auto-cancel + release → row derives §4.1 CANCELLED —
@@ -808,7 +808,7 @@ Expect:  A: required := 0, upstream_ordering advanced, §6.4
          TERMINAL (no live exception, no ops queue entry); B:
          overpay latch fires (confirmed > required(0)) → the
          obligation derives IN_PROGRESS with OVERPAY_DETECTED,
-         never CANCELLED (round 12: NO request-state mutation —
+         never CANCELLED (NO request-state mutation —
          the executed request stays terminal/frozen; BLOCKED is a
          request state), no clawback; C (only-payment removal):
          the EMPTY derived set is ADMITTED (trade watermark
@@ -830,11 +830,11 @@ Expect:  A: required := 0, upstream_ordering advanced, §6.4
          marker not-live → clean CANCELLED; reappearance creates
          a successor normally; G (count 2): the marker stays LIVE
          (ops-only clear) yet the scope derives CANCELLED with NO
-         provider exception (round-13 HISTORICAL suppression —
+         provider exception (HISTORICAL suppression —
          the marker's ordering is below the removal watermark);
          reappearance → IN_PROGRESS, PROVIDER_REJECTED
          resurfaces, NO automatic successor until the ops clear;
-         H (round 13): the malformed reappearance writes a LIVE
+         H: the malformed reappearance writes a LIVE
          validation marker WITHOUT advancing the watermark →
          required stays 0, the CANCELLED predicate fails →
          IN_PROGRESS with DATA_VALIDATION_FAILED VISIBLE (never
@@ -853,9 +853,9 @@ Failure: a removed payment stuck IN_PROGRESS forever (the C-1b
          only-payment removal (C-1a), a silent disappearance
          (P5 violation), a raw account in the disappearance log,
          a reappearance that auto-pays through a live
-         provider_rejected marker (round 12), or a zeroed scope
+         provider_rejected marker, or a zeroed scope
          with a LIVE validation marker showing no exception (the
-         round-12 over-suppression — round 13).
+           over-suppression).
 Implemented by: IN-02 (absence fan-out + admission), RG-08
 (CANCELLED derivation), RG-09 (round-13 narrowed suppression),
 RG-10 (reopening), OB-03 (disappearance + validation marker-age
@@ -895,7 +895,7 @@ Cases:
      (i) allowlisted statement-local signatures ONLY - the pinned
          ORA codes (00001 unique, 02290 check, 20141/20142 journal
          triggers, evidenced space-error family; timeouts are NOT
-         here - review 928341a H2): posting CONTINUES
+         here -): posting CONTINUES
          (wire calls proceed, money outcomes identical), the gap is
          recorded, and the AUDIT-GAP alert fires AFTER the host
          COMMIT (a rolled-back host reports nothing); assert NO
@@ -903,7 +903,7 @@ Cases:
          (the rider uses a plain try/catch, no inner
          @Transactional). THE CLASSIFIER IS PART OF THE DELIVERABLE
          and is a NARROW ALLOWLIST OF PINNED ORACLE VENDOR CODES
-         (review 4d5cb83 M3 — never instanceof-only: a Spring type
+         (never instanceof-only: a Spring type
          such as QueryTimeoutException does not prove the session
          is usable): allowed = ORA-00001 (unique), ORA-02290
          (check), ORA-20141/20142 (the paj triggers),
@@ -939,26 +939,26 @@ Cases:
      vocabulary refused.
   I  log join: every journal event pair joins unambiguously to its
      ATTEMPT-class log lines via (request_id, post_attempt_seq,
-     attempt_event_type) WHEN those lines exist - review 7ab31e5
-     M5, delivery semantics per review 4098532 H1 (afterCommit
+     attempt_event_type) WHEN those lines exist -
+     M5, delivery semantics per (afterCommit
      publication): a line for a ROLLED-BACK transaction is a
      FAILURE (phantom - it would also let a reused
      post_attempt_seq forge duplicate join keys); a MISSING line
      in the crash-after-commit fault case is TOLERATED (accepted
      gap, at-most-once); publication failure must leave the
      transition committed and unaffected. Exact-vocabulary
-     assertion (review b760786 M2): the log field is NAMED
+     assertion: the log field is NAMED
      attempt_event_type and its value is BYTE-EQUAL to
      payment_attempt_journal.event_type at all three emission
      sites - the claim line = 'ATTEMPT_STARTED'; the
      response-resolution and lease-expiry lines =
      'ATTEMPT_RESOLVED'; any local vocabulary (POSTING_CLAIM,
      RESPONSE_RESOLVED, LEASE_EXPIRED, ...) FAILS this case.
-  J  switch transitions (review d00ef6a M3): OFF->ON and ON->OFF
+  J switch transitions: OFF->ON and ON->OFF
      under posting freeze + drain -> NO half-pairs; a mid-traffic
      flip in the harness DOES create one (documents why the rule
      exists); planned transitions are recorded and excluded by the
-     unmatched-pair alert triage. BOUNDARY (review c8a92f1 M1):
+     unmatched-pair alert triage. BOUNDARY:
      claim committed while ON -> freeze effective before the wire ->
      worker abandons -> the switch may NOT change until that
      episode's lease-expiry resolution lands (drain includes
@@ -966,7 +966,7 @@ Cases:
      ONLY when this rule is violated.
 Expected: all cases green + grep/review evidence that NO runtime
          code path SELECTs the journal.
-Failure meaning (review 4d5cb83 L1 — aligned with the narrow
+Failure meaning (aligned with the narrow
          guarantee): an INCORRECT money outcome, a MISCLASSIFIED
          failure (statement-local treated as fatal or vice versa),
          a PHANTOM gap alert (emitted for a rolled-back host), or
@@ -974,7 +974,7 @@ Failure meaning (review 4d5cb83 L1 — aligned with the narrow
          section 14.1. (A fatal infra failure failing the attempt
          is CORRECT behavior, not a test failure.)
 Type: integration (real Oracle) + fault injection.
-BLOCKING: JOURNAL_ENABLEMENT (explicit gate, review 1d8a650 M2 —
+BLOCKING: JOURNAL_ENABLEMENT (explicit gate, —
          the earlier bare "yes" admitted two incompatible
          readings): the FULL applicable A-J evidence set gates the
          section-14.1 switch OFF->ON transition, NEVER payment
@@ -989,5 +989,5 @@ Implemented by: AUD-01 (schema slice + G + H + the switch), K-04
 (A, B, E, F), RC-02 (D), ST-10 (C), OB-05 (F alert wiring +
 J triage rules); I = ST-08 (the §14 line convention: post_attempt_seq
 + attempt_event_type on ATTEMPT-class lines) together with K-04/RC-02/ST-10
-(the three ATTEMPT-class emission sites) — review b1d91dc M3.
+(the three ATTEMPT-class emission sites) —.
 ```

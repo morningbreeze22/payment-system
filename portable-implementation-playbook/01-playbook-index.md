@@ -99,7 +99,7 @@ BLOCKED on §18 item 0 residue (snapshot contract — task B-01):
       schema + within-snapshot uniqueness
     - within-snapshot uniqueness intake validation (§6.0)
     - PO-9 ANSWERED 2026-07-11 (absence = amendment to zero; BA-2
-      amended §1.1) and TL-16 ANSWERED round 5 (§6.1 admission +
+      amended §1.1) and TL-16 (§6.1 admission +
       §2.4) — IN-02 implements both; the remaining B-01 residue is
       the WRITTEN filing of asks 5 + 8 (confirmed verbally)
     - §12 card lookup rewrite (returns ALL obligations of the trade;
@@ -144,15 +144,15 @@ BLOCKED on §18 item 3 (MAYBE terminal exit — task B-04):
 |---|---|---|---|---|---|
 | P1 Discovery | D-01..D-12 | none | none (read-only) | filled local mapping + D-12 report | P2 (after human review) |
 | P2 Gates + artifacts | B-01..B-04, CA-1..CA-10 | D-12 report | §18-0..3 are THE work here | recorded answers + CA-1..CA-10 published (CA-10 = §14.1 journal spec; AUD-01 deploys it in/after P3) | P3 (needs CA-4; B-01 residue does NOT gate — see BLOCKED list above) |
-| P3 Schema | S-01..S-10 | CA-4 published for S-01; CA-5 ALSO published before S-02 (initial value + init policy + identity namespace — 2a19c20 L4; scope model settled as a §1 contract fact — B-01 residue NOT required; it gates the §6 consumer freeze IN-02, not schema) | §18-0 gates IN-02, not this phase | schema at target + S-09 proof | P4 |
+| P3 Schema | S-01..S-10 | CA-4 published for S-01; CA-5 ALSO published before S-02 (initial value + init policy + identity namespace —; scope model settled as a §1 contract fact — B-01 residue NOT required; it gates the §6 consumer freeze IN-02, not schema) | §18-0 gates IN-02, not this phase | schema at target + S-09 proof | P4 |
 | P4 Identity | K-01..K-06 | S-09; CA-5 | §18-0 (via CA-5) | deterministic identity + golden vectors | P5 (P8 may start) |
 | P5 UETR | U-01..U-03 | S-03; P4 claim path | TL-11(a) if unclear | acceptance-only UETR rules | P6 |
 | P6 State model | ST-01..ST-11 | P3; S-08 backfill | none new | factored model + CAS + leases | P7 |
 | P7 Reservation | RG-01..RG-10 | P6 | none new | money choreography + derivation + guards | P9 (P8 parallel) |
 | P8 Contract tests | CT-01..CT-07 | B-02; K-02/K-03 | §18-1 — this phase IS the proof | §18-1 evidence pack | gates GO-03 F4 + GO-04 |
 | P9 Inbound | IN-01..IN-09 | P6, P7 | upstream asks open → comparator pluggable | hardened intake + feed + evidence helper | P10 |
-| P10 Retry/recovery | RC-01..RC-10 | P6, P7, P9; CA-1/CA-3 | P8 PASS gates auto-downgrade ENABLEMENT (§18-2 closed round 10) | resolver machinery | P11 |
-| P11 Operator ops | OP-01..OP-03, OP-04a–e (round-9 pre-split) | CA-9; S-06; P6/P7 | §18-3 — this phase satisfies it | operation + signed drill + §20 interim surface | P12 |
+| P10 Retry/recovery | RC-01..RC-10 | P6, P7, P9; CA-1/CA-3 | P8 PASS gates auto-downgrade ENABLEMENT | resolver machinery | P11 |
+| P11 Operator ops | OP-01..OP-03, OP-04a–e | CA-9; S-06; P6/P7 | §18-3 — this phase satisfies it | operation + signed drill + §20 interim surface | P12 |
 | P12 Drift | OB-01..OB-02 | P7 live; S-07 | none new | drift scan + tripwires | P13 |
 | P13 Observability | OB-03..OB-07 | P6-P12 metric sources | config owners pending → marked | §15 alert surface + config validation | P14 |
 | P14 Rollout | GO-01..GO-05 (round-19 execution order: 01→02→05→04→03) | ALL phases; P8 PASS; OP-03 | §18-0..3 (Q1-Q4/Q28) + MONEY_SAFETY_BLOCKING (Q5a+Q5b/Q8/Q9/Q11/Q12/Q14/Q16/Q17/Q27/Q29-min; Q5b may be PENDING-CUTOVER at GO-04 — round 20) non-waivable | live system + signed go/no-go | steady state |

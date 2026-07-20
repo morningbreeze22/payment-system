@@ -42,7 +42,7 @@ Load ONLY, in this order:
    If ANY relevant DIV-2 row exists: also load file 26 T.2 (the
    DIV-2 six-item proof checklist) and record the six-item proof in
    the execution report for every unapproved DIV-2 adaptation —
-   missing proof blocks implementation (round 18).
+   missing proof blocks implementation.
 7. If <TASK-ID> is an implementation card (writes code):
    portable-implementation-playbook/24-implementation-mechanics.md —
    the M1–M6 recipe(s) the card's shape needs plus the matching M8
@@ -70,7 +70,7 @@ or trade_snapshot_state and the CUTOVER_POPULATION_GREENFIELD proof
 (file 26 T.1, premise P-B) is not on record in the facts sheet, the
 task is BLOCKED — report and stop.
 
-Instruction precedence when sources seem to disagree (round 17):
+Instruction precedence when sources seem to disagree:
 requirment-v4.md → the card's prerequisites/invariants → the
 24-implementation-mechanics recipes → recorded divergence-register
 resolutions → the file-26 stream map (an optimization hint) → this

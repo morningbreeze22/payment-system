@@ -102,8 +102,8 @@ DD-3  RG-06 vs IN-02 (trigger T1): implement evaluate() in RG-06 wired
       when you reach IN-02. Record "T1 pending IN-02" in the tracker
       when finishing RG-06.
 
-DD-4  RC-03 stubs (round 11 sweep: no cutoff term exists;
-      no cutoff stub may be built — the round-10 closure is total):
+DD-4 RC-03 stubs (sweep: no cutoff term exists;
+      no cutoff stub may be built — the closure is total):
       until RC-09 is done, the freeze term reads a stub that always
       answers FROZEN. Replace the stub in RC-09 and re-run RC-03's
       term-by-term tests.
@@ -115,7 +115,7 @@ DD-5  U-03 feed-side case: defer the feed-event-under-dead-UETR case
 DD-6  CT block placement: run CT-01..CT-07 immediately after K-06 IF
       sandbox access (B-02) exists. If not, continue with U-01 onward
       and run the CT block as soon as access arrives. HARD GATE either
-      way (extended 289ef66 M2): CT-02..CT-05 must be PASSED — AND
+      way: CT-02..CT-05 must be PASSED — AND
       BOTH typed consequence records (CT-04's and CT-05's — the
       ONLY two producers; CT-02/CT-03 are plain pass/fail proofs
       with no record) must read

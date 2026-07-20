@@ -1,4 +1,4 @@
-> **Purpose:** Task cards OP-01..OP-03 + OP-04a..OP-04e (apply-platform-verified-outcome audited operation — §18-3 — plus the §20 interim ops surface, pre-split round 9) (original Section H, phase P11).
+> **Purpose:** Task cards OP-01..OP-03 + OP-04a..OP-04e (apply-platform-verified-outcome audited operation — §18-3 — plus the §20 interim ops surface, pre-split) (original Section H, phase P11).
 > **When to use this file:** When executing the tasks of this phase, one card at a time, with the matching packet file from 09-minimal-context-packets/.
 > **Depends on:** 08-task-cards/README.md; 01-playbook-index.md; 07-placeholder-glossary.md; the requirement sections cited per card; the locally filled mapping template.
 > **Used by:** The local coding agent executing phase P11.
@@ -110,14 +110,14 @@
 - **Task ID:** OP-04b
 - **Title:** Approval-time snapshot fetch + validation + canonical digest binding + approver display (masked diff, supersession notice)
 - **Classification:** MVP normative implementation (NON-WAIVABLE path — §20 minimal exit set)
-- **Purpose:** §9.3 rounds 4–7: the approvers authorize CONTENT, not an opaque id — the approval must bind what they actually reviewed.
+- **Purpose:** §9.3 –7: the approvers authorize CONTENT, not an opaque id — the approval must bind what they actually reviewed.
 - **Prerequisites:** OP-04a (approval adapter); IN-02 — VERIFY the tie-conflict record carries the identifiers per §6.7 (business_id, tied ordering, XML storage id, masked diff summary), the XML fetch-by-id path exists (§6.0 transport note), AND the §6.1 trade-level ADMISSION gate is implemented; if not, reopen IN-02 BEFORE this card.
 - **Requirement sections / concepts to read:** §9.3 (approval binding), §6.7 (tie + executability), §6.0 (transport), §16.3 (masking).
 - **Placeholder components involved:** [Operator Admin Procedure Area].
 - **Local placeholder mappings required before starting:** XML-store fetch client (IN-02's).
 - **Local code areas to discover:** none new.
 - **How to locate:** n/a.
-- **Implementation instructions:** the reprocess-snapshot INITIATION endpoint (input: xmlStorageId + reason + ticketRef) FETCHES the snapshot from the store by id, VALIDATES it (schema, business_id), computes the CANONICAL business-payload digest (the ONE shared implementation — same algorithm as §2.4/§6.1), and records the pending §9.3 approval BOUND to (business_id, xml_storage_id/version, digest, ticket, expiry, UNIQUE nonce). The second approver's display shows the digest + the MASKED per-block diff (§16.3 — never raw payload) + the round-7 SUPERSESSION NOTICE (a newer live snapshot admitted mid-execution supersedes the unapplied remainder). No payment state is touched by this card.
+- **Implementation instructions:** the reprocess-snapshot INITIATION endpoint (input: xmlStorageId + reason + ticketRef) FETCHES the snapshot from the store by id, VALIDATES it (schema, business_id), computes the CANONICAL business-payload digest (the ONE shared implementation — same algorithm as §2.4/§6.1), and records the pending §9.3 approval BOUND to (business_id, xml_storage_id/version, digest, ticket, expiry, UNIQUE nonce). The second approver's display shows the digest + the MASKED per-block diff (§16.3 — never raw payload) + the SUPERSESSION NOTICE (a newer live snapshot admitted mid-execution supersedes the unapplied remainder). No payment state is touched by this card.
 - **Do not change:** the §6.7 tie-record contents; the §16.3 masking rules; the digest algorithm (shared, never a second implementation).
 - **Tests to add:** approval binds the exact digest of the fetched document; a different document → different digest (binding, not attestation); masked diff never contains full account numbers; the supersession notice present; purged/missing xml id at approval time → clean refusal, NO pending approval created; approval expiry set.
 - **Edge cases:** approval created, document corrected upstream (new id) before approval granted → execution (OP-04c) will hard-refuse on digest mismatch — by design, not this card's problem; wrong-business_id document → refused at initiation.
