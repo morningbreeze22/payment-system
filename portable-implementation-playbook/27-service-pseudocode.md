@@ -272,7 +272,7 @@ getCard(business_id):
   NO locks, NO writes, NO rule logic on display labels (§10.4)
 
 getAllPaymentsTable(filter):                     // §12 TABLE projection
-  SELECT obligation LEFT JOIN request            //: pure read
+  SELECT obligation LEFT JOIN request            // (2026-07-17): pure read
   per joined row emit:
     row_type = REQUEST        (one row per request, request-id key)
              | OBLIGATION_ONLY (no request yet: obligation-id key,
@@ -383,7 +383,7 @@ postScan():
 [WORKER] — one attempt:
 postAttempt(id):
   if freezeEffective(): return                   // §16.1 BOTH-ENDS, end 1 of 2
-                                                 //: a queued
+                                                 // (review c8a92f1 H2): a queued
                                                  // candidate may postdate the
                                                  // scan's check — re-read HERE,
                                                  // before ANY claim mutation.

@@ -881,7 +881,7 @@ a zeroed scope. Ops disposition per §10/§13 governs (the PO's
   ordering-aware anchor retirement (which zeroes it AND advances the
   watermark past the failure marker in one write).
 - `provider_rejected` is DELIBERATELY absent from the CANCELLED branch
- : removal does not launder reject history, and reject
+  (round 12): removal does not launder reject history, and reject
   history does not resurrect a removed payment. At count 1 the zeroing
   write's watermark advance makes the marker not-live naturally; at
   count >= 2 the marker stays LIVE (§2.1 — ops-only clearing) yet the
@@ -2688,7 +2688,7 @@ AFTER the money.
   state — the reservation is confirmed or released, the scope can
   complete (§4.1), and a released shortfall re-pays under a NEW
   key via §6.8 where its guards permit (§19.3 pattern). Guard note
- : after a verified REJECTED the
+  (clarified 2026-07-11): after a verified REJECTED the
   provider_rejected marker is LIVE and correctly BLOCKS an
   automatic successor — re-payment happens only via a strictly
   newer valid upstream message (§6.8 successor policy) or the
@@ -4306,7 +4306,7 @@ tests point at them):
    PENDING→APPROVED→CONSUMED state machine with version/nonce
    uniqueness; binding fields incl. the reprocess content digest;
    approver ≠ initiator; consumption semantics PER OPERATION CLASS
-  : single-transition → the CONSUMED CAS and the payment
+   (round 5): single-transition → the CONSUMED CAS and the payment
    transition commit in ONE transaction/session; reprocess-snapshot
    → CONSUME-AT-START after the digest check, crash remedied by a
    NEW approval — §9.3), with

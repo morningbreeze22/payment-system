@@ -229,7 +229,7 @@ Required contents: execution signature = approval_id ONLY (round 4 —
   approval-record schema + PENDING→APPROVED→CONSUMED state machine
   (version/nonce uniqueness; binding fields incl. the reprocess
   content digest); consumption semantics PER OPERATION CLASS
- : single-transition → CONSUMED CAS + payment transition
+  (round 5): single-transition → CONSUMED CAS + payment transition
   in ONE transaction; reprocess-snapshot → CONSUME-AT-START after
   the digest check, crash mid-fan-out remedied by a NEW approval
   (§9.3 — never resurrect a consumed approval); round 6: completed_at

@@ -90,23 +90,6 @@
   {
    "file": "requirment-v4.md",
    "blob_sha": "9c14250abc8cc9fbf067e0a836051d431e6ddde6",
-   "line": 884,
-   "spans": [
-    [
-     1,
-     12
-    ]
-   ],
-   "deleted": [
-    " (round 12)"
-   ],
-   "old_line": "  (round 12): removal does not launder reject history, and reject",
-   "new_line": " : removal does not launder reject history, and reject",
-   "approval": "approved"
-  },
-  {
-   "file": "requirment-v4.md",
-   "blob_sha": "9c14250abc8cc9fbf067e0a836051d431e6ddde6",
    "line": 1379,
    "spans": [
     [
@@ -153,23 +136,6 @@
    ],
    "old_line": "    time — at the §6.1 ADMISSION gate (round 5): the ≥ relaxation",
    "new_line": "    time — at the §6.1 ADMISSION gate: the ≥ relaxation",
-   "approval": "approved"
-  },
-  {
-   "file": "requirment-v4.md",
-   "blob_sha": "9c14250abc8cc9fbf067e0a836051d431e6ddde6",
-   "line": 2691,
-   "spans": [
-    [
-     1,
-     24
-    ]
-   ],
-   "deleted": [
-    " (clarified 2026-07-11)"
-   ],
-   "old_line": "  (clarified 2026-07-11): after a verified REJECTED the",
-   "new_line": " : after a verified REJECTED the",
    "approval": "approved"
   },
   {
@@ -272,23 +238,6 @@
    ],
    "old_line": "  RETIRED (round 10), and its timezone-aware representation rules",
    "new_line": "  RETIRED, and its timezone-aware representation rules",
-   "approval": "approved"
-  },
-  {
-   "file": "requirment-v4.md",
-   "blob_sha": "9c14250abc8cc9fbf067e0a836051d431e6ddde6",
-   "line": 4309,
-   "spans": [
-    [
-     2,
-     12
-    ]
-   ],
-   "deleted": [
-    " (round 5)"
-   ],
-   "old_line": "   (round 5): single-transition → the CONSUMED CAS and the payment",
-   "new_line": "  : single-transition → the CONSUMED CAS and the payment",
    "approval": "approved"
   },
   {
@@ -1694,23 +1643,6 @@
   {
    "file": "portable-implementation-playbook/10-test-matrix.md",
    "blob_sha": "23af0d328ace62129b23e3a4dad40d4a6852926d",
-   "line": 533,
-   "spans": [
-    [
-     10,
-     23
-    ]
-   ],
-   "deleted": [
-    " (2026-07-19)"
-   ],
-   "old_line": "           (2026-07-19): the 100-row shows",
-   "new_line": "          : the 100-row shows",
-   "approval": "approved"
-  },
-  {
-   "file": "portable-implementation-playbook/10-test-matrix.md",
-   "blob_sha": "23af0d328ace62129b23e3a4dad40d4a6852926d",
    "line": 552,
    "spans": [
     [
@@ -2000,23 +1932,6 @@
   {
    "file": "portable-implementation-playbook/12-companion-artifacts.md",
    "blob_sha": "2943568b3d0c2ec85bfc8f56614ba4f46d87bae0",
-   "line": 232,
-   "spans": [
-    [
-     1,
-     11
-    ]
-   ],
-   "deleted": [
-    " (round 5)"
-   ],
-   "old_line": "  (round 5): single-transition → CONSUMED CAS + payment transition",
-   "new_line": " : single-transition → CONSUMED CAS + payment transition",
-   "approval": "approved"
-  },
-  {
-   "file": "portable-implementation-playbook/12-companion-artifacts.md",
-   "blob_sha": "2943568b3d0c2ec85bfc8f56614ba4f46d87bae0",
    "line": 255,
    "spans": [
     [
@@ -2097,23 +2012,6 @@
    ],
    "old_line": "    -- Unified audit (review 4d5cb83 M2): scope = EVERY auditable",
    "new_line": "    -- Unified audit: scope = EVERY auditable",
-   "approval": "approved"
-  },
-  {
-   "file": "portable-implementation-playbook/13-migration-rollout-rollback.md",
-   "blob_sha": "0db1b8f8e31324c27acb9d7c75dbee1fe33840ad",
-   "line": 50,
-   "spans": [
-    [
-     2,
-     13
-    ]
-   ],
-   "deleted": [
-    " (round 14)"
-   ],
-   "old_line": "   (round 14): only after the old writer is gone AND the M.3",
-   "new_line": "  : only after the old writer is gone AND the M.3",
    "approval": "approved"
   },
   {
@@ -2360,23 +2258,6 @@
    "approval": "approved"
   },
   {
-   "file": "portable-implementation-playbook/21-progress-tracker-template.md",
-   "blob_sha": "1d55bfe08a82f7838bc4c54492d78e045ac18ded",
-   "line": 4,
-   "spans": [
-    [
-     75,
-     84
-    ]
-   ],
-   "deleted": [
-    " (review)"
-   ],
-   "old_line": "> **Used by:** The local coding agent (session start/end); the human driver (review).",
-   "new_line": "> **Used by:** The local coding agent (session start/end); the human driver.",
-   "approval": "approved"
-  },
-  {
    "file": "portable-implementation-playbook/23-task-kickoff-prompt.md",
    "blob_sha": "1a59739d34219331e7e168c41165dc734d1af1c3",
    "line": 45,
@@ -2600,23 +2481,6 @@
   {
    "file": "portable-implementation-playbook/25-golive-verification-procedures.md",
    "blob_sha": "f45b4cc86e423b64bba531c545be8c0708b2b33c",
-   "line": 218,
-   "spans": [
-    [
-     2,
-     15
-    ]
-   ],
-   "deleted": [
-    " (289ef66 L1)"
-   ],
-   "old_line": "   (289ef66 L1): a NULL request_seq is an IDENTITY-CONTRACT",
-   "new_line": "  : a NULL request_seq is an IDENTITY-CONTRACT",
-   "approval": "approved"
-  },
-  {
-   "file": "portable-implementation-playbook/25-golive-verification-procedures.md",
-   "blob_sha": "f45b4cc86e423b64bba531c545be8c0708b2b33c",
    "line": 237,
    "spans": [
     [
@@ -2765,40 +2629,6 @@
    ],
    "old_line": "- AUTHORITY (round 17): card prerequisites + file 20's gates are",
    "new_line": "- AUTHORITY: card prerequisites + file 20's gates are",
-   "approval": "approved"
-  },
-  {
-   "file": "portable-implementation-playbook/27-service-pseudocode.md",
-   "blob_sha": "aafd1bb6c4dda7537a3c2ea7256cb112a7fbae0d",
-   "line": 275,
-   "spans": [
-    [
-     51,
-     64
-    ]
-   ],
-   "deleted": [
-    " (2026-07-17)"
-   ],
-   "old_line": "  SELECT obligation LEFT JOIN request            // (2026-07-17): pure read",
-   "new_line": "  SELECT obligation LEFT JOIN request            //: pure read",
-   "approval": "approved"
-  },
-  {
-   "file": "portable-implementation-playbook/27-service-pseudocode.md",
-   "blob_sha": "aafd1bb6c4dda7537a3c2ea7256cb112a7fbae0d",
-   "line": 386,
-   "spans": [
-    [
-     51,
-     71
-    ]
-   ],
-   "deleted": [
-    " (review c8a92f1 H2)"
-   ],
-   "old_line": "                                                 // (review c8a92f1 H2): a queued",
-   "new_line": "                                                 //: a queued",
    "approval": "approved"
   }
  ]

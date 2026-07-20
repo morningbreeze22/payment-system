@@ -215,7 +215,7 @@ coexists with immutability; version model clarified 58f5a64 L3):
    disposition is REQUIRED evidence, and a later good row does
    NOT cure it; two rows sharing created_at → the tie-breaker
    decides deterministically. SEVERITY IS NOT FLATTENED
-  : a NULL request_seq is an IDENTITY-CONTRACT
+   (289ef66 L1): a NULL request_seq is an IDENTITY-CONTRACT
    failure (routes with the §15 ALERT), a NULL
    required_total_at_creation is a data-quality/display failure
    (routes as the LOW ticket) — the evidence state is common, the

@@ -47,7 +47,7 @@ release boundary.
    soak is clean (round 13: clean = zero UNEXPLAINED disagreements;
    CANCELLED rows are EXPECTED, classified deltas — legacy display
    has no such label). ui_step_status tightens to NOT NULL here too
-  : only after the old writer is gone AND the M.3
+   (round 14): only after the old writer is gone AND the M.3
    catch-up derivation pass reports ZERO NULL rows;
    active_exception_* fields stay nullable.
 ```

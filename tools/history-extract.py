@@ -62,7 +62,11 @@ WORDS = {"review", "reviews", "follow-up", "on", "note", "git", "fixed",
 STRIP = ";,:.—–+&/"
 
 def parse_inner(inner):
-    """returns (is_pure, has_anchor)"""
+    """returns (is_pure, has_anchor) — an anchor must be CONCRETE
+    (known sha / review-sha / round ref / date); bare 'review'/
+    'reviews'/'follow-up' are pure filler but NEVER anchor by
+    themselves (re-review of af4525e, L2: '(review)' can be a
+    semantic role, not provenance)"""
     has_anchor = False
     # ROUND may contain an internal space ("round 10") — pre-join
     text = re.sub(r"\brounds?\s+(?=\d)", "round-", inner, flags=re.I)
@@ -74,9 +78,8 @@ def parse_inner(inner):
             has_anchor = True
         elif ROUND.fullmatch(tok) or DATE.fullmatch(tok):
             has_anchor = True
-        elif tok.lower() in ("review", "reviews", "follow-up"):
-            has_anchor = True
-        elif FINDING.fullmatch(tok) or tok.lower() in WORDS:
+        elif FINDING.fullmatch(tok) or tok.lower() in WORDS \
+                or tok.lower() in ("review", "reviews", "follow-up"):
             pass
         else:
             return False, False
@@ -100,6 +103,16 @@ def candidate_spans(line):
             e += 1
         else:
             continue  # no adjacent space — skip, never squeeze
+        # LOCAL BOUNDARY CHECK (re-review of af4525e, L1: inspect the
+        # two characters that become adjacent at THIS seam, not the
+        # whole line): if the surviving right neighbor is punctuation
+        # and the surviving left neighbor is line-start, whitespace,
+        # or '/', deletion would orphan that punctuation ("^: …",
+        # "//: …", "  : …") — skip, never repair.
+        left = line[s - 1] if s > 0 else ""
+        right = line[e] if e < len(line) else ""
+        if right in ":;,.?!" and (s == 0 or left in " \t/"):
+            continue
         spans.append((s, e))
     # apply-order safety: keep only non-overlapping (they can't overlap
     # by construction, but adjacent spans may share the space char)
@@ -206,6 +219,17 @@ _l2 = "backfill (+ anchors where derivable) from"
 assert candidate_spans(_l2) == [], "content parens must never qualify"
 _l3 = "rank order (rounds 12–13: required = 0 suppresses)"
 assert candidate_spans(_l3) == [], "fused rationale must never qualify"
+# re-review of af4525e — L1/L2 damage cases as executed negatives:
+assert candidate_spans("   (round 12): removal does not launder reject history") == [], \
+    "orphaned-colon seam must be skipped (L1)"
+assert candidate_spans("SELECT x  // (2026-07-17): pure read") == [], \
+    "//: seam must be skipped (L1)"
+assert candidate_spans("the human driver (review).") == [], \
+    "bare (review) must not anchor (L2)"
+assert parse_inner("review")[1] is False, "bare review word is never an anchor"
+_l4 = "text (round 12) mid-line: fine"
+assert candidate_spans(_l4) and delete_spans(_l4, candidate_spans(_l4)) == "text mid-line: fine", \
+    "colon elsewhere on the line must not block a clean seam"
 
 if __name__ == "__main__":
     sys.exit(main())

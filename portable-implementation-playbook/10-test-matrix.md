@@ -530,7 +530,7 @@ Expect:  NOT_STARTED = absence; a zeroed removed payment shows
          - required 120 fulfilled as 100 + 20 → exactly TWO REQUEST
            rows (amounts 100, 20), both carrying required 120 and
            cumulative counters, and the amount-series stamps
-          : the 100-row shows
+           (2026-07-19): the 100-row shows
            required_total_at_creation 100, the 20-row shows 120;
            a pre-F0 row shows NULL rendered as "not captured
            (pre-F0)", never a computed value (one stamp per

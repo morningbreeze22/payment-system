@@ -21,8 +21,18 @@
   plus exactly one adjacent space. `new_line = old_line minus span` — no other
   byte changes, ever. Seam guards skip (never repair) anything that would
   create doubled spaces or orphaned punctuation.
-- **Applied:** 162 deletions across 40 maintained files; 2 candidates skipped
-  by the seam guard; everything else left untouched by design.
+- **Applied:** 152 deletions across 40 maintained files (162 initially; the
+  re-review of `af4525e` — 0H/0M/2L — flagged 10: nine orphaned-colon seams
+  and one semantic `(review)` false positive; those 10 lines were RESTORED to
+  baseline form and their manifest entries removed). Everything else left
+  untouched by design.
+- **Extractor tightened per that re-review:** (1) the seam check now inspects
+  the two characters that become adjacent at EACH deletion boundary (right
+  neighbor punctuation + left neighbor line-start/whitespace/'/' ⇒ skip —
+  covers "^: …", "//: …", "  : …"); (2) bare `review`/`reviews`/`follow-up`
+  never anchor a parenthetical by themselves — a concrete provenance token
+  (known sha, review-sha, round ref, date) is required. Both encoded as
+  executed self-tests using the reviewer's damage cases.
 - **Proof (tools/history-verify.py, both invariants):**
   1. per entry, byte-exact with ZERO normalization:
      `delete_declared_spans(old_line) == new_line`;
