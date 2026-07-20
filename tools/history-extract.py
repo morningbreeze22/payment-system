@@ -7,9 +7,12 @@
 # parenthetical: every token inside the parens is a provenance token
 # (known commit sha, finding label, round reference incl. en-dash
 # ranges, ISO date, review/follow-up connective, or a small history-verb
-# allowlist), AND at least one ANCHOR token (sha / round / date /
-# "review" / "follow-up") is present — a bare "(M1)" or "(L2)" never
-# qualifies. The declared span is the parenthetical plus EXACTLY ONE
+# allowlist), AND at least one CONCRETE ANCHOR token is present —
+# accepted anchors: known SHA / review-SHA / round reference / ISO
+# date. Bare "review", "reviews", or "follow-up" are permitted only as
+# filler accompanying a concrete anchor; they never qualify a
+# parenthetical by themselves, and a bare "(M1)" or "(L2)" never
+# qualifies either. The declared span is the parenthetical plus EXACTLY ONE
 # adjacent space (preceding preferred, else following; neither -> skip).
 #
 #     new_line = old_line[:s] + old_line[e:]        (nothing else, ever)

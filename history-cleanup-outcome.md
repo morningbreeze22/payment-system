@@ -21,7 +21,7 @@
   plus exactly one adjacent space. `new_line = old_line minus span` — no other
   byte changes, ever. Seam guards skip (never repair) anything that would
   create doubled spaces or orphaned punctuation.
-- **Applied:** 152 deletions across 40 maintained files (162 initially; the
+- **Applied:** 152 deletions across 38 maintained files (162 across 40 files initially; the
   re-review of `af4525e` — 0H/0M/2L — flagged 10: nine orphaned-colon seams
   and one semantic `(review)` false positive; those 10 lines were RESTORED to
   baseline form and their manifest entries removed). Everything else left
