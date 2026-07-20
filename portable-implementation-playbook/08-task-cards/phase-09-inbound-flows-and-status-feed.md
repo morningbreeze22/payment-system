@@ -37,7 +37,7 @@
 - **Title:** Trade-level snapshot ADMISSION; snapshot fan-out; locked obligation upsert; strictly-newer ordering mutation; tie handling; stale counting
 - **Classification:** MVP normative implementation
 - **Purpose:** §6.1/§6.7/§2.4: a message is a FULL-TRADE SNAPSHOT that must pass the trade-level ADMISSION gate before ANY per-block work (round 5: per-obligation watermarks cannot stop a stale snapshot from CREATING a never-seen scope), then fans out to one application per payment block; a redelivered older message must never regress required_amount; ties are digest-detected at admission; the comparison is one pluggable point (future explicit sequence, upstream ask 1).
-- **Prerequisites:** IN-01; S-02; S-10 (trade_snapshot_state); B-01 RESIDUE (upstream asks 5 + 8 CONFIRMED 2026-07-11, WRITTEN docs pending — §18-0(a)/(d): the freeze needs the filed paper, the design questions are settled; PO-9 ANSWERED — absence = amendment to zero; TL-16 — the admission gate below).
+- **Prerequisites:** IN-01; S-02; S-10 (trade_snapshot_state); B-01 RESIDUE (upstream asks 5 + 8 CONFIRMED 2026-07-11, WRITTEN docs pending — §18-0(a)/(d): the freeze needs the filed paper, the design questions are settled; PO-9 ANSWERED — absence = amendment to zero; TL-16 ANSWERED round 5 — the admission gate below).
 - **Requirement sections / concepts to read:** §1 contract facts (trade-payment cardinality), §2.4 (trade_snapshot_state), §6.0 (snapshot shape + within-snapshot uniqueness validation), §6.1 (ADMISSION + fan-out + convergence + the RESOLVED absence block), §6.7 (whole), §6.9 (required_amount row).
 - **Placeholder components involved:** [Obligation Repository].
 - **Local placeholder mappings required before starting:** obligation upsert path.

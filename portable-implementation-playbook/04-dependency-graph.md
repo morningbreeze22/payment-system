@@ -93,7 +93,7 @@ Section E). Arrows read "must be settled before".
    consumer (IN-02) waits on the B-01 residue: written uniqueness
    guarantee (upstream ask 5 — confirmed, paper pending), intake
    validation (§6.0). (PO-9 ANSWERED: absence = zero; TL-16
-    : §6.1 admission + §2.4.)
+   answered round 5: §6.1 admission + §2.4.)
 2. Schema BEFORE state-machine persistence: the four dimension
    columns, CHECK constraints, I6, and triggers (§2.2, §10.3) are the
    substrate every CAS in P6 writes against; code written before the

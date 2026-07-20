@@ -56,7 +56,7 @@
    (derived committed_amount, attempt-history table, materiality
    re-POST, auto-unlatch, UETR generation/validation, runtime
    collision-contract gating, the resumable EXECUTING approval
-   execution record —, §9.3) stay rejected and are not
+   execution record — round 5, §9.3) stay rejected and are not
    re-proposed. (The §14.1 journal is NOT the rejected
    attempt-history alternative: it replaces nothing and is never
    read at runtime — rule 13(b).)

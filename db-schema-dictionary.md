@@ -173,7 +173,7 @@ survives only as a §10.4 display label — no rule may key on it.
 | `created_at` | Insert time; the §5.2 replay-window query and the post-F0 NULL-stamp scan key on it. |
 | `state_changed_at` | The single LAST-WRITE clock ("is anything moving"; BLOCKED-queue age). Churns on every CAS — so NO age RULE keys on it (churn would silently re-arm alerts). For terminal rows it IS the outcome time (L1 freezes it). |
 | `creating_ordering` | Creation-time stamp: the `upstream_ordering` at creation. Input to the §6.8 successor policy (REJECTED successors need a STRICTLY NEWER ordering) and the marker ordering tags. |
-| `required_total_at_creation` | Creation-time stamp for the UI AMOUNT SERIES (2026-07-19): the obligation's `required_amount` read under the lock in the creating transaction. ONE stamp per request row (not per POST attempt); obligation-scope, never trade-wide. Set-once, NEVER load-bearing (no money logic reads it), never UPDATEd. Stored because it is NOT reconstructable later — a reject-then-retry of 100+100 sums to 200 under any derivation. NULL = created before the F0 capture boundary; post-F0 NULLs raise the §15 data-quality ticket. Tripwire CHECK: `IS NULL OR >= amount`. |
+| `required_total_at_creation` | Creation-time stamp for the UI AMOUNT SERIES: the obligation's `required_amount` read under the lock in the creating transaction. ONE stamp per request row (not per POST attempt); obligation-scope, never trade-wide. Set-once, NEVER load-bearing (no money logic reads it), never UPDATEd. Stored because it is NOT reconstructable later — a reject-then-retry of 100+100 sums to 200 under any derivation. NULL = created before the F0 capture boundary; post-F0 NULLs raise the §15 data-quality ticket. Tripwire CHECK: `IS NULL OR >= amount`. |
 | `maybe_since` | Set-once anchor of the current MAYBE episode; cleared on leave and by outcome normalization (§10.2). The §9.3 escalation clock and §15 MAYBE-age alerts key on it. |
 | `escalated_at` | Set-once per MAYBE episode when §9.3 escalation first fires; gates the BLOCKED(ESCALATED) write so a §9.2 downgrade cannot enter a downgrade ⇄ escalate cycle. |
 | `submitted_at` | Set when SUBMITTED; the §9.2 SUBMITTED-branch trust-age and §9.5 confirmation age key on it (e.g. SUBMITTED+NOT_FOUND parks only past this age). |
@@ -184,7 +184,7 @@ survives only as a §10.4 display label — no rule may key on it.
 `UNIQUE(idempotency_key)`; NULL-ignoring `UNIQUE(uetr)`; the
 NULL-ignoring conditional unique over `(payment_obligation_id,
 request_seq)` (legacy NULL-seq rows exempt — behavior proven by the
-S-05 isolation tests); I6 (one active
+S-05 isolation tests, 2a19c20 M2); I6 (one active
 request per obligation); per-column enum CHECKs; the §10.3 legality
 matrix as CHECKs (L2–L8, L1 terminal shape — e.g. L4: EXECUTED ⇒
 SUBMITTED; L8: BLOCKED ⇔ blocked_reason); freeze + release-guard

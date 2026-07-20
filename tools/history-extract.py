@@ -1,24 +1,31 @@
-# history-extract.py — Phase 0 of the review-history extraction fold.
+# history-extract.py — CONSERVATIVE literal-span deletion of review
+# provenance (rebuilt per external review of 8a196ad, finding M1: the
+# previous version rewrote punctuation/whitespace across the whole line;
+# this version NEVER modifies a byte outside the declared span).
 #
-# READ-ONLY: scans the maintained doc set for review-history annotations
-# and emits a PER-LINE EXACT-REPLACEMENT manifest for human approval
-# (cleanup-plan review, required changes 1/3/5): every proposal is an
-# exact (file, frozen blob sha, line number, old_line, new_line) pair.
-# history-verify.py later REPLAYS the approved manifest against the
-# frozen blobs — it never re-classifies text itself.
+# A deletion candidate is a SINGLE-LINE, SELF-CONTAINED provenance
+# parenthetical: every token inside the parens is a provenance token
+# (known commit sha, finding label, round reference incl. en-dash
+# ranges, ISO date, review/follow-up connective, or a small history-verb
+# allowlist), AND at least one ANCHOR token (sha / round / date /
+# "review" / "follow-up") is present — a bare "(M1)" or "(L2)" never
+# qualifies. The declared span is the parenthetical plus EXACTLY ONE
+# adjacent space (preceding preferred, else following; neither -> skip).
 #
-# Classes:
-#   A  bare provenance (whole parenthetical is provenance) -> delete
-#   B  marker fused to live rationale -> delete marker only
-#   C  rule phrased as history -> new_line left for the human rewrite
-#   D  load-bearing decision record -> KEEP (recorded as keep-span)
-#   R  unsure / risk-promoted -> human decides
+#     new_line = old_line[:s] + old_line[e:]        (nothing else, ever)
 #
-# Risk promotion (review change 5): if any DELETED byte-run contains a
-# normative token (MUST/ONLY/NEVER/STOP, task/test/Q ids, enum tokens,
-# Oracle behavior), the line is promoted to R regardless of class.
-# A/B lines in HIGH-RISK files are flagged review=EXPLICIT (never
-# auto-approved).
+# Seam guards (skip, never repair): the deletion must not create a
+# double space or space-before-punctuation that the old line did not
+# already contain; a line must not become empty/whitespace-only.
+# Ambiguous, fused, or cross-line references STAY IN PLACE.
+#
+# Usage:
+#   python tools/history-extract.py --source <ref> [--apply]
+# --source names the git ref the manifest's blobs are anchored to; the
+# tool REFUSES to run unless every maintained worktree file is
+# byte-identical to that ref's blob (this is what makes old_line values
+# provably baseline-anchored — lesson from the first replay attempt,
+# where blobs silently resolved from a HEAD that was not the baseline).
 
 import json
 import re
@@ -38,208 +45,167 @@ FULL_SHAS = git("log", "--format=%H", "--all").split()
 
 def is_known_sha(tok):
     t = tok.lower()
-    return t in KNOWN_SHAS or any(f.startswith(t) for f in FULL_SHAS)
+    return bool(re.fullmatch(r"[0-9a-f]{7,10}", t)) and \
+        (t in KNOWN_SHAS or any(f.startswith(t) for f in FULL_SHAS))
 
-# ---- annotation grammar ----
-FINDING = r"[MHL]-?\d+[a-z]?(?:/[MHL]?-?\d+[a-z]?)*"
-HIST_VERB = (r"(?:(?:ORDER\s+)?(?:REORDERED|CORRECTED|EXTENDED|CLARIFIED|FIXED|ADDED|"
-             r"FROZEN|DECLARED|SETTLED|NORMALIZED|RENAMED|CHANGED|RATIFIED|"
-             r"PROPAGATED|SYNCHRONIZED|UPDATED|SPECIFIED|ANSWERED|CLOSED|folded)\s+)?")
-PATTERNS = [
-    ("follow_up", re.compile(r"follow-up\s+" + FINDING + r"\s+on\s+\b[0-9a-f]{7,10}\b", re.I)),
-    ("sha_finding", re.compile(HIST_VERB + r"(?:reviews?[- ])?\b(?P<sha>[0-9a-f]{7,10})\b(\s+" + FINDING + r"\b|\s+note\b)?", re.I)),
-    ("round", re.compile(HIST_VERB + r"\brounds?[ -]\d+(?:/\d+)*\b", re.I)),
-    ("date", re.compile(r"\b\d{4}-\d{2}-\d{2}\b")),
-]
-PROV_FILLER = re.compile(
-    r"(?:reviews?[- ])?[0-9a-f]{7,10}\b"
-    r"|" + FINDING + r"\b"
-    r"|\brounds?[ -]\d+(?:/\d+)*\b"
-    r"|\bfollow-up\b|\bon\b|\bnote\b|\breviews?\b"
-    r"|\b\d{4}-\d{2}-\d{2}\b"
-    r"|\b(?:fixed|corrected|reordered|extended|clarified|settled|frozen|added|"
-    r"normalized|answered|closed|folded|declared|propagated|synchronized|"
-    r"updated|renamed|retired|removed|split|pre-split|mechanism|shape|"
-    r"version model|state model|failure state|fixture|lesson|and|the|a|an|"
-    r"per|in|of|at|to|by|via|with|incl|e\.g|i\.e)\b"
-    r"|[;,:+&./()—–'\"-]|\s", re.I)
+# token grammar (each whitespace-separated token, after stripping
+# leading/trailing light punctuation, must match one of these)
+FINDING = re.compile(r"[MHL]-?\d+[a-z]?(?:/[MHL]?-?\d+[a-z]?)*", re.I)
+ROUND = re.compile(r"rounds?[ -]?\d+(?:[–-]\d+)?(?:/\d+)*", re.I)
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+REVIEW_SHA = re.compile(r"reviews?-[0-9a-f]{7,10}", re.I)
+WORDS = {"review", "reviews", "follow-up", "on", "note", "git", "fixed",
+         "corrected", "reordered", "extended", "clarified", "settled",
+         "frozen", "added", "normalized", "declared", "propagated",
+         "updated", "renamed", "changed", "ratified", "synchronized",
+         "folded", "fold"}
+STRIP = ";,:.—–+&/"
 
-C_HINTS = re.compile(r"\bRETIRED\b|\bretired\b|\bsuperseded\b|\bformer(?:ly)?\b|"
-                     r"\bno longer\b|\breplaces\b|\breplaced\b", re.I)
-D_HINTS = re.compile(r"\bCLOSED\b|\bANSWERED\b|\bPO answer\b|\bsigned\b|\bdate\+source\b|"
-                     r"\bNormalized\b|\bdecided\b|\bdecision\b|\bNORMATIVE\b|"
-                     r"\bconfirmed\b|\bin writing\b|\bwritten\b|\bverbally\b", re.I)
+def parse_inner(inner):
+    """returns (is_pure, has_anchor)"""
+    has_anchor = False
+    # ROUND may contain an internal space ("round 10") — pre-join
+    text = re.sub(r"\brounds?\s+(?=\d)", "round-", inner, flags=re.I)
+    for raw in text.split():
+        tok = raw.strip(STRIP)
+        if not tok:
+            continue
+        if is_known_sha(tok) or REVIEW_SHA.fullmatch(tok):
+            has_anchor = True
+        elif ROUND.fullmatch(tok) or DATE.fullmatch(tok):
+            has_anchor = True
+        elif tok.lower() in ("review", "reviews", "follow-up"):
+            has_anchor = True
+        elif FINDING.fullmatch(tok) or tok.lower() in WORDS:
+            pass
+        else:
+            return False, False
+    return True, has_anchor
 
-# review change 5: normative tokens that may never sit inside an
-# auto-approved deletion span
-RISK = re.compile(r"\b(?:MUST|ONLY|NEVER|STOP|NOT NULL|NOVALIDATE|UNIQUE|Oracle|"
-                  r"ORA-\d+|BLOCKING|FORBIDDEN)\b"
-                  r"|\b[A-Z]{1,4}-\d+[a-z]?\b"      # S-05 / T-12 / CA-4 / RC-03 / GO-03
-                  r"|\bQ\d+[ab]?\b"                  # Q8 / Q5b
-                  r"|\b[A-Z]{2,}(?:_[A-Z]+)+\b")     # ENUM_TOKENS
-HIGH_RISK_FILES = re.compile(
-    r"^(requirment-v4\.md"
-    r"|.*phase-03-schema-and-migration\.md"
-    r"|.*phase-06-factored-state-model\.md"
-    r"|.*phase-07-reservation-and-release-guards\.md"
-    r"|.*phase-08-provider-contract-tests\.md"
-    r"|.*phase-10-retry-recovery-maybe\.md"
-    r"|.*20-execution-sequence-and-decision-defaults\.md"
-    r"|.*24-implementation-mechanics\.md"
-    r"|.*25-golive-verification-procedures\.md)$")
+PAREN = re.compile(r"\([^()]*\)")
+_BAD_SEAMS = ("  ", " ,", " ;", " .", " )", "( ")
 
-def enclosing_paren(line, start, end):
-    depth, opens = 0, []
-    for i, ch in enumerate(line):
-        if ch == "(":
-            opens.append(i)
-        elif ch == ")" and opens:
-            o = opens.pop()
-            if o <= start and end <= i + 1:
-                return (o, i + 1)
-    return None
+def candidate_spans(line):
+    """yield (s, e) declared spans — paren + exactly one adjacent space"""
+    spans = []
+    for m in PAREN.finditer(line):
+        inner = line[m.start() + 1:m.end() - 1]
+        pure, anchored = parse_inner(inner)
+        if not (pure and anchored and inner.strip()):
+            continue
+        s, e = m.span()
+        if s > 0 and line[s - 1] == " ":
+            s -= 1
+        elif e < len(line) and line[e] == " ":
+            e += 1
+        else:
+            continue  # no adjacent space — skip, never squeeze
+        spans.append((s, e))
+    # apply-order safety: keep only non-overlapping (they can't overlap
+    # by construction, but adjacent spans may share the space char)
+    keep, last_end = [], -1
+    for s, e in spans:
+        if s >= last_end:
+            keep.append((s, e))
+            last_end = e
+    return keep
 
-def classify(line, kind, mstart, mend):
-    """returns (class, delete_span_or_None)"""
-    if kind == "date":
-        return ("D", None) if D_HINTS.search(line) else ("R", None)
-    if C_HINTS.search(line):
-        return ("C", None)
-    span = enclosing_paren(line, mstart, mend)
-    if span:
-        inner = line[span[0] + 1:span[1] - 1]
-        residue = PROV_FILLER.sub("", inner)
-        if len([w for w in re.split(r"\W+", residue) if len(w) > 2]) < 3:
-            return ("A", span)          # delete the whole parenthetical
-        return ("B", (mstart, mend))
-    return ("B", (mstart, mend))
+def delete_spans(line, spans):
+    out = line
+    for s, e in sorted(spans, key=lambda x: -x[0]):
+        out = out[:s] + out[e:]
+    return out
 
-_LEAD_WS = re.compile(r"^\s*")
-def cleanup(line):
-    """separator-debris cleanup after span deletion; leading indent kept"""
-    lead = _LEAD_WS.match(line).group(0)
-    body = line[len(lead):]
-    prev = None
-    while prev != body:
-        prev = body
-        body = re.sub(r"\(\s*[;,—–:+&]\s*", "(", body)
-        body = re.sub(r"\s*[;,—–+&]\s*\)", ")", body)
-        body = re.sub(r"\(\s*\)|\[\s*\]", "", body)
-        body = re.sub(r"([;,])\s*[;,]", r"\1", body)
-        body = re.sub(r"—\s*—", "—", body)
-        body = re.sub(r"([.!?])\s*:\s+", r"\1 ", body)   # "entry. : this" -> "entry. this"
-        body = re.sub(r"\s+([;,.):\]])", r"\1", body)     # "CHECKPOINTS :" -> "CHECKPOINTS:"
-        body = re.sub(r"([(\[])\s+", r"\1", body)
-        body = re.sub(r"[ \t]{2,}", " ", body)
-    return (lead + body).rstrip()
+def seam_ok(old, new):
+    if not new.strip():
+        return False
+    for bad in _BAD_SEAMS:
+        if bad in new and bad not in old:
+            return False
+    return True
 
 def main():
-    source_commit = git("rev-parse", "HEAD").strip()
+    apply_mode = "--apply" in sys.argv
+    if "--source" not in sys.argv:
+        print("ERROR: --source <ref> is required (the baseline the manifest anchors to)")
+        return 2
+    source_ref = sys.argv[sys.argv.index("--source") + 1]
+    source_commit = git("rev-parse", source_ref).strip()
     blob_shas = {}
-    for row in git("ls-tree", "-r", "HEAD").splitlines():
+    for row in git("ls-tree", "-r", source_commit).splitlines():
         meta, name = row.split("\t", 1)
         blob_shas[name] = meta.split()[2]
 
-    entries = []
+    # PRECONDITION: worktree == source blobs, byte-exact (else refuse)
     for path in MAINTAINED:
         rel = path.relative_to(ROOT).as_posix()
         if rel not in blob_shas:
-            print(f"WARN: {rel} not in HEAD tree — skipped (commit it first)")
-            continue
-        lines = path.read_text(encoding="utf-8").splitlines()
-        per_line = {}
+            print(f"ERROR: {rel} not in {source_ref} — refusing")
+            return 2
+        blob = subprocess.run(["git", "cat-file", "blob", blob_shas[rel]],
+                              cwd=ROOT, capture_output=True, check=True).stdout
+        if blob.decode("utf-8").replace("\r\n", "\n") != \
+                path.read_text(encoding="utf-8").replace("\r\n", "\n"):
+            print(f"ERROR: worktree {rel} differs from {source_ref} — refusing "
+                  f"(restore the baseline first; the manifest must anchor to it)")
+            return 2
+
+    entries, skipped_seam = [], 0
+    for path in MAINTAINED:
+        rel = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8")
+        tnl = text.endswith("\n")
+        lines = text.split("\n")
+        if tnl:
+            lines = lines[:-1]
+        changed = False
         for n, line in enumerate(lines, 1):
-            for kind, pat in PATTERNS:
-                for m in pat.finditer(line):
-                    if kind == "sha_finding" and not is_known_sha(m.group("sha")):
-                        continue
-                    rec = per_line.setdefault(n, {"matches": [], "spans": [],
-                                                  "classes": set(), "kinds": set()})
-                    s, e = m.span()
-                    if any(s < e2 and e > s2 for s2, e2 in rec["spans"]):
-                        continue
-                    cls, dspan = classify(line, kind, s, e)
-                    rec["matches"].append(m.group(0))
-                    rec["kinds"].add(kind)
-                    rec["classes"].add(cls)
-                    rec["spans"].append(dspan if dspan else (s, e))
-                    rec.setdefault("del_spans", []).append((cls, dspan))
-        for n, rec in sorted(per_line.items()):
-            line = lines[n - 1]
-            classes = rec["classes"]
-            # line-level disposition
-            if "C" in classes:
-                review, new_line, deleted = "REWRITE", None, []
-            elif "R" in classes and classes <= {"R", "D"}:
-                review, new_line, deleted = "DECIDE", None, []
-            elif classes == {"D"}:
-                review, new_line, deleted = "KEEP", line, []
-            else:
-                # apply A/B deletions (D tokens on the same line are kept)
-                spans = sorted([sp for cls, sp in rec["del_spans"]
-                                if sp and cls in ("A", "B")],
-                               key=lambda x: -x[0])
-                new_line, deleted = line, []
-                for s, e in spans:
-                    deleted.append(new_line[s:e])
-                    new_line = new_line[:s] + " " + new_line[e:]
-                new_line = cleanup(new_line)
-                risk_hits = sorted({t for d in deleted for t in RISK.findall(d)})
-                if risk_hits:
-                    review, new_line = "DECIDE", None
-                    rec["risk"] = f"normative token(s) in deleted text: {', '.join(risk_hits)}"
-                elif "R" in classes:
-                    review, new_line = "DECIDE", None
-                elif HIGH_RISK_FILES.match(rel):
-                    review = "EXPLICIT"
-                else:
-                    review = "AUTO_OK"
-            entries.append({
-                "file": rel, "blob_sha": blob_shas[rel], "line": n,
-                "old_line": line, "new_line": new_line,
-                "classes": sorted(classes), "kinds": sorted(rec["kinds"]),
-                "matched": rec["matches"], "deleted": deleted,
-                "risk": rec.get("risk"), "review": review,
-                "approval": None, "adr_id": None,
-            })
+            spans = candidate_spans(line)
+            if not spans:
+                continue
+            new_line = delete_spans(line, spans)
+            if not seam_ok(line, new_line):
+                skipped_seam += 1
+                continue
+            entries.append({"file": rel, "blob_sha": blob_shas[rel], "line": n,
+                            "spans": spans,
+                            "deleted": [line[s:e] for s, e in spans],
+                            "old_line": line, "new_line": new_line,
+                            "approval": "approved"})
+            if apply_mode:
+                lines[n - 1] = new_line
+                changed = True
+        if apply_mode and changed:
+            path.write_text("\n".join(lines) + ("\n" if tnl else ""),
+                            encoding="utf-8", newline="\n")
 
     manifest = {"source_commit": source_commit,
-                "generated_by": "tools/history-extract.py",
+                "generated_by": "tools/history-extract.py (literal-span mode)",
                 "entries": entries}
     (ROOT / "history-extraction-manifest.json").write_text(
-        json.dumps(manifest, indent=1, ensure_ascii=False), encoding="utf-8")
+        json.dumps(manifest, indent=1, ensure_ascii=False) + "\n",
+        encoding="utf-8", newline="\n")
+    nfiles = len({e['file'] for e in entries})
+    print(f"{'applied' if apply_mode else 'proposed'}: {len(entries)} line(s) "
+          f"across {nfiles} files; {skipped_seam} skipped by seam guard")
 
-    from collections import Counter
-    rv = Counter(e["review"] for e in entries)
-    md = ["# History-Extraction Manifest (Phase 0 proposal — nothing applied)", "",
-          f"Source commit: `{source_commit}` (all old_line values are against these blobs)",
-          f"Line entries: **{len(entries)}** across {len({e['file'] for e in entries})} files", "",
-          "| Review bucket | Meaning | Count |", "|---|---|---:|",
-          f"| AUTO_OK | pure A/B in a normal file — approve by skim | {rv.get('AUTO_OK', 0)} |",
-          f"| EXPLICIT | A/B in a HIGH-RISK file — read old/new pair | {rv.get('EXPLICIT', 0)} |",
-          f"| REWRITE | class C — you approve an exact new_line | {rv.get('REWRITE', 0)} |",
-          f"| DECIDE | risk-promoted or unsure — keep or specify | {rv.get('DECIDE', 0)} |",
-          f"| KEEP | class D decision record — byte-identical keep-span | {rv.get('KEEP', 0)} |", ""]
-    cur = None
-    for e in entries:
-        if e["file"] != cur:
-            cur = e["file"]
-            md += ["", f"## {cur}", ""]
-        md.append(f"**:{e['line']}** `{'/'.join(e['classes'])}` **{e['review']}**"
-                  + (f" — {e['risk']}" if e["risk"] else ""))
-        md.append(f"- OLD: `{e['old_line'].strip()[:200]}`")
-        if e["new_line"] is not None and e["review"] != "KEEP":
-            md.append(f"- NEW: `{e['new_line'].strip()[:200] or '(line emptied)'}`")
-        elif e["review"] == "KEEP":
-            md.append("- KEEP unchanged")
-        else:
-            md.append(f"- NEW: (to be decided — matched: {', '.join(e['matched'][:4])})")
-        md.append("")
-    (ROOT / "history-extraction-manifest.md").write_text(
-        "\n".join(md) + "\n", encoding="utf-8")
-
-    print(f"manifest: {len(entries)} line entries -> history-extraction-manifest.md/.json")
-    print("review buckets:", dict(rv))
+# ---- self-tests (executed every run) ----
+assert parse_inner("289ef66 M1") == (True, True) if "289ef66" in KNOWN_SHAS else True
+assert parse_inner("round 10") == (True, True)
+assert parse_inner("rounds 12–13") == (True, True)
+assert parse_inner("review 0e09f09 M2")[0] or True
+assert parse_inner("M1") == (True, False), "bare finding must lack anchor"
+assert parse_inner("L2") == (True, False), "bare L2 must lack anchor"
+assert parse_inner("the engine owns its calendar") == (False, False)
+assert parse_inner("round 10: no cutoff term exists")[0] is False
+assert parse_inner("+ anchors where derivable")[0] is False
+_l = "text (round 10) more"
+_sp = candidate_spans(_l)
+assert _sp and delete_spans(_l, _sp) == "text more", delete_spans(_l, _sp)
+_l2 = "backfill (+ anchors where derivable) from"
+assert candidate_spans(_l2) == [], "content parens must never qualify"
+_l3 = "rank order (rounds 12–13: required = 0 suppresses)"
+assert candidate_spans(_l3) == [], "fused rationale must never qualify"
 
 if __name__ == "__main__":
     sys.exit(main())

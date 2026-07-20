@@ -51,7 +51,7 @@ Tests: deny/allow at code AND trigger layers; supersede releases on legal rows o
 [RG-06] Standing shortfall re-evaluation
 Read: §6.8 (whole) §3 (I5) §6.2. Invariant: exactly ONE creation point; triggers T1–T4; successor policy gates REJECTED successors (ordering-newer ∧ count<2 ∧ no live marker).
 Placeholders: [Payment Request Creation Component] [Obligation Repository]. Mappings: ALL legacy creation sites (unroutable → STOP).
-Objective: evaluate under lock per §6.8's condition list; invoke from T1–T4; route every legacy site through it. STAMP INVARIANTS: one stamp per payment_request row, NOT per provider POST attempt; write = the creation INSERT only, under the obligation lock; value = the locked obligation.required_amount, same physical amount type; UPDATE forbidden — pre-F0/legacy rows are NULL; read = UI projection only, never money/workflow logic.
+Objective: evaluate() under lock per §6.8's condition list; invoke from T1–T4; route every legacy site through it. STAMP INVARIANTS (§2.2, 0e09f09): one stamp per payment_request row, NOT per provider POST attempt; write = the creation INSERT only, under the obligation lock; value = the locked obligation.required_amount, same physical amount type; UPDATE forbidden — pre-F0/legacy rows are NULL; read = UI projection only, never money/workflow logic.
 Tests: each trigger, each gate, each successor row; deferred amendment; zero-shortfall no-op; stamp cases — top-up stamps 100 then 120; reject-retry stamps 100 not 200; unchanged on downgrade/re-POST; SQL-inventory assertion: column in NO UPDATE SET list anywhere. Stop: merged.
 ```
 
@@ -67,8 +67,8 @@ Tests: every §10.5 cancel/park row; ENRICH·CLAIMED cancellable; POST·CLAIMED 
 [RG-08] Step-status predicate
 Read: §4.1 (predicate + BOTH branches + bullets) §4 §2.1 (liveness incl. anchor clause) §12. Invariant: completion derived only; anchors can't complete; active request blocks completion; feed never writes ui_step_status; round 11 — required = 0 (writable only by the §6.1 absence path) with 0/0/0 + no active request + validation_failed not LIVE derives CANCELLED (provider_rejected is NOT a predicate term — round 13), a TERMINAL branch displayed CANCELLED never COMPLETED, reopenable by a strictly newer positive block; provider_rejected never blocks the CANCELLED branch (round 12 — markers stay stored, resurface on reappearance).
 Placeholders: [Obligation Repository] [Request Status Persistence Layer]. Mappings: ST-02 re-derive hook.
-Objective: implement BOTH branches exactly (COMPLETED incl. required NOT NULL ∧ >0 and confirmed>=required terms; CANCELLED per); output IN_PROGRESS/COMPLETED/CANCELLED; wire into every re-derivation; remove event-copy writers.
-Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed + live provider_rejected (count 2) → still CANCELLED (round 13); zeroed with confirmed>0 → IN_PROGRESS + latch + OVERPAY_DETECTED (no request mutation — round 12); reappearance → IN_PROGRESS (T-37). Stop: merged.
+Objective: implement BOTH branches exactly (COMPLETED incl. required NOT NULL ∧ >0 and confirmed>=required terms; CANCELLED per round 11); output IN_PROGRESS/COMPLETED/CANCELLED; wire into every re-derivation; remove event-copy writers.
+Tests: each term isolated; recovered anchor completes; zeroed row → CANCELLED never COMPLETED; zeroed + live provider_rejected (count 2) → still CANCELLED; zeroed with confirmed>0 → IN_PROGRESS + latch + OVERPAY_DETECTED (no request mutation — round 12); reappearance → IN_PROGRESS (T-37). Stop: merged.
 ```
 
 ```text

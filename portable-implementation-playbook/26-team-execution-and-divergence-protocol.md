@@ -9,7 +9,7 @@
 
 ## T.1 What you are starting from (the handover premise)
 
-This kit rests on TWO INDEPENDENT premises (do not
+This kit rests on TWO INDEPENDENT premises (round 17 — do not
 conflate them); discovery verifies both (F.3/F.4/F.24 for the
 first, the D-12 population proof for the second):
 
@@ -37,7 +37,7 @@ PREMISE P-B (population — the §2.4 greenfield fact; NOT implied by
   stale-snapshot money hole the machinery guarded.
 ```
 
-PROOF REQUIRED — RUN TWICE (18; a discovery snapshot is
+PROOF REQUIRED — RUN TWICE (rounds 17–18; a discovery snapshot is
 NOT a cutover invariant — populations change between D-12 and
 go-live):
 
@@ -74,7 +74,7 @@ LIFECYCLE: the ZERO-population form applies to INITIAL
   rerun: STOP/disable F0, preserve evidence, classify affected
   rows, incident + architecture review before resumption
   (uncovered rows may require restoring the retired bootstrap
-  machinery — git). The EXECUTABLE procedure for the
+  machinery — git 9a53c75). The EXECUTABLE procedure for the
   admission-coverage form is runbook RB-F0 (file 14) — owner,
   queries, zero-uncovered threshold, sign-offs, evidence.
 ```
@@ -119,7 +119,7 @@ DIV-2 TYPE/SHAPE     Same meaning, different representation. →
                      DDL; adapt the snippet per M0 (file 24); the
                      card's tests must still prove the spec
                      invariant against the REAL shape; the phase
-                     reviewer sees the entry. — DIV-2
+                     reviewer sees the entry. Round 17 — DIV-2
                      WITHOUT approval is allowed ONLY when the
                      executor proves ALL of: exact precision AND
                      rounding preserved; equivalent NULL
@@ -254,7 +254,7 @@ STREAM C  "Papers": P2 B-cards (external asks/filings) + CA
           immediately (B-01..B-03 "ask immediately" rows).
 
 After STREAM A's P3 merges to main, STREAM A continues P4 → P5.
-After P3 → P4 → P5 have ALL merged to main (P6 sits
+After P3 → P4 → P5 have ALL merged to main (round 17: P6 sits
 downstream of identity/persistence work in the authoritative
 order; no "safe early P6 subset" is enumerated, so none is
 offered — do not invent one):
@@ -292,7 +292,7 @@ Binding constraints (rule 22 in file 16):
   OPTIMIZATION HINT constrained by them — wherever this section
   and a card's prerequisites seem to disagree, the CARD wins and
   the stream waits. (A machine-readable dependency manifest was
-  considered and remains NOT adopted — decision:
+  considered and remains NOT adopted — round-9 decision:
   lint-enforced parity + file-20 authority instead; this
   AUTHORITY rule is the compensating control.)
 - One stream holds ONE ACTIVE phase integration branch at a time

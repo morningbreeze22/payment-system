@@ -12,7 +12,7 @@ report, signed document). TWO non-waivable classes: §18
 BLOCKING (Q1–Q4, Q28) AND MONEY_SAFETY_BLOCKING (Q5a, Q5b, Q8, Q9, Q11, Q12, Q14, Q16, Q17, Q27, and Q29's minimal exit set —
 the duplicate-payment / wrong-release controls; FAIL or missing
 evidence = NO-GO; reclassification requires a safety review).
- : Q5b's PENDING-CUTOVER is a DEFINED state, not missing
+Round 20: Q5b's PENDING-CUTOVER is a DEFINED state, not missing
 evidence and not a waiver — legal only at GO-04, only while Q5a is
 PASS; GO-03 converts it to PASS inside the F0 window. Only
 items outside both classes may proceed as owned, dated risks.
@@ -24,7 +24,7 @@ collected retroactively at GO-04.**
 
 | # | Item | Source | PASS/FAIL/BLOCKED | Evidence |
 |---|------|--------|-------------------|----------|
-| Q1 | §18 BLOCKING item 0 residue closed: WRITTEN filings of ask 5 (snapshot schema + uniqueness) and ask 8 (store contract incl. IMMUTABILITY) — both CONFIRMED verbally 2026-07-11, the filed papers are the evidence; §6.0 intake validation live; PO-9 (absence = amendment to zero) IMPLEMENTED per §6.1; TL-16 (admission — S-10/IN-02, T-35 green) | §18-0, B-01 | | |
+| Q1 | §18 BLOCKING item 0 residue closed: WRITTEN filings of ask 5 (snapshot schema + uniqueness) and ask 8 (store contract incl. IMMUTABILITY) — both CONFIRMED verbally 2026-07-11, the filed papers are the evidence; §6.0 intake validation live; PO-9 (absence = amendment to zero) IMPLEMENTED per §6.1; TL-16 round 5 (admission — S-10/IN-02, T-35 green) | §18-0, B-01 | | |
 | Q2 | §18 BLOCKING item 1: sandbox collision matrix (a)–(d) EXECUTED and PASSED; BOTH CT-04/CT-05 TYPED consequence records (the only two producers — CT-02/CT-03 are plain pass/fail, no record) NO_IMPLEMENTATION_CHANGE or IMPLEMENTED_AND_VERIFIED in the deployed RC (289ef66 M2 — an unimplemented IMPLEMENTATION_REQUIRED = FAIL); re-run procedure scheduled for engine releases | §18-1, CT-02..05 | | |
 | Q3 | §18 item 2 CLOSED (round 10 — the engine owns its cutoff calendar; verify the CA-1 table carries the engine's late-submission response class + the written any-time-submission line) | §18-2 (closed), CA-1 | | |
 | Q4 | §18 BLOCKING item 3: apply-platform-verified-outcome OPERATION (authorized application endpoint) EXISTS (OP-01/02) AND DRILLED (OP-03) — or TL-10 ∧ TL-5 alternative affirmed in writing + PO re-confirmation | §18-3, B-04 | | |
@@ -37,12 +37,12 @@ collected retroactively at GO-04.**
 | Q10 | Provider idempotency sandbox tests green (same as Q2, incl. the consequence-closure verification — 289ef66 M2) + SDK contract checks (CT-07) recorded | CT suite, T-11..14 | | |
 | Q11 | Duplicate-prevention tests green (I6, UNIQUE key, engine-dedup routing) | T-17, S-05 | | |
 | Q12 | Retry / crash / restore recovery tests green | T-08/09/10, ST-10 | | |
-| Q13 | — no local cutoff calendar exists (engine-owned, §18-2); verify no cutoff machinery crept into the target env config | §18-2 (closed) | | |
+| Q13 | CLOSED round 10 — no local cutoff calendar exists (engine-owned, §18-2); verify no cutoff machinery crept into the target env config | §18-2 (closed) | | |
 | Q14 | MAYBE_SUBMITTED recovery lifecycle tests green (resolver, trust-age, downgrade, escalation, parked rows) | T-22/23, RC-05..08 | | |
 | Q15 | apply-platform-verified-outcome test suite + drill report on file | T-24, OP-02/03 | | |
 | Q16 | Reservation release / confirmation correctness green (I1–I6, redelivery safety, overpay latch) | T-26/27, RG-01..04 | | |
 | Q17 | Evidence session flag / release guard validated (code + trigger layers; pool non-leakage) | T-25, S-06, RG-05 | | |
-| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity, both post-F0 creation-column scans: NULL stamp → ticket, NULL request_seq → alert) | T-30, OB-02 | | |
+| Q18 | Reconciliation tripwires live (terminal-evidence CRITICAL, count sanity, both post-F0 creation-column scans: NULL stamp → ticket, NULL request_seq → alert — 6cb3005 L1) | T-30, OB-02 | | |
 | Q19 | Drift scanner live, paging, read-skew-safe | T-29, OB-01 | | |
 | Q20 | Observability dashboards + alerts live per §15 with runbook links; rollup verified; config ordering validation active | T-32, OB-03..07 | | |
 | Q21 | Runbook stubs published (CA-8) incl. the aged-MAYBE runbook | CA-8, OB-06 | | |
@@ -54,6 +54,6 @@ collected retroactively at GO-04.**
 | Q27 | Kafka hardening compliant per §16.2 checklist in all target environments | IN-09 | | |
 | Q28 | ALL §18 BLOCKING items resolved — final aggregate check before go-live | §18, Q1–Q4 | | |
 | Q29 | §20 interim ops surface live: authorized admin endpoints + four queue views deployed, enterprise-role-restricted, exercised on real Oracle. NON-WAIVABLE line items (§20 minimal exit set, with Q4): supersede/close and reprocess-snapshot. Waivable only by PO with owner + dated plan: retry, reject, annotate, views | §20, RG-05, OP-04a–e, T-33 | | |
-| Q30 | Security/supply-chain gate (round 16) on the EXACT RC: SAST + dependency vulnerability scan + SBOM + license policy + secret scan; Kafka ACLs, DB grants, service/ops-role least privilege, endpoint authn/authz, TLS config + certificate rotation; masking tests across success AND failure paths (logs, traces, metric tags, exceptions, dead letters); config/secret provenance from the sanctioned vault; §14.1 journal protections verified (INSERT-only grants, restricted audit role, DB-audited reads, no lower-env replication) AND the T-38 switch-OFF INERTNESS sub-case green (case F: OFF ⇒ zero inserts/zero errors/posting unaffected — the ONE T-38 piece that gates PAYMENT go-live, since the rider code ships while OFF; 1d8a650 M2) AND the §14.1 ENABLEMENT GATE state recorded: journal writes stay OFF unless encryption at rest is ENABLED + evidenced (or an approved expiry-dated exception exists) AND the compliance-approved retention schedule is on file AND the FULL applicable T-38 A–J evidence set is green (never case G alone) — payments go-live never waits on the journal (never load-bearing) | §16.1, §16.3, §14.1, §14 | | |
+| Q30 | Security/supply-chain gate on the EXACT RC: SAST + dependency vulnerability scan + SBOM + license policy + secret scan; Kafka ACLs, DB grants, service/ops-role least privilege, endpoint authn/authz, TLS config + certificate rotation; masking tests across success AND failure paths (logs, traces, metric tags, exceptions, dead letters); config/secret provenance from the sanctioned vault; §14.1 journal protections verified (INSERT-only grants, restricted audit role, DB-audited reads, no lower-env replication) AND the T-38 switch-OFF INERTNESS sub-case green (case F: OFF ⇒ zero inserts/zero errors/posting unaffected — the ONE T-38 piece that gates PAYMENT go-live, since the rider code ships while OFF; 1d8a650 M2) AND the §14.1 ENABLEMENT GATE state recorded: journal writes stay OFF unless encryption at rest is ENABLED + evidenced (or an approved expiry-dated exception exists) AND the compliance-approved retention schedule is on file AND the FULL applicable T-38 A–J evidence set is green (never case G alone) — payments go-live never waits on the journal (never load-bearing) | §16.1, §16.3, §14.1, §14 | | |
 | Q31 | Capacity gate: peak + post-outage burst test at the §16.5 volume NFR; connection-pool/bulkhead saturation behavior; scanner backlog recovery; provider quota shaping (TL-13 budget); card-read latency under load; resource alarms + recorded headroom under the tested RC configuration | §16.1, §16.5, §9.5 | | |
 

@@ -1,8 +1,14 @@
 # Documentation Cleanup Strategy
 
-> **ADOPTED 2026-07-19** (PO decision), with four amendments, against frozen
-> baseline `5597dcd` (see `baseline-freeze-5597dcd.md`). This file is
-> NON-NORMATIVE process strategy — the maintained documents win on any conflict.
+> **STATUS 2026-07-19 (superseded in part — PO descope):** the history
+> extraction was executed as LITERAL DELETION ONLY (see
+> `history-cleanup-outcome.md`): no Class-C rewrites, no ADR register, no
+> annotation-ban lint rule, no three-commit ceremony — those parts of this
+> document and of the reviewed extraction plan were NOT adopted. Phases 3–7
+> below (control IDs, authority normalization, generation) are an OPTIONAL
+> FUTURE program, not adopted process; if ever picked up, they run behind
+> implementation and never block it. This file is NON-NORMATIVE — the
+> maintained documents win on any conflict.
 >
 > **Amendments at adoption:**
 > 1. **Sequencing is decided:** Phases 1–2 (baseline freeze + history extraction)
@@ -24,11 +30,10 @@
 >    earned trust; packet BODIES remain authored (they contain engineered
 >    judgment about which warnings to repeat).
 >
-> The history extraction itself (Phase 2) executes per the externally reviewed
-> plan ("approved with required changes", 2026-07-19): exact human-approved
-> per-line replacement manifest, replay verifier with no independent
-> classification, risk-token promotion, three-commit split, ADR register
-> compiled from git/retained artifacts with UNKNOWN over inference.
+> The history extraction was completed as the descoped literal-span deletion
+> recorded in `history-cleanup-outcome.md`; the remaining amendments above
+> (narrow control IDs; generators mirror authored decisions; packet bodies
+> stay authored) bind the OPTIONAL future program only.
 
 ## Executive recommendation
 

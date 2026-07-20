@@ -1,7 +1,7 @@
 > **Purpose:** Blank progress tracker mirroring the linear order in 20-execution-sequence-and-decision-defaults.md — the executor's durable memory across sessions.
 > **When to use this file:** Copy to a LOCAL untracked file at D-01 time; update after EVERY task (status + report filed); read at the start of EVERY session to find the next row.
 > **Depends on:** 20-execution-sequence-and-decision-defaults.md.
-> **Used by:** The local coding agent (session start/end); the human driver (review).
+> **Used by:** The local coding agent (session start/end); the human driver.
 > **Safe to transfer:** yes (BLANK template only — once filled, the Notes column may contain local names; the filled copy must NEVER leave the work laptop or be sent externally)
 > **Contains local code names:** no while blank; possibly YES after local fill — the filled copy stays on the work laptop, never transferred
 
@@ -113,7 +113,7 @@ a status; every DONE row has a filed execution report (file 19).
 | 91 | OP-01 | TODO | | | |
 | 92 | OP-02 | TODO | | | |
 | 93 | OP-03 | TODO | | | (HUMAN drill) |
-| 93a | OP-04a | TODO | | | |
+| 93a | OP-04a | TODO | | | (round-9 pre-split 1/5) |
 | 93b | OP-04b | TODO | | | |
 | 93c | OP-04c | TODO | | | |
 | 93d | OP-04d | TODO | | | |

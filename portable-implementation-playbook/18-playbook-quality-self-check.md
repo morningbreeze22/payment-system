@@ -35,7 +35,7 @@
     never read at runtime, so the V11-17 rejection scope stays
     intact.
 [x] INVARIANT-CHANGE PROPAGATION CHECKLIST (added after review
-      — a stale phase-02 packet survived one fold): every
+    d00ef6a H1 — a stale phase-02 packet survived one fold): every
     commit that changes a normative invariant MUST grep the WHOLE
     maintained set for the superseded wording (cards, packets,
     mechanics, tests, pseudocode, HTML, go-live files) and either
@@ -79,12 +79,12 @@
     (c) no FOR UPDATE SKIP LOCKED in scanner guidance; (d) no rule
     wired to retry_deadline_at; (e) card-ID SET membership in file
     20 + duplicate-ID detection + card↔file-21 tracker SET parity
-    + the canonical P3 order stated verbatim in file 20 (
+    + the canonical P3 order stated verbatim in file 20 (round 9;
     the lint does NOT verify full linear ordering beyond P3 or
     prerequisite-before-dependent relations — those stay MANUAL
     review, stated here so the contract matches the script); (f) every §18
     ask/item appears in the K register; (g) no "enforced by the
-    procedure" dual-control phrasing (operation + §9.3
+    procedure" dual-control phrasing (round 3: operation + §9.3
     approval workflow); (h) no deadline/budget-suspension language
     (round 3, cutoff retired round 10: bound = max attempts; gated
     scanners make zero attempts). The monolithic
@@ -102,7 +102,7 @@ CA-1: RC-01's classifier SHAPE can start; the code table must exist
       S-02+ implement it (drafting may overlap D-02). CA-5/CA-6: NO
       for K-02/K-05 (they IMPLEMENT the specs) AND CA-5 also blocks
       S-02 (the counter-initialization value/policy live there —
-       ); K-01 may proceed.
+      2a19c20 L4); K-01 may proceed.
       CA-7: tests proceed from Section J; the catalog consolidates.
       CA-8: OB tasks proceed; OB-06 needs the stubs. CA-9: NO —
       OP-01 implements it.

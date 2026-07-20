@@ -119,7 +119,7 @@ onTradeSnapshot(record):
                                                  // tuple uniqueness — evaluated for
                                                  // the WHOLE document, never per-block
     if verdict == INVALID:                       // §6.6 snapshot note (review
-                                                 //): WHOLE-SNAPSHOT
+                                                 // d00ef6a H4): WHOLE-SNAPSHOT
                                                  // validation failure —
         // NO amounts applied from ANY block; upstream_ordering NOT
         // advanced; blast radius = the TRADE (deliberate, fail
@@ -127,7 +127,7 @@ onTradeSnapshot(record):
         // extractable scopes AND every EXISTING obligation/anchor of
         // this business_id — including payments ABSENT from the
         // invalid document (§6.6 "existing obligations and anchors
-        // alike"). Anchors are upserted only for
+        // alike"; review c8a92f1 H3). Anchors are upserted only for
         // document-only scopes; existing rows just get the marker.
         targetScopes = extractableScopes(doc)
                        ∪ existingScopes(business_id)
@@ -272,7 +272,7 @@ getCard(business_id):
   NO locks, NO writes, NO rule logic on display labels (§10.4)
 
 getAllPaymentsTable(filter):                     // §12 TABLE projection
-  SELECT obligation LEFT JOIN request            // (2026-07-17): pure read
+  SELECT obligation LEFT JOIN request            //: pure read
   per joined row emit:
     row_type = REQUEST        (one row per request, request-id key)
              | OBLIGATION_ONLY (no request yet: obligation-id key,
@@ -388,7 +388,7 @@ postAttempt(id):
                                                  // scan's check — re-read HERE,
                                                  // before ANY claim mutation.
                                                  // LINEARIZATION (§16.1, review
-                                                 //): a worker past
+                                                 // 4d5cb83 L2): a worker past
                                                  // THIS check is IN FLIGHT — a
                                                  // flip after it may still see
                                                  // one claim commit; the
@@ -599,7 +599,7 @@ onFeedEvent(e):
         CAS stage_state := BLOCKED(AMOUNT_MISMATCH),
             sub := SUBMITTED                    // SET, not "stays" — §8:
             // settlement evidence TIGHTENS even a MAYBE row (review
-            //); outcome NOT written; CRITICAL;
+            // d00ef6a H4); outcome NOT written; CRITICAL;
             // NO money movement — the guard PRECEDES the outcome CAS
       else:
         n = CAS request dims per rank

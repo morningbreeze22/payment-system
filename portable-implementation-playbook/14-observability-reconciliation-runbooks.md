@@ -56,11 +56,11 @@ root-cause incident.
   planned §14.1 switch transitions — freeze-gated — are recorded
   and EXCLUDED by triage)
 - §6.6 accepted-window CANDIDATE diagnostic (revised per review
-   ; scoped per; delivery semantics +
-  safe-execution envelope per — a candidate
+  2b697fb M1; scoped per review b1d91dc M1; delivery semantics +
+  safe-execution envelope per review b760786 M1 — a candidate
   list for MANUAL review, NOT a classifier, NOT a required
   standing scan). DELIVERY SEMANTICS, stated exactly (corrected
-   ): shipping the query + its correctness test is a
+  4098532 M1): shipping the query + its correctness test is a
   REQUIRED deliverable within OB-01, but its test failing does
   NOT block OB-01 completion — the failure becomes an EXPLICIT
   OPEN ITEM in the P12 handoff, deadline = before FIRST
@@ -76,7 +76,7 @@ root-cause incident.
   LOWER_ORDER_SIBLING_REQUEST_AFTER_VALIDATION_MARKER_CANDIDATE
   (masked trade/scope ids + both orderings + both timestamps).
   Reference SQL (physical names resolve locally; the RELATIONAL
-  PREDICATE is EXACT —; marker liveness is the
+  PREDICATE is EXACT — review b760786 L1; marker liveness is the
   §2.1 definition verbatim):
     SELECT <masked ids, both orderings, both timestamps>
     FROM   payment_obligation M
@@ -94,7 +94,7 @@ root-cause incident.
     ORDER  BY M.id, r.creating_ordering, r.id  -- deterministic,
                                     -- repeatable operator evidence
     FETCH  FIRST 500 ROWS ONLY                 -- hard cap
-  SAFE-EXECUTION ENVELOPE (an on-demand incident
+  SAFE-EXECUTION ENVELOPE (b760786 M1 — an on-demand incident
   query can still hurt a primary database):
   (1) the :business_id bind (or an explicit obligation-id list
       taken from the marker under triage) is REQUIRED — never run
@@ -131,7 +131,7 @@ root-cause incident.
   BY DECISION); candidates go to manual triage. Not detectable
   online (no trade-level watermark)
                                   → on-demand query + manual review
-- post-F0 NULL request_seq (IDENTITY CONTRACT, —
+- post-F0 NULL request_seq (IDENTITY CONTRACT, 4dbdf2b M1 —
   OB-02): created_at >= the F0 activation timestamp AND
   request_seq IS NULL                     → ALERT + ticket (rogue
                                             or pre-fence writer;
@@ -139,7 +139,7 @@ root-cause incident.
                                             the stamp ticket;
                                             never a gate)
 - post-F0 NULL required_total_at_creation (data quality,
-    — OB-02): created_at >= the F0 activation timestamp
+  aa4399c L1 — OB-02): created_at >= the F0 activation timestamp
   (signed manifest) AND stamp IS NULL     → LOW ticket (never a
                                             page, never a gate)
 - plus the full §15 list wired in OB-03..05 (latch alerts, marker
@@ -383,7 +383,7 @@ CHECKS (evidence retained in the go-live pack, manifest updated):
    belongs to such a trade. Query text + results retained.
 2. PROVENANCE: no in-scope row was created since the fence by a
    legacy/out-of-band writer. AUTHORITY (define BEFORE first use —
-    ): the DB-side audit trail on the four §2
+   review 5156f1f M3): the DB-side audit trail on the four §2
    tables (Oracle unified audit or the DBA-standard equivalent,
    enabled as part of GO-01) PLUS the deployment-fence record
    (which app versions were fenced, when). If NO DB-side audit
