@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event-Model Walkthroughs — how the append-only design handles every scenario</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface:   #1a1a19;
+    --panel:     #232322;
+    --panel-2:   #2b2b29;
+    --line:      #3a3a37;
+    --ink:       #ffffff;
+    --ink-2:     #c3c2b7;
+    --ink-3:     #8b8a80;
+    --blue:      #3987e5;   /* snapshot / upstream events */
+    --violet:    #9085e9;   /* identity / request events */
+    --aqua:      #199e70;   /* wire events */
+    --yellow:    #c98500;   /* query / resolver events */
+    --good:      #0ca30c;   /* good outcomes (always with icon + label) */
+    --serious:   #ec835a;   /* problem evidence */
+    --critical:  #d03b3b;   /* defect / parked */
+    --ops:       #d55181;   /* human actions */
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--surface); color: var(--ink);
+    font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
+    padding: 18px 22px 60px;
+  }
+  h1 { font-size: 19px; margin-bottom: 2px; }
+  .sub { color: var(--ink-2); margin-bottom: 14px; max-width: 980px; }
+  .sub b { color: var(--ink); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink-2);
+    border-radius: 15px; padding: 4px 12px; cursor: pointer; font-size: 12.5px;
+  }
+  .chip:hover { border-color: var(--ink-3); color: var(--ink); }
+  .chip.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
+
+  .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  button.ctl {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px;
+  }
+  button.ctl:hover { border-color: var(--ink-3); }
+  button.ctl:disabled { opacity: .35; cursor: default; }
+  .stepno { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .hint { color: var(--ink-3); font-size: 12px; }
+
+  .grid { display: grid; grid-template-columns: minmax(430px, 1.25fr) minmax(360px, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+  .streams { display: flex; gap: 14px; }
+  .stream { flex: 1; min-width: 0; }
+  .stream h3 {
+    font-size: 12px; letter-spacing: .8px; color: var(--ink-3); text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .slots { display: flex; flex-direction: column; gap: 6px; }
+
+  .txgroup { border-left: 3px solid var(--line); padding-left: 8px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .txgroup.multi { border-left-color: var(--ink-3); }
+  .txgroup.multi::after {
+    content: "ONE TX"; position: absolute; left: -8px; top: -9px;
+    background: var(--surface); color: var(--ink-3); font-size: 9.5px; letter-spacing: 1px; padding: 0 4px;
+  }
+
+  .ev {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+    padding: 7px 10px 8px; position: relative; overflow: hidden;
+  }
+  .ev::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, var(--ink-3)); }
+  .ev .vh { display: flex; gap: 8px; align-items: baseline; }
+  .ev .v { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; min-width: 24px; }
+  .ev .t { font-weight: 650; font-size: 12.5px; letter-spacing: .2px; }
+  .ev .f { color: var(--ink-2); font-size: 12px; margin-top: 1px; }
+  .ev .f code { color: var(--ink); background: var(--panel-2); border-radius: 4px; padding: 0 5px; font-size: 11.5px; }
+  .ev.new { animation: pop .35s ease; }
+  @keyframes pop { from { transform: translateY(6px); opacity: 0; } }
+
+  .nextslot {
+    border: 1px dashed var(--line); border-radius: 9px; color: var(--ink-3);
+    padding: 6px 10px; font-size: 12px;
+  }
+  .nextslot b { color: var(--ink-2); font-weight: 600; }
+
+  .foldwrap { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .fold {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  }
+  .fold h3 { font-size: 12px; letter-spacing: .8px; color: var(--ink-3); text-transform: uppercase; margin-bottom: 8px; }
+  .fold h3 span { color: var(--ink-2); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 13px; }
+  .kv dt { color: var(--ink-2); }
+  .kv dd { text-align: right; font-variant-numeric: tabular-nums; }
+  .kv dd.chg { animation: flash 1s ease; }
+  @keyframes flash { 0% { color: var(--blue); } }
+  .phase { display: inline-block; border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 650; background: var(--panel-2); border: 1px solid var(--line); }
+  .flag { display: inline-block; margin: 2px 4px 0 0; border-radius: 6px; padding: 1px 8px; font-size: 11.5px; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink-2); }
+
+  .meter { margin-top: 10px; }
+  .meter .mrow { display: flex; height: 18px; border-radius: 5px; overflow: hidden; gap: 2px; background: var(--panel-2); }
+  .meter .seg { min-width: 0; transition: flex-basis .4s ease; }
+  .meter .seg.paid { background: var(--good); }
+  .meter .seg.res  { background: var(--blue); }
+  .meter .seg.gap  { background: var(--panel-2); }
+  .meter .lbls { display: flex; gap: 14px; margin-top: 5px; font-size: 11.5px; color: var(--ink-2); flex-wrap: wrap; }
+  .meter .lbls i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  .story {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+    color: var(--ink-2); min-height: 84px;
+  }
+  .story .ttl { color: var(--ink); font-weight: 650; margin-bottom: 4px; font-size: 13.5px; }
+  .guard { margin-top: 8px; font-size: 12.5px; color: var(--ink-2); border-top: 1px dashed var(--line); padding-top: 7px; }
+  .guard b { color: var(--ink); }
+
+  .legend { margin-top: 26px; color: var(--ink-3); font-size: 12px; max-width: 980px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 5px 0 14px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+  <h1>Event-Model Walkthroughs</h1>
+  <p class="sub">Every scenario from the state playground, replayed in the <b>append-only event model</b>.
+  Left: the payment's event stream — each card is one immutable event, each <b>v-number is a fenced slot</b>
+  the database grants exactly once. Right: <b>the fold</b> — the derived state, literally recomputed by this
+  page from the visible events after every step. Nothing on the right is stored anywhere.</p>
+
+  <div class="chips" id="chips"></div>
+  <div class="bar">
+    <button class="ctl" id="prev">◀ Back</button>
+    <button class="ctl" id="next">Next ▶</button>
+    <button class="ctl" id="reset">↺ Restart</button>
+    <span class="stepno" id="stepno"></span>
+    <span class="hint">(arrow keys work too)</span>
+  </div>
+
+  <div class="grid">
+    <div class="streams" id="streams"></div>
+    <div class="foldwrap" id="folds"></div>
+  </div>
+
+  <div class="legend">
+    Event families:
+    <i style="background:var(--blue)"></i>upstream / snapshot
+    <i style="background:var(--violet)"></i>request / identity
+    <i style="background:var(--aqua)"></i>wire
+    <i style="background:var(--yellow)"></i>resolver query
+    <i style="background:var(--good)"></i>good outcome
+    <i style="background:var(--serious)"></i>problem evidence
+    <i style="background:var(--critical)"></i>defect / parked
+    <i style="background:var(--ops)"></i>human (ops)
+  </div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------
+// Event constructors (data only). Fields: t=type, plus per-type
+// extras. 'oord' = the upstream ordering the outcome latches with.
+// ---------------------------------------------------------------
+const REQ    = (amount, ord)        => ({t:'REQUIRED_AMOUNT_SET', amount, ord});
+const SNAPX  = (ord)                => ({t:'SNAPSHOT_INVALID_MARKED', ord});
+const OPEN   = (amount, note)       => ({t:'REQUEST_OPENED', amount, note});
+const ENRICHF= (kind, note)         => ({t:'ENRICH_FAILED', kind, note});
+const POST   = (hash, note)         => ({t:'POST_STARTED', hash, note});
+const RESULT = (result, note)       => ({t:'POST_RESULT_RECORDED', result, note});
+const QUERY  = (q, note)            => ({t:'QUERY_RESULT_RECORDED', q, note});
+const DGRADE = ()                   => ({t:'DOWNGRADED_FOR_REPOST'});
+const OUT    = (outcome, oord, note)=> ({t:'OUTCOME_RECORDED', outcome, oord, note});
+const SETTLE = (amount, note)       => ({t:'SETTLED', amount, note});
+const MISM   = (amount)             => ({t:'SETTLEMENT_MISMATCH_RECORDED', amount});
+const ESC    = ()                   => ({t:'ESCALATION_MARKED'});
+const OPSVER = (verdict, note)      => ({t:'OPS_VERIFIED_OUTCOME_APPLIED', verdict, note});
+const REARM  = ()                   => ({t:'OPS_RETRY_REARMED'});
+
+// step: {tx:[events], s:'A'|'B', ttl, n}   (tx of >1 = one transaction)
+const SCN = [
+{id:'happy', name:'Everything works', steps:[
+ {tx:[REQ(100,1)], ttl:'A trade message arrives: pay 100', n:'The admitted snapshot appends the required amount. The fold now shows a shortfall of 100 — the standing rule will act on it.'},
+ {tx:[OPEN(100)], ttl:'The standing rule opens ONE request', n:'REQUEST_OPENED wins slot v2, so its identity is K@2 — allocated exactly once by the fence, backstopped by the schema. The fold derives the reservation from the open request; no counter is stored.'},
+ {tx:[POST(1)], ttl:'Sending to the payment engine', n:'POST_STARTED is committed BEFORE the wire call — the durable fact that the wire may be reached. From this moment, "was it sent?" is answerable from the stream alone.'},
+ {tx:[RESULT('ACCEPTED')], ttl:'The engine says: accepted', n:'The synchronous response becomes an event. The fold moves the open request to AWAITING SETTLEMENT.'},
+ {tx:[SETTLE(100)], ttl:'Settlement confirmed — paid!', n:'The feed confirms 100. The fold counts K@2 exactly once (idempotent fold) — a duplicated feed event could never double-count. The request is frozen by immutability: nothing can rewrite its events.'}]},
+
+{id:'hiccup', name:'Temporary failures', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[ENRICHF('transient','account service timeout')], ttl:'The account service times out', n:'A transient failure is just an event. Retry timing is derived from its timestamp + policy; the scanner FINDS the payment via the projection, but ACTS by folding and fencing — two racing scanners cannot both act (one loses the slot).'},
+ {tx:[POST(1)], ttl:'Retry due — sending', n:'Service recovered; the scheduled retry re-enriches and posts. Same request, same key.'},
+ {tx:[RESULT('BUSINESS_REJECT','insufficient balance')], ttl:'Engine: insufficient balance', n:'A clean business "no" — provably nothing executed. Policy: retry the SAME key on schedule. Business rejects count as success to the circuit breaker.'},
+ {tx:[POST(1)], ttl:'Retry due — funds arrived meanwhile'},
+ {tx:[RESULT('ACCEPTED')], ttl:'Accepted'},
+ {tx:[SETTLE(100)], ttl:'Paid — two failures, zero humans'}]},
+
+{id:'baddata', name:'Bad data', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[ENRICHF('definitive','account data provably wrong'), OUT('REJECTED_VALIDATION',1)], ttl:'The data is definitively wrong', n:'Retrying cannot fix wrong data. One transaction appends the failure AND the outcome: the request closes, the derived reservation releases, and the validation marker latches CARRYING ordering 1.'},
+ {tx:[REQ(100,2)], ttl:'Upstream sends corrected data', n:'Ordering 2 > the marker’s ordering 1 → the fold unlatches the marker. A stale replay of the OLD snapshot could never do this — the strictly-newer guard ignores it.'},
+ {tx:[OPEN(100,'attempt 2 · NEW key')], ttl:'Fresh request, fresh identity', n:'The standing rule opens the successor automatically — nobody pressed anything. New slot, therefore new key. From here: the happy path.'}]},
+
+{id:'bankreject', name:'The bank says no', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('DEFINITIVE_REJECT','compliance-style refusal'), OUT('REJECTED_PROVIDER',1)], ttl:'Engine: definitive reject', n:'Synchronous and definitive — provably nothing executed, so releasing the money is safe. The provider_rejected marker latches (count 1) with ordering 1.'},
+ {tx:[REQ(100,2)], ttl:'A newer message permits ONE more try', n:'Newer ordering unlatches the marker — but the fold keeps the reject COUNT. If attempt 2 is rejected again with no newer message, the fold parks the payment for humans: the system never ping-pongs a rejected payment at the bank.'},
+ {tx:[OPEN(100,'attempt 2 · NEW key')], ttl:'Attempt 2 opens'}]},
+
+{id:'timeout1', name:'Timeout → engine answers', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('AMBIGUOUS','the call TIMES OUT')], ttl:'Timeout — outcome unknown', n:'Did the bank get it? Unknown — and the refusal to guess is STRUCTURAL: money stays reserved, and no code path can send again without either a downgrade event or a fresh open, neither of which the fold will grant while this request is ambiguous.'},
+ {tx:[QUERY('EXECUTED'), OUT('EXECUTED',1)], ttl:'Resolver asks: “Executed”', n:'The resolver queries by OUR key (§9.1 ask-before-retry). Answer and outcome land in ONE transaction. No duplicate was ever risked.'}]},
+
+{id:'timeout2', name:'Timeout → “never saw it”', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('AMBIGUOUS')], ttl:'Timeout — outcome unknown'},
+ {tx:[QUERY('NOT_FOUND_YOUNG','store too fresh to trust')], ttl:'Query: NOT_FOUND — but too young', n:'Query stores lag reality. A young "not found" is not evidence — the fold waits out the trust age. The answer itself is an event, so this reasoning is reproducible from the stream forever.'},
+ {tx:[QUERY('NOT_FOUND_OLD','past the trust age')], ttl:'Still NOT_FOUND past trust age'},
+ {tx:[DGRADE()], ttl:'The ONE sanctioned backward move', n:'DOWNGRADED_FOR_REPOST — audited, and it re-arms sending for the SAME key. If the first POST secretly arrived, the engine dedups it (the §18-tested contract).'},
+ {tx:[POST(1,'SAME key')], ttl:'Re-posting, same key'},
+ {tx:[RESULT('ACCEPTED')], ttl:'Accepted this time'},
+ {tx:[SETTLE(100)], ttl:'Paid exactly once'}]},
+
+{id:'stuck', name:'Stuck unknown → ops', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('AMBIGUOUS')], ttl:'Timeout — outcome unknown'},
+ {tx:[REQ(80,2)], ttl:'Amendment: the trade now wants 80', n:'Cancelling the 100 could double-pay if it secretly went through. The fold shows required 80 — but with an ambiguous 100 open it refuses BOTH cancel and successor: wait-then-decide.'},
+ {tx:[ESC()], ttl:'The unknown gets old — ops is paged', n:'One event, once per episode. Escalation alerts; it never mutates the parked state — and here that is literal: it is just an event the fold reads as a flag.'},
+ {tx:[OPSVER('NOT_EXECUTED','platform records prove it'), OUT('PLATFORM_VERIFIED_NOT_EXECUTED',2)], ttl:'Ops applies the verified outcome', n:'The dual-control audited operation — the ONLY manual door that can release possibly-moved money, and it demands platform evidence. It arrives through the SAME fence as every other writer.'},
+ {tx:[OPEN(80,'attempt 2 · NEW key')], ttl:'The 80-request opens', n:'Released and re-evaluated in the same breath: shortfall 80, no active request, no blockers → the standing rule opens the successor.'}]},
+
+{id:'amendup', name:'Amount raised mid-flight', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending the 100…'},
+ {tx:[REQ(150,2)], ttl:'Amendment: the trade now wants 150', n:'The in-flight attempt is untouched — its amount lives in an immutable event. The extra 50 is DEFERRED, and the deferral is not a stored task: the fold recomputes it from state, so it can never be lost or doubled.'},
+ {tx:[RESULT('ACCEPTED')], ttl:'The 100 is accepted'},
+ {tx:[SETTLE(100), OPEN(50,'attempt 2 · 50 · NEW key')], ttl:'The 100 settles — and the 50 is born', n:'ONE transaction: the settlement books AND the standing rule re-runs, sees shortfall 50, and opens the successor. It is born atomically with the fact that justified it — there was never a scheduler that could forget it.'}]},
+
+{id:'amendmaybe', name:'Raised while unknown', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('AMBIGUOUS')], ttl:'Timeout — outcome unknown'},
+ {tx:[REQ(150,2)], ttl:'Amendment: raised to 150', n:'Shortfall 50 exists — but the open request is AMBIGUOUS, so the deferral waits on the OUTCOME, not a timer. Bounded by the query cadence, then the escalation clock. Note what does NOT happen: no parallel 50-attempt while the 100’s fate is unknown.'},
+ {tx:[QUERY('EXECUTED'), OUT('EXECUTED',2), OPEN(50,'attempt 2 · 50 · NEW key')], ttl:'Resolver: EXECUTED — successor born in the same instant', n:'One transaction records the answer, books the outcome, re-evaluates, and opens the 50. Had the answer been "not executed", the fresh attempt would have been the full 150 — the follow-up amount is recomputed from live state, never remembered.'}]},
+
+{id:'cancel', name:'Trade cancelled in time', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[REQ(0,2)], ttl:'Amendment: the trade drops to 0', n:'Look at the stream: there is NO POST_STARTED event for K@2. In this model, "provably never sent" is not a status flag — it is the ABSENCE of an event, which nothing can fake or lose.'},
+ {tx:[OUT('CANCELLED_NOT_SUBMITTED',2)], ttl:'Auto-cancel — risk-free', n:'Because the proof is a stream fact, cancelling is automatic and safe. Had a POST_STARTED existed: no cancel — wait-then-decide (the “stuck” scenario).'}]},
+
+{id:'exhaust', name:'Retries run out', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('BUSINESS_REJECT')], ttl:'Clean failure — will retry'},
+ {tx:[POST(1)], ttl:'Retry 2…'},
+ {tx:[RESULT('BUSINESS_REJECT')], ttl:'Failed again'},
+ {tx:[POST(1)], ttl:'Retry 3…'},
+ {tx:[RESULT('BUSINESS_REJECT')], ttl:'The retry budget runs out', n:'The fold counts attempts FROM THE STREAM — and outages never consumed the budget, because gated scanners append nothing: a zero-attempt episode leaves zero events, by construction. Exhaustion means real repeated failures. A human should look.'},
+ {tx:[REARM()], ttl:'Ops re-arms the retry', n:'A human decision, as an event, through the same fence. The fold resets the budget window from this point; the payment resumes at the stage the stream says it stopped at.'},
+ {tx:[POST(1)], ttl:'Trying again…'},
+ {tx:[RESULT('ACCEPTED')], ttl:'Accepted'},
+ {tx:[SETTLE(100)], ttl:'Paid'}]},
+
+{id:'collision', name:'The helpful collision', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2, payload hash H1)'},
+ {tx:[POST(1)], ttl:'Sending (hash H1)…'},
+ {tx:[RESULT('AMBIGUOUS')], ttl:'Timeout — outcome unknown'},
+ {tx:[QUERY('NOT_FOUND_OLD')], ttl:'NOT_FOUND past trust age'},
+ {tx:[DGRADE()], ttl:'Downgrade — same key will re-send'},
+ {tx:[POST(2,'SAME key · hash H2 — details were re-enriched')], ttl:'Re-posting — but the payload changed', n:'Every attempt re-fetches bank data, and the agent bank was corrected in between. H2 ≠ H1 is in the durable record BEFORE the wire — so a collision is EXPECTED, derivably, auditable from the stream alone.'},
+ {tx:[RESULT('COLLISION','known key, different content')], ttl:'Engine: “known key, different content”', n:'Because the divergence was expected, this collision is GOOD NEWS: it proves the original POST arrived. No alarm — ask the resolver.'},
+ {tx:[QUERY('EXECUTED'), OUT('EXECUTED',1)], ttl:'The original had executed', n:'Booked. The "failed" first attempt had quietly succeeded — caught without ever risking a double payment.'}]},
+
+{id:'twinpay', name:'Two payments, one trade', dual:true, steps:[
+ {tx:[REQ(100,1)], ttl:'Snapshot: payment A wants 100', n:'ONE admission (trade_snapshot_state, unchanged from the baseline) fans out to each payment’s OWN stream, in sorted key order. This is stream A.'},
+ {tx:[REQ(250,1)], s:'B', ttl:'…and payment B wants 250', n:'B’s stream is completely independent: its own fence, its own versions, its own fold. The one-active-request rule counts PER STREAM.'},
+ {tx:[OPEN(100)], ttl:'A opens its request'},
+ {tx:[OPEN(250)], s:'B', ttl:'B opens its own — in parallel, legally'},
+ {tx:[POST(1)], ttl:'A posts…'},
+ {tx:[RESULT('ACCEPTED')], ttl:'A accepted — awaiting settlement'},
+ {tx:[REQ(300,2)], s:'B', ttl:'Snapshot 2: A unchanged, B raised to 300', n:'The fan-out appends only where something changed — for A the ordering guard makes the no-op literal: no event. For B, required becomes 300 on B’s own stream.'},
+ {tx:[SETTLE(100)], ttl:'A settles — B still traveling', n:'A completes and freezes. B is untouched. The trade’s card shows both payments; the trade is “done” only when every stream says done.'}]},
+
+{id:'poison', name:'A trade-mate poisons the snapshot', dual:true, steps:[
+ {tx:[REQ(100,1)], ttl:'Snapshot 1: payment A (100) — clean'},
+ {tx:[OPEN(100)], ttl:'A opens (K@2)'},
+ {tx:[POST(1)], ttl:'A posts…'},
+ {tx:[RESULT('ACCEPTED')], ttl:'A accepted — awaiting settlement'},
+ {tx:[SNAPX(2)], ttl:'Snapshot 2: A→150, but B’s block is corrupt', n:'The snapshot is ONE document: if any part violates the contract, NONE of it applies. A’s raise is NOT applied; instead the invalid-marker event lands on EVERY payment of the trade…'},
+ {tx:[SNAPX(2)], s:'B', ttl:'…including B’s stream', n:'Look at A’s fold: required is STILL 100, and the in-flight attempt is untouched — the flag’s ONLY fold effect is vetoing NEW request opens. Fail closed, zero blast radius on running work.'},
+ {tx:[SETTLE(100)], ttl:'The 100 settles normally', n:'Terminal evidence is never blocked by the flag — the original payment completes and freezes. But upstream MEANT 150, and the extra 50 cannot start while the flag is up.'},
+ {tx:[REQ(150,3), OPEN(50,'attempt 2 · 50 · NEW key')], ttl:'Snapshot 3: corrected — the raise lands', n:'Newer ordering clears the flag AND applies the raise AND the standing rule opens the 50 — one transaction. One corrupt trade-mate DELAYED its sibling’s new work, but never touched its in-flight work.'}]},
+
+{id:'mismatch', name:'Wrong-amount settlement', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened (K@2)'},
+ {tx:[POST(1)], ttl:'Sending…'},
+ {tx:[RESULT('ACCEPTED')], ttl:'Accepted — awaiting settlement'},
+ {tx:[MISM(60)], ttl:'Settlement arrives… for 60?!', n:'The engine settles all-or-nothing, so a partial amount cannot be real money — it is DEFECT EVIDENCE. The fold books NOTHING and parks loudly. Note: submission knowledge still tightens — even wrong evidence proves it was sent.'},
+ {tx:[SETTLE(100)], ttl:'The correct settlement finally arrives', n:'Terminal evidence applies to any active payment, parked or not. Booked once (idempotent fold), complete, frozen — and the mismatch event remains forever as the defect’s audit record.'}]}
+];
+
+// ---------------------------------------------------------------
+// THE FOLD — the page's right panel is literally this function
+// applied to the visible events. One implementation, no cheating.
+// ---------------------------------------------------------------
+function fold(events){
+  let required=0, ord=0, snapInvalid=false, snapOrd=0;
+  let mkVal=null, mkProv=null, provCount=0, escalated=false, rearmAt=-1, lastFailAt=-1, fails=0;
+  const reqs=[]; let open=null; let nextKeySlot=null;
+  events.forEach((e,i)=>{
+    switch(e.t){
+      case 'REQUIRED_AMOUNT_SET':
+        if(e.ord>ord){ required=e.amount; ord=e.ord;
+          if(snapInvalid && e.ord>snapOrd) snapInvalid=false; }
+        break;
+      case 'SNAPSHOT_INVALID_MARKED': snapInvalid=true; snapOrd=e.ord; break;
+      case 'REQUEST_OPENED':
+        open={key:'K@'+e.v, amount:e.amount, posts:0, lastHash:null, result:null,
+              downgraded:false, enrichFails:0, queries:[], mismatch:null, settled:false};
+        reqs.push(open); break;
+      case 'ENRICH_FAILED':
+        if(open){ if(e.kind==='transient'){ open.enrichFails++; fails++; lastFailAt=i; } }
+        break;
+      case 'POST_STARTED':
+        if(open){ open.posts++; open.expDiv = open.lastHash!==null && open.lastHash!==e.hash;
+                  open.lastHash=e.hash; open.result=null; }
+        break;
+      case 'POST_RESULT_RECORDED':
+        if(open){ open.result=e.result;
+          if(e.result==='BUSINESS_REJECT'){ fails++; lastFailAt=i; } }
+        break;
+      case 'QUERY_RESULT_RECORDED': if(open) open.queries.push(e.q); break;
+      case 'DOWNGRADED_FOR_REPOST': if(open){ open.downgraded=true; open.result=null; } break;
+      case 'OUTCOME_RECORDED':
+        if(open){ open.outcome=e.outcome;
+          if(e.outcome==='REJECTED_VALIDATION') mkVal={ord:e.oord};
+          if(e.outcome==='REJECTED_PROVIDER'){ mkProv={ord:e.oord}; provCount++; }
+          open=null; }
+        break;
+      case 'SETTLED':
+        { const r=reqs.find(r=>!r.settled && !r.outcome && r.mismatch!==null) || open || reqs[reqs.length-1];
+          if(r && !r.settled){ r.settled=true; r.mismatch=null; if(open===r) open=null; } }
+        break;
+      case 'SETTLEMENT_MISMATCH_RECORDED': if(open) open.mismatch=e.amount; break;
+      case 'ESCALATION_MARKED': escalated=true; break;
+      case 'OPS_VERIFIED_OUTCOME_APPLIED': break; // paired OUTCOME event does the work
+      case 'OPS_RETRY_REARMED': rearmAt=i; fails=0; break;
+    }
+  });
+  const paid = reqs.filter(r=>r.settled || r.outcome==='EXECUTED' || r.outcome==='PLATFORM_VERIFIED_EXECUTED')
+                   .reduce((s,r)=>s+r.amount,0);
+  const reserved = open ? open.amount : 0;
+  const shortfall = Math.max(0, required - paid - reserved);
+  // markers active only until a strictly newer ordering arrived
+  const valActive  = mkVal  && ord <= mkVal.ord;
+  const provActive = mkProv && ord <= mkProv.ord;
+  // phase of the open request
+  let phase='—', provablyUnsent=false;
+  if(open){
+    if(open.mismatch!==null) phase='PARKED · defect evidence ('+open.mismatch+' ≠ '+open.amount+')';
+    else if(open.result==='AMBIGUOUS' || open.result==='COLLISION') phase='MAYBE — asking, never guessing';
+    else if(open.result==='ACCEPTED') phase='AWAITING SETTLEMENT';
+    else if(open.result==='BUSINESS_REJECT' || (open.posts===0 && open.enrichFails>0))
+      phase = (fails>=3 && rearmAt<lastFailAt) ? 'PARKED · RETRY_EXHAUSTED' : 'RETRY_WAIT';
+    else if(open.downgraded && open.posts>0 && open.result===null && open.queries.length) phase='RE-POST ARMED (same key)';
+    else if(open.posts>0 && open.result===null) phase='POSTING';
+    else { phase='PREPARING'; }
+    provablyUnsent = open.posts===0;
+  } else {
+    phase = shortfall>0 ? (snapInvalid||valActive||provActive ? 'HELD — fail closed' : 'RE-EVALUATING')
+                        : (paid>=required && required>0 ? 'COMPLETE ✓' : (required===0 && reqs.length ? 'CANCELLED ✓' : 'IDLE'));
+  }
+  if(open && fails>=3 && rearmAt<lastFailAt) phase='PARKED · RETRY_EXHAUSTED';
+  return {required, ord, paid, reserved, shortfall, open, phase, provablyUnsent,
+          flags:{snapInvalid, valActive, provActive, escalated,
+                 provCount: provCount, expDiv: open? open.expDiv:false}};
+}
+
+// ---------------------------------------------------------------
+// rendering
+// ---------------------------------------------------------------
+const COLOR = {
+  REQUIRED_AMOUNT_SET:'var(--blue)', SNAPSHOT_INVALID_MARKED:'var(--serious)',
+  REQUEST_OPENED:'var(--violet)', ENRICH_FAILED:'var(--serious)',
+  POST_STARTED:'var(--aqua)', POST_RESULT_RECORDED:'var(--aqua)',
+  QUERY_RESULT_RECORDED:'var(--yellow)', DOWNGRADED_FOR_REPOST:'var(--yellow)',
+  OUTCOME_RECORDED:'var(--good)', SETTLED:'var(--good)',
+  SETTLEMENT_MISMATCH_RECORDED:'var(--critical)', ESCALATION_MARKED:'var(--critical)',
+  OPS_VERIFIED_OUTCOME_APPLIED:'var(--ops)', OPS_RETRY_REARMED:'var(--ops)'
+};
+function evDesc(e){
+  switch(e.t){
+    case 'REQUIRED_AMOUNT_SET': return 'amount <code>'+e.amount+'</code> · ordering <code>'+e.ord+'</code>';
+    case 'SNAPSHOT_INVALID_MARKED': return 'whole-snapshot validation failed · ordering <code>'+e.ord+'</code>';
+    case 'REQUEST_OPENED': return 'amount <code>'+e.amount+'</code> · identity <code>K@'+e.v+'</code>'+(e.note? ' · '+e.note:'');
+    case 'ENRICH_FAILED': return e.kind+(e.note? ' — '+e.note:'');
+    case 'POST_STARTED': return 'payload hash <code>H'+e.hash+'</code> — committed BEFORE the wire'+(e.note? ' · '+e.note:'');
+    case 'POST_RESULT_RECORDED': return '<code>'+e.result+'</code>'+(e.note? ' — '+e.note:'');
+    case 'QUERY_RESULT_RECORDED': return '<code>'+e.q.replace('_YOUNG',' (young)').replace('_OLD',' (past trust age)')+'</code>'+(e.note? ' — '+e.note:'');
+    case 'DOWNGRADED_FOR_REPOST': return 'same-key re-send sanctioned · audited';
+    case 'OUTCOME_RECORDED': return '<code>'+e.outcome+'</code> · at ordering <code>'+e.oord+'</code>';
+    case 'SETTLED': return 'amount <code>'+e.amount+'</code> · feed evidence';
+    case 'SETTLEMENT_MISMATCH_RECORDED': return 'amount <code>'+e.amount+'</code> — defect evidence, books nothing';
+    case 'ESCALATION_MARKED': return 'ops paged · once per episode';
+    case 'OPS_VERIFIED_OUTCOME_APPLIED': return '<code>'+e.verdict+'</code> · dual-control, platform evidence'+(e.note? ' — '+e.note:'');
+    case 'OPS_RETRY_REARMED': return 'human decision · budget window resets';
+  }
+  return '';
+}
+
+let cur=0, step=0;
+const chipsEl=document.getElementById('chips');
+SCN.forEach((s,i)=>{
+  const c=document.createElement('button'); c.className='chip'; c.textContent=s.name;
+  c.onclick=()=>{cur=i; step=0; render();}; chipsEl.appendChild(c);
+});
+
+function streamsOf(scn){ return scn.dual? ['A','B'] : ['A']; }
+function eventsUpTo(scn, n, stream){
+  const out=[]; let v=0;
+  for(let i=0;i<n;i++){
+    const st=scn.steps[i]; const s=st.s||'A';
+    if(s!==stream) continue;
+    st.tx.forEach(e=>{ /* v assigned below per stream */ out.push({...e}); });
+  }
+  out.forEach((e,i)=>e.v=i+1);
+  return out;
+}
+
+function render(prevStep){
+  const scn=SCN[cur];
+  document.querySelectorAll('.chip').forEach((c,i)=>c.classList.toggle('on', i===cur));
+  document.getElementById('stepno').textContent='step '+step+' / '+scn.steps.length;
+  document.getElementById('prev').disabled = step===0;
+  document.getElementById('next').disabled = step===scn.steps.length;
+
+  const streams=streamsOf(scn);
+  const sEl=document.getElementById('streams'); sEl.innerHTML='';
+  const fEl=document.getElementById('folds'); fEl.innerHTML='';
+
+  // narration for the last applied step
+  const last = step>0 ? scn.steps[step-1] : null;
+
+  streams.forEach(name=>{
+    const evs=eventsUpTo(scn, step, name);
+    const col=document.createElement('div'); col.className='stream';
+    col.innerHTML='<h3>'+(scn.dual? 'payment '+name+' — its own stream, its own fence' : 'the payment’s event stream')+'</h3>';
+    const slots=document.createElement('div'); slots.className='slots';
+    // group consecutive events that were appended in one tx of one step
+    let idx=0;
+    for(let i=0;i<step;i++){
+      const st=scn.steps[i]; if((st.s||'A')!==name) continue;
+      const g=document.createElement('div'); g.className='txgroup'+(st.tx.length>1?' multi':'');
+      st.tx.forEach(()=>{
+        const e=evs[idx++];
+        const card=document.createElement('div'); card.className='ev'+(i===step-1?' new':'');
+        card.style.setProperty('--c', COLOR[e.t]);
+        card.innerHTML='<div class="vh"><span class="v">v'+e.v+'</span><span class="t">'+e.t+'</span></div>'
+                      +'<div class="f">'+evDesc(e)+'</div>';
+        g.appendChild(card);
+      });
+      slots.appendChild(g);
+    }
+    const nx=document.createElement('div'); nx.className='nextslot';
+    nx.innerHTML='<b>v'+(evs.length+1)+'</b> — empty slot. The next writer must claim it; the database grants it exactly once (the fence).';
+    slots.appendChild(nx);
+    col.appendChild(slots); sEl.appendChild(col);
+
+    // fold card per stream
+    const f=fold(evs);
+    const card=document.createElement('div'); card.className='fold';
+    const flags=[];
+    if(f.flags.snapInvalid) flags.push('⚠ snapshot-invalid — new opens vetoed');
+    if(f.flags.valActive)   flags.push('⚑ validation marker latched');
+    if(f.flags.provActive)  flags.push('⚑ provider-rejected latched ×'+f.flags.provCount);
+    if(!f.flags.provActive && f.flags.provCount>0) flags.push('reject count kept: '+f.flags.provCount);
+    if(f.flags.escalated)   flags.push('⚠ escalated — ops paged');
+    if(f.provablyUnsent && f.open) flags.push('✓ provably unsent (no POST_STARTED)');
+    if(f.flags.expDiv)      flags.push('✓ divergence EXPECTED (H differs, pre-wire)');
+    const total=Math.max(f.required, f.paid+f.reserved, 1);
+    card.innerHTML =
+      '<h3>the fold '+(scn.dual? '· payment '+name+' ':'')+'<span>= fold(events on the left) — computed live, stored nowhere</span></h3>'
+      +'<dl class="kv">'
+      +'<dt>required</dt><dd>'+f.required+' <span style="color:var(--ink-3)">(ordering '+f.ord+')</span></dd>'
+      +'<dt>paid (distinct executed keys)</dt><dd>'+f.paid+'</dd>'
+      +'<dt>reserved (open request)</dt><dd>'+f.reserved+(f.open? ' <span style="color:var(--ink-3)">'+f.open.key+'</span>':'')+'</dd>'
+      +'<dt>shortfall</dt><dd>'+f.shortfall+'</dd>'
+      +'<dt>derived phase</dt><dd><span class="phase">'+f.phase+'</span></dd>'
+      +'</dl>'
+      +(flags.length? '<div style="margin-top:7px">'+flags.map(x=>'<span class="flag">'+x+'</span>').join('')+'</div>':'')
+      +'<div class="meter"><div class="mrow">'
+      +'<div class="seg paid" style="flex:0 0 '+(100*f.paid/total)+'%"></div>'
+      +'<div class="seg res"  style="flex:0 0 '+(100*f.reserved/total)+'%"></div>'
+      +'<div class="seg gap"  style="flex:1 1 auto"></div>'
+      +'</div><div class="lbls">'
+      +'<span><i style="background:var(--good)"></i>paid '+f.paid+'</span>'
+      +'<span><i style="background:var(--blue)"></i>reserved '+f.reserved+'</span>'
+      +'<span><i style="background:var(--panel-2);border:1px solid var(--line)"></i>required '+f.required+'</span>'
+      +'</div></div>';
+    fEl.appendChild(card);
+  });
+
+  // narration card
+  const story=document.createElement('div'); story.className='story';
+  if(!last){
+    story.innerHTML='<div class="ttl">'+SCN[cur].name+'</div>Press <b>Next</b> to append the first event.'
+      +'<div class="guard"><b>Remember the rules:</b> the stream is the only truth; every append must win the next fenced slot; the panel above is recomputed from scratch after every step.</div>';
+  } else {
+    story.innerHTML='<div class="ttl">'+(last.ttl||'')+'</div>'+(last.n||'')
+      +(last.tx.length>1? '<div class="guard"><b>ONE TX:</b> these '+last.tx.length+' events took consecutive slots atomically — either all landed or the writer refolds and retries. Atomicity without a lock.</div>':'');
+  }
+  fEl.appendChild(story);
+}
+
+document.getElementById('next').onclick=()=>{ if(step<SCN[cur].steps.length){step++; render();} };
+document.getElementById('prev').onclick=()=>{ if(step>0){step--; render();} };
+document.getElementById('reset').onclick=()=>{ step=0; render(); };
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight') document.getElementById('next').click();
+  if(e.key==='ArrowLeft')  document.getElementById('prev').click();
+});
+render();
+
+// self-test hook: walk every scenario end-to-end, throw on any error
+window.__selftest = function(){
+  const errs=[];
+  SCN.forEach((s,i)=>{
+    try{
+      streamsOf(s).forEach(name=>{
+        for(let n=0;n<=s.steps.length;n++){ fold(eventsUpTo(s,n,name)); }
+      });
+    }catch(ex){ errs.push(s.id+': '+ex.message); }
+  });
+  return errs.length? errs : 'ALL '+SCN.length+' SCENARIOS FOLD CLEAN';
+};
+</script>
+</body>
+</html>

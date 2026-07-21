@@ -20,6 +20,7 @@
 |---|---|
 | `01-event-table-schema.md` | The full schema: the event table, its constraints, the event vocabulary, the canonical fold, projections, and access paths — with the reasoning for every column |
 | `02-scenario-walkthroughs.md` | Every scenario from `payment-state-playground.html`, replayed step by step in the event model, with the guard that makes each one safe |
+| `scenario-walkthroughs.html` | The same walkthroughs as an interactive explainer (open in any browser): step through each scenario watching events claim fenced slots on the left while the right panel is LITERALLY `fold(events)` recomputed live — including the dual-stream trade scenarios |
 
 ## The two design rules everything else follows from
 
