@@ -22,6 +22,7 @@
 | `02-scenario-walkthroughs.md` | Every scenario from `payment-state-playground.html`, replayed step by step in the event model, with the guard that makes each one safe |
 | `scenario-walkthroughs.html` | The same walkthroughs as an interactive explainer (open in any browser): step through each scenario watching full PAYMENT_EVENT rows claim fenced slots while the fold panel is LITERALLY `fold(rows)` recomputed live — including the dual-stream trade scenarios |
 | `03-known-limits.md` | **The honest cost sheet**: every known limitation of this model (consolidated from the adversarial self-review + the external assessment of it), each with a real-world example and fully simulated database rows — read this BEFORE forming an opinion from the scenario docs, which show only what works |
+| `04-top-unresolvable-problems.md` | **The decision digest**: the five problems the model cannot resolve on its own, filtered by the test "does good service code make it go away?" — the top three survive even that assumption; the last two need design additions before production. Shortest read for decision-makers |
 
 ## The two design rules everything else follows from
 
