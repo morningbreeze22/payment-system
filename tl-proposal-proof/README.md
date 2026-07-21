@@ -20,7 +20,7 @@ cd tl-proposal-proof
 ./mvnw test            (mac/linux)
 ```
 
-Or open the folder in IntelliJ and run the three test classes.
+Or open the folder in IntelliJ and run the four test classes.
 
 ## The three models
 
@@ -73,6 +73,29 @@ modes — that is the CT-04 fact itself.
 **Assertion technique:** every test compares the model's BELIEVED state
 against the fake provider's INTERNAL TRUTH (executions, money actually
 moved). The surviving models end every scenario with belief == truth.
+
+## The fourth suite — `EventModelLimitsTest` (the other half of the story)
+
+`MinimalSingleWriterSurvivesTest` shows what the event-table model does
+WELL. This suite reproduces, runnably, the five issues from
+`event-model-design/04-top-unresolvable-problems.md` — what remains when
+the code, not the schema, is the last line of defense. **Every test
+asserts the damage HAPPENS: green means the limits are real.**
+
+| # | Issue (04) | What the test proves |
+|---|---|---|
+| 1 | No declarative temporal backstop | A CURRENT writer (fence won fairly — a stale one collides and refolds) with one wrong legality decision commits a second open request: 200 moved for a 100 requirement. The SAME decision against model 3 dies on the I6 emulation — zero rows, before any wire call |
+| 2 | No local independent witness | A classification bug in THE canonical fold (verified-NOT-executed booked as paid): UI, drift scanner, and totals job all agree — green everywhere — while the provider moved NOTHING. Only an independent second implementation or the provider's ledger dissents |
+| 3 | Fold fixes are retroactive | Books closed at 200 under fold v6; fold v7 deploys; the SAME rows (byte-compared) now say 100 — and no row records that the meaning changed |
+| 4 | Restore erases identity memory | Point-in-time restore erases the write-ahead row; the replay pays again with a FRESH key: belief 150==required, truth 250 moved. Also shows an identity epoch would NOT have helped — the failure is amnesia, not collision |
+| 5 | History cannot forget | Deleting one event (compliance redaction) flips paid 100→0; the next ROUTINE scan double-pays. In this model an erasure is a money operation |
+
+Honesty notes: where tests write event rows directly they replay exactly
+what protocol-following service code writes (next fenced slot, fresh
+identity, write-ahead order) — front-door decision defects, never a
+privileged bypass; issue 4's DELETE is a restore simulation, not an
+actor. These runnable results are the executable companions of the L1 /
+L2 / L6 / L9 simulated-row examples in `03-known-limits.md`.
 
 ## The honest conclusion
 

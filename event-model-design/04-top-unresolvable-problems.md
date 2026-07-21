@@ -28,6 +28,12 @@
 > design work. **None of this document is proof that the five disqualify
 > the model** — it is the honest statement of what adopting it commits
 > the team to accepting (1–2) and building (3–5).
+>
+> **All five are runnable:** `tl-proposal-proof`'s
+> `EventModelLimitsTest` reproduces each issue against the event-table
+> model's executable stand-in (and, for issue 1, shows the same wrong
+> decision dying on the baseline's I6 emulation). Every assertion there
+> asserts the damage HAPPENS — `.\mvnw.cmd test` to see it.
 
 ---
 
