@@ -269,11 +269,13 @@ baseline's inbox.
   transition-history journal** — same exclusions as the baseline (the
   stream itself IS the full history, which also subsumes the §14.1
   attempt journal's purpose; the §14 external log contract is unchanged).
-- **What is deliberately NOT claimed** (honesty box — full analysis with
-  simulated rows in `03-known-limits.md`): temporal/cross-row legality is
-  NOT schema-enforced (L1 — the boundary sentence); there is no
-  independent local money witness (L2); restore-time identity recovery
-  is an UNDESIGNED money-safety blocker (L6); §12 request-granular UI
-  parity is undecided (L8); retention/compliance policy for an
-  append-only store is undecided (L9).
+- **What is deliberately NOT claimed** (honesty box — full ranked
+  analysis with simulated rows in `03-known-limits.md`): the two
+  CRITICALs, inherent to the model and ACCEPTED rather than fixable —
+  temporal/cross-row legality has no declarative schema backstop (L1 —
+  the boundary sentence) and money state is fold-derived
+  (self-witnessed, retroactively reinterpretable — L2); the one HIGH —
+  restore-time identity recovery is designable but UNDESIGNED (L6);
+  plus bounded MEDIUM work (L5 test set, L7 UETR claim, L8 §12 read
+  contract) and LOW policy items (L9).
 ```

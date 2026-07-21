@@ -1,239 +1,163 @@
-# Known Limits of the Event Model — with Simulated Rows
+# Known Limits of the Event Model — Ranked, with Simulated Rows
 
 > Status: DRAFT (see `00-README.md`). Consolidates the adversarial
-> self-review and the external assessment of it. Every limitation below
-> carries a REAL-WORLD EXAMPLE with fully simulated database rows, so the
-> discussion is about concrete data, never abstractions.
->
-> **The boundary sentence** (adopted verbatim from the assessment):
-> *a version fence can replace the obligation lock's serialization
-> function, but it cannot replace the baseline schema's enforcement of
-> temporal business legality.*
->
-> **Greenfield note:** this system is NOT live — there is no legacy
-> population, no dual-run, no cutover history. The migration objection
-> that dominated earlier drafts of this critique is therefore MOOT and
-> does not appear below (and, symmetrically, a slice of the baseline's
-> own migration machinery is insurance the greenfield fact makes cheap).
-> Everything that remains is real regardless of greenfield.
+> self-review and the external assessment of it, reframed after PO
+> review of the argumentation standard (see "How these are judged").
+> Every limitation carries a real-world example with simulated rows.
 
-Row notation: `PAYMENT_EVENT` columns as in `01-event-table-schema.md`
-(`·` = NULL; `EVENT_CODE` is the structured classification column added
-after limitation L4 was found; `IDEM_CLAIM` is the generated column).
+## Severity rubric (fixed)
+
+| Rank | Meaning |
+|---|---|
+| **CRITICAL** | The property is **actually not achievable** in a one-event-table design — no amount of work inside the model provides it; adopting the model means ACCEPTING its absence (or leaving the model) |
+| **HIGH** | Achievable, but the current draft needs **significant redesign** to accommodate it |
+| **MEDIUM** | Achievable by a **bounded additive change** — a column, a constraint, a small auxiliary structure or job — no redesign of the core |
+| **LOW** | Policy/process work, or already resolved in the current draft |
+
+## How these are judged (argumentation standard)
+
+"Someone can run arbitrary SQL" is NOT a design argument — a privileged
+actor can disable a trigger or drop a constraint in the baseline just as
+easily as they can UPDATE this table; **no design survives privileged
+misuse, and none of the rankings below rely on it.** The valid criterion
+is *defect blast radius*: when the same ordinary defect arrives through
+the FRONT DOOR — a new code path written next year, a service acting on
+a stale read, an incident hotfix calling a helper directly, all using
+the normal application role — does the system fail loudly at write time,
+or accept the write and let state corrupt silently? That is the same
+criterion that justifies `UNIQUE(idempotency_key)` existing at all,
+rather than trusting that correct code never inserts duplicates.
+
+| # | Limitation | Rank |
+|---|---|---|
+| L1 | Temporal business legality has no **declarative** write-time backstop | **CRITICAL** |
+| L2 | Money state is fold-derived: bugs are self-consistent and fixes are **retroactive** | **CRITICAL** |
+| L6 | Restore-time identity reuse | **HIGH** |
+| L4 | Fold inputs need structured columns | MEDIUM — **fixed** |
+| L5 | Projection false negatives can strand work | MEDIUM — contract specified |
+| L7 | UETR multiplicity + delivery dedup | MEDIUM — mostly specified |
+| L8 | Request-granular UI (§12) parity | MEDIUM |
+| L3 | Contradictory evidence | LOW — **resolved by design** |
+| L9 | Retention / compliance for an append-only store | LOW |
 
 ---
 
-## L1 — The schema cannot refuse a semantically illegal append
+## L1 — [CRITICAL] Temporal legality has no declarative write-time backstop
 
-**Statement.** The fence (`UNIQUE(payment_key, version)`) proves the slot
-was won; `IDEM_CLAIM` proves identity is write-once. NOTHING in the
-schema proves the event was LEGAL given the prior events — "no second
-open while one is ambiguous", the L-shape rules, and "no release without
-evidence" are temporal, cross-row predicates an append-only table cannot
-express as constraints.
+**The property that is not achievable:** in the baseline, "at most one
+active request per obligation" (I6), the L-shape rules, and
+"no release without evidence" are DECLARATIVE schema facts — a write
+that violates them fails with an ORA error no matter which code path
+produced it, including code that has never heard of the rules. Those
+predicates are relationships BETWEEN rows OVER time; an append-only
+single table cannot express any of them as a constraint. This is
+structural, not a missing feature.
 
-**Real-world example.** Friday incident. A support engineer (or a buggy
-new endpoint) decides payment `T7031-1` is "stuck" and helpfully opens a
-fresh request by direct SQL, while the real request is sitting in MAYBE:
+**Front-door example (no rogue actor, no raw SQL).** Next year someone
+ships a well-meaning "nudge stuck payments" endpoint. It checks the
+STATUS PROJECTION (stale by one step — see L5), concludes nothing is in
+flight, and calls the normal append helper — through the application
+role, through the fence, like every legitimate writer:
 
-| PK | V | EVENT_TYPE | EVENT_CODE | ORD | AMOUNT | IDEM_KEY | HASH | SRC | ACTOR | IDEM_CLAIM | DETAIL |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| T7031-1 | 1 | REQUIRED_AMOUNT_SET | · | 1 | 100 | · | · | UPSTREAM | ADMISSION | · | · |
-| T7031-1 | 2 | REQUEST_OPENED | · | · | 100 | T7031-1#2 | H1 | SYSTEM | SYSTEM | T7031-1#2 | · |
-| T7031-1 | 3 | POST_STARTED | · | · | · | T7031-1#2 | H1 | SYSTEM | WORKER | · | · |
-| T7031-1 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | · | · | T7031-1#2 | · | SYNC_RESPONSE | WORKER | · | timeout — outcome unknown |
-| **T7031-1** | **5** | **REQUEST_OPENED** | · | · | **100** | **T7031-1#5** | H1 | SYSTEM | **OPS:raw-sql** | **T7031-1#5** | "unstuck it" |
+| PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | SRC | ACTOR | IDEM_CLAIM | DETAIL |
+|---|---|---|---|---|---|---|---|---|---|
+| T7031-1 | 2 | REQUEST_OPENED | · | 100 | T7031-1#2 | SYSTEM | SYSTEM | T7031-1#2 | standing rule |
+| T7031-1 | 3 | POST_STARTED | · | · | T7031-1#2 | SYSTEM | WORKER | · | · |
+| T7031-1 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | · | T7031-1#2 | SYNC_RESPONSE | WORKER | · | outcome unknown |
+| **T7031-1** | **5** | **REQUEST_OPENED** | · | **100** | **T7031-1#5** | SYSTEM | **SYSTEM (nudge endpoint)** | T7031-1#5 | acted on a stale projection |
 
-Row v5 satisfies EVERY constraint: slot 5 was free (fence ✓), key
-`T7031-1#5` is fresh (`IDEM_CLAIM` unique ✓), the type is in the CHECK
-list ✓. **The insert succeeds.** There are now two open requests; the
-next scanner folds, sees the LAST open request, posts `T7031-1#5` for
-100 — and if the ambiguous `#2` also executed, the payment is doubled.
-
-The baseline's answer to the identical row is one line long:
+Row v5 satisfies every constraint the model has: the slot was free
+(fence ✓), the key is fresh (IDEM_CLAIM ✓), the shape checks pass ✓.
+**The insert commits.** Two requests are now open; if the ambiguous
+`#2` also executed, the payment doubles. The identical buggy write in
+the baseline is one line:
 
 ```
 ORA-00001: unique constraint (PAY.REQUEST_ACTIVE_I6) violated
 ```
 
-**Severity: the decisive structural difference.** Mitigations exist
-(sole append API via revoked grants + stored procedure, prefix
-validation in the append library, poison-stream on illegal history) —
-but none reproduces "an arbitrary writer cannot create this row."
+Same bug, same probability of being written — the DESIGN decides
+whether it costs zero rows (loud, at write time) or a corrupted history
+(silent, discovered later or never).
+
+**Sharpened claim (per assessment + PO review):** DB-side enforcement is
+possible *procedurally* — revoke raw INSERT and route every append
+through a stored procedure that re-folds the prefix and validates. But
+that is enforcement by code (a second fold implementation, in PL/SQL,
+on the hot write path) — the very layer the backstop is supposed to be
+independent of, and a permanent divergence risk against the canonical
+fold. What is NOT achievable is the baseline's property: a *declarative*
+guarantee the write path cannot forget, mis-implement, or skip.
+
+**Adoption meaning:** accepting the model = accepting that temporal
+money invariants are protected by discipline (append API + validation +
+tests), not by the schema. This is the boundary sentence: *the fence
+replaces the lock's serialization function, not the schema's
+enforcement of temporal business legality.*
 
 ---
 
-## L2 — A fold bug is self-consistent, invisible, and retroactive
+## L2 — [CRITICAL] Fold-derived money: self-consistent bugs, retroactive fixes
 
-**Statement.** There is one authoritative representation. Every reader,
-scanner, and checker folds the same rows with the same shared fold — a
-bug in it produces a WRONG number that every component agrees on.
-(Honest moderation from the assessment: the baseline's counters and
-request rows are usually written by the same transaction, so its I1/I2
-redundancy is also not absolute — but it does catch forgotten/double
-counter updates and choreography errors; the event model has no local
-equivalent.)
+**The property that is not achievable:** money state whose meaning is
+FIXED at write time and independently witnessed. In the fold model,
+`paid` does not exist in the database — it is recomputed by code on
+every read. Two consequences are inherent, independent of how carefully
+the fold is written:
 
-**Real-world example.** Version 1.4.0 of the fold classifies executed
+1. **Self-consistency:** every reader, scanner, and checker built on
+   the fold agrees with its bugs — there is no second local
+   representation to disagree (persisting one = a stored ledger = a
+   second, mutable structure = leaving the model).
+2. **Retroactivity:** fixing a fold bug silently changes what recorded
+   history MEANS, for every payment, at once, backdated. A stored
+   ledger's past does not change when code deploys.
+
+**Example (front-door, ordinary bug).** Fold v1.4.0 classifies executed
 outcomes with a substring shortcut:
 
 ```java
 if (outcome.endsWith("EXECUTED")) paid += amount;   // the bug
 ```
 
-Payment `T7031-4`: ops used the dual-control operation to verify the
-POST **never executed**:
-
-| PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | SRC | ACTOR | DETAIL |
-|---|---|---|---|---|---|---|---|---|
-| T7031-4 | 1 | REQUIRED_AMOUNT_SET | · | 80 | · | UPSTREAM | ADMISSION | · |
-| T7031-4 | 2 | REQUEST_OPENED | · | 80 | T7031-4#2 | SYSTEM | SYSTEM | · |
-| T7031-4 | 3 | POST_STARTED | · | · | T7031-4#2 | SYSTEM | WORKER | · |
-| T7031-4 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | · | T7031-4#2 | SYNC_RESPONSE | WORKER | · |
-| T7031-4 | 5 | OPS_VERIFIED_OUTCOME_APPLIED | NOT_EXECUTED | · | T7031-4#2 | OPS | OPS:elena | approval APPR-1043 |
-| T7031-4 | 6 | OUTCOME_RECORDED | **PLATFORM_VERIFIED_NOT_EXECUTED** | · | T7031-4#2 | OPS | OPS:elena | · |
-
-`"PLATFORM_VERIFIED_NOT_EXECUTED".endsWith("EXECUTED")` is **true**.
-The fold books 80 as paid. The UI shows paid. The scanner sees no
-shortfall and never opens a successor — **the beneficiary is silently
-unpaid** (the U-1 class). The drift check folds the same rows with the
-same bug: green. The projection-vs-fresh-fold comparison compares the
-bug to itself: green. Only provider-side reconciliation (external,
-weeks-later) can catch it. And when the fold is fixed, the meaning of
-EVERY historical stream containing that code changes retroactively.
-
-In the baseline the same bug must independently corrupt BOTH the request
-row and the `confirmed_amount` counter in matching ways, or I1/I2 pages
-someone.
-
-**Severity: high.** Mitigations (independent verification fold, golden
-histories, full-history replay before fold deploys) are payable but
-permanent, and they are exactly the N-version burden the one-fold rule
-tries to avoid.
-
----
-
-## L3 — Contradictory evidence must be modeled, because appends cannot be refused
-
-**Statement.** The baseline's guarded CAS makes a late contradicting
-write hit 0 rows — the contradiction never enters authoritative state.
-Here every append succeeds, so the contradiction WILL be recorded; the
-design must make it a first-class, safe-stop event — never an ordinary
-event resolved by hidden precedence rules in the fold.
-
-**Real-world example.** The engine definitively rejected — then, three
-days later, its feed emits a settlement for the same key (engine-side
-defect, or a mis-keyed manual correction on their side):
-
-| PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | UETR | SRC | ACTOR |
-|---|---|---|---|---|---|---|---|---|
-| T7031-7 | 4 | POST_RESULT_RECORDED | DEFINITIVE_REJECT | · | T7031-7#2 | · | SYNC_RESPONSE | WORKER |
-| T7031-7 | 5 | OUTCOME_RECORDED | REJECTED_PROVIDER | · | T7031-7#2 | · | SYNC_RESPONSE | WORKER |
-| T7031-7 | 6 | REQUEST_OPENED | · | 100 | T7031-7#6 | · | SYSTEM | SYSTEM |
-
-*(the successor #6 is already in flight — the reservation was legally
-released at v5)*. Now the late feed arrives. The WRONG design appends:
-
-| T7031-7 | 7 | SETTLED | · | 100 | T7031-7#2 | U-79f3 | FEED | FEED |
-
-…and the fold must now secretly decide whether `SETTLED` beats
-`REJECTED_PROVIDER`. If it books it: 100 paid on `#2` **plus** the
-in-flight `#6` = double payment brewing. The RIGHT design appends:
-
-| T7031-7 | 7 | EVIDENCE_CONTRADICTION_RECORDED | SETTLED_AFTER_TERMINAL | 100 | T7031-7#2 | U-79f3 | FEED | FEED |
-
-with a FIXED fold effect: book nothing, PARK the payment (which also
-freezes `#6` from posting), raise CRITICAL, require authoritative
-reconciliation. Adopted into the vocabulary in `01`.
-
-**Severity: medium — designable, now designed;** the residual burden is
-that the safe-stop rule lives in the fold, not the schema (see L1).
-
----
-
-## L4 — The original schema could not even ENCODE the fold's inputs
-
-**Statement.** The fold branches on business classifications (`AMBIGUOUS`
-vs `BUSINESS_REJECT` vs `DEFINITIVE_REJECT`; `EXECUTED` vs `NOT_FOUND` vs
-`LOOKBACK_EXPIRED`; transient vs definitive enrichment). The first draft
-gave them no column: `PROVIDER_CODE` carries the ENGINE'S raw code, and
-`DETAIL` is fold-forbidden by design rule. Found by the external
-assessment; fixed in `01` (structured `EVENT_CODE` + per-type shape
-CHECKs) — recorded here because it shows how easily an event schema
-under-specifies.
-
-**Real-world example.** Two rows under the ORIGINAL schema (no
-EVENT_CODE). The engine's raw codes are opaque vendor strings:
-
-| PK | V | EVENT_TYPE | AMOUNT | IDEM_KEY | PROV_CODE | SRC | ACTOR |
+| PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | SRC | ACTOR |
 |---|---|---|---|---|---|---|---|
-| T7031-2 | 5 | POST_RESULT_RECORDED | · | T7031-2#2 | E-4021 | SYNC_RESPONSE | WORKER |
-| T7031-3 | 5 | POST_RESULT_RECORDED | · | T7031-3#2 | E-7740 | SYNC_RESPONSE | WORKER |
+| T7031-4 | 2 | REQUEST_OPENED | · | 80 | T7031-4#2 | SYSTEM | SYSTEM |
+| T7031-4 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | · | T7031-4#2 | SYNC_RESPONSE | WORKER |
+| T7031-4 | 6 | OUTCOME_RECORDED | **PLATFORM_VERIFIED_NOT_EXECUTED** | · | T7031-4#2 | OPS | OPS:elena |
 
-`E-4021` means "insufficient funds" (business reject → RETRY the same
-key, money stays reserved). `E-7740` means "compliance block"
-(definitive → RELEASE the reservation). **Opposite money consequences —
-and no column records which is which.** The classification (the CA-1
-mapping decision, made at response time) existed only in the code path
-that handled the response. A future fold cannot re-derive it: re-mapping
-raw codes later is exactly the load-bearing-replay hazard the baseline
-rejects. Fixed row:
+`"PLATFORM_VERIFIED_NOT_EXECUTED".endsWith("EXECUTED")` is **true** —
+the fold books 80 as paid; the scanner sees no shortfall and never opens
+a successor; the beneficiary is **silently unpaid** (the U-1 class). The
+drift check folds the same rows with the same bug: green. The
+projection-vs-fold comparison compares the bug to itself: green. In the
+baseline, the same bug class must corrupt the request row AND the
+`confirmed_amount` counter in matching ways or I1/I2 pages someone —
+honest concession: that redundancy is not an oracle either (both are
+usually written by the same transaction; common-mode bugs pass), but it
+exists, is mechanical, and is local.
 
-| T7031-2 | 5 | POST_RESULT_RECORDED | **EVENT_CODE=BUSINESS_REJECT** | · | T7031-2#2 | E-4021 | SYNC_RESPONSE | WORKER |
+**Mitigations (real, but none restore the property):** a deliberately
+independent verification fold (N-version — catches logic divergence,
+carries permanent dual-maintenance), frozen golden histories, full
+replay before fold deploys, provider-side reconciliation (external,
+slow). Retroactivity has no mitigation at all — it is what "derived
+state" means.
 
-**Severity: was a blocker; now fixed in the draft.** The lesson stands:
-every fold input must be a structured, CHECK-bound column.
-
----
-
-## L5 — A stale projection can strand work forever (false negatives)
-
-**Statement.** "Never load-bearing" was proven only in one direction. A
-stale FALSE POSITIVE costs a wasted fold. A stale FALSE NEGATIVE means no
-scanner ever selects the payment — the projection silently decides that
-work does not exist.
-
-**Real-world example.** The worker commits the ambiguous result, then the
-process dies BEFORE the post-commit projection update:
-
-`PAYMENT_EVENT` (truth):
-
-| PK | V | EVENT_TYPE | EVENT_CODE | IDEM_KEY | AT |
-|---|---|---|---|---|---|
-| T7031-5 | 3 | POST_STARTED | · | T7031-5#2 | T+15s |
-| T7031-5 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | T7031-5#2 | T+45s |
-
-`PAYMENT_STATUS_PROJECTION` (stale — reflects v3, crash before update):
-
-| PAYMENT_KEY | FOLD_VERSION | PHASE | NEXT_ACTION_AT | UETR |
-|---|---|---|---|---|
-| T7031-5 | **3** | **POSTING** | **·** | · |
-
-The resolver scanner runs `WHERE PHASE='MAYBE' AND NEXT_ACTION_AT <= :now`
-→ **0 rows, today and every day**. 100 stays reserved, nobody asks the
-provider, no escalation fires (escalation is found the same way). The
-truth is in the event table; nothing ever looks at it.
-
-**Fix direction (adopted in `01`):** at this volume, update the
-projection IN the append transaction (it stays rebuildable, it stops
-being skippable); independently, a timed full-sweep re-fold job whose
-own liveness is monitored — the projection then has a bounded staleness
-contract instead of a hope.
+**Adoption meaning:** accepting the model = accepting that the ledger is
+an opinion of the current code version, witnessed only by copies of
+itself plus external reconciliation.
 
 ---
 
-## L6 — Database restore can silently REUSE version-derived identities
+## L6 — [HIGH] Restore-time identity reuse
 
-**Statement.** Identity = the opening slot's version. A restore rewinds
-versions; provider executions do not rewind. Because NON-request events
-also consume slots, post-restore traffic re-deals the slots differently —
-and the schema's `IDEM_CLAIM` uniqueness is no protection, because the
-restored table FORGOT the old claim. (The first draft said the baseline
-§5.2 discussion "applies unchanged" — that was wrong; this is at least as
-hard as the baseline's sequence-divergence problem and needs its own
-design.)
+**Why HIGH, not CRITICAL:** closable inside the model — but not by a
+column alone; it needs an identity-derivation change plus a designed
+restore procedure. No bug and no human error is involved anywhere in
+this scenario — a storage failure plus a routine restore produces it.
 
-**Real-world example.** Before the incident (backup was taken after v4):
+**Example.** Identity = the opening slot. Backup taken after v4; then:
 
 | PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | IDEM_CLAIM | AT |
 |---|---|---|---|---|---|---|---|
@@ -241,169 +165,180 @@ design.)
 | T7031-6 | 6 | REQUEST_OPENED | · | **150** | **T7031-6#6** | T7031-6#6 | T+2h |
 | T7031-6 | 7 | POST_STARTED | · | · | T7031-6#6 | · | T+2h |
 
-Provider's ledger (does not rewind): `T7031-6#6 → EXECUTED 150`.
-
-Storage failure; DB restored to the v4 backup — rows v5–v7 are GONE, and
-so is the `IDEM_CLAIM` row for `T7031-6#6`. Redelivery now replays a
-DIFFERENT interleave (a small amendment event arrives first this time):
+Provider ledger (does not rewind): `T7031-6#6 → EXECUTED 150`.
+Storage fails; restore to the v4 backup — rows v5–v7 are gone, and so
+is the `IDEM_CLAIM` for `#6`. Redelivery replays a different interleave
+(a small amendment lands first this time):
 
 | PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | IDEM_CLAIM | AT |
 |---|---|---|---|---|---|---|---|
 | T7031-6 | 5 | REQUIRED_AMOUNT_SET | · | **130** | · | · | T+9h |
-| T7031-6 | 6 | REQUEST_OPENED | · | **130** | **T7031-6#6** | T7031-6#6 ✓accepted | T+9h |
-| T7031-6 | 7 | POST_STARTED | · | · | T7031-6#6 | · | T+9h |
+| T7031-6 | 6 | REQUEST_OPENED | · | **130** | **T7031-6#6** | **accepted — the old claim was erased** | T+9h |
 
-Same key `T7031-6#6`, DIFFERENT amount, and the schema accepted it —
-uniqueness cannot remember rows the restore erased. The wire call is now
-a same-key/different-payload collision at best (if the engine is
-contract-compliant: a distinguishable reject and a confused operator) or
-a silent dedup at worst (the app believes 130 went out; 150 actually
-moved).
+Same key, different amount, schema content: uniqueness cannot remember
+rows a restore deleted. The wire call is a same-key/different-payload
+collision at best, a silent dedup at worst (app believes 130; 150
+actually moved).
 
-**Severity: money-safety blocker to DESIGN before adoption** (greenfield
-does not help — restores happen to new systems too). Direction: a
-restore-recovery procedure that treats every key with an opening slot ≥
-the restore point as POTENTIALLY BURNED — enumerate, query the provider
-per key, reconcile, and hold all posting for affected streams until the
-interval is signed off; plus an epoch/generation component in the
-identity so post-restore slots can never collide with pre-restore ones.
+**Required design (sketch, not yet done):** an EPOCH component in the
+identity (bumped as a mandatory step of every restore, held outside the
+restored database), so post-restore slots can never collide with
+pre-restore ones; plus a restore runbook that treats every key with an
+opening slot ≥ the restore point as potentially burned — enumerate,
+query the provider per key, reconcile, hold posting for affected
+streams until signed off. Comparable in difficulty to the baseline's
+§5.2 sequence-divergence problem; currently undesigned.
 
 ---
 
-## L7 — UETR matching and inbound-event identity are underspecified
+## L4 — [MEDIUM — FIXED] Fold inputs must be structured columns
 
-**Statement.** A non-unique `UETR` index answers "which streams mention
-this UETR" — not "which single stream owns it." And the three-structure
-draft silently dropped the baseline's inbound-event inbox, so duplicate
-feed deliveries have no identity to dedup on.
+Was: the fold branches on classifications (`BUSINESS_REJECT` vs
+`DEFINITIVE_REJECT`, query verdicts, outcome kinds) that had NO column —
+two rows byte-identical in every field could carry opposite money
+consequences:
 
-**Real-world example (multi-match).** A manual repair on the engine side
-recycled a UETR across two of our payments:
-
-| PK | V | EVENT_TYPE | EVENT_CODE | IDEM_KEY | UETR |
-|---|---|---|---|---|---|
-| T7031-8 | 4 | POST_RESULT_RECORDED | ACCEPTED | T7031-8#2 | **U-88aa** |
-| T9044-1 | 4 | POST_RESULT_RECORDED | ACCEPTED | T9044-1#2 | **U-88aa** |
-
-Feed event arrives: `SETTLED, UETR=U-88aa, amount 100`. The lookup
-returns **2 payment keys**. Without a written rule, whichever the code
-picks books 100 on possibly the wrong payment. Rule adopted into `01`:
-
-```
-0 matches  -> unmatched path (ack; recover by key later)
-1 match    -> fold + fenced append
-2+ matches -> CRITICAL anomaly, NO state change on any stream
-```
-
-**Real-world example (duplicate delivery).** The feed redelivers message
-`MSG-778` after a consumer rebalance. Without an inbox, the stream gets:
-
-| PK | V | EVENT_TYPE | AMOUNT | IDEM_KEY | SRC | DETAIL |
+| PK | V | EVENT_TYPE | AMOUNT | IDEM_KEY | PROV_CODE | SRC |
 |---|---|---|---|---|---|---|
-| T7031-8 | 5 | SETTLED | 100 | T7031-8#2 | FEED | msg MSG-778 |
-| T7031-8 | 6 | SETTLED | 100 | T7031-8#2 | FEED | msg MSG-778 (redelivery) |
+| T7031-2 | 5 | POST_RESULT_RECORDED | · | T7031-2#2 | E-4021 | SYNC_RESPONSE |
+| T7031-3 | 5 | POST_RESULT_RECORDED | · | T7031-3#2 | E-7740 | SYNC_RESPONSE |
 
-The idempotent fold saves the MONEY (distinct keys count once) — but the
-duplicate row re-fires whatever side effects ride the append (metrics,
-notifications, incident counters) and pollutes history. Fixed by
-restoring the inbox as the 4th structure (`INBOUND_EVENT_INBOX`,
-`UNIQUE(source, event_id)` — dedup BEFORE folding), adopted in `01`.
+(`E-4021` = insufficient funds → retry, money stays reserved;
+`E-7740` = compliance block → release. Nothing recorded which is
+which; re-mapping raw codes later is load-bearing replay of a mutable
+mapping — forbidden here exactly as in the baseline.)
 
-**Severity: medium; now specified — was a genuine omission.**
+**Fixed by exactly the rubric's MEDIUM shape:** the `EVENT_CODE` column
+plus `PE_SHAPE_*` per-type CHECK constraints (see `01`); the walkthrough
+page shows both columns side by side. Kept on the list as the lesson:
+every fold input must be a typed, CHECK-bound column.
 
 ---
 
-## L8 — The one-row-per-payment projection cannot serve the §12 UI contract
+## L5 — [MEDIUM] Projection false negatives can strand work
 
-**Statement.** The UI requirement is request-granular: one row per
-LOGICAL REQUEST (the "100 + 20" history), an obligation-only placeholder
-when no request exists, keyset pagination over the whole estate, and the
-creation-time amount series. A per-payment status row cannot produce it.
+A stale false POSITIVE costs a wasted fold. A stale false NEGATIVE
+means no scanner ever selects the payment. Crash between the event
+commit and a post-commit projection update:
 
-**Real-world example.** What §12 requires the listing to show for one
-payment (after a 100 executed and a 20 in flight):
+Truth (`PAYMENT_EVENT`): | T7031-5 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | T7031-5#2 | T+45s |
 
-| row | request | amount | state | shown because |
-|---|---|---|---|---|
-| 1 | T7031-9#2 | 100 | EXECUTED | historical request row |
-| 2 | T7031-9#6 | 20 | AWAITING SETTLEMENT | active request row |
-| — | (obligation-only placeholder appears instead when a payment has required > 0 and NO request yet) | | | |
-
-What the projection has:
+Stale projection:
 
 | PAYMENT_KEY | FOLD_VERSION | PHASE | NEXT_ACTION_AT |
 |---|---|---|---|
-| T7031-9 | 7 | AWAITING SETTLEMENT | · |
+| T7031-5 | **3** | **POSTING** | **·** |
 
-One row, no request granularity, no amount series, nothing to paginate
-by `(payment, row_type, request, …)`. The information EXISTS in the
-stream — the gap is a read-contract decision: either fold-and-expand per
-page (estate-scale cost) or maintain a REQUEST-GRANULAR UI projection
-(a second, bigger projection with its own freshness contract — see L5).
-Either way, §12 parity is unproven until designed.
+`WHERE PHASE='MAYBE' AND NEXT_ACTION_AT <= :now` → 0 rows, every day;
+100 stays reserved; nobody asks the provider; escalation (found the
+same way) never fires.
 
-**Severity: medium — parity work, not impossibility.**
+**Accommodated by a bounded addition (specified in `01` §6):** the
+projection row is updated IN the append transaction, plus a monitored
+full-sweep re-fold job — bounded staleness by construction. No core
+redesign; the residual work is the test set.
 
 ---
 
-## L9 — Retention, growth, and compliance deletion collide with INSERT-only
+## L7 — [MEDIUM] UETR multiplicity + delivery dedup
 
-**Statement.** The stream keeps every retry, query answer, ops action,
-and defect forever; the INSERT-only grant + guard trigger — the model's
-integrity anchor — is also an anti-deletion mechanism. Compliance
-redaction and archival need explicit design, not defaults.
+Two bounded gaps, both now specified in `01`:
 
-**Real-world example.** One long-lived payment: 90 days of retries at
-4/day ≈ **1,080 rows for one payment** (each retry = POST_STARTED +
-POST_RESULT). Harmless at 100k payments/month for years — until someone
-writes THIS row:
+1. A non-unique UETR index answers "which streams mention it," not
+   "which stream owns it." Simulated multi-match (engine-side UETR
+   recycling): feed `SETTLED, UETR=U-88aa` finds
+   `{T7031-8, T9044-1}` → without a written rule, 100 books on
+   possibly the wrong payment. Rule (fail-closed): `0 → unmatched path;
+   1 → fold+append; 2+ → CRITICAL, no state change`. Residual design:
+   an immutable UETR claim (bounded — a claim uniqueness, the rubric's
+   MEDIUM shape).
+2. Duplicate delivery: `MSG-778` redelivered → two identical `SETTLED`
+   rows; the idempotent fold saves the MONEY, but side effects
+   (metrics, incidents) re-fire and history pollutes. Fixed by
+   restoring `INBOUND_EVENT_INBOX` (`UNIQUE(source, event_id)`) — an
+   additive structure, done.
 
-| PK | V | EVENT_TYPE | EVENT_CODE | SRC | ACTOR | DETAIL |
+---
+
+## L8 — [MEDIUM] Request-granular UI (§12) parity
+
+The listing contract needs one row per LOGICAL REQUEST plus an
+obligation-only placeholder, keyset pagination, and the amount series:
+
+| row | request | amount | state |
+|---|---|---|---|
+| 1 | T7031-9#2 | 100 | EXECUTED |
+| 2 | T7031-9#6 | 20 | AWAITING SETTLEMENT |
+
+The one-row-per-payment status projection cannot produce this. The
+information is all in the stream; the accommodation is a SECOND,
+request-granular read projection (additive, under the same L5 freshness
+contract) or fold-and-expand on read. Bounded, undecided — MEDIUM
+because it is additive, though it is the largest of the additive items.
+
+---
+
+## L3 — [LOW — RESOLVED BY DESIGN] Contradictory evidence
+
+Appends cannot be refused the way the baseline's CAS refuses a late
+contradicting write (0 rows). Resolution, already in the vocabulary:
+contradictions are FIRST-CLASS events with one fixed fold effect —
+never ordinary events resolved by hidden precedence:
+
+| PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | SRC |
 |---|---|---|---|---|---|---|
-| T7031-9 | 12 | OPS_ANNOTATED | · | OPS | OPS:tom | "beneficiary called from +81-90-…, new IBAN DE89 3704 0044 0532 0130 00, waiting for compliance" |
+| T7031-7 | 7 | EVIDENCE_CONTRADICTION_RECORDED | SETTLED_AFTER_TERMINAL | 100 | T7031-7#2 | FEED |
 
-Personal data is now in an append-only table whose own trigger raises on
-UPDATE/DELETE, replicated into every backup. When a lawful deletion or
-redaction request arrives, the integrity mechanism and the compliance
-obligation point in opposite directions. Direction: forbid sensitive
-content in `DETAIL` by policy + scanner (the baseline has the same rule
-for its display fields), keep a separate mutable annotation store for
-free text, and define partition-based archival with signed digests so
-archived partitions stay tamper-evident without staying online.
-
-**Severity: low-medium — policy work; must be decided before go-live,
-not after.**
+Fold effect (fixed): book nothing, PARK the payment (freezes any
+in-flight successor), CRITICAL, authoritative reconciliation required.
+Demonstrated live as walkthrough scenario 16. Residual (why it stays on
+the list): the safe-stop rule lives in the fold — see L1.
 
 ---
 
-## Objectives-vs-mechanisms summary (from the assessment, greenfield-adjusted)
+## L9 — [LOW] Retention / compliance vs INSERT-only
+
+The integrity anchor (INSERT-only grant + guard trigger) is also an
+anti-deletion mechanism. The collision arrives via rows like:
+
+| PK | V | EVENT_TYPE | SRC | ACTOR | DETAIL |
+|---|---|---|---|---|---|
+| T7031-9 | 12 | OPS_ANNOTATED | OPS | OPS:tom | "beneficiary called, new IBAN DE89 3704 0044 0532 0130 00…" |
+
+Personal data in an unredactable table, replicated into every backup.
+Policy work, decided before go-live: forbid sensitive content in
+`DETAIL` (same rule + scanner as the baseline's display fields), keep
+free text in a separate mutable annotation store, partition-based
+archival with signed digests.
+
+---
+
+## Objectives vs mechanisms (greenfield-adjusted)
 
 | Safety objective | Baseline mechanism | Event-model mechanism | Relative strength |
 |---|---|---|---|
 | Stop stale writers | obligation lock + CAS | expected-version fence | comparable — IF all writes use the append protocol |
-| No duplicate active request | I6 unique index | fence + fold validation | **weaker against buggy/raw writers (L1)** |
-| No identity reuse | locked counter + UNIQUE | opening-slot identity + IDEM_CLAIM | comparable normally; **restore requires redesign (L6)** |
+| No duplicate active request | I6 unique index (declarative) | fence + fold/procedural validation | **weaker against front-door defects (L1)** |
+| No identity reuse | locked counter + UNIQUE | opening-slot identity + IDEM_CLAIM | comparable normally; **restore needs the L6 design** |
 | Resolve ambiguous POST | mutable state + resolver | POST_STARTED + query events | comparable; event form arguably clearer |
 | Prove never-sent | claim fields + guards | absence of POST_STARTED | **event model clearer** |
-| Detect local money drift | counters vs rows (I1/I2) | deterministic fold + external recon | **weaker: no local redundancy (L2)** |
-| Contradictory evidence | CAS refuses (0 rows) | first-class contradiction events + safe stop | comparable once L3's vocabulary is used |
-| No-request visibility & UI | obligation row / request rows | events exist; read contract undesigned | **unproven (L8)** |
-| Find due work | indexed current state | projection | safe only with L5's freshness contract |
+| Detect local money drift | counters vs rows (I1/I2) | deterministic fold + external recon | **weaker: no local witness, fixes retroactive (L2)** |
+| Contradictory evidence | CAS refuses (0 rows) | first-class contradiction events, safe stop | comparable (L3 resolved) |
+| No-request visibility & UI | obligation/request rows | events + read contract (L8) | additive work pending |
+| Find due work | indexed current state | projection under the L5 contract | comparable once the contract is tested |
 
 ## Bottom line
 
-Greenfield removes the migration objection entirely — it does NOT touch
-L1, L2, or L6, which are the three that gate adoption:
-
-- **L1** is the principled boundary (where money invariants are
-  enforced) and cannot be closed without reintroducing an anchor or
-  database-side temporal validation;
-- **L2** is a permanent assurance burden accepted in exchange for the
-  simpler write path;
-- **L6** is an open money-safety design problem with no draft answer yet.
-
-L3, L4, L5, L7 are now specified or fixed in `01`; L8 and L9 are bounded
-design work. The comparison that matters is TOTAL complexity after
-closing all of this, against a baseline that is already reviewed,
-carded, and evidence-gated — that judgment belongs to the team, with
-this file as the honest cost sheet.
+- **The two CRITICALs (L1, L2) are not defects to fix — they are the
+  price of the model.** Adopting it means consciously accepting:
+  temporal money invariants enforced by disciplined code instead of
+  declarative schema, and a ledger that is derived, self-witnessed, and
+  retroactively reinterpretable. If either is non-negotiable — and the
+  baseline's twenty review rounds repeatedly treated the first one as
+  exactly that — the model is disqualified regardless of everything
+  below.
+- **The one HIGH (L6) must be designed before any adoption** — it is a
+  no-fault, infrastructure-triggered money hazard with a known
+  direction (epoch + burned-key reconciliation) and no draft yet.
+- The MEDIUMs are bounded additive work (one already done, two mostly
+  specified); the LOWs are policy or already resolved.

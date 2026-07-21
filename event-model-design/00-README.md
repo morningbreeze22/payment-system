@@ -66,7 +66,13 @@ machinery cheap.)
    re-review — and the final comparison is on TOTAL complexity (build +
    assurance + operations), not conceptual elegance.
 
-The three limits that gate adoption regardless of the checklist:
-**L1** (temporal legality is not schema-enforceable), **L2** (no
-independent local money witness), **L6** (restore-time identity reuse)
-— see `03-known-limits.md` for each, with simulated rows.
+Severity ranking (per the PO's rubric — CRITICAL only if genuinely NOT
+achievable inside a one-event-table design; HIGH = significant redesign
+needed; MEDIUM = bounded additive change; LOW = policy/resolved):
+**L1 and L2 are the two CRITICALs** — they are not defects to fix but
+the PRICE of the model (temporal invariants enforced by disciplined
+code instead of declarative schema; a derived, self-witnessed,
+retroactively reinterpretable ledger) — adopt means accept. **L6 is the
+one HIGH** (restore-time identity reuse — designable, undesigned).
+Everything else is MEDIUM/LOW bounded work. See `03-known-limits.md`,
+each with simulated rows.
