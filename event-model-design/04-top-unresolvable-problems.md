@@ -1,213 +1,273 @@
-# The Five Problems the Event Model Cannot Solve On Its Own
+# Five Issues That Remain After Assuming Correct Service Code
 
 > **Status: DRAFT — companion to `03-known-limits.md`.**
 > `03` is the full cost sheet (every known limitation, ranked by
-> remediation shape). THIS document answers a narrower question:
-> **of everything in 03, which problems can the design NOT resolve
-> by itself — and survive even the assumption of good service code?**
+> remediation shape). THIS document answers a narrower question: **of
+> everything in 03, which issues survive the assumption that the team
+> writes and enforces good service code — and what KIND of issue is
+> each one?**
 >
-> The filter applied to every candidate: *assume the team writes and
-> enforces excellent service code. Does the problem go away?* If yes,
-> the problem is demoted or excluded — a design should not be blamed
-> for work that ordinary engineering discipline resolves. What remains
-> below is ranked by how little good code helps: the top three cannot
-> be resolved by code **even in principle**; the last two can be
-> resolved, but only by **adding design**, not by writing careful code
-> against the current schema.
+> The filter applied to every candidate: *assume excellent, enforced
+> service code. Does the problem go away?* If yes, the issue is demoted
+> or excluded — a design should not be blamed for work ordinary
+> engineering discipline resolves. The five survivors are NOT all the
+> same kind of problem, and this document says which is which:
+>
+> | # | Issue | Classification |
+> |---|---|---|
+> | 1 | No declarative temporal-legality backstop | **Inherent trade-off** — accept or reject |
+> | 2 | No local independent witness for the money | **Inherent assurance cost** — externally mitigable, never locally |
+> | 3 | Fold changes reinterpret history by default | **Open design requirement** — versioning + correction governance |
+> | 4 | Restore erases the design's only memory of identities | **Adoption blocker** — recovery design must exist first |
+> | 5 | Load-bearing history vs data-erasure obligations | **Pre-production prerequisite** — conditional on data classification |
+>
+> Issues 1–2 are structural: no quality of service code converts them
+> back into database-guaranteed properties (though 2 has real external
+> mitigations). Issue 3 is solvable with known event-model techniques
+> that are currently undesigned. Issues 4–5 are absences of required
+> design work. **None of this document is proof that the five disqualify
+> the model** — it is the honest statement of what adopting it commits
+> the team to accepting (1–2) and building (3–5).
 
 ---
 
-## Problem 1 — Code cannot be its own backstop
+## Issue 1 — No declarative temporal-legality backstop
 
-**(from limit L1 · good code does not help: the problem IS the day the code is wrong)**
+**(Inherent trade-off · from limit L1)**
 
-The only thing that enforces event *legality* — "is this event allowed
-to follow that history?" — is the sole-append library. The database
-enforces slot uniqueness (the fence) and per-event shape, but it is
-content-blind across rows: it will grant slot v5 to any well-shaped
-event, legal or not.
+The database enforces slot uniqueness (the fence), write-once identity,
+valid types, and per-row shape. It cannot declaratively express
+cross-row temporal rules — "no new `REQUEST_OPENED` while an earlier
+request lacks a terminal event." That legality lives in one place: the
+canonical append validator. Code.
 
-So the design has exactly one line of defense, and it is code. Good
-service code lowers the *probability* of an illegal append — but this
-problem is precisely about the day that code (or a path around it) is
-wrong. There is no second, independent mechanism that catches the
-mistake at write time. Asking the append library to guard against its
-own defects is circular.
+Good service code lowers the probability of an illegal append; this
+issue is about the day that code is wrong — and code cannot backstop
+its own defects.
 
-**Simple example.** A well-meaning "nudge stuck payments" endpoint is
-added next year. It reads a stale fold, decides payment P-42 is idle,
-and appends:
+**Simple example — with every mechanism working perfectly.** Note first
+what the fence DOES catch: a writer folding a stale prefix (through v3)
+attempts slot 4, collides with the existing row, and is forced to
+re-fold. Staleness alone cannot corrupt the stream. So the failure
+needs a current writer with a wrong decision — next year's
+"nudge stuck payments" endpoint re-folds correctly, sees everything,
+and its legality check contains the defect: it treats `AMBIGUOUS` as
+terminal-negative.
 
-| V | EVENT_TYPE | note |
-|---|---|---|
-| 4 | `PROVIDER_OUTCOME_AMBIGUOUS` | truth: we must NOT open a new request until resolved |
-| 5 | `REQUEST_OPENED` | the buggy nudge — **fence grants the slot, row COMMITS** |
+| V | EVENT_TYPE | EVENT_CODE | note |
+|---|---|---|---|
+| 4 | `POST_RESULT_RECORDED` | `AMBIGUOUS` | truth: outcome unknown — no new request may open |
+| 5 | `REQUEST_OPENED` | · | writer was CURRENT, fence won fairly, shape ✓ — **COMMITS** |
 
-The same bug against the baseline dies at commit with `ORA-00001` on
-the I6 unique index — zero rows written, loud failure, no cleanup.
-Here it becomes permanent history that every subsequent fold believes.
+Two requests are now open; if `#2` also executed, the payment doubles.
+The identical wrong decision against the baseline dies at commit with
+`ORA-00001` on the I6 unique index — zero rows, loud, no cleanup —
+because the constraint checks the OUTCOME of the decision, not the
+process that made it.
 
-**Why it can't be resolved from inside.** Moving the check into the
-database procedurally (a sole-append stored procedure that re-folds
-and validates) is possible — but that is the fold rewritten in PL/SQL:
-still code, still one implementation guarding itself. The *declarative*
-form of this guarantee — a constraint the engine enforces regardless of
-which code path writes — does not exist for cross-row temporal rules in
-a single event table. Adopting the model means accepting enforcement by
-disciplined code, permanently.
-
----
-
-## Problem 2 — No independent witness for the money
-
-**(from limit L2 · good code does not help: the fold IS the code, and you cannot verify a witness with itself)**
-
-The amount paid is never stored; it exists only as the output of the
-canonical fold. And the model's own safety rule — *one* shared,
-golden-vector-tested fold, never re-implemented per reader — is
-deliberately designed to make every reader agree. The cost of that
-rule: every monitor, scanner, dashboard, and reconciliation-prep job
-is the **same witness**. A defect in the fold produces a wrong answer
-that the entire system confirms.
-
-**Simple example.** The fold classifies outcomes with:
-
-```java
-if (outcome.endsWith("EXECUTED")) paid += amount;
-```
-
-`PLATFORM_VERIFIED_NOT_EXECUTED` ends with `EXECUTED`. A payment the
-provider never executed now folds as paid. The UI shows paid; the
-drift scanner runs the same fold — green; the daily totals job runs
-the same fold — matches. Every internal check agrees, because
-agreement is what the canonical-fold rule is *for*.
-
-**Why it can't be resolved from inside.** More careful fold code and
-more golden vectors reduce probability, never restore the property.
-Independent verification requires an oracle **outside** the fold:
-provider-side reconciliation (compare our fold's answer to the
-provider's records), or a second, independently-written fold
-implementation maintained forever (expensive, and itself a discipline).
-The baseline stores the money as constrained rows, so its scanner
-compares two *independent* representations — that redundancy is the
-thing this model structurally removes.
+**What would and would not help.** Routing every append through a
+stored procedure that independently re-validates is a genuine second
+implementation (two codebases must share a defect to lose) — an
+*implementation-level* backstop, bought with a duplicated state
+machine, permanent cross-language maintenance, divergence risk, and
+folding on the hot write path. What no option provides is the
+baseline's property: a **declarative** constraint the write path cannot
+forget, mis-implement, or skip. That property is the trade-off; adopt
+means accept.
 
 ---
 
-## Problem 3 — Every fix is retroactive
+## Issue 2 — No local independent witness for the money
 
-**(from limit L2 · good code does not help: retroactivity is a property of derivation itself, not of any defect)**
+**(Inherent assurance cost · from limit L2)**
 
-When the Problem-2 bug is found and the fold is corrected, the fix does
-not apply "from now on." Deploying fold v7 silently changes what every
-already-committed history **means** — including payments that were
-settled, reported, and communicated under fold v6's reading.
+The amount paid is never stored; it is the output of the canonical
+fold. The model's own safety rule — ONE shared, golden-vector-tested
+fold, never re-implemented per reader — deliberately makes every
+monitor, scanner, and dashboard the SAME witness. A fold defect
+produces a wrong answer the entire system confirms, because agreement
+is what the rule is for.
 
-**Simple example.** Under fold v6, payment P-123 read as PAID; the
-month was closed and the customer notified. Fold v7 fixes the
-classification bug; P-123 now reads UNPAID. Both answers were computed
-from the same committed rows. The model has no way to say "PAID was
-true until Tuesday" — it says v7's answer was *always* the truth, and
-the books you closed were always wrong.
+**Simple example.** The fold classifies with
+`outcome.endsWith("EXECUTED")`; `PLATFORM_VERIFIED_NOT_EXECUTED` ends
+with `EXECUTED`. A payment the provider never executed folds as paid.
+UI: paid. Drift scanner (same fold): green. Daily totals (same fold):
+matches. The beneficiary is silently unpaid.
 
-**Why it can't be resolved from inside.** There is no "fix forward
-only" option. Pinning old histories to old fold versions means storing
-the old answers — which is materialized state, i.e., leaving the model.
-Careful code changes nothing here: any derived ledger reinterprets its
-past whenever the derivation changes. In the baseline, a bug fix
-corrects future writes; recorded rows stay what they were, and
-correcting them is an explicit, auditable act. Here, reinterpretation
-is silent and total. Adopting the model means accepting that the
-meaning of settled history is coupled to the current fold version.
+**Stated precisely — including what the baseline does NOT give.** The
+baseline stores request outcomes and obligation counters as
+*mechanically redundant persisted representations*. They are usually
+written by the same code in the same transaction — so a
+classification bug that corrupts both consistently ALSO passes I1/I2.
+What the redundancy reliably catches is choreography defects: a
+request updated without its counter, a counter bumped twice, one code
+path forgetting the obligation. The event model removes even that
+local, mechanical redundancy.
 
----
-
-## Problem 4 — The table is the design's only memory of identities
-
-**(from limit L6 · good code cannot help against the CURRENT schema — but a design addition can: ranked below 1–3 for exactly that reason)**
-
-Provider-facing identity (the idempotency key) is derived
-deterministically and its uniqueness is enforced by `IDEM_CLAIM` — a
-generated column **of the event table itself**. The design's memory of
-"this key was already used" is the very table that a point-in-time
-restore truncates. After a restore, the erased events are gone, and no
-service code — however careful — can consult a record that no longer
-exists.
-
-**Simple example.** Payment P-9 sends key K to the provider; the
-provider executes. Disaster strikes; the database is restored to ten
-minutes earlier — the rows recording K are erased. The flow re-runs,
-but this time an amendment arrives first, so it derives the *same slot*
-with **different content**, mints K again as if fresh, and sends it.
-The provider deduplicates on K and returns the *old* execution. The
-system records success — for a payment whose content is not what was
-executed.
-
-**Why the current design can't resolve it — and what would.** This is
-not solvable by code discipline; the code has nothing to read. It IS
-solvable by redesign: an **epoch component** in the identity derivation
-(bumped on every restore, so post-restore keys can never collide with
-erased ones) plus a **burned-key reconciliation** that rebuilds the
-used-key set from provider records before traffic resumes. That
-procedure is currently undesigned, and until it is written, restore is
-a money-safety event, not an infrastructure event.
+**The narrowed claim:** one canonical fold cannot verify itself.
+Independent assurance remains possible — a separately implemented
+verification fold (a real second witness, at permanent
+dual-maintenance cost) or reconciliation against the provider's ledger
+(external, slow, authoritative). The cost is inherent; the exposure is
+mitigable from outside.
 
 ---
 
-## Problem 5 — A load-bearing history cannot forget
+## Issue 3 — Fold changes reinterpret history by default
 
-**(from limit L9 · good code cannot help: the conflict is between the model's core rule and an external legal requirement — resolvable only by designing PII out of the events, BEFORE the first production event)**
+**(Open design requirement · from limit L2 · previously overstated as unresolvable — corrected)**
+
+Deploying a changed fold changes what every committed history MEANS,
+at once, backdated. Payment P-123 read PAID under fold v6; v7 fixes a
+classification bug; P-123 now reads UNPAID — after the books closed
+and the customer was notified. Absent any countermeasure, this
+reinterpretation is **silent**: nothing in the database records that
+the answer changed, or why.
+
+**What actually resolves it (known event-model techniques, none of
+them designed here yet):**
+
+1. **Correction events** — the bug-fix path. Instead of letting a
+   deploy silently flip P-123, the governed sequence is: replay
+   history under the candidate fold, diff the answers, and for every
+   payment whose answer changes append an explicit correction event
+   (e.g. `OPS_VERIFIED_OUTCOME_APPLIED`, or a dedicated
+   interpretation-correction type). History then truthfully records:
+   *classified PAID until date X; reconciliation proved NOT_EXECUTED;
+   corrected by an audited event.* Reinterpretation becomes an
+   appended fact, not a deploy side-effect.
+2. **Semantic versioning of interpretation** — the evolution path.
+   Events carry a semantic version; the fold retains interpreters for
+   prior versions, so old events keep the meaning they had when
+   written. Note the honest boundary: this is for DELIBERATE semantic
+   changes — for a defect, pinning old events to the old interpreter
+   preserves the *wrong* answer, which is why path 1 exists.
+3. **Epoch pinning per stream** — a stream stays on its interpretation
+   epoch until an explicit, validated migration marker moves it.
+
+**The fair two-sided comparison:** the baseline's persisted state is
+stable under code deploys — and therefore its ERRORS are also
+persisted, staying wrong until an explicit, audited backfill fixes
+them. The event model can recompute correct state — and therefore
+needs the machinery above to keep recomputation explicit and governed.
+Neither gets correctness for free; they pay in different currencies.
+
+**Status:** a substantial, mandatory design requirement (replay
+governance, correction vocabulary, versioning rules) with known
+solutions — not an in-principle impossibility, and this document
+previously overstated it as one.
+
+---
+
+## Issue 4 — Restore erases the design's only memory of identities
+
+**(Adoption blocker · from limit L6 · the clearest concrete blocker)**
+
+Provider-facing identity is derived from the stream and its uniqueness
+is enforced by `IDEM_CLAIM` — a generated column OF the event table. A
+point-in-time restore erases the very rows that remember which keys
+were burned. The provider does not roll back with the database. No
+service code can consult rows that no longer exist.
+
+**Simple example.** `REQUEST_OPENED` at v6 derives key K; provider
+executes K; restore to the v4 backup erases v5–v7 and the claim on K.
+The re-run takes a different interleave (an amendment lands first),
+derives the SAME slot with DIFFERENT content, mints K as if fresh, and
+sends. The provider dedups on K and returns the OLD execution — the
+system records success for content that is not what was executed.
+
+**The required design — and its honest fine print:**
+
+- An **epoch alone is not sufficient.** If K executed before the
+  restore, minting a fresh K2 afterward and immediately re-posting
+  pays TWICE. The epoch prevents identity *collision*; it does nothing
+  about identity *amnesia*.
+- The safe sequence is a procedure, not a column: detect restore →
+  **hold all posting** → enumerate potentially-burned identities
+  (opening slots at/after the restore point) → query and reconcile
+  per key with the provider → reconstruct or correct local history →
+  bump the epoch **for genuinely new work only** → sign off per
+  affected stream → resume.
+- The epoch must survive the restore, i.e. live OUTSIDE the restored
+  database — which concedes that **the event stream is no longer the
+  sole authoritative input to identity generation.** That may be
+  acceptable; it must be stated, not discovered.
+
+Until this procedure is written and tested, a restore is a
+money-safety event, not an infrastructure event — which is why this
+issue, not 1 or 2, is the clearest adoption blocker.
+
+---
+
+## Issue 5 — A load-bearing history cannot forget
+
+**(Pre-production prerequisite · from limit L9 · conditional, not yet a demonstrated defect)**
 
 The model's foundation is that committed history is immutable and
-load-bearing: the fold's correctness depends on its input never
-changing. Compliance deletion (data-subject erasure, PII retention
-limits) demands the opposite — that specific recorded facts be removed
-on request. The design cannot satisfy both: redact an event and the
-fold's input has changed (self-consistency broken); refuse and the
-legal requirement is broken. No service-code discipline resolves a
-contradiction between the schema's core rule and the law.
+load-bearing. Data-erasure obligations demand the opposite. IF
+erasable personal data enters a load-bearing event, the conflict is
+real: redact and the fold's input changes; refuse and the obligation
+is breached.
 
-**Simple example.** An enrichment event carries beneficiary details:
+**Simple example (a real row shape from this schema — the risk vector
+is free text and identifiers, not a dedicated PII event):**
 
-| V | EVENT_TYPE | DETAIL |
-|---|---|---|
-| 3 | `REQUEST_ENRICHED` | `{"beneficiary_iban":"DE89 3704 0044 0532 0130 00", ...}` |
+| V | EVENT_TYPE | ACTOR | DETAIL |
+|---|---|---|---|
+| 12 | `OPS_ANNOTATED` | OPS:tom | "beneficiary called, new IBAN DE89 3704 0044 0532 0130 00…" |
 
-Seven years later a deletion obligation applies to that IBAN. `UPDATE`
-on the event table is revoked by design; rewriting the row silently
-falsifies the very history every reader trusts.
+**Why "conditional":** whether this ever becomes a live defect depends
+on questions no design document can answer alone — which jurisdictions
+apply; which fields (UETRs? provider references? the payment key's
+linkability) legally count as personal data; which records are under
+MANDATORY retention (payment records commonly are, and erasure rights
+are not absolute); how legal holds and backups are treated. Without
+that data classification, no one can assert that any specific event
+must ever be deleted.
 
-**Why it's ranked last.** The resolution is well-understood and
-additive: PII never enters an event — events carry opaque references
-into an out-of-band vault (or per-subject encryption whose key can be
-destroyed: crypto-shredding). But it must be designed **before the
-first production event exists**, because retrofitting means rewriting
-committed history — the one thing this model forbids. It is a design
-prerequisite the current documents have not written.
+**Why it is still a prerequisite, and what is model-specific:** every
+design can leak PII into rows, journals, and logs — this obligation is
+not unique to the event model. What IS specific: if PII lands in a
+load-bearing event, deletion changes replay input — the model makes a
+data-classification mistake uniquely hard to repair, and retrofitting
+means rewriting history, the one thing it forbids. So the direction is
+cheap and must precede the first production event: no erasable PII in
+events, ever — sensitive free text banned from `DETAIL` (same scanner
+rule as the baseline's display fields), PII in a separate erasable
+vault referenced by opaque keys, per-subject encryption
+(crypto-shredding) where the vault itself must forget, and fold
+correctness never depending on any of it.
 
 ---
 
-## What was filtered OUT, and why
+## What was filtered OUT — and what the review returned to open
 
-For honesty, the candidates that did not make the list — each fails
-the filter because enforced good code (or bounded additive work)
-genuinely resolves it:
+Candidates excluded because enforced good code or bounded additive
+work genuinely resolves them:
 
 | Candidate | Why excluded |
 |---|---|
-| Stale projection reads (L5) | Resolved by the never-load-bearing rule + same-tx update + monitored sweep — enforceable code discipline with a written contract |
-| UETR multiplicity / duplicate deliveries (L7) | Resolved by the specified fail-closed rule (0→unmatched, 1→fold+append, 2+→CRITICAL) + the inbox — code against a written spec |
+| Stale projection reads (L5) | Never-load-bearing rule + same-tx update + monitored sweep — enforceable code discipline with a written contract (test set pending) |
 | Request-granular UI parity (L8) | A second, additive projection — bounded work |
-| Unstructured event classification (L4) | Already fixed (`EVENT_CODE` + shape CHECKs) |
-| Contradictory-evidence handling (L3) | Already resolved by design (first-class contradiction events, safe-stop fold) |
+
+Items an earlier draft of this document closed too early, now honestly
+back on the open list (details in `03`):
+
+| Item | Actual status |
+|---|---|
+| Structured event codes (L4) | Partially fixed: the Oracle NULL/UNKNOWN gap in the shape CHECKs is closed in `01` (`EVENT_CODE IS NOT NULL` added), but the full 17-type EVENT_CODE matrix is unwritten |
+| Delivery dedup (L7) | Inbox structure exists, but its transaction boundary vs multi-payment fan-out is unspecified — "seen" must never mean "fully processed" |
+| Contradictory evidence (L3) | Contained (record + park + CRITICAL), but the resolution/unpark flow after the park is undefined |
 
 ## Bottom line
 
-Problems 1–3 are the model's identity: **enforcement, verification,
-and meaning all live in code** — the append library and the fold — and
-no quality of that code turns them back into properties the database
-guarantees. Problems 4–5 are absences, not impossibilities: each has a
-known design shape (epoch + burned-key reconciliation; PII vault) that
-must be built before this model could carry production money. A team
-adopting Alternative B should read 1–3 as the price of admission and
-4–5 as mandatory pre-production design work.
+Issues 1 and 2 are the model's identity — enforcement and verification
+live in code, and adopting the model means accepting that as a
+permanent property, with issue 2's exposure mitigable only from
+outside (second implementation, provider ledger). Issue 3 has known
+event-model answers that must be designed, not assumed. Issue 4 is the
+single clearest adoption blocker: no restore procedure, no production
+money. Issue 5 is a prerequisite whose scope depends on data
+classification that has not been done. **This is decision material,
+not a disqualification proof** — a team choosing this model signs up
+to accept 1–2 and to build 3–5 before the first production event.

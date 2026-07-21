@@ -59,21 +59,32 @@ CREATE TABLE PAYMENT_EVENT (
 
   -- PER-TYPE SHAPE CHECKS (row-local legality IS DB-enforceable — use it;
   -- the temporal/cross-row legality that is NOT enforceable is documented
-  -- honestly in 03-known-limits.md L1). Representative set:
+  -- honestly in 03-known-limits.md L1). Every classified type carries an
+  -- explicit IS NOT NULL: under Oracle three-valued logic a NULL
+  -- EVENT_CODE makes a bare IN-list CHECK evaluate UNKNOWN, which
+  -- PASSES — without the IS NOT NULL, an unclassified row of a
+  -- classified type is silently accepted (the L4 gap). Representative
+  -- set — the full per-type matrix, including which types REQUIRE
+  -- EVENT_CODE to be NULL, is open work (03 L4):
   CONSTRAINT PE_SHAPE_RESULT_CK CHECK (EVENT_TYPE != 'POST_RESULT_RECORDED'
-      OR EVENT_CODE IN ('ACCEPTED','BUSINESS_REJECT','DEFINITIVE_REJECT',
-                        'AMBIGUOUS','COLLISION','UNMAPPED')),
+      OR (EVENT_CODE IS NOT NULL
+          AND EVENT_CODE IN ('ACCEPTED','BUSINESS_REJECT','DEFINITIVE_REJECT',
+                             'AMBIGUOUS','COLLISION','UNMAPPED'))),
   CONSTRAINT PE_SHAPE_QUERY_CK CHECK (EVENT_TYPE != 'QUERY_RESULT_RECORDED'
-      OR EVENT_CODE IN ('EXECUTED','NOT_FOUND','LOOKBACK_EXPIRED')),
+      OR (EVENT_CODE IS NOT NULL
+          AND EVENT_CODE IN ('EXECUTED','NOT_FOUND','LOOKBACK_EXPIRED'))),
   CONSTRAINT PE_SHAPE_OUTCOME_CK CHECK (EVENT_TYPE != 'OUTCOME_RECORDED'
-      OR EVENT_CODE IN ('EXECUTED','REJECTED_VALIDATION','REJECTED_PROVIDER',
-                        'CANCELLED_NOT_SUBMITTED',
-                        'PLATFORM_VERIFIED_EXECUTED','PLATFORM_VERIFIED_NOT_EXECUTED')),
+      OR (EVENT_CODE IS NOT NULL
+          AND EVENT_CODE IN ('EXECUTED','REJECTED_VALIDATION','REJECTED_PROVIDER',
+                             'CANCELLED_NOT_SUBMITTED',
+                             'PLATFORM_VERIFIED_EXECUTED','PLATFORM_VERIFIED_NOT_EXECUTED'))),
   CONSTRAINT PE_SHAPE_ENRICH_CK CHECK (EVENT_TYPE != 'ENRICH_FAILED'
-      OR EVENT_CODE IN ('TRANSIENT','DEFINITIVE')),
+      OR (EVENT_CODE IS NOT NULL
+          AND EVENT_CODE IN ('TRANSIENT','DEFINITIVE'))),
   CONSTRAINT PE_SHAPE_CONTRA_CK CHECK (EVENT_TYPE != 'EVIDENCE_CONTRADICTION_RECORDED'
-      OR EVENT_CODE IN ('SETTLED_AFTER_TERMINAL','MISMATCH_AFTER_TERMINAL',
-                        'QUERY_CONTRADICTS_OUTCOME')),
+      OR (EVENT_CODE IS NOT NULL
+          AND EVENT_CODE IN ('SETTLED_AFTER_TERMINAL','MISMATCH_AFTER_TERMINAL',
+                             'QUERY_CONTRADICTS_OUTCOME'))),
   CONSTRAINT PE_SHAPE_OPEN_CK CHECK (EVENT_TYPE != 'REQUEST_OPENED'
       OR (IDEMPOTENCY_KEY IS NOT NULL AND AMOUNT IS NOT NULL AND PAYLOAD_HASH IS NOT NULL)),
   CONSTRAINT PE_SHAPE_POST_CK CHECK (EVENT_TYPE != 'POST_STARTED'
@@ -256,6 +267,16 @@ it — but duplicate deliveries would still re-fire side effects
 evidence rows. Purged on the same retention chain rules as the
 baseline's inbox.
 
+**Open item (transaction boundary — see 03 L7):** "seen" must never be
+allowed to mean "fully processed." A multi-payment upstream delivery
+fans out across several streams; if the inbox row commits before that
+fan-out completes, a crash in between turns the redelivery into a
+silent no-op and the remaining fan-out is lost forever. The rule still
+to be written: either the inbox row commits atomically with the
+COMPLETION of processing, or the fan-out is separately resumable (the
+baseline's recoverable fan-out shape) and the inbox row only suppresses
+side-effect re-fires, never the resume.
+
 ## 7. What deliberately does NOT exist
 
 - **No stored required/committed/confirmed counters** — the fold is the
@@ -273,9 +294,13 @@ baseline's inbox.
   analysis with simulated rows in `03-known-limits.md`): the two
   CRITICALs, inherent to the model and ACCEPTED rather than fixable —
   temporal/cross-row legality has no declarative schema backstop (L1 —
-  the boundary sentence) and money state is fold-derived
-  (self-witnessed, retroactively reinterpretable — L2); the one HIGH —
-  restore-time identity recovery is designable but UNDESIGNED (L6);
-  plus bounded MEDIUM work (L5 test set, L7 UETR claim, L8 §12 read
-  contract) and LOW policy items (L9).
+  the boundary sentence) and money state is fold-derived (no LOCAL
+  independent witness; reinterpretation on fold change is the default
+  unless explicit versioning/correction governance is designed — L2,
+  and `04` P3); the one HIGH — restore-time identity recovery is
+  designable but UNDESIGNED (L6); plus bounded MEDIUM work (L4 full
+  per-type EVENT_CODE matrix, L5 test set, L7 UETR claim + the inbox
+  transaction boundary above, L8 §12 read contract) and LOW items (L9
+  policy; L3 contradiction handling is CONTAINED — the safe-stop is
+  designed, the resolution/unpark flow is not yet specified).
 ```

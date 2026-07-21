@@ -33,11 +33,11 @@ rather than trusting that correct code never inserts duplicates.
 | L1 | Temporal business legality has no **declarative** write-time backstop | **CRITICAL** |
 | L2 | Money state is fold-derived: bugs are self-consistent and fixes are **retroactive** | **CRITICAL** |
 | L6 | Restore-time identity reuse | **HIGH** |
-| L4 | Fold inputs need structured columns | MEDIUM — **fixed** |
+| L4 | Fold inputs need structured columns | MEDIUM — partially fixed (NULL gap closed; full matrix open) |
 | L5 | Projection false negatives can strand work | MEDIUM — contract specified |
-| L7 | UETR multiplicity + delivery dedup | MEDIUM — mostly specified |
+| L7 | UETR multiplicity + delivery dedup | MEDIUM — partially specified (inbox tx boundary open) |
 | L8 | Request-granular UI (§12) parity | MEDIUM |
-| L3 | Contradictory evidence | LOW — **resolved by design** |
+| L3 | Contradictory evidence | LOW — contained; resolution flow open |
 | L9 | Retention / compliance for an append-only store | LOW |
 
 ---
@@ -53,24 +53,33 @@ predicates are relationships BETWEEN rows OVER time; an append-only
 single table cannot express any of them as a constraint. This is
 structural, not a missing feature.
 
-**Front-door example (no rogue actor, no raw SQL).** Next year someone
-ships a well-meaning "nudge stuck payments" endpoint. It checks the
-STATUS PROJECTION (stale by one step — see L5), concludes nothing is in
-flight, and calls the normal append helper — through the application
-role, through the fence, like every legitimate writer:
+**Front-door example (no rogue actor, no raw SQL — and the fence
+working PERFECTLY).** Next year someone ships a well-meaning "nudge
+stuck payments" endpoint. The stale projection selects T7031-1 as a
+candidate — legitimate; projections may select (L5). The endpoint then
+follows the append protocol correctly: it re-folds the LIVE stream,
+sees v4, and claims v5. Note what this rules out: a writer whose fold
+were stale (through v3) would attempt slot 4, collide with the
+existing row, and be forced to re-fold — **staleness alone cannot
+produce this row; the fence catches it.** The writer that wins v5 is
+provably CURRENT. The defect is in the one place the model keeps
+legality: the validator treats `AMBIGUOUS` as terminal-negative
+("no outcome recorded → nothing in flight → open a new request"):
 
 | PK | V | EVENT_TYPE | EVENT_CODE | AMOUNT | IDEM_KEY | SRC | ACTOR | IDEM_CLAIM | DETAIL |
 |---|---|---|---|---|---|---|---|---|---|
 | T7031-1 | 2 | REQUEST_OPENED | · | 100 | T7031-1#2 | SYSTEM | SYSTEM | T7031-1#2 | standing rule |
 | T7031-1 | 3 | POST_STARTED | · | · | T7031-1#2 | SYSTEM | WORKER | · | · |
 | T7031-1 | 4 | POST_RESULT_RECORDED | AMBIGUOUS | · | T7031-1#2 | SYNC_RESPONSE | WORKER | · | outcome unknown |
-| **T7031-1** | **5** | **REQUEST_OPENED** | · | **100** | **T7031-1#5** | SYSTEM | **SYSTEM (nudge endpoint)** | T7031-1#5 | acted on a stale projection |
+| **T7031-1** | **5** | **REQUEST_OPENED** | · | **100** | **T7031-1#5** | SYSTEM | **SYSTEM (nudge endpoint)** | T7031-1#5 | validator defect: treated AMBIGUOUS as terminal |
 
-Row v5 satisfies every constraint the model has: the slot was free
-(fence ✓), the key is fresh (IDEM_CLAIM ✓), the shape checks pass ✓.
-**The insert commits.** Two requests are now open; if the ambiguous
-`#2` also executed, the payment doubles. The identical buggy write in
-the baseline is one line:
+Row v5 satisfies every constraint the model has: the writer was
+current ✓, the slot was won fairly (fence ✓), the key is fresh
+(IDEM_CLAIM ✓), the shape checks pass ✓. **The insert commits.** Two
+requests are now open; if the ambiguous `#2` also executed, the
+payment doubles. Every mechanism the model owns worked as designed —
+that is the point. The identical buggy decision in the baseline is one
+line:
 
 ```
 ORA-00001: unique constraint (PAY.REQUEST_ACTIVE_I6) violated
@@ -80,14 +89,18 @@ Same bug, same probability of being written — the DESIGN decides
 whether it costs zero rows (loud, at write time) or a corrupted history
 (silent, discovered later or never).
 
-**Sharpened claim (per assessment + PO review):** DB-side enforcement is
-possible *procedurally* — revoke raw INSERT and route every append
-through a stored procedure that re-folds the prefix and validates. But
-that is enforcement by code (a second fold implementation, in PL/SQL,
-on the hot write path) — the very layer the backstop is supposed to be
-independent of, and a permanent divergence risk against the canonical
-fold. What is NOT achievable is the baseline's property: a *declarative*
-guarantee the write path cannot forget, mis-implement, or skip.
+**Sharpened claim (per assessment + PO review):** DB-side enforcement
+is possible *procedurally* — revoke raw INSERT and route every append
+through a stored procedure that re-folds the prefix and validates. An
+INDEPENDENTLY written PL/SQL validator is genuinely a second
+implementation, and it does buy implementation-level protection (two
+codebases must share the same defect to lose). What it never becomes is
+a *declarative* constraint — and it pays for the protection with a
+duplicated state machine, permanent cross-language maintenance,
+divergence risk against the canonical fold, and folding history on the
+hot write path. What is NOT achievable is the baseline's property: a
+declarative guarantee the write path cannot forget, mis-implement, or
+skip.
 
 **Adoption meaning:** accepting the model = accepting that temporal
 money invariants are protected by discipline (append API + validation +
@@ -137,12 +150,17 @@ honest concession: that redundancy is not an oracle either (both are
 usually written by the same transaction; common-mode bugs pass), but it
 exists, is mechanical, and is local.
 
-**Mitigations (real, but none restore the property):** a deliberately
-independent verification fold (N-version — catches logic divergence,
-carries permanent dual-maintenance), frozen golden histories, full
-replay before fold deploys, provider-side reconciliation (external,
-slow). Retroactivity has no mitigation at all — it is what "derived
-state" means.
+**Mitigations (real, but none restore the property LOCALLY):** a
+deliberately independent verification fold (N-version — a genuine
+second witness, at the cost of permanent dual-maintenance), frozen
+golden histories, full replay before fold deploys, provider-side
+reconciliation (external, slow). Retroactivity cannot be removed by
+care — but it CAN be made explicit and governed: correction events
+(reinterpretation recorded as an appended, audited fact), semantic
+versioning of event interpretation, and replay-impact analysis before
+any fold deploy. That machinery is a real design requirement and is
+currently unwritten — see `04` P3. The DEFAULT, absent it, is silent
+reinterpretation of all history on every fold change.
 
 **Adoption meaning:** accepting the model = accepting that the ledger is
 an opinion of the current code version, witnessed only by copies of
@@ -191,7 +209,7 @@ streams until signed off. Comparable in difficulty to the baseline's
 
 ---
 
-## L4 — [MEDIUM — FIXED] Fold inputs must be structured columns
+## L4 — [MEDIUM — PARTIALLY FIXED] Fold inputs must be structured columns
 
 Was: the fold branches on classifications (`BUSINESS_REJECT` vs
 `DEFINITIVE_REJECT`, query verdicts, outcome kinds) that had NO column —
@@ -210,8 +228,23 @@ mapping — forbidden here exactly as in the baseline.)
 
 **Fixed by exactly the rubric's MEDIUM shape:** the `EVENT_CODE` column
 plus `PE_SHAPE_*` per-type CHECK constraints (see `01`); the walkthrough
-page shows both columns side by side. Kept on the list as the lesson:
-every fold input must be a typed, CHECK-bound column.
+page shows both columns side by side.
+
+**Why only PARTIALLY (review findings, both bounded):**
+
+1. **The NULL gap — closed in `01`.** `EVENT_CODE` is nullable and
+   Oracle CHECK constraints pass on UNKNOWN: a bare
+   `EVENT_TYPE != X OR EVENT_CODE IN (...)` ACCEPTS a classified-type
+   row with a NULL code — exactly the unclassified row the column
+   exists to forbid. Every classified-type CHECK now carries an
+   explicit `EVENT_CODE IS NOT NULL`.
+2. **The constraint set is a self-declared representative subset.**
+   The full per-type matrix — every one of the 17 types stating its
+   `EVENT_CODE` rule, including which types REQUIRE the code to be
+   NULL — is still to be written.
+
+Kept on the list as the lesson: every fold input must be a typed,
+CHECK-bound column, **and the CHECK must be NULL-proof.**
 
 ---
 
@@ -254,9 +287,16 @@ Two bounded gaps, both now specified in `01`:
    MEDIUM shape).
 2. Duplicate delivery: `MSG-778` redelivered → two identical `SETTLED`
    rows; the idempotent fold saves the MONEY, but side effects
-   (metrics, incidents) re-fire and history pollutes. Fixed by
-   restoring `INBOUND_EVENT_INBOX` (`UNIQUE(source, event_id)`) — an
-   additive structure, done.
+   (metrics, incidents) re-fire and history pollutes. The structure is
+   restored (`INBOUND_EVENT_INBOX`, `UNIQUE(source, event_id)`) — but
+   its TRANSACTION BOUNDARY is unspecified: a delivery marked seen
+   before its multi-payment fan-out completes turns a crash into
+   permanently lost work — the redelivery arrives, the inbox says
+   "seen," and the unfinished streams never get their events. "Seen"
+   must never mean "fully processed." The missing rule (stated as an
+   open item in `01` §6b): the inbox row commits atomically with
+   COMPLETED processing, or the fan-out is separately resumable and
+   the inbox suppresses only side-effect re-fires. Bounded, open.
 
 ---
 
@@ -278,10 +318,10 @@ because it is additive, though it is the largest of the additive items.
 
 ---
 
-## L3 — [LOW — RESOLVED BY DESIGN] Contradictory evidence
+## L3 — [LOW — CONTAINED; RESOLUTION FLOW OPEN] Contradictory evidence
 
 Appends cannot be refused the way the baseline's CAS refuses a late
-contradicting write (0 rows). Resolution, already in the vocabulary:
+contradicting write (0 rows). Containment, already in the vocabulary:
 contradictions are FIRST-CLASS events with one fixed fold effect —
 never ordinary events resolved by hidden precedence:
 
@@ -291,8 +331,17 @@ never ordinary events resolved by hidden precedence:
 
 Fold effect (fixed): book nothing, PARK the payment (freezes any
 in-flight successor), CRITICAL, authoritative reconciliation required.
-Demonstrated live as walkthrough scenario 16. Residual (why it stays on
-the list): the safe-stop rule lives in the fold — see L1.
+Demonstrated live as walkthrough scenario 16.
+
+**Residual (why "contained," not "resolved"):** the safe STOP is
+designed; the way OUT is not. What happens after the park —
+investigation, authoritative reconciliation against provider records,
+and the event sequence that corrects the fold state and un-parks the
+payment (presumably `OPS_VERIFIED_OUTCOME_APPLIED` under the dual
+control the baseline's §9.3 requires, but never spelled out here) —
+remains undefined. Until that flow is written, every contradiction is
+a permanent manual park. And the safe-stop rule itself lives in the
+fold — see L1.
 
 ---
 
@@ -323,7 +372,7 @@ archival with signed digests.
 | Resolve ambiguous POST | mutable state + resolver | POST_STARTED + query events | comparable; event form arguably clearer |
 | Prove never-sent | claim fields + guards | absence of POST_STARTED | **event model clearer** |
 | Detect local money drift | counters vs rows (I1/I2) | deterministic fold + external recon | **weaker: no local witness, fixes retroactive (L2)** |
-| Contradictory evidence | CAS refuses (0 rows) | first-class contradiction events, safe stop | comparable (L3 resolved) |
+| Contradictory evidence | CAS refuses (0 rows) | first-class contradiction events, safe stop | contained (L3 — resolution flow open) |
 | No-request visibility & UI | obligation/request rows | events + read contract (L8) | additive work pending |
 | Find due work | indexed current state | projection under the L5 contract | comparable once the contract is tested |
 
@@ -340,5 +389,7 @@ archival with signed digests.
 - **The one HIGH (L6) must be designed before any adoption** — it is a
   no-fault, infrastructure-triggered money hazard with a known
   direction (epoch + burned-key reconciliation) and no draft yet.
-- The MEDIUMs are bounded additive work (one already done, two mostly
-  specified); the LOWs are policy or already resolved.
+- The MEDIUMs are bounded additive work (L4 partially done — NULL gap
+  closed, full matrix open; L5/L7 partially specified — the inbox
+  transaction boundary and both test sets remain); the LOWs are policy
+  (L9) or contained-with-an-open-exit (L3).
