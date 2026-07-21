@@ -137,9 +137,10 @@
     <b>TX</b> = which step/transaction inserted the row ·
     <b>V</b> = the fenced version slot (UNIQUE per payment — the serialization point) ·
     <b>ORD</b> = upstream ordering (strictly-newer guard) ·
+    <b>EVENT_CODE</b> = the STRUCTURED business classification the fold branches on (CHECK-bound per type; recorded at decision time, never re-derived from raw codes) ·
     <b>IDEM_KEY</b> = idempotency identity, allocated by the REQUEST_OPENED row's slot and echoed on that request's later rows ·
     <b>HASH</b> = payload hash, durable BEFORE the wire ·
-    <b>UETR / PROV_REF / CODE</b> = provider evidence ·
+    <b>UETR / PROV_REF / PROV_CODE</b> = raw provider evidence (PROV_CODE is the engine's opaque string — compare it with EVENT_CODE on the reject rows to see why both exist) ·
     <b>SRC</b> = evidence channel ·
     <b>ACTOR</b> = who appended (every writer uses the same fence, humans included) ·
     <b style="color:var(--violet)">IDEM_CLAIM</b> = <i>generated column</i>: only REQUEST_OPENED rows populate it, UNIQUE — identity is write-once in the schema ·
@@ -164,6 +165,7 @@ const DGRADE = ()                   => ({t:'DOWNGRADED_FOR_REPOST'});
 const OUT    = (outcome, oord, note)=> ({t:'OUTCOME_RECORDED', outcome, oord, note});
 const SETTLE = (amount, note)       => ({t:'SETTLED', amount, note});
 const MISM   = (amount)             => ({t:'SETTLEMENT_MISMATCH_RECORDED', amount});
+const CONTRA = (code, amount, slot) => ({t:'EVIDENCE_CONTRADICTION_RECORDED', code, amount, slot});
 const ESC    = ()                   => ({t:'ESCALATION_MARKED'});
 const OPSVER = (verdict, note)      => ({t:'OPS_VERIFIED_OUTCOME_APPLIED', verdict, note});
 const REARM  = ()                   => ({t:'OPS_RETRY_REARMED'});
@@ -174,7 +176,7 @@ const SCN = [
  {tx:[REQ(100,1)], ttl:'A trade message arrives: pay 100', n:'The admitted snapshot appends the required amount — note ORD=1 and SRC=UPSTREAM. The fold now shows a shortfall of 100.'},
  {tx:[OPEN(100)], ttl:'The standing rule opens ONE request', n:'REQUEST_OPENED wins slot v2 → its identity is the key derived from that slot. Look at IDEM_CLAIM: only this row type populates the generated column, and it is UNIQUE — identity is write-once in the schema itself. Reservation is derived from this open row; no counter exists.'},
  {tx:[POST('H1')], ttl:'Sending to the payment engine', n:'POST_STARTED is committed BEFORE the wire call — key and payload hash are already durable. From this moment, “was it sent?” is answerable from the table alone.'},
- {tx:[RESULT('ACCEPTED')], ttl:'The engine says: accepted', n:'The synchronous response becomes a row: CODE=ACK, the platform-generated UETR and engine reference land as evidence. The fold moves to AWAITING SETTLEMENT.'},
+ {tx:[RESULT('ACCEPTED')], ttl:'The engine says: accepted', n:'The synchronous response becomes a row: EVENT_CODE=ACCEPTED (the recorded classification), PROV_CODE=E-0000 (the raw engine string), plus the platform-generated UETR and engine reference. The fold moves to AWAITING SETTLEMENT.'},
  {tx:[SETTLE(100)], dt:4000, ttl:'Settlement confirmed — paid!', n:'The feed (SRC=FEED) confirms 100 against the same IDEM_KEY. The fold counts that key exactly once — a duplicated feed row could never double-count. The request is frozen by immutability.'}]},
 
 {id:'hiccup', name:'Temporary failures', steps:[
@@ -182,7 +184,7 @@ const SCN = [
  {tx:[OPEN(100)], ttl:'Request opened'},
  {tx:[ENRICHF('TRANSIENT','account service timeout')], ttl:'The account service times out', n:'A transient failure is just a row. Retry timing derives from its AT + policy; the scanner FINDS the payment via the projection but ACTS by folding and fencing — two racing scanners cannot both act (one loses the slot).'},
  {tx:[POST('H1')], dt:7200, ttl:'Retry due — sending', n:'Two hours later, service recovered. Same request, same IDEM_KEY (see the column).'},
- {tx:[RESULT('BUSINESS_REJECT','insufficient balance')], ttl:'Engine: insufficient balance', n:'CODE=INSUFF_FUNDS, a clean business “no” — provably nothing executed. Policy: retry the SAME key on schedule. Business rejects count as success to the circuit breaker.'},
+ {tx:[RESULT('BUSINESS_REJECT','insufficient balance')], ttl:'Engine: insufficient balance', n:'Look at the two code columns: PROV_CODE=E-4021 is the engine’s opaque string; EVENT_CODE=BUSINESS_REJECT is the CA-1 classification RECORDED at decision time — the fold branches on the latter, never re-maps the former. A clean business “no”: provably nothing executed, retry the SAME key on schedule.'},
  {tx:[POST('H1')], dt:7200, ttl:'Retry due — funds arrived meanwhile'},
  {tx:[RESULT('ACCEPTED')], ttl:'Accepted'},
  {tx:[SETTLE(100)], dt:4000, ttl:'Paid — two failures, zero humans'}]},
@@ -198,7 +200,7 @@ const SCN = [
  {tx:[REQ(100,1)], ttl:'Pay 100'},
  {tx:[OPEN(100)], ttl:'Request opened'},
  {tx:[POST('H1')], ttl:'Sending…'},
- {tx:[RESULT('DEFINITIVE_REJECT','compliance-style refusal'), OUT('REJECTED_PROVIDER',1)], ttl:'Engine: definitive reject', n:'Synchronous and definitive (CODE=COMPLIANCE_BLOCK) — provably nothing executed, so releasing is safe. One TX records both the response and the outcome; the provider marker latches (count 1).'},
+ {tx:[RESULT('DEFINITIVE_REJECT','compliance-style refusal'), OUT('REJECTED_PROVIDER',1)], ttl:'Engine: definitive reject', n:'Synchronous and definitive (EVENT_CODE=DEFINITIVE_REJECT, raw E-7740) — provably nothing executed, so releasing is safe. One TX records both the response and the outcome; the provider marker latches (count 1).'},
  {tx:[REQ(100,2)], ttl:'A newer message permits ONE more try', n:'Newer ordering unlatches the marker — but the fold keeps the reject COUNT. A second reject with no newer message parks the payment for humans: never ping-pong a rejected payment at the bank.'},
  {tx:[OPEN(100,'attempt 2')], ttl:'Attempt 2 opens — new key'}]},
 
@@ -304,7 +306,16 @@ const SCN = [
  {tx:[POST('H1')], ttl:'Sending…'},
  {tx:[RESULT('ACCEPTED')], ttl:'Accepted — awaiting settlement'},
  {tx:[MISM(60)], dt:4000, ttl:'Settlement arrives… for 60?!', n:'The engine settles all-or-nothing, so a partial amount cannot be real money — it is DEFECT EVIDENCE. The fold books NOTHING and parks loudly. Submission knowledge still tightens: even wrong evidence proves it was sent.'},
- {tx:[SETTLE(100)], dt:7200, ttl:'The correct settlement finally arrives', n:'Terminal evidence applies to any active payment, parked or not. Booked once (idempotent fold), complete, frozen — and the mismatch row remains forever as the defect’s audit record.'}]}
+ {tx:[SETTLE(100)], dt:7200, ttl:'The correct settlement finally arrives', n:'Terminal evidence applies to any active payment, parked or not. Booked once (idempotent fold), complete, frozen — and the mismatch row remains forever as the defect’s audit record.'}]},
+
+{id:'contradiction', name:'Evidence vs decision (contradiction)', steps:[
+ {tx:[REQ(100,1)], ttl:'Pay 100'},
+ {tx:[OPEN(100)], ttl:'Request opened'},
+ {tx:[POST('H1')], ttl:'Sending…'},
+ {tx:[RESULT('DEFINITIVE_REJECT'), OUT('REJECTED_PROVIDER',1)], ttl:'Engine: definitive reject', n:'Provably not executed — one TX records the response (EVENT_CODE=DEFINITIVE_REJECT, raw engine code E-7740) and the outcome; the reservation releases; the marker latches.'},
+ {tx:[REQ(100,2)], ttl:'A newer message permits one more try'},
+ {tx:[OPEN(100,'attempt 2')], ttl:'Attempt 2 opens', n:'Fresh identity, preparing to post.'},
+ {tx:[CONTRA('SETTLED_AFTER_TERMINAL',100,2)], dt:259200, ttl:'Three days later: the feed settles… the REJECTED request?!', n:'Evidence that contradicts a terminal decision is NEVER appended as an ordinary SETTLED and never resolved by hidden precedence rules: it lands as a first-class contradiction row (EVENT_CODE=SETTLED_AFTER_TERMINAL) with a FIXED fold effect — book nothing, PARK the whole payment (attempt 2 freezes before it can post), raise CRITICAL, require authoritative reconciliation. The rulebook is one rule long, and it is visible in the table.'}]}
 ];
 
 // ---------------------------------------------------------------
@@ -328,7 +339,7 @@ function eventsUpTo(scn, n, stream){
     st.tx.forEach(e=>{
       v++;
       const r={...e, v, txn:i+1, at:clock, pk:SK,
-               key:null, hash:null, uetr:null, pref:null, code:null,
+               key:null, hash:null, uetr:null, pref:null, code:null, ecode:null,
                src:null, actor:null, claim:null, detail:e.note||null};
       switch(e.t){
         case 'REQUIRED_AMOUNT_SET':
@@ -342,34 +353,41 @@ function eventsUpTo(scn, n, stream){
           r.key=key; r.claim=key; r.hash='H1'; r.src='SYSTEM'; r.actor='SYSTEM';
           r.detail=r.detail||'standing rule: shortfall '+e.amount; break;
         case 'ENRICH_FAILED':
-          r.key=key; r.src='SYSTEM'; r.actor='WORKER'; r.code=e.kind;
+          r.key=key; r.src='SYSTEM'; r.actor='WORKER'; r.ecode=e.kind;
           break;
         case 'POST_STARTED':
           r.key=key; r.hash=e.hash; r.src='SYSTEM'; r.actor='WORKER';
           r.detail=r.detail||'committed before the wire call'; break;
         case 'POST_RESULT_RECORDED':
           r.key=key; r.src='SYNC_RESPONSE'; r.actor='WORKER';
+          r.ecode=e.result;   // the CA-1 classification, RECORDED AT THE TIME
           if(e.result==='ACCEPTED'){ uetr='U-'+SK.slice(-1)+'9f3'; pref='E-'+SK.slice(-1)+'88x';
-            r.code='ACK'; r.uetr=uetr; r.pref=pref; r.detail=r.detail||'platform SDK minted the UETR'; }
-          else if(e.result==='BUSINESS_REJECT'){ r.code='INSUFF_FUNDS'; }
-          else if(e.result==='DEFINITIVE_REJECT'){ r.code='COMPLIANCE_BLOCK'; }
-          else if(e.result==='AMBIGUOUS'){ r.code='TIMEOUT'; r.detail=r.detail||'no response — outcome unknown'; }
-          else if(e.result==='COLLISION'){ r.code='DUP_CONTENT_MISMATCH'; }
+            r.code='E-0000'; r.uetr=uetr; r.pref=pref; r.detail=r.detail||'platform SDK minted the UETR'; }
+          else if(e.result==='BUSINESS_REJECT'){ r.code='E-4021'; r.detail=r.detail||'raw engine code, mapped per CA-1'; }
+          else if(e.result==='DEFINITIVE_REJECT'){ r.code='E-7740'; r.detail=r.detail||'raw engine code, mapped per CA-1'; }
+          else if(e.result==='AMBIGUOUS'){ r.detail=r.detail||'no response — outcome unknown (no engine code exists)'; }
+          else if(e.result==='COLLISION'){ r.code='E-6011'; }
           break;
         case 'QUERY_RESULT_RECORDED':
           r.key=key; r.src='QUERY'; r.actor='RESOLVER';
-          r.code=e.q.replace('_YOUNG','').replace('_OLD','');
+          r.ecode=e.q.replace('_YOUNG','').replace('_OLD','');
+          if(e.q==='NOT_FOUND_YOUNG') r.detail=r.detail||'store age below trust age — not evidence yet';
+          if(e.q==='NOT_FOUND_OLD')   r.detail=r.detail||'past the trust age — authoritative';
           if(e.q==='EXECUTED'){ r.uetr=uetr; }
           break;
         case 'DOWNGRADED_FOR_REPOST':
           r.key=key; r.src='SYSTEM'; r.actor='RESOLVER';
           r.detail=r.detail||'§9.2: NOT_FOUND past trust age — same-key re-send sanctioned'; break;
         case 'OUTCOME_RECORDED':
-          r.key=key; r.ord=e.oord;
+          r.key=key; r.ord=e.oord; r.ecode=e.outcome;
           if(/^PLATFORM/.test(e.outcome)){ r.src='OPS'; r.actor='OPS:elena'; r.detail=r.detail||'approval APPR-1043'; }
           else if(e.outcome==='EXECUTED'){ r.src='QUERY'; r.actor='RESOLVER'; }
           else if(e.outcome==='CANCELLED_NOT_SUBMITTED'){ r.src='SYSTEM'; r.actor='SYSTEM'; r.detail=r.detail||'no POST_STARTED row exists — provably unsent'; }
           else { r.src='SYNC_RESPONSE'; r.actor='WORKER'; }
+          break;
+        case 'EVIDENCE_CONTRADICTION_RECORDED':
+          r.key=SK+'#'+e.slot; r.ecode=e.code; r.src='FEED'; r.actor='FEED'; r.uetr='U-'+SK.slice(-1)+'9f3';
+          r.detail=r.detail||'contradicts the terminal decision on this key — safe stop';
           break;
         case 'SETTLED':
           r.key=key; r.src='FEED'; r.actor='FEED'; r.uetr=uetr; r.pref=pref; break;
@@ -379,7 +397,7 @@ function eventsUpTo(scn, n, stream){
         case 'ESCALATION_MARKED':
           r.key=key; r.src='SYSTEM'; r.actor='SCANNER'; r.detail='ops paged — once per episode'; break;
         case 'OPS_VERIFIED_OUTCOME_APPLIED':
-          r.key=key; r.src='OPS'; r.actor='OPS:elena'; r.code=e.verdict;
+          r.key=key; r.src='OPS'; r.actor='OPS:elena'; r.ecode=e.verdict;
           r.detail=(e.note? e.note+' · ':'')+'approval APPR-1043'; break;
         case 'OPS_RETRY_REARMED':
           r.key=key; r.src='OPS'; r.actor='OPS:elena'; r.detail='budget window resets'; break;
@@ -396,6 +414,7 @@ function eventsUpTo(scn, n, stream){
 function fold(events){
   let required=0, ord=0, snapInvalid=false, snapOrd=0;
   let mkVal=null, mkProv=null, provCount=0, escalated=false, rearmAt=-1, lastFailAt=-1, fails=0;
+  let contradiction=null;
   const reqs=[]; let open=null;
   events.forEach((e,i)=>{
     switch(e.t){
@@ -409,23 +428,26 @@ function fold(events){
               downgraded:false, enrichFails:0, queries:[], mismatch:null, settled:false};
         reqs.push(open); break;
       case 'ENRICH_FAILED':
-        if(open && e.kind==='TRANSIENT'){ open.enrichFails++; fails++; lastFailAt=i; }
+        if(open && e.ecode==='TRANSIENT'){ open.enrichFails++; fails++; lastFailAt=i; }
         break;
       case 'POST_STARTED':
         if(open){ open.posts++; open.expDiv = open.lastHash!==null && open.lastHash!==e.hash;
                   open.lastHash=e.hash; open.result=null; }
         break;
       case 'POST_RESULT_RECORDED':
-        if(open){ open.result=e.result;
-          if(e.result==='BUSINESS_REJECT'){ fails++; lastFailAt=i; } }
+        if(open){ open.result=e.ecode;
+          if(e.ecode==='BUSINESS_REJECT'){ fails++; lastFailAt=i; } }
         break;
-      case 'QUERY_RESULT_RECORDED': if(open) open.queries.push(e.q); break;
+      case 'QUERY_RESULT_RECORDED': if(open) open.queries.push(e.ecode); break;
       case 'DOWNGRADED_FOR_REPOST': if(open){ open.downgraded=true; open.result=null; } break;
       case 'OUTCOME_RECORDED':
-        if(open){ open.outcome=e.outcome;
-          if(e.outcome==='REJECTED_VALIDATION') mkVal={ord:e.oord};
-          if(e.outcome==='REJECTED_PROVIDER'){ mkProv={ord:e.oord}; provCount++; }
+        if(open){ open.outcome=e.ecode;
+          if(e.ecode==='REJECTED_VALIDATION') mkVal={ord:e.oord};
+          if(e.ecode==='REJECTED_PROVIDER'){ mkProv={ord:e.oord}; provCount++; }
           open=null; }
+        break;
+      case 'EVIDENCE_CONTRADICTION_RECORDED':
+        contradiction=e.ecode;   // FIXED effect: book nothing, park everything, alert
         break;
       case 'SETTLED':
         { const r=reqs.find(r=>!r.settled && !r.outcome && r.mismatch!==null) || open || reqs[reqs.length-1];
@@ -458,8 +480,10 @@ function fold(events){
                         : (paid>=required && required>0 ? 'COMPLETE ✓' : (required===0 && reqs.length ? 'CANCELLED ✓' : 'IDLE'));
   }
   if(open && fails>=3 && rearmAt<lastFailAt) phase='PARKED · RETRY_EXHAUSTED';
+  if(contradiction) phase='PARKED · CONTRADICTION ('+contradiction+') — safe stop';
   return {required, ord, paid, reserved, shortfall, open, phase, provablyUnsent,
-          flags:{snapInvalid, valActive, provActive, escalated, provCount, expDiv: open? open.expDiv:false}};
+          flags:{snapInvalid, valActive, provActive, escalated, provCount,
+                 contradiction, expDiv: open? open.expDiv:false}};
 }
 
 // ---------------------------------------------------------------
@@ -472,6 +496,7 @@ const COLOR = {
   QUERY_RESULT_RECORDED:'var(--yellow)', DOWNGRADED_FOR_REPOST:'var(--yellow)',
   OUTCOME_RECORDED:'var(--good)', SETTLED:'var(--good)',
   SETTLEMENT_MISMATCH_RECORDED:'var(--critical)', ESCALATION_MARKED:'var(--critical)',
+  EVIDENCE_CONTRADICTION_RECORDED:'var(--critical)',
   OPS_VERIFIED_OUTCOME_APPLIED:'var(--ops)', OPS_RETRY_REARMED:'var(--ops)'
 };
 const NULLC = '<span class="null">·</span>';
@@ -504,8 +529,8 @@ function render(){
       +(scn.dual? ' — payment '+name+'’s own stream, own fence':'')+'</h3>';
     const wrap=document.createElement('div'); wrap.className='tblwrap';
     let html='<table><thead><tr>'
-      +'<th>tx</th><th>v</th><th>event_type</th><th>ord</th><th>amount</th>'
-      +'<th>idem_key</th><th>hash</th><th>uetr</th><th>prov_ref</th><th>code</th>'
+      +'<th>tx</th><th>v</th><th>event_type</th><th>event_code</th><th>ord</th><th>amount</th>'
+      +'<th>idem_key</th><th>hash</th><th>uetr</th><th>prov_ref</th><th>prov_code</th>'
       +'<th>src</th><th>actor</th><th class="gen">idem_claim*</th><th>at</th><th>detail</th>'
       +'</tr></thead><tbody>';
     let prevTx=null;
@@ -516,6 +541,7 @@ function render(){
         +'<td class="tx">'+(txFirst? '<b>'+e.txn+'</b>' : '〃')+'</td>'
         +'<td class="v">v'+e.v+'</td>'
         +'<td class="type" style="--c:'+COLOR[e.t]+'">'+e.t+'</td>'
+        +cell(e.ecode? '<b>'+e.ecode+'</b>':null)
         +cell(e.ord!=null? e.ord:null,'num')
         +cell(e.amount!=null? e.amount:null,'num')
         +cell(e.key,'key')+cell(e.hash)+cell(e.uetr)+cell(e.pref)+cell(e.code)
@@ -524,7 +550,7 @@ function render(){
         +'</tr>';
     });
     html+='<tr class="nextslot"><td>·</td><td><b>v'+(evs.length+1)+'</b></td>'
-      +'<td colspan="13">empty slot — the next writer must claim it; the database grants each (payment_key, version) exactly once. THE FENCE.</td></tr>';
+      +'<td colspan="14">empty slot — the next writer must claim it; the database grants each (payment_key, version) exactly once. THE FENCE.</td></tr>';
     html+='</tbody></table>';
     wrap.innerHTML=html; div.appendChild(wrap); sEl.appendChild(div);
 
@@ -537,6 +563,7 @@ function render(){
     if(f.flags.provActive)  flags.push('⚑ provider-rejected latched ×'+f.flags.provCount);
     if(!f.flags.provActive && f.flags.provCount>0) flags.push('reject count kept: '+f.flags.provCount);
     if(f.flags.escalated)   flags.push('⚠ escalated — ops paged');
+    if(f.flags.contradiction) flags.push('⛔ CONTRADICTION recorded ('+f.flags.contradiction+') — booked nothing, all posting frozen, CRITICAL raised');
     if(f.provablyUnsent && f.open) flags.push('✓ provably unsent (no POST_STARTED row)');
     if(f.flags.expDiv)      flags.push('✓ divergence EXPECTED (hashes differ, pre-wire)');
     const total=Math.max(f.required, f.paid+f.reserved, 1);
