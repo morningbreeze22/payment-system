@@ -158,6 +158,21 @@ no-intervening-acceptance conjunct — recency alone proved recording
 order, not the absence of acceptance (§5.3); the unmatched inbox
 evidence content is SHAPE-BOUND per status (§7).
 
+Tenth round (2026-07-22, targeting the round-9 fixes): 2 CRITICAL /
+4 HIGH, all closed — the canonical form made INJECTIVE by rule (no
+`|` in components, encoder fails closed, intake classifies violations
+INVALID; head checks exactly three delimiters) (§3, §5); the
+UETR-association trigger — write-once per ordinal + global
+first-claim probe on the permanent `PE_UETR_IX` — closes both the
+intra-payment wrong-ordinal association and the abandoned-historical-
+UETR claim, with `PH_UETR_UQ` kept as the simultaneous-first-claim
+belt (§5.3); `FEED_RESULT_RECORDED` gained code ACCEPTED so
+intermediate feed acceptance is recordable and visible to the
+downgrade gate's acceptance list (§2.1, §2.2, §5.3); inbox resolution
+= third status RESOLVED with evidence retained (the two-state flip
+was schema-illegal as specified) and the EV class vocabulary is
+CHECK-closed (§7).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -239,11 +254,15 @@ Unchanged in meaning from v1/v4 except where noted: `REQUIRED_AMOUNT_SET`,
 (the v4 §19.3 ops clear of a live reject marker — the v1 draft had no
 way to express it; without it a twice-rejected payment could never be
 re-armed except by a newer upstream message), and **new**
-`FEED_RESULT_RECORDED` (code `REJECTED`: the feed channel's terminal
-rejection of an active request — without it an authoritative feed
-reject was UNRECORDABLE: `SETTLED` means money moved, contradiction
-events require an existing terminal, and the §5.3 release whitelist
-demands a recorded evidence row; feed-executed remains `SETTLED`).
+`FEED_RESULT_RECORDED` (codes `ACCEPTED` / `REJECTED`: the feed
+channel's evidence about an active request — REJECTED is its terminal
+rejection (without it an authoritative feed reject was UNRECORDABLE:
+`SETTLED` means money moved, contradiction events require an existing
+terminal, and the §5.3 release whitelist demands a recorded evidence
+row); ACCEPTED is the intermediate status-feed acceptance that
+tightens submission knowledge per the inherited §4.4 precedence —
+without it, feed acceptance was silently droppable and the §5.3
+downgrade gate could not see it. Feed-executed remains `SETTLED`).
 
 ### 2.2 Complete shape matrix (closes L4)
 
@@ -264,7 +283,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated — §4) | N | N | R |
 | SETTLED | N | R | N | R | N | N | FEED |
-| FEED_RESULT_RECORDED | R: REJECTED | R | N | N | N | N | FEED |
+| FEED_RESULT_RECORDED | R: ACCEPTED, REJECTED | R | N | N | N | N | FEED |
 | SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | FEED |
 | EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME, FEED_REJECTS_OUTCOME | R | N | O | N | N | R |
 | ESCALATION_MARKED | N | R | N | N | N | N | SYSTEM |
@@ -335,9 +354,14 @@ Version slots no longer participate in identity. Consequences:
   existing exactly once. The NORMATIVE canonical form (consumed by
   the `PH_BIZ_BIND_CK` binding check, §5):
   `business_id || '|' || payment_type || '|' || debit_account || '|'
-  || currency` — the byte-exact spec + vectors govern character
-  repertoire and escaping; the leading business_id component and the
-  `|` delimiter are FROZEN facts of the form.
+  || currency` — and the form is INJECTIVE by rule, not by luck: no
+  component may contain `|` (the shared encoder FAILS CLOSED on one;
+  intake whole-document validation classifies such a snapshot
+  INVALID — without this rule, `(B, T|X, D)` and `(B, T, X|D)`
+  encode identically and two real payments merge into one head). The
+  head additionally CHECKs exactly three delimiters in the key. The
+  leading business_id component and the `|` delimiter are FROZEN
+  facts of the form.
 
 ## 4. Money facts are events; the fold only aggregates them — the L2 fix (money half)
 
@@ -433,10 +457,12 @@ CREATE INDEX PH_BIZ_IX  ON PAYMENT_HEAD (BUSINESS_ID);
 CREATE UNIQUE INDEX PH_UETR_UQ ON PAYMENT_HEAD (UETR);
 -- plus, in the CREATE TABLE: the key/business binding constraint
 --   CONSTRAINT PH_BIZ_BIND_CK CHECK
---     (BUSINESS_ID = SUBSTR(PAYMENT_KEY, 1, INSTR(PAYMENT_KEY,'|') - 1))
+--     (BUSINESS_ID = SUBSTR(PAYMENT_KEY, 1, INSTR(PAYMENT_KEY,'|') - 1)
+--      AND LENGTH(PAYMENT_KEY)
+--          - LENGTH(REPLACE(PAYMENT_KEY,'|','')) = 3)   -- injectivity assist
 -- which depends on the NORMATIVE canonical form (§3):
 --   PAYMENT_KEY = business_id || '|' || payment_type || '|' ||
---                 debit_account || '|' || currency
+--                 debit_account || '|' || currency  (no '|' in components)
 ```
 
 **The UETR claim lives on the head:** every UETR-bearing evidence
@@ -610,6 +636,19 @@ already held):
   than its opening's, and a query result must name the key that was
   actually queried, so stale evidence for an EARLIER request's key
   cannot be recorded against the current one.
+- **UETR-association binding (write-once per ordinal, first-claim
+  global)**: an event carrying a UETR must either MATCH its ordinal's
+  existing association (any prior UETR-bearing event of the same
+  ordinal — so a resolver cannot re-attach ordinal 1's UETR to open
+  ordinal 2 and let ordinal 1's stale feed reject release ordinal 2's
+  reservation), or be the FIRST association of that UETR anywhere:
+  no event row with this UETR exists on any OTHER payment (one probe
+  on `PE_UETR_IX` — events are permanent, so the index IS the full
+  history and a claim of an ABANDONED historical UETR dies at ITS
+  commit, not as a later permanent matching ambiguity) and on no
+  other ordinal of this payment. `PH_UETR_UQ` (§5) stays as the belt
+  for two SIMULTANEOUS first claims, which committed-data probes
+  cannot see.
 - **Release rights (the v4 release-guard trigger, transplanted)** —
   the release predicate is a CHECK, not a convention:
   `CANCELLED_NOT_SUBMITTED` requires ZERO `POST_STARTED` rows for the
@@ -635,8 +674,9 @@ already held):
 - **Downgrade gate**: `DOWNGRADED_FOR_REPOST` requires a same-ordinal
   `QUERY_RESULT_RECORDED(NOT_FOUND)` row post-dating the latest
   `POST_STARTED` AND the absence of ANY acceptance-class row
-  (`POST_RESULT_RECORDED(ACCEPTED)` or
-  `QUERY_RESULT_RECORDED(ACCEPTED | EXECUTED)`) post-dating that same
+  (`POST_RESULT_RECORDED(ACCEPTED)`,
+  `QUERY_RESULT_RECORDED(ACCEPTED | EXECUTED)`, or
+  `FEED_RESULT_RECORDED(ACCEPTED)`) post-dating that same
   `POST_STARTED` — NOT_FOUND recency alone proves recording order,
   not that no acceptance intervened; without the second conjunct a
   wrong decision downgrades an ACCEPTED request, which is the
@@ -745,12 +785,16 @@ healthy payments.
   flag without the payload would be unresolvable by the sweep, so the
   content is SHAPE-BOUND, not conventional: a CHECK requires the
   evidence columns NOT NULL on UNMATCHED_TERMINAL rows (amount
-  optional only for reject-class) and NULL on PROCESSED rows — an
-  unresolvable purge-exempt row is schema-impossible. The sweep's
-  later resolution appends the event AND flips the status to
-  PROCESSED in ONE transaction under the payment's head lock (the
-  normal write path); inbox purge NEVER removes an
-  UNMATCHED_TERMINAL row (only PROCESSED rows age out).
+  optional only for reject-class), the class drawn from the CLOSED
+  vocabulary (`SETTLED` / `REJECTED` / `MISMATCH` — a misspelled
+  class would be a permanently unroutable purge-exempt row), and NULL
+  on plain PROCESSED rows. Resolution flips the row to a THIRD
+  status, `RESOLVED` — evidence content RETAINED for audit (clearing
+  it to satisfy a two-state shape check would be schema-illegal as
+  one update and destroys the trail; RESOLVED ages out on the purge
+  chain like PROCESSED) — in ONE transaction with the resulting
+  append under the payment's head lock (the normal write path).
+  Inbox purge NEVER removes an UNMATCHED_TERMINAL row.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
   EXPLICIT transaction boundary. The ADMISSION transaction updates
   `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +

@@ -133,7 +133,7 @@ of the table or its indexes).
 
 | Column | Why |
 |---|---|
-| `PAYMENT_KEY` | the §1 scope tuple, canonically encoded — one stream per payment. Trade membership is derivable from the key. The ENCODING is identity input: byte-exact canonical spec + golden vectors + ONE shared encoder (same regime as key derivation) — two "reasonable" encodings of one tuple would create two heads and re-derive the same idempotency keys under a fresh stream. NORMATIVE frozen form (consumed by `PH_BIZ_BIND_CK`): `business_id \|\| '\|' \|\| payment_type \|\| '\|' \|\| debit_account \|\| '\|' \|\| currency`. |
+| `PAYMENT_KEY` | the §1 scope tuple, canonically encoded — one stream per payment. Trade membership is derivable from the key. The ENCODING is identity input: byte-exact canonical spec + golden vectors + ONE shared encoder (same regime as key derivation) — two "reasonable" encodings of one tuple would create two heads and re-derive the same idempotency keys under a fresh stream. NORMATIVE frozen form (consumed by `PH_BIZ_BIND_CK`): `business_id \|\| '\|' \|\| payment_type \|\| '\|' \|\| debit_account \|\| '\|' \|\| currency`, INJECTIVE by rule — no component may contain the delimiter (encoder fails closed; intake classifies violations INVALID; the head checks exactly three delimiters). |
 | `VERSION` | the fence slot and the stream's total order. Dense, starts at 1; allocated as `PAYMENT_HEAD.LAST_VERSION + 1` under the head lock (§6.1). No reliance on timestamps or identity columns for ordering. |
 | `EVENT_TYPE` | closed vocabulary, CHECK-bound. Adding a type is a design change, not a code convenience. |
 | `EVENT_CODE` | the STRUCTURED classification the fold branches on — a decision RECORDED AT THE TIME (e.g. the CA-1 mapping of a raw provider code), never re-derived later from `PROVIDER_CODE`: re-mapping raw codes during a fold would be load-bearing replay of a mutable mapping, forbidden exactly as in the baseline. |
@@ -179,7 +179,7 @@ a matrix/DDL mismatch is a defect.
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated) | N | N | O (executed-class only) | N | R (any) |
 | SETTLED | N | R | N | R | N | N | O | N | FEED |
-| FEED_RESULT_RECORDED | R: REJECTED | R | N | N | N | N | O | N | FEED |
+| FEED_RESULT_RECORDED | R: ACCEPTED, REJECTED | R | N | N | N | N | O | N | FEED |
 | SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | O | N | FEED |
 | EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME, FEED_REJECTS_OUTCOME | R | N | O | N | N | O | N | R (any) |
 | ESCALATION_MARKED | N | R | N | N | N | N | N | N | SYSTEM |
@@ -250,7 +250,7 @@ Version slots do NOT participate in identity. Consequences:
 | `DOWNGRADED_FOR_REPOST` | the §9.2-equivalent move: NOT_FOUND past trust age, same key will be re-sent. Trigger-gated (§6.3): requires a same-ordinal `QUERY_RESULT_RECORDED(NOT_FOUND)` post-dating the latest `POST_STARTED` — a wrong decision cannot downgrade an ACCEPTED request | re-posting becomes legal for the SAME key; audit of the only backward transition. Key-scoped evidence stays attempt-agnostic BY the §18 engine dedup contract (one key = one engine-side instruction) |
 | `OUTCOME_RECORDED` | terminal for a request (codes per §2.2, with `EVIDENCE_SOURCE`); AMOUNT of EVERY code must equal the OPENED amount (§6.3 — "restated" is an enforced equality; any other number is defect evidence, not an outcome). `PLATFORM_VERIFIED_*` may additionally supersede a CLOSED ordinal's outcome through the §6.3 dual-control door (amount checked against THAT ordinal's opening amount) | closes the open request (head CAS, §6.2); books or releases its reservation; latches the corresponding marker; the same transaction re-evaluates the standing rule UNDER THE INHERITED GATES — a shortfall opens a successor only if no live marker forbids it (a verified NOT_EXECUTED latches `provider_rejected` per the baseline §9.3: NO automatic successor); a corrected EXCESS (`paid + reserved > required`) cancels a provably-unsent open request in the same tx, or keeps the payment PARKED until an in-flight claim resolves. A superseding verified outcome adjusts `PAID_TOTAL` by the signed difference; the fold takes the LATEST outcome-class event per ordinal as authoritative (§5) |
 | `SETTLED` | the feed confirms full-amount settlement AND the fold shows a non-terminal request for the ordinal | books confirmed money (idempotent by ordinal); closes/freezes that request. Feed evidence AGREEING with an already-EXECUTED terminal (equal amount) is a benign no-op delivery — NOT appended, NOT a contradiction |
-| `FEED_RESULT_RECORDED` | the feed channel delivers a terminal REJECTION for an active request (code `REJECTED` — feed-executed is `SETTLED`, feed-vs-terminal conflict is a contradiction event) | qualifying terminal-class negative evidence for `OUTCOME_RECORDED(REJECTED_PROVIDER)` in the same tx, under the §6.3 recency rule (must post-date the latest `POST_STARTED`). Without this type an authoritative feed reject was unrecordable and its request stuck open forever |
+| `FEED_RESULT_RECORDED` | the feed channel's evidence for an active request: `REJECTED` = terminal rejection; `ACCEPTED` = intermediate status-feed acceptance (feed-executed is `SETTLED`, feed-vs-terminal conflict is a contradiction event) | REJECTED: qualifying terminal-class negative evidence for `OUTCOME_RECORDED(REJECTED_PROVIDER)` in the same tx, under the §6.3 recency rule. ACCEPTED: tightens submission knowledge per inherited §4.4 and blocks downgrade via the §6.3 acceptance list. Without this type, feed rejects were unrecordable and feed acceptance silently droppable |
 | `SETTLEMENT_MISMATCH_RECORDED` | feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence) | books NOTHING; parks loudly; submission knowledge still tightens |
 | `EVIDENCE_CONTRADICTION_RECORDED` | evidence CONFLICTS with a terminal decision (codes per §2.2, incl. `FEED_REJECTS_OUTCOME` — a feed rejection against a booked EXECUTED must be representable or the delivery loops forever) — conflict, never mere repetition | FIXED effect: book nothing, PARK the payment, CRITICAL alert; sole exit is the dual-control verified outcome (`event-model-v2.md` §6) |
 | `ESCALATION_MARKED` | the MAYBE got old (once per episode — the fold derives "already escalated" from this event's presence within the episode, so repeated scans cannot re-append or re-page) | AUTHORITATIVE escalation fact, inherited baseline §9.3 semantics VERBATIM: the episode is marked escalated (paged, ops attention required) while remaining RESOLVER-OWNED — **the resolver keeps querying**; no posting was possible during MAYBE anyway, and the episode exits exactly as any MAYBE does (evidence resolves it, or the dual-control verified outcome). No unblock event exists because nothing is blocked beyond what MAYBE already blocks. (Two earlier drafts erred in opposite directions — "derived state unchanged" made escalation unimplementable, "cadence stops" contradicted §9.3's resolver ownership; both retracted) |
@@ -336,7 +336,9 @@ CREATE TABLE PAYMENT_HEAD (
   -- the key/business binding (consumes the §3 frozen canonical form —
   -- an unbound copy drops the payment from its trade's worklist):
   CONSTRAINT PH_BIZ_BIND_CK CHECK
-    (BUSINESS_ID = SUBSTR(PAYMENT_KEY, 1, INSTR(PAYMENT_KEY,'|') - 1))
+    (BUSINESS_ID = SUBSTR(PAYMENT_KEY, 1, INSTR(PAYMENT_KEY,'|') - 1)
+     AND LENGTH(PAYMENT_KEY)
+         - LENGTH(REPLACE(PAYMENT_KEY,'|','')) = 3)  -- injectivity assist
 );
 CREATE INDEX PH_DUE_IX  ON PAYMENT_HEAD (PHASE, NEXT_ACTION_AT);
 CREATE INDEX PH_BIZ_IX  ON PAYMENT_HEAD (BUSINESS_ID);
@@ -509,11 +511,23 @@ read under the lock already held):
   `QUERY_RESULT_RECORDED(NOT_FOUND)` post-dating the latest
   `POST_STARTED` AND NO acceptance-class row
   (`POST_RESULT_RECORDED(ACCEPTED)` /
-  `QUERY_RESULT_RECORDED(ACCEPTED | EXECUTED)`) post-dating that same
+  `QUERY_RESULT_RECORDED(ACCEPTED | EXECUTED)` /
+  `FEED_RESULT_RECORDED(ACCEPTED)`) post-dating that same
   `POST_STARTED` — recency alone proves recording order, not the
   absence of an intervening acceptance; an ACCEPTED request must
   never be downgraded (evidence existence/absence in the trigger;
   trust-age arithmetic stays fold policy).
+- **UETR-association binding**: an event carrying a UETR must either
+  MATCH its ordinal's existing association (any prior UETR-bearing
+  event of the same ordinal), or be the FIRST association of that
+  UETR anywhere — no event row with this UETR on any OTHER payment
+  (one probe on the permanent `PE_UETR_IX` — a claim of an abandoned
+  historical UETR dies at ITS commit, not as a later permanent
+  matching ambiguity) and none on another ordinal of this payment
+  (a resolver cannot re-attach ordinal 1's UETR to open ordinal 2
+  and let ordinal 1's stale feed reject release ordinal 2's
+  reservation). `PH_UETR_UQ` (§6) remains the belt for two
+  SIMULTANEOUS first claims, invisible to committed-data probes.
 - **Opening stamp**: `REQUEST_OPENED` requires `:new.REQUIRED_AT_OPEN
   = REQUIRED_AMOUNT` on the transaction-fresh head — the immutable UI
   amount-series stamp cannot be born wrong (display-only, but
@@ -603,23 +617,25 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   EVENT_ID     VARCHAR2(128) NOT NULL,
   RECEIVED_AT  TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
   MATCH_STATUS VARCHAR2(20)  DEFAULT 'PROCESSED' NOT NULL,
-  -- evidence CONTENT, populated on UNMATCHED_TERMINAL rows only —
+  -- evidence CONTENT, populated on UNMATCHED_TERMINAL/RESOLVED rows —
   -- a status flag without the payload would be unresolvable:
   EV_UETR      VARCHAR2(64),
-  EV_CLASS     VARCHAR2(20),               -- SETTLED / REJECTED / MISMATCH
+  EV_CLASS     VARCHAR2(20),
   EV_AMOUNT    NUMBER(18,3),
   EV_PAYLOAD_REF VARCHAR2(200),
   CONSTRAINT INB_UQ UNIQUE (SOURCE, EVENT_ID),
   CONSTRAINT INB_STATUS_CK CHECK (MATCH_STATUS IN
-      ('PROCESSED','UNMATCHED_TERMINAL')),
-  -- evidence content is SHAPE-BOUND per status: an unresolvable
-  -- purge-exempt row must be schema-impossible
+      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED')),
+  -- evidence content is SHAPE-BOUND per status, with a CLOSED class
+  -- vocabulary: an unresolvable purge-exempt row must be
+  -- schema-impossible
   CONSTRAINT INB_SHAPE_CK CHECK (
       (MATCH_STATUS = 'PROCESSED'
         AND EV_UETR IS NULL AND EV_CLASS IS NULL
         AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL)
-   OR (MATCH_STATUS = 'UNMATCHED_TERMINAL'
-        AND EV_UETR IS NOT NULL AND EV_CLASS IS NOT NULL
+   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED')
+        AND EV_UETR IS NOT NULL
+        AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')
         AND EV_PAYLOAD_REF IS NOT NULL
         AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)))
 );
@@ -632,10 +648,13 @@ evidence columns) and pages while any `UNMATCHED_TERMINAL` row exists
 loses nothing, and redelivery hitting the inbox dedup cannot silently
 bury an evidence fact that was never resolved). Resolution is ATOMIC:
 the re-match transaction appends the resulting event under the
-payment's head lock AND flips the row to `PROCESSED` in the SAME
-transaction — never flag-first. Ops disposition is the only other
-closer. Inbox purge NEVER removes an `UNMATCHED_TERMINAL` row; only
-`PROCESSED` rows age out on the retention chain.
+payment's head lock AND flips the row to `RESOLVED` in the SAME
+transaction — never flag-first, and never to `PROCESSED` (the shape
+check reserves that for content-free rows; the evidence trail is
+RETAINED on resolved rows for audit — a two-state flip was
+schema-illegal as one update). Ops disposition is the only other
+closer. Inbox purge NEVER removes an `UNMATCHED_TERMINAL` row;
+`PROCESSED` and `RESOLVED` rows age out on the retention chain.
 
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction

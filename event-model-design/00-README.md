@@ -58,11 +58,13 @@ is needed in either direction.)
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
    archival mechanism outright; round 8 = 3C/4H/1L; round 9 =
    2C/2H, which retracted round 8's event-level UETR claim for the
-   head-level one — all closed by mechanism or removal, see
-   `event-model-v2.md` §0; no clean round yet after nine). The
-   baseline's mechanisms have survived MANY more such rounds;
-   additional rounds are required before the two are comparable.
-   Still the single largest open item.
+   head-level one; round 10 = 2C/4H (injective encoding,
+   UETR-association binding, feed ACCEPTED, RESOLVED inbox status) —
+   all closed by mechanism or removal, see `event-model-v2.md` §0;
+   no clean round yet after ten). The baseline's mechanisms have
+   survived MANY more such rounds; additional rounds are required
+   before the two are comparable. Still the single largest open
+   item.
 2. **Fold specification + golden vectors.** The fold must implement
    the baseline §4/§6/§7/§9/§10 semantics verbatim; the vector set and
    the `fold --explain` MVP deliverable do not exist yet.
