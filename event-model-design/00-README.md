@@ -52,7 +52,7 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Eighteen external adversarial
+1. **Adversarial review rounds.** Nineteen external adversarial
    rounds folded (2026-07-21/22: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
@@ -79,9 +79,11 @@ is needed in either direction.)
    amount agreement; reconciliation at request-ordinal granularity)
    ; round 18 = 1C/2H/1L (reconciled associations durable +
    guard-visible; MISMATCH no-op witness = the equal mismatch row;
-   QUERY_RESULT in the open-ordinal gate) — all closed by mechanism
-   or removal, see `event-model-v2.md` §0; no clean round yet after
-   eighteen). The baseline's mechanisms have
+   QUERY_RESULT in the open-ordinal gate); round 19 = 0C/2H — the
+   first zero-critical round since round 4 (reconciliation head
+   effect; stale purge sentence) — all closed by mechanism or
+   removal, see `event-model-v2.md` §0; no clean round yet after
+   nineteen). The baseline's mechanisms have
    survived MANY more such rounds; additional rounds are required
    before the two are comparable. Still the single largest open
    item.

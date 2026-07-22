@@ -276,6 +276,16 @@ ordinal and wedge the real request's evidence);
 `RES_REQUEST_ORDINAL` bound in every shape arm (LOW) (§5.3, §7, 01
 §8).
 
+Nineteenth round (2026-07-22): 0 CRITICAL / 2 HIGH — the first
+zero-critical round since round 4, both findings in the round-18
+reconciliation work, both closed: the reconciled association gained a
+HEAD EFFECT (disposal sets the NULL head UETR slot under its lock, so
+`PH_UETR_UQ` fences the simultaneous first claim; the
+successor-owned-slot residual resolves fail-closed as a parked
+multiplicity anomaly under dual control) and the stale "all resolved
+rows age out" sentence — which contradicted the permanence rule with
+v2 winning precedence — was corrected in place (§7).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -1026,8 +1036,23 @@ healthy payments.
   v4 §9.3 protocol — bound to exactly this (source, event id) and
   action, consumed APPROVED → CONSUMED by CAS in the same transaction
   (the columns are the echo; the approval-store CAS is the
-  enforcement). All resolved rows age out on the purge chain; inbox
-  purge NEVER removes an UNMATCHED_TERMINAL row.
+  enforcement). PROCESSED, RESOLVED_HANDLED, and FOREIGN-disposed
+  rows age out on the purge chain; inbox purge NEVER removes an
+  UNMATCHED_TERMINAL row NOR a RECONCILED_BY_KEY row — the permanence
+  rule stated above (an earlier draft's "all resolved rows age out"
+  would have deleted the ONLY record of the lost-UETR association and
+  let a re-emitted settlement book against the wrong payment).
+  And the reconciled association gains a HEAD EFFECT so the
+  simultaneous-first-claim fence covers it: the disposal transaction
+  (already holding the named head's lock) sets that head's `UETR` to
+  the reconciled UETR when the head's slot is NULL — a concurrent
+  first claim of the same UETR on another payment then collides on
+  `PH_UETR_UQ` at commit, exactly like every other channel. If the
+  head slot is already owned by a successor's UETR, the residual
+  concurrent window (until the reconciled row commits) resolves
+  FAIL-CLOSED: the three-source UNION returns two payments, the
+  delivery parks as a multiplicity anomaly, and dual-control
+  adjudicates ownership — loud and blocked, never a silent booking.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
   EXPLICIT transaction boundary. The ADMISSION transaction updates
   `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +

@@ -785,9 +785,15 @@ GUARD-VISIBLE: `RECONCILED_BY_KEY` rows are PERMANENT (they carry a
 UETR→(payment, ordinal) association recorded NOWHERE else — purging
 one would un-forget the UETR), and both the §9 matching UNION and
 the §6.3 first-claim probe include them as a source, so a later
-platform reuse of a reconciled UETR dies loudly at its commit. Inbox
-purge NEVER removes an `UNMATCHED_TERMINAL` or `RECONCILED_BY_KEY`
-row; the other statuses age out on the retention chain.
+platform reuse of a reconciled UETR dies loudly at its commit. The
+disposal additionally applies a HEAD EFFECT under the lock it
+already holds: the named head's `UETR` is set to the reconciled UETR
+when the slot is NULL, putting the association inside the
+`PH_UETR_UQ` fence for simultaneous first claims (a successor-owned
+slot leaves a bounded residual that resolves FAIL-CLOSED as a parked
+three-source multiplicity anomaly under dual control). Inbox purge
+NEVER removes an `UNMATCHED_TERMINAL` or `RECONCILED_BY_KEY` row;
+the other statuses age out on the retention chain.
 
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction
