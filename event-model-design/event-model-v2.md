@@ -116,6 +116,20 @@ stays fold-readable, with the deploy gate covering archived streams
 MAYBE stays resolver-owned, the resolver keeps querying, no separate
 unblock exists (01 §4).
 
+Seventh round (2026-07-21): 2 CRITICAL / 4 HIGH / 1 MEDIUM. Four of
+seven findings attacked the archival mechanism itself — the honest
+remediation was REMOVAL, not more machinery: event rows are now
+PERMANENT alongside the heads (§9, §10.4; partitioning-only tiering;
+the fold-readable-archive / rehydration / lateness-bound clauses of
+rounds 5–6 are superseded). The rest: feed-candidate union re-checked
+INSIDE the booking transaction + the honest same-instant residual
+(§8); `FEED_RESULT_RECORDED(REJECTED)` added as the 19th type so an
+authoritative feed rejection is recordable and release-whitelisted
+(§2.1, §2.2, §5.3); unmatched terminal evidence = durable
+`MATCH_STATUS` on the inbox row with LEVEL-TRIGGERED paging (§8);
+`PAYMENT_KEY` canonical encoding = byte-exact spec + golden vectors +
+one shared encoder (§3).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -180,7 +194,7 @@ Grants: application role has INSERT and SELECT only. A guard trigger
 raises on any UPDATE or DELETE — history is immutable against every
 writer including humans in an incident.
 
-### 2.1 Event vocabulary (18 types)
+### 2.1 Event vocabulary (19 types)
 
 Unchanged in meaning from v1/v4 except where noted: `REQUIRED_AMOUNT_SET`,
 `SNAPSHOT_INVALID_MARKED`, `REQUEST_OPENED`, `ENRICH_FAILED`,
@@ -188,10 +202,15 @@ Unchanged in meaning from v1/v4 except where noted: `REQUIRED_AMOUNT_SET`,
 `DOWNGRADED_FOR_REPOST`, `OUTCOME_RECORDED`, `SETTLED`,
 `SETTLEMENT_MISMATCH_RECORDED`, `EVIDENCE_CONTRADICTION_RECORDED`,
 `ESCALATION_MARKED`, `OPS_VERIFIED_OUTCOME_APPLIED`, `OPS_RETRY_REARMED`,
-`OPS_BLOCKED`, `OPS_ANNOTATED`, and **new** `OPS_MARKER_CLEARED`
+`OPS_BLOCKED`, `OPS_ANNOTATED`, **new** `OPS_MARKER_CLEARED`
 (the v4 §19.3 ops clear of a live reject marker — the v1 draft had no
 way to express it; without it a twice-rejected payment could never be
-re-armed except by a newer upstream message).
+re-armed except by a newer upstream message), and **new**
+`FEED_RESULT_RECORDED` (code `REJECTED`: the feed channel's terminal
+rejection of an active request — without it an authoritative feed
+reject was UNRECORDABLE: `SETTLED` means money moved, contradiction
+events require an existing terminal, and the §5.3 release whitelist
+demands a recorded evidence row; feed-executed remains `SETTLED`).
 
 ### 2.2 Complete shape matrix (closes L4)
 
@@ -212,6 +231,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated — §4) | N | N | R |
 | SETTLED | N | R | N | R | N | N | FEED |
+| FEED_RESULT_RECORDED | R: REJECTED | R | N | N | N | N | FEED |
 | SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | FEED |
 | EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME | R | N | O | N | N | R |
 | ESCALATION_MARKED | N | R | N | N | N | N | SYSTEM |
@@ -273,6 +293,13 @@ Version slots no longer participate in identity. Consequences:
   ordinal — which lives under the same golden-vector regime as v4 §5.1.
 - No epoch/generation machinery is needed for the main hazard. (An
   epoch component remains a cheap optional hardening; not required.)
+- **The `PAYMENT_KEY` encoding is itself identity input** and gets the
+  SAME discipline: a byte-exact canonical encoding specification,
+  golden vectors, and ONE shared encoder — two "reasonable" encodings
+  of the same scope tuple would create two heads for one payment and
+  re-derive the same idempotency keys under a fresh stream. Every
+  uniqueness guarantee in this design keys on the canonical form
+  existing exactly once.
 
 ## 4. Money facts are events; the fold only aggregates them — the L2 fix (money half)
 
@@ -317,11 +344,9 @@ frozen; no consumer (UI, scanner, resolver, ops surface) may
 re-implement any part of it. Two standing controls:
 
 1. **Deploy gate:** before a release containing a fold change goes
-   live, re-fold EVERY payment stream with a head row — open,
-   terminal, AND archived (archive storage is fold-readable, §9;
-   excluding archived-but-reopenable streams would convert a
-   deploy-time gate into a production WITNESS_DIVERGED liveness
-   failure on first later touch), no sampling — and compare against
+   live, re-fold EVERY payment stream with a head row — open AND
+   terminal, no sampling, no exclusions (events are permanent, §9,
+   so the full population is always foldable) — and compare against
    the `PAYMENT_HEAD` witness (§5). Any money-field difference is a
    page and blocks the deploy. Sampling is forbidden: a sampled gate
    provably lets a terminal-stream fold defect deploy silently and
@@ -535,8 +560,9 @@ already held):
   evidence row that POST-DATES THE LATEST ATTEMPT — evidence
   `VERSION >` the version of the ordinal's latest `POST_STARTED` —
   and only terminal-class evidence qualifies:
-  `POST_RESULT_RECORDED(DEFINITIVE_REJECT)` or
-  `QUERY_RESULT_RECORDED(REJECTED)`; `BUSINESS_REJECT` NEVER
+  `POST_RESULT_RECORDED(DEFINITIVE_REJECT)`,
+  `QUERY_RESULT_RECORDED(REJECTED)`, or
+  `FEED_RESULT_RECORDED(REJECTED)`; `BUSINESS_REJECT` NEVER
   qualifies (it is retry-class — its negative fact expires the
   moment a later attempt starts, and consuming it would let a lost
   response on attempt 2 be closed by attempt 1's stale reject).
@@ -694,11 +720,24 @@ healthy payments.
   for the same UETR, silently booking the wrong one; two indexed
   queries are trivial at this volume). One payment carrying the same
   UETR on several events resolves as ONE candidate. 0 payments →
-  unmatched path — and unmatched TERMINAL-class evidence (a
-  settlement no live or archived identity claims) is inbox-recorded
-  AND paged to ops, never silently acked; 1 → fold + append under
-  the lock; 2+ DISTINCT payments → CRITICAL anomaly, no state
-  change.
+  unmatched path: the inbox row is written with
+  `MATCH_STATUS = UNMATCHED_TERMINAL` — a DURABLE fact, so paging is
+  LEVEL-TRIGGERED from data (a sweep re-matches and pages while any
+  such row exists; a crash between commit and page loses nothing,
+  and a later-created head is found by the re-match), never an
+  edge-triggered side effect that a crash can drop; 1 → lock that
+  payment, then RE-RUN the union query INSIDE the transaction before
+  deciding (the initial lookup is unserialized check-then-act — a
+  concurrent acceptance claiming the same UETR on another payment
+  commits between lookup and lock, and booking on the stale set
+  would seal the wrong payment under the inbox); recheck still 1 →
+  fold + append; recheck 2+ → abort, CRITICAL, nothing committed,
+  redelivery retries. 2+ DISTINCT payments at any point → CRITICAL
+  anomaly, no state change. Residual (honesty): a same-UETR claim
+  committing AFTER the in-transaction recheck and before our commit
+  is detectable only once both are committed — UETR uniqueness is a
+  platform contract fact (§18 class); its violation surfaces as a
+  contradiction, not silently.
 
 ## 9. Operational inheritances (unchanged from v4, restated as binding)
 
@@ -722,28 +761,26 @@ immutability, the v4 clock-discipline problem disappears); engine
 collision contract as the keystone, proven by the §18 item-1 sandbox
 test before go-live.
 
-**Archival (finality rules — an unfenced archive would fork history):**
-`PAYMENT_HEAD` and `TRADE_HEAD` rows are PERMANENT — they are the
-fences (version counter, ordinal counter, watermarks) and cost bytes
-per payment; a deleted head would let a later legitimate snapshot
-re-admit the trade as first contact, re-deal version 1 and ordinal 1,
-and fork the archived stream. Only `PAYMENT_EVENT` rows archive, and
-only when the payment is terminal AND the trade is past the upstream
-reprocessing window AND past the engine's key-retention window
-(CT-04) AND past every evidence channel's contractual lateness bound
-(feed/Kafka retention included — archiving inside the window would
-make a late settlement's UETR unmatchable, silently ack it, and let a
-later snapshot open a successor against understated paid money). Any
-write touching a payment with archived events requires REHYDRATION
-first: restore the stream under the head lock and prove completeness
-by version continuity up to `LAST_VERSION`. Archive storage stays
-FOLD-READABLE for governance reads — the §4.2 deploy gate and feed
-identity matching cover archived streams too; only the hot write path
-requires rehydration. The heads never forget, so counters continue
-and nothing resets. Designing these rules precedes the first
-production event (they are cheap on paper and unfixable
-retroactively); executing archival stays a far-future operation at
-this volume.
+**Permanence (the archival decision — REMOVAL, not machinery):**
+`PAYMENT_HEAD`, `TRADE_HEAD`, AND `PAYMENT_EVENT` rows are all
+PERMANENT for the system's operational lifetime. An earlier revision
+designed event-row archival with finality windows and rehydration;
+two review rounds then showed the mechanism itself breeds
+CRITICAL-class defects faster than it can be fenced (archived
+`IDEM_CLAIM` rows leave the unique index and un-forget burned keys;
+rehydration cannot pass the version-continuity trigger it must use;
+the required evidence-lateness eligibility bound is not an obtainable
+contract fact; archived requests vanish from the view). The honest
+remediation is removal: at ~3,000 trades/day the event table grows by
+well under a million rows a year — decades of headroom for Oracle
+with `PE_KEY_IX` — so nothing forces rows out of the table.
+Storage tiering, if ever wanted, is PARTITIONING that never removes
+rows from the table or its global unique indexes (the claims, fence,
+and view keep working unchanged). Compliance-deletion pressure lands
+on the PII VAULT (00-README item 6: no erasable PII in events, ever),
+never on event rows. The heads never forget, the claims never leave
+the indexes, and the entire restore/matching story needs no
+archive-aware branch.
 
 ## 10. Honesty box v2 — what remains accepted, with mitigations
 
@@ -760,12 +797,14 @@ this volume.
 3. **The fold is a single point of interpretation.** Deliberate — it
    is also the single place to test. The witness (§5), the deploy gate
    (§4.2), and the DB backstops (§5.2/5.3) are the independent checks.
-4. **Event-table growth.** Trivial at 3k trades/day for years. The
-   archival DESIGN (§9 finality + rehydration rules, permanent heads)
-   is a pre-production requirement — retrofitting finality onto a
-   live append-only authority is exactly the kind of history surgery
-   this model forbids — but archival EXECUTION is a far-future
-   operation, not a go-live gate.
+4. **Event-table growth.** Rows are PERMANENT by design (§9 — the
+   archival mechanism was removed after review proved it a defect
+   factory; partitioning that never leaves the indexes is the only
+   sanctioned tiering). Under a million rows a year at this volume:
+   decades of headroom. The accepted residue is that this design
+   answer is volume-dependent — a future 100× volume would reopen
+   the question, and would have to solve the archived-claims /
+   rehydration problems this design deliberately refused to carry.
 5. **Everything still stands on the engine collision contract** —
    exactly as v4 does. §18 BLOCKING item 1 gates go-live for this
    design identically.

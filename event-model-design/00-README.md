@@ -22,7 +22,7 @@
 | File | What it is |
 |---|---|
 | `event-model-v2.md` | The refactor rationale: what changed from v1 and WHY — the v1-problem → v2-resolution map, the write-protocol redesign (pessimistic head lock, fence demoted to backstop), money-facts-as-events, fold governance, the contradiction exit, and the honesty box of what remains accepted |
-| `01-event-table-schema.md` | The normative schema reference: full DDL for all four structures, the complete 18-type shape matrix (with the CHECK derivation rule), identity (request-ordinal, restore-safe), the event vocabulary with fold effects, the per-event write protocol, backstops, and read surfaces |
+| `01-event-table-schema.md` | The normative schema reference: full DDL for all four structures, the complete 19-type shape matrix (with the CHECK derivation rule), identity (request-ordinal, restore-safe), the event vocabulary with fold effects, the per-event write protocol, backstops, and read surfaces |
 
 Where the two disagree, `event-model-v2.md` wins — `01` is its
 derived reference and the mismatch is a defect in `01`.
@@ -52,11 +52,12 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Six external adversarial rounds
+1. **Adversarial review rounds.** Seven external adversarial rounds
    folded (2026-07-21: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
-   2C/2H/2M; round 6 = 3C/3H — all closed by mechanism, see
-   `event-model-v2.md` §0; no clean round yet). The baseline's
+   2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
+   archival mechanism outright — all closed by mechanism or removal,
+   see `event-model-v2.md` §0; no clean round yet). The baseline's
    mechanisms have survived MANY more such rounds; additional rounds
    are required before the two are comparable. Still the single
    largest open item.
@@ -74,16 +75,18 @@ is needed in either direction.)
    rejects (per-event apply order, amount equality, key echo, version
    continuity, the closed-ordinal door admitting ONLY the dual-control
    pair), fence-collision head rebuild, contention behavior — plus the
-   generated 18-constraint shape set with its matrix parity self-test
+   generated 19-constraint shape set with its matrix parity self-test
    (comments and Markdown enforce nothing; only the generated set
    does), the COMPOUND-trigger enforcement point (single-row-insert
    guard; mutating-table behavior proven on real Oracle, not assumed),
    and the guard trigger's TX_ID/CREATED_AT stamping.
-6. **Event retention, archival, and compliance-deletion rules** —
-   preceded by data classification (which fields are personal data,
-   which records carry mandatory retention); the no-erasable-PII-in-
-   events rule (vault + opaque references) must precede the first
-   production event.
+6. **Data classification + the PII vault** — event rows are PERMANENT
+   by design (`event-model-v2.md` §9: archival removed; partitioning
+   is the only tiering), so ALL compliance-deletion pressure lands on
+   the vault: data classification (which fields are personal data,
+   which records carry mandatory retention) and the
+   no-erasable-PII-in-events rule (vault + opaque references) must
+   precede the first production event.
 7. **Full §-by-§ parity review against `requirment-v4.md`**, then
    external re-review — the final comparison is on TOTAL complexity
    (build + assurance + operations), not conceptual elegance.
