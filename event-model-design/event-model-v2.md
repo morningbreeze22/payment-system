@@ -130,6 +130,21 @@ authoritative feed rejection is recordable and release-whitelisted
 `PAYMENT_KEY` canonical encoding = byte-exact spec + golden vectors +
 one shared encoder (§3).
 
+Eighth round (2026-07-22, targeting the round-7 fixes): 3 CRITICAL /
+4 HIGH / 1 LOW, all closed — `PE_UETR_UQ` on a generated acceptance
+claim column now backs the §8 post-recheck residual with a schema
+constraint instead of a promise (§2, §8); `PAYMENT_HEAD.BUSINESS_ID`
+bound to the key (decoder-derived + CHECK) so a mis-bound head cannot
+drop out of its trade's fan-out worklist (§5); `DOWNGRADED_FOR_REPOST`
+trigger-gated on post-attempt NOT_FOUND evidence + the
+attempt-attribution question answered by the §18 key-dedup contract,
+stated (§5.3); `FEED_REJECTS_OUTCOME` contradiction code added
+(§2.2); unmatched inbox rows carry the evidence CONTENT, resolve
+atomically, and are purge-exempt (§7); partition maintenance must be
+index-preserving with a usability gate before writes resume (§9);
+`CREATED_AT` = SYS_EXTRACT_UTC per the inherited single-UTC rule
+(§2); two stale cross-references fixed (01).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -167,11 +182,12 @@ CREATE TABLE PAYMENT_EVENT (
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
   TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
                                                 --   transaction id; writers cannot supply it
-  CREATED_AT         TIMESTAMP      NOT NULL,   -- ALSO guard-trigger-stamped (SYSTIMESTAMP,
-                                                --   database clock): a writer-supplied value
-                                                --   would make an IMMUTABLE episode anchor
-                                                --   born wrong — trust-age/escalation clocks
-                                                --   depend on it, so no writer may supply it
+  CREATED_AT         TIMESTAMP      NOT NULL,   -- ALSO guard-trigger-stamped, UTC:
+                                                --   SYS_EXTRACT_UTC(SYSTIMESTAMP) per the
+                                                --   inherited v4 §16.4 single-UTC rule (a
+                                                --   local-clock stamp crosses DST jumps and
+                                                --   corrupts trust-age arithmetic forever);
+                                                --   no writer may supply it
 
   -- identity is claimed exactly once, in the schema:
   IDEM_CLAIM         VARCHAR2(128)  GENERATED ALWAYS AS
@@ -180,10 +196,16 @@ CREATE TABLE PAYMENT_EVENT (
   ORDINAL_CLAIM      VARCHAR2(220)  GENERATED ALWAYS AS
                        (CASE WHEN EVENT_TYPE = 'REQUEST_OPENED'
                              THEN PAYMENT_KEY || '#' || TO_CHAR(REQUEST_ORDINAL) END),
+  -- and so is the accepted UETR (cross-payment uniqueness backstop —
+  -- this is what makes the §8 matching residual LOUD instead of silent):
+  UETR_CLAIM         VARCHAR2(64)   GENERATED ALWAYS AS
+                       (CASE WHEN EVENT_TYPE = 'POST_RESULT_RECORDED'
+                              AND EVENT_CODE = 'ACCEPTED' THEN UETR END),
 
   CONSTRAINT PE_FENCE_UQ   UNIQUE (PAYMENT_KEY, VERSION),  -- backstop fence (§5.1)
   CONSTRAINT PE_IDEM_UQ    UNIQUE (IDEM_CLAIM),            -- identity write-once
-  CONSTRAINT PE_ORDINAL_UQ UNIQUE (ORDINAL_CLAIM)          -- ordinal write-once
+  CONSTRAINT PE_ORDINAL_UQ UNIQUE (ORDINAL_CLAIM),         -- ordinal write-once
+  CONSTRAINT PE_UETR_UQ    UNIQUE (UETR_CLAIM)             -- one acceptance per UETR, ever
   -- plus the full §2.2 shape-check set
 );
 CREATE INDEX PE_KEY_IX  ON PAYMENT_EVENT (PAYMENT_KEY, VERSION);
@@ -233,7 +255,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | SETTLED | N | R | N | R | N | N | FEED |
 | FEED_RESULT_RECORDED | R: REJECTED | R | N | N | N | N | FEED |
 | SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | FEED |
-| EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME | R | N | O | N | N | R |
+| EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME, FEED_REJECTS_OUTCOME | R | N | O | N | N | R |
 | ESCALATION_MARKED | N | R | N | N | N | N | SYSTEM |
 | OPS_VERIFIED_OUTCOME_APPLIED | N | R | N | N | N | N | OPS |
 | OPS_RETRY_REARMED / OPS_BLOCKED / OPS_MARKER_CLEARED / OPS_ANNOTATED | N | O | N | N | N | N | OPS |
@@ -367,7 +389,13 @@ dual-control ops event (§6), which is itself a new recorded fact.
 ```sql
 CREATE TABLE PAYMENT_HEAD (
   PAYMENT_KEY          VARCHAR2(200) PRIMARY KEY,
-  BUSINESS_ID          VARCHAR2(64)  NOT NULL,     -- card lookup (indexed)
+  BUSINESS_ID          VARCHAR2(64)  NOT NULL,     -- card lookup (indexed); BOUND to the key:
+                                                   --   derived FROM PAYMENT_KEY by the one
+                                                   --   canonical decoder at first contact, and
+                                                   --   CHECK-enforced against the key's leading
+                                                   --   component (an unbound copy would drop the
+                                                   --   payment from its trade's fan-out worklist
+                                                   --   and skip an absence-cancellation)
   LAST_VERSION         NUMBER(10)    NOT NULL,     -- must equal stream max
   NEXT_REQUEST_ORDINAL NUMBER(10)    NOT NULL,     -- identity counter (§3)
   OPEN_REQUEST_ORDINAL NUMBER(10),                 -- NULL = no open request
@@ -569,6 +597,17 @@ already held):
   Without this set, one wrong "it was never sent" / "it was
   rejected" decision after a crash releases an executed request's
   reservation and the successor pays a second time.
+- **Downgrade gate**: `DOWNGRADED_FOR_REPOST` requires a same-ordinal
+  `QUERY_RESULT_RECORDED(NOT_FOUND)` row post-dating the latest
+  `POST_STARTED` (the trust-age arithmetic stays fold policy; the
+  EVIDENCE EXISTENCE is the trigger's part — without it a wrong
+  decision could downgrade an ACCEPTED request). Attempt attribution
+  note (contract-backed): evidence is keyed, and the engine's
+  collision/dedup contract (§18 keystone) means ONE key = ONE
+  engine-side instruction — key-scoped evidence is therefore
+  attempt-agnostic BY CONTRACT; there is no "stale attempt's
+  evidence" class distinct from false provider evidence, which every
+  design fails on equally.
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`, and the per-event head effect sets
   `LAST_VERSION = :new.VERSION` — closing the skipped-slot gap the
@@ -660,7 +699,14 @@ healthy payments.
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction
   that decides "no-op": stale evidence). "Seen" and "processed" commit
-  atomically; a crash before commit leaves neither.
+  atomically; a crash before commit leaves neither. An UNMATCHED
+  terminal delivery's inbox row additionally carries the EVIDENCE
+  CONTENT (UETR, result class, amount, payload reference) — a status
+  flag without the payload would be unresolvable by the sweep; the
+  sweep's later resolution appends the event AND flips the status to
+  PROCESSED in ONE transaction under the payment's head lock (the
+  normal write path); inbox purge NEVER removes an
+  UNMATCHED_TERMINAL row (only PROCESSED rows age out).
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
   EXPLICIT transaction boundary. The ADMISSION transaction updates
   `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +
@@ -733,11 +779,12 @@ healthy payments.
   would seal the wrong payment under the inbox); recheck still 1 →
   fold + append; recheck 2+ → abort, CRITICAL, nothing committed,
   redelivery retries. 2+ DISTINCT payments at any point → CRITICAL
-  anomaly, no state change. Residual (honesty): a same-UETR claim
-  committing AFTER the in-transaction recheck and before our commit
-  is detectable only once both are committed — UETR uniqueness is a
-  platform contract fact (§18 class); its violation surfaces as a
-  contradiction, not silently.
+  anomaly, no state change. The post-recheck race is caught BY THE
+  SCHEMA, not by a promise: `PE_UETR_UQ` (§2 — one acceptance claim
+  per UETR, ever) makes the competing same-UETR acceptance die
+  loudly at ITS commit with a constraint failure + CRITICAL page.
+  UETR uniqueness is a platform contract fact (§18 class); its
+  violation is now a loud event, never a silent double-booking.
 
 ## 9. Operational inheritances (unchanged from v4, restated as binding)
 
@@ -776,7 +823,13 @@ well under a million rows a year — decades of headroom for Oracle
 with `PE_KEY_IX` — so nothing forces rows out of the table.
 Storage tiering, if ever wanted, is PARTITIONING that never removes
 rows from the table or its global unique indexes (the claims, fence,
-and view keep working unchanged). Compliance-deletion pressure lands
+and view keep working unchanged) — with the maintenance rule stated,
+because Oracle partition operations mark global indexes UNUSABLE by
+default: every partition DDL MUST use index-maintaining form
+(`UPDATE INDEXES` / online operations), and writes may resume only
+after verifying every `PE_*` unique index reports VALID — an
+unusable claims index is a global liveness outage, checklist-5
+evidence territory. Compliance-deletion pressure lands
 on the PII VAULT (00-README item 6: no erasable PII in events, ever),
 never on event rows. The heads never forget, the claims never leave
 the indexes, and the entire restore/matching story needs no

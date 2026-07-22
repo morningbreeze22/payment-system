@@ -56,11 +56,11 @@ is needed in either direction.)
    folded (2026-07-21: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
-   archival mechanism outright — all closed by mechanism or removal,
-   see `event-model-v2.md` §0; no clean round yet). The baseline's
-   mechanisms have survived MANY more such rounds; additional rounds
-   are required before the two are comparable. Still the single
-   largest open item.
+   archival mechanism outright; round 8 = 3C/4H/1L — all closed by
+   mechanism or removal, see `event-model-v2.md` §0; no clean round
+   yet after eight). The baseline's mechanisms have survived MANY
+   more such rounds; additional rounds are required before the two
+   are comparable. Still the single largest open item.
 2. **Fold specification + golden vectors.** The fold must implement
    the baseline §4/§6/§7/§9/§10 semantics verbatim; the vector set and
    the `fold --explain` MVP deliverable do not exist yet.
