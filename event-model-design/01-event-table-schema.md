@@ -657,7 +657,14 @@ transaction boundary:
   accepted admission whose own fan-out was fenced out, including
   cancels-to-zero; skipped only when the accepted pair is NULL),
   THEN, if `LAST_SEEN_SEQ > LAST_ACCEPTED_SEQ` (or accepted is NULL),
-  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)`. An invalid-only fan-out
+  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)` — applied ONLY to the
+  MARKER SET stamped durably at seen-admission (heads existing at
+  that moment ∪ the invalid document's canonically extractable keys,
+  recorded alongside the seen pair for crash-resume): a payment
+  first introduced by later-admitted valid truth the invalid
+  document never named must NOT inherit the marker (inherited §6.6 —
+  blanket application blocked it behind an unlatch bar no necessary
+  future snapshot would clear). An invalid-only fan-out
   without the catch-up would starve an already-accepted cancellation
   behind the fence and let a cancelled payment post. Worklist =
   payments named in the stored ACCEPTED snapshot ∪ existing head rows

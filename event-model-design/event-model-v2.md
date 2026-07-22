@@ -372,6 +372,16 @@ release predicate (01 §6.3) reduced to a citation (LOW). The
 round-26 acceptance exclusion held under the downgrade-cycle attack,
 and the full gate inventory checked sound.
 
+Twenty-eighth round (2026-07-22): 0 CRITICAL / 1 HIGH — the
+current-state fan-out applied the invalid marker BLANKET-wide: a
+payment first introduced by later-admitted valid truth (never named
+by the invalid document) inherited the marker and was blocked behind
+an unlatch bar no necessary future snapshot would clear. The marker
+now applies only to the MARKER SET stamped durably at seen-admission
+(existing heads ∪ extractable keys, recorded alongside the seen
+pair), restoring inherited §6.6 (§7, 01 §7). The full gate inventory
+otherwise checked sound.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -1219,7 +1229,15 @@ healthy payments.
   (seq-guarded — catching up any accepted admission whose own fan-out
   was fenced out, including cancels-to-zero), THEN, if the seen
   snapshot is invalid (`LAST_SEEN_SEQ > LAST_ACCEPTED_SEQ`),
-  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)`. An invalid-only fan-out
+  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)` — applied ONLY to the
+  MARKER SET stamped DURABLY at seen-admission (payments whose heads
+  existed at that moment ∪ the invalid document's canonically
+  extractable keys, recorded alongside the seen pair so crash-resume
+  reads the same set): a payment FIRST INTRODUCED by later-admitted
+  valid truth the invalid document never named must NOT inherit the
+  marker — blanket application blocked such a payment behind an
+  unlatch bar of `> LAST_SEEN_SEQ` that no necessary future snapshot
+  would ever clear (inherited §6.6). An invalid-only fan-out
   that skipped the catch-up would starve an already-accepted
   cancellation behind the fence and let a cancelled payment post.
   Worklist = payments named in the stored ACCEPTED snapshot ∪ existing
