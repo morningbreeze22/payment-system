@@ -643,6 +643,10 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   -- resolution provenance (which exit closed an unmatched row):
   RES_PAYMENT_KEY  VARCHAR2(200),             -- RESOLVED_HANDLED / RECONCILED_BY_KEY:
                                               --   the payment it was handled against
+  RES_REQUEST_ORDINAL NUMBER(10),             -- RECONCILED_BY_KEY: WHICH request the
+                                              --   human's association claim names — the
+                                              --   locked agreement check runs at THIS
+                                              --   granularity, and the approval binds to it
   RES_AT_VERSION   NUMBER(10),                -- RESOLVED_HANDLED: head LAST_VERSION at
                                               --   handling time (audit pointer, NEVER
                                               --   load-bearing)
@@ -696,9 +700,11 @@ CREATE TABLE INBOUND_EVENT_INBOX (
                  AND DISPOSED_REASON IS NOT NULL
                  AND RES_AT_VERSION IS NULL
                  AND ((DISPOSED_CATEGORY = 'RECONCILED_BY_KEY'
-                       AND RES_PAYMENT_KEY IS NOT NULL)
+                       AND RES_PAYMENT_KEY IS NOT NULL
+                       AND RES_REQUEST_ORDINAL IS NOT NULL)
                    OR (DISPOSED_CATEGORY = 'FOREIGN'
-                       AND RES_PAYMENT_KEY IS NULL))))))
+                       AND RES_PAYMENT_KEY IS NULL
+                       AND RES_REQUEST_ORDINAL IS NULL))))))
 );
 ```
 
@@ -731,10 +737,14 @@ EV REJECTED forbids executed-class/`SETTLED` bookings; EV MISMATCH
 forbids BOTH (its legal appends: `SETTLEMENT_MISMATCH_RECORDED` or a
 contradiction); contradiction events always admissible; (2) no
 witnessless no-op — a terminal delivery handled with NO append
-requires an existing same-UETR event whose class AGREES with the
-evidence. Transcription fidelity (delivery → EV columns) is the
-inherited CA-1 recorded-at-the-time code class, one shared
-golden-vector-tested transcriber.
+requires that the ASSOCIATED ORDINAL (bound to the delivery's UETR
+via any of its UETR-bearing events — an acceptance row suffices) has
+an AUTHORITATIVE outcome (latest outcome-class event, §5 supersession
+— never a superseded historical one) agreeing in CLASS and, for
+settled/mismatch classes, in AMOUNT with the evidence. Transcription
+fidelity (delivery → EV columns) is the inherited CA-1
+recorded-at-the-time code class, one shared golden-vector-tested
+transcriber.
 `RESOLVED_DISPOSED` covers evidence that CANNOT go
 through a payment's write path, in two audited categories: `FOREIGN`
 (not ours) and `RECONCILED_BY_KEY` (the lost-UETR settlement: the
@@ -742,15 +752,19 @@ response timed out, the key-query recovery carried no UETR, no
 stream will ever contain this delivery's UETR — a human reconciles
 it to the payment via the §9.1 query trail and records that payment
 key). `RECONCILED_BY_KEY` is STATE-GATED with a real
-enforcement point: the disposal transaction is a write-path citizen —
-it locks the NAMED payment's head (`SELECT FOR UPDATE`), and under
-that lock the inbox trigger verifies the stream contains an
-authoritative outcome agreeing with the evidence (class and amount)
-AND the head is not parked/quarantined, serialized against any
-concurrent verified-outcome correction. If the stream disagrees,
-disposal FAILS — the truth enters through the dual-control
-verified-outcome door FIRST; reconciliation acknowledges recorded
-truth, it never substitutes for it. Both categories require actor + reason + an approval through
+enforcement point at REQUEST granularity: the reconciliation names
+payment key AND request ordinal (the §9.1 trail identifies the
+request — a payment-level check let one ordinal's hidden settlement
+be acknowledged against another's equal-sized execution); the
+disposal transaction locks the NAMED payment's head
+(`SELECT FOR UPDATE`), and under that lock the inbox trigger verifies
+THE NAMED ORDINAL's authoritative outcome agrees with the evidence
+(class and amount) AND the head is not parked/quarantined, serialized
+against concurrent corrections; the four-eyes approval binds to the
+stated (payment, ordinal) claim. If the stream disagrees, disposal
+FAILS — the truth enters through the dual-control verified-outcome
+door FIRST; reconciliation acknowledges recorded truth, it never
+substitutes for it. Both categories require actor + reason + an approval through
 the INHERITED §9.3 protocol (bound to exactly this (source, event
 id) + action, consumed APPROVED→CONSUMED by CAS in the same
 transaction — columns are the echo, the approval-store CAS is the

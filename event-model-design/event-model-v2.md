@@ -252,6 +252,17 @@ under that lock, serialized against concurrent corrections (§7). The
 transcription-fidelity residue stated honestly as the inherited CA-1
 recorded-at-the-time class.
 
+Seventeenth round (2026-07-22): 3 CRITICAL / 1 HIGH, all closed —
+the no-op witness rule sharpened in the three dimensions review
+proved wrong: the witness is the ASSOCIATED ORDINAL's AUTHORITATIVE
+outcome (not any historical event — a superseded EXECUTED cannot
+witness), agreement includes AMOUNT for settled/mismatch classes,
+and the ordinal is resolved through any UETR-bearing event so the
+legal no-UETR query-recovered outcome qualifies (§7);
+`RECONCILED_BY_KEY` now names the REQUEST ORDINAL and the locked
+check runs at that granularity, the approval bound to the stated
+association claim (§7).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -923,11 +934,22 @@ healthy payments.
      was missing, and a 90-mismatch could be laundered into a clean
      100-rejection). Contradiction events are ALWAYS admissible.
   2. **No witnessless no-op**: a terminal delivery handled with NO
-     append requires an existing same-UETR event whose class AGREES
-     with the evidence (executed-class terminal or `SETTLED` for EV
-     SETTLED; rejected-class for EV REJECTED; a mismatch row for EV
-     MISMATCH) — disagreeing evidence can never be silently no-opped
-     past the contradiction park.
+     append requires that THE ASSOCIATED ORDINAL — the ordinal the
+     delivery's UETR is bound to by the association gate, resolved
+     through ANY of its UETR-bearing events (an acceptance row
+     suffices; requiring the UETR on the terminal itself refused the
+     legal query-recovered outcome, which legitimately carries none)
+     — has an AUTHORITATIVE outcome (the §4 latest-outcome-class
+     rule, NOT any historical event: a superseded `EXECUTED` under a
+     later verified NOT_EXECUTED is precisely what must NOT witness
+     a no-op) whose CLASS agrees with the evidence (executed-class /
+     `SETTLED` for EV SETTLED; rejected-class for EV REJECTED; a
+     mismatch row for EV MISMATCH) AND, for settled/mismatch
+     classes, whose AMOUNT equals the evidence amount (§6 already
+     declares a differing terminal amount CONTRADICTORY — a
+     100-executed witness must not no-op a 90-settlement).
+     Disagreeing evidence can never be silently no-opped past the
+     contradiction park.
   The irreducible residue, stated honestly: TRANSCRIPTION fidelity —
   that the handler wrote the delivery's actual class/amount/UETR into
   the EV columns at all — is code: exactly the CA-1
@@ -947,14 +969,21 @@ healthy payments.
   `RECONCILED_BY_KEY` is an ACKNOWLEDGMENT that the money truth is
   ALREADY in the stream, never a substitute for putting it there —
   and the state gate has a REAL ENFORCEMENT POINT, not a prose
-  predicate: the disposal transaction is a write-path citizen. It
-  takes `SELECT FOR UPDATE` on the NAMED payment's head (it has the
-  key — that is what reconciliation supplies), and under that lock
-  the inbox compound trigger performs two same-transaction reads:
-  the stream must contain an authoritative outcome AGREEING with the
-  evidence (class and amount), and the head must not be parked or
-  quarantined. The head lock serializes the check against any
-  concurrent verified-outcome correction. If the stream DISAGREES —
+  predicate: the disposal transaction is a write-path citizen. The
+  reconciliation names BOTH the payment key AND the request ordinal
+  (the §9.1 query trail identifies the request, not just the
+  payment — a payment-level check let ordinal 1's hidden settlement
+  be acknowledged against ordinal 2's equal-sized execution). It
+  takes `SELECT FOR UPDATE` on the NAMED payment's head, and under
+  that lock the inbox compound trigger verifies: THE NAMED ORDINAL's
+  authoritative outcome AGREES with the evidence (class and amount),
+  and the head is not parked or quarantined. The head lock
+  serializes the check against any concurrent verified-outcome
+  correction; the explicit ordinal makes the human's association
+  claim visible to the four-eyes approver, whose approval is bound
+  to it (a wrong association now needs two people wrong about a
+  stated, checkable claim — the same residue class as any §9.3
+  action). If the stream DISAGREES —
   the evidence says settled, the stream says rejected — disposal
   FAILS; the truth must first enter through the §6 dual-control
   verified-outcome door (booking the money and re-evaluating under
