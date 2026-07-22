@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Event Model Playground — watch the stream grow</title>
+<style>
+:root{
+ --bg:#F3F5F8; --surface:#FFF; --ink:#1B2532; --ink2:#4A5866; --ink3:#7A8794;
+ --line:#D8DEE5; --acc:#4A5BB5; --accbg:#EAEDF9;
+ --ok:#2E7D4F; --okbg:#E4F1E9; --wait:#9A6A00; --waitbg:#FBF3DF;
+ --bad:#B23A32; --badbg:#FBEAE8; --maybe:#6B4FA0; --maybebg:#EFEAF7; --grey:#7A8794;
+ --token:#C7811F; --mono:ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+ --bg:#12161D; --surface:#1B222C; --ink:#E4E9EE; --ink2:#A9B4BF; --ink3:#77828E;
+ --line:#313B48; --acc:#93A2E8; --accbg:#242B45;
+ --ok:#6FBE8F; --okbg:#1B2F23; --wait:#E0B457; --waitbg:#33290F;
+ --bad:#E58077; --badbg:#3A1F1C; --maybe:#A996D8; --maybebg:#2A2440; --grey:#8B96A2;
+ --token:#EBB35A;}}
+:root[data-theme="dark"]{
+ --bg:#12161D; --surface:#1B222C; --ink:#E4E9EE; --ink2:#A9B4BF; --ink3:#77828E;
+ --line:#313B48; --acc:#93A2E8; --accbg:#242B45;
+ --ok:#6FBE8F; --okbg:#1B2F23; --wait:#E0B457; --waitbg:#33290F;
+ --bad:#E58077; --badbg:#3A1F1C; --maybe:#A996D8; --maybebg:#2A2440; --grey:#8B96A2;
+ --token:#EBB35A;}
+:root[data-theme="light"]{
+ --bg:#F3F5F8; --surface:#FFF; --ink:#1B2532; --ink2:#4A5866; --ink3:#7A8794;
+ --line:#D8DEE5; --acc:#4A5BB5; --accbg:#EAEDF9;
+ --ok:#2E7D4F; --okbg:#E4F1E9; --wait:#9A6A00; --waitbg:#FBF3DF;
+ --bad:#B23A32; --badbg:#FBEAE8; --maybe:#6B4FA0; --maybebg:#EFEAF7; --grey:#7A8794;
+ --token:#C7811F;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;padding:0 0 70px}
+.hero{padding:14px 22px 10px;background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 9%,var(--bg)),var(--bg))}
+.wrap{max-width:1700px;width:100%;margin:0 auto;padding:0 18px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);margin:0 0 3px}
+h1{font-size:21px;margin:0 0 3px;letter-spacing:-.015em}
+.lede{color:var(--ink2);max-width:110ch;margin:4px 0 0;font-size:13.5px}
+.lede b{color:var(--ink)}
+.stage{display:grid;grid-template-columns:340px minmax(0,1fr);gap:12px;align-items:start;margin-top:12px}
+@media(max-width:1050px){.stage{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h3{margin:0 0 8px;font-size:12px;font-family:var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.side{display:flex;flex-direction:column;gap:10px}
+.scensel{width:100%;font:600 13.5px/1.3 inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer}
+.scensel:focus{outline:none;border-color:var(--acc)}
+.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.controls button{font:600 13px/1 inherit;padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer}
+.controls button:hover:not(:disabled){border-color:var(--acc)}
+.controls button.pri{background:var(--acc);border-color:var(--acc);color:var(--surface)}
+.controls button:disabled{opacity:.35;cursor:default}
+.dots{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.dots i.done{background:var(--acc);opacity:.45}
+.dots i.on{background:var(--acc);transform:scale(1.3)}
+.narr .ev{font-size:15px;font-weight:700;margin:0 0 5px;display:flex;gap:8px;align-items:baseline}
+.narr .stepn{font-family:var(--mono);font-size:11px;color:var(--ink3);font-weight:600;white-space:nowrap}
+.narr p{margin:0;color:var(--ink2);font-size:13.5px}
+.narr .ref{font-family:var(--mono);font-size:11px;color:var(--ink3);display:block;margin-top:7px}
+.verdict{margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;display:none}
+.verdict.ok{display:block;background:var(--okbg);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent)}
+.verdict.bad{display:block;background:var(--badbg);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 40%,transparent)}
+.verdict.wait{display:block;background:var(--waitbg);color:var(--wait);border:1px solid color-mix(in srgb,var(--wait) 40%,transparent)}
+.verdict.maybe{display:block;background:var(--maybebg);color:var(--maybe);border:1px solid color-mix(in srgb,var(--maybe) 40%,transparent)}
+.dims{display:flex;flex-wrap:wrap;gap:6px}
+.dim{border:1px solid var(--line);border-radius:6px;padding:4px 9px;background:var(--bg);min-width:86px}
+.dim b{display:block;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);font-family:var(--mono)}
+.dim span{font-family:var(--mono);font-size:13px;font-weight:700}
+.dim.chg{border-color:var(--token);background:color-mix(in srgb,var(--token) 12%,var(--bg))}
+.dim.chg span{color:var(--token)}
+.dim.badv span{color:var(--bad)}
+.headtbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+.headtbl td{padding:3px 6px;border-bottom:1px solid var(--line)}
+.headtbl td:first-child{color:var(--ink3)}
+.headtbl td:last-child{font-weight:700;text-align:right}
+.headtbl tr.hl td{background:color-mix(in srgb,var(--token) 14%,transparent)}
+.stream{min-height:200px}
+.evrow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono);font-size:12px;padding:5px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.evrow .v{color:var(--ink3);width:30px;flex-shrink:0}
+.evrow .ty{font-weight:700}
+.evrow .cd{color:var(--ink2)}
+.evrow .xtra{color:var(--ink3);font-size:11px}
+.evrow.k-up .ty{color:var(--acc)}
+.evrow.k-life .ty{color:var(--ok)}
+.evrow.k-ev .ty{color:var(--wait)}
+.evrow.k-bad .ty{color:var(--bad)}
+.evrow.k-ops .ty{color:var(--maybe)}
+.evrow.new{animation:fin .6s}
+@keyframes fin{0%{background:color-mix(in srgb,var(--token) 30%,transparent)}100%{background:transparent}}
+.refused{border:1.5px dashed var(--bad);border-radius:8px;background:var(--badbg);color:var(--bad);padding:6px 10px;margin:6px 0;font-family:var(--mono);font-size:12px;animation:fin .6s}
+.refused b{display:block;font-family:"Segoe UI",system-ui,sans-serif}
+.noop{border:1.5px dashed var(--line);border-radius:8px;background:var(--bg);color:var(--ink2);padding:6px 10px;margin:6px 0;font-size:12.5px;animation:fin .6s}
+.mainrow{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:12px;align-items:start}
+@media(max-width:1250px){.mainrow{grid-template-columns:1fr}}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;border-radius:9px;padding:1px 8px;margin-left:6px;vertical-align:1px}
+.badge.park{background:var(--badbg);color:var(--bad)}
+.badge.maybe{background:var(--maybebg);color:var(--maybe)}
+.badge.ok{background:var(--okbg);color:var(--ok)}
+.badge.wait{background:var(--waitbg);color:var(--wait)}
+.trade{font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+.trade b{color:var(--ink)}
+.bars .bar{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:11.5px}
+.bars label{width:66px;text-align:right;font-family:var(--mono);color:var(--ink3)}
+.bars .tr{flex:1;height:14px;background:var(--bg);border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+.bars .fl{height:100%;border-radius:7px;transition:width .6s cubic-bezier(.2,.8,.3,1)}
+.bars .v{width:38px;font-family:var(--mono);font-weight:700;font-size:12px}
+.f-req{background:var(--grey)}.f-paid{background:var(--ok)}.f-res{background:var(--wait)}
+footer{margin:26px auto 0;max-width:1700px;padding:0 18px;color:var(--ink3);font-size:12px}
+</style>
+</head>
+<body>
+<div class="hero"><div class="wrap">
+ <p class="eyebrow">event-model-design · Alternative B · proposal</p>
+ <h1>Event Model Playground — watch the stream grow</h1>
+ <p class="lede">Pick a scenario, press <b>Next</b>. Every step either <b>appends immutable rows</b> to <code style="font-family:var(--mono)">PAYMENT_EVENT</code>, is <b>refused by a guard</b> (shown in red — nothing written), or is a <b>benign no-op</b>. The head and the fold panels are always recomputed from the stream you can see — there is no hidden state. Companion: <b>event-model-explained.html</b> (the concepts); sources: <code style="font-family:var(--mono)">event-model-v2.md</code> / <code style="font-family:var(--mono)">01-event-table-schema.md</code>.</p>
+</div></div>
+
+<div class="wrap"><div class="stage">
+ <div class="side">
+  <div class="card">
+   <h3>Scenario</h3>
+   <select class="scensel" id="scenSel"></select>
+   <div class="controls">
+    <button id="btnPrev">◂ Back</button>
+    <button id="btnNext" class="pri">Next ▸</button>
+    <button id="btnRestart">↺</button>
+    <div class="dots" id="dots"></div>
+   </div>
+  </div>
+  <div class="card narr">
+   <h3>What just happened</h3>
+   <div class="ev"><span class="stepn" id="stepN"></span><span id="stepT"></span></div>
+   <p id="stepP"></p>
+   <span class="ref" id="stepRef"></span>
+   <div class="verdict" id="verdict"></div>
+  </div>
+  <div class="card">
+   <h3>The fold (recomputed from the stream)</h3>
+   <div class="dims" id="dims"></div>
+   <div class="bars" id="bars" style="margin-top:8px"></div>
+  </div>
+ </div>
+
+ <div class="mainrow">
+  <div class="card">
+   <h3>PAYMENT_EVENT — append-only, the single authority <span id="pkey" style="text-transform:none;letter-spacing:0"></span></h3>
+   <div class="stream" id="stream"></div>
+  </div>
+  <div class="side">
+   <div class="card">
+    <h3>PAYMENT_HEAD — lock · witness · backstop <span id="phase"></span></h3>
+    <table class="headtbl" id="headtbl"></table>
+    <p style="font-size:11.5px;color:var(--ink3);margin:8px 0 0">Updated in the append transaction. Rebuildable from the stream. Can VETO a write, never authorize one.</p>
+   </div>
+   <div class="card" id="tradeCard" style="display:none">
+    <h3>TRADE_HEAD — two watermarks</h3>
+    <div class="trade" id="tradeBox"></div>
+   </div>
+   <div class="card" id="inboxCard" style="display:none">
+    <h3>INBOUND_EVENT_INBOX</h3>
+    <div class="trade" id="inboxBox"></div>
+   </div>
+  </div>
+ </div>
+</div></div>
+
+<footer>Every rule shown here cites its section in <b>event-model-v2.md</b> (v2) or <b>01-event-table-schema.md</b> (01). The design is a PROPOSAL; the adopted baseline remains requirment-v4.md. 32 external adversarial review rounds ended clean — what remains is implementation evidence (00-README items 2–7).</footer>
+
+<script>
+'use strict';
+/* ---------- event helpers ---------- */
+const K={REQUIRED_AMOUNT_SET:'k-up',SNAPSHOT_INVALID_MARKED:'k-up',
+ REQUEST_OPENED:'k-life',ENRICH_FAILED:'k-life',POST_STARTED:'k-life',DOWNGRADED_FOR_REPOST:'k-life',
+ OUTCOME_RECORDED:'k-life',ESCALATION_MARKED:'k-life',
+ POST_RESULT_RECORDED:'k-ev',QUERY_RESULT_RECORDED:'k-ev',SETTLED:'k-ev',FEED_RESULT_RECORDED:'k-ev',
+ SETTLEMENT_MISMATCH_RECORDED:'k-bad',EVIDENCE_CONTRADICTION_RECORDED:'k-bad',
+ OPS_VERIFIED_OUTCOME_APPLIED:'k-ops',OPS_RETRY_REARMED:'k-ops',OPS_BLOCKED:'k-ops',OPS_MARKER_CLEARED:'k-ops',OPS_ANNOTATED:'k-ops'};
+const E=(ty,o={})=>({ty,...o}); // {ty,code,ord,seq,amt,key,uetr,src,note,tx}
+
+/* ---------- fold: pure function over the visible stream ---------- */
+function fold(evs){
+ let req=null,reqSeq=null;
+ const perOrd={},uetrByOrd={};
+ let marker=null; // {kind, seq}
+ let parked=false, maybe=false, escalated=false;
+ evs.forEach(e=>{
+  if(e.ty==='REQUIRED_AMOUNT_SET'){ if(reqSeq===null||e.seq>reqSeq){reqSeq=e.seq;req=e.amt;
+    if(marker&&marker.seq<e.seq)marker=null;} }
+  if(e.ty==='SNAPSHOT_INVALID_MARKED'){ if(!marker||e.seq>marker.seq)marker={kind:'snapshot_invalid',seq:e.seq}; }
+  if(e.ty==='ENRICH_FAILED'&&e.code==='DEFINITIVE'&&e.ord==null){ marker={kind:'validation_failed',seq:e.seq}; }
+  if(e.ord!=null){ (perOrd[e.ord]=perOrd[e.ord]||[]).push(e); if(e.uetr)uetrByOrd[e.ord]=e.uetr; }
+  if(e.ty==='EVIDENCE_CONTRADICTION_RECORDED')parked=true;
+  if(e.ty==='SETTLEMENT_MISMATCH_RECORDED')parked=true;
+  if(e.ty==='POST_RESULT_RECORDED'&&(e.code==='AMBIGUOUS'||e.code==='UNMAPPED'))maybe=true;
+  if(e.ty==='ESCALATION_MARKED')escalated=true;
+  if(e.ty==='OUTCOME_RECORDED'&&e.code==='PLATFORM_VERIFIED_EXECUTED')parked=false;
+  if(e.ty==='OUTCOME_RECORDED'&&e.code==='PLATFORM_VERIFIED_NOT_EXECUTED')parked=false;
+ });
+ let paid=0,reserved=0,openOrd=null,openKey=null,provRejected=false;
+ Object.keys(perOrd).map(Number).sort((a,b)=>a-b).forEach(o=>{
+  const evs2=perOrd[o],open=evs2.find(e=>e.ty==='REQUEST_OPENED');
+  if(!open)return;
+  const outs=evs2.filter(e=>e.ty==='OUTCOME_RECORDED'||e.ty==='SETTLED');
+  if(!outs.length){reserved+=open.amt;openOrd=o;openKey=open.key;
+   if(evs2.some(e=>e.ty==='POST_RESULT_RECORDED'&&e.code==='AMBIGUOUS'))maybe=true;
+   return}
+  const auth=outs[outs.length-1]; // latest outcome-class = authoritative (§5)
+  if(auth.ty==='SETTLED'||auth.code==='EXECUTED'||auth.code==='PLATFORM_VERIFIED_EXECUTED')paid+=auth.amt;
+  if(auth.code==='REJECTED_PROVIDER'||auth.code==='PLATFORM_VERIFIED_NOT_EXECUTED')provRejected=true;
+ });
+ const nOrd=1+Object.values(perOrd).filter(l=>l.some(e=>e.ty==='REQUEST_OPENED')).length;
+ return {req,paid,reserved,openOrd,openKey,nextOrd:nOrd,marker,parked,maybe,escalated,provRejected,
+  short:(req==null?0:req)-paid-reserved,uetrByOrd};
+}
+
+/* ---------- scenarios ----------
+ step = {t,n,ref, add:[events], refuse:{gate,detail}, noop:'text',
+         verdict:{cls,txt}, trade:{acc,seen,note}, inbox:'text', phase:'override'} */
+const SC=[
+
+{id:'happy',name:'1 · Happy path — snapshot to settled',
+ blurb:'',
+ pkey:'TR-1|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Trade snapshot seq 100 admitted',n:'Admission locks TRADE_HEAD first (SELECT FOR UPDATE — its FIRST action), compares seq 100 against LAST_ACCEPTED_SEQ (NULL: first contact), stores the accepted+seen pairs, and fans out. The per-payment fan-out transaction passes the equality fence (my seq 100 = LAST_SEEN_SEQ 100), locks the payment head (insert-on-first-contact: LAST_VERSION 0, NEXT_REQUEST_ORDINAL 1, REQUIRED_AMOUNT NULL), and appends the money truth.',
+  ref:'v2 §7 · 01 §7',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'})],
+  trade:{acc:'100',seen:'100',note:'accepted = seen = 100 (valid first delivery)'}},
+ {t:'The standing rule opens request #1',n:'fold: required 100, paid 0, reserved 0 → shortfall 100. decide() emits REQUEST_OPENED for EXACTLY the shortfall (trigger-enforced: AMOUNT = REQUIRED − PAID). The opening claims ordinal 1 and idempotency key hash(scope|1) in the schema (IDEM_CLAIM, ORDINAL_CLAIM), and the head CAS flips OPEN_REQUEST_ORDINAL NULL→1, copying key+amount FROM the opening row.',
+  ref:'v2 §5.2/§5.3 · 01 §6.2',add:[E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100})]},
+ {t:'Write-ahead: POST_STARTED, then the wire',n:'Immediately before the wire call the durable claim commits — "the wire MAY have been reached". After commit, the mandatory pre-wire recheck re-reads the head (no lock): not parked, not blocked, not diverged, ordinal still open → send.',
+  ref:'v2 §9 · 01 §4',add:[E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'})]},
+ {t:'Synchronous ACCEPTED (UETR U-111)',n:'The response is classified per CA-1 and recorded with its UETR (REQUIRED on acceptance — a NULL-UETR acceptance was the one door around the association gate). The head effect sets PAYMENT_HEAD.UETR = U-111; PH_UETR_UQ now fences this UETR across ALL payments.',
+  ref:'01 §2.2 · v2 §5.3',add:[E('POST_RESULT_RECORDED',{ord:1,code:'ACCEPTED',key:'h(scope|1)',uetr:'U-111',src:'SYNC_RESPONSE'})]},
+ {t:'Feed: settled 100',n:'The feed delivery is matched by UETR over the three-source UNION (heads ∪ event index ∪ reconciled rows) → exactly this payment. The inbox row and the SETTLED append commit in ONE transaction. Amount equality holds (100 = reserved 100); the close CAS clears the open ordinal, zeroes RESERVED, adds 100 to PAID_TOTAL — exactly once per ordinal, ever.',
+  ref:'01 §8/§9 · v2 §5.2',add:[E('SETTLED',{ord:1,amt:100,uetr:'U-111',src:'FEED'})],
+  inbox:'(FEED, evt-771) → PROCESSED — same transaction as the append',
+  verdict:{cls:'ok',txt:'CONFIRMED: required 100 = paid 100. Five immutable rows ARE the audit trail — no journal, no log reconstruction.'}},
+]},
+
+{id:'amend',name:'2 · Amendment — a second request, new identity',
+ pkey:'TR-2|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Start: 100 required, settled',n:'The trade paid its first requirement in full. Stream v1–v4; ordinal 1 closed executed-class.',
+  ref:'—',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('SETTLED',{ord:1,amt:100,uetr:'U-201',src:'FEED'})]},
+ {t:'Amendment: snapshot seq 200 raises to 150',n:'Strictly-newer seq wins (no tie machinery exists — upstream seq is a contract fact; equal seq + different content would be an upstream DEFECT, refused with a CRITICAL). required := 150.',
+  ref:'v2 §1/§7',add:[E('REQUIRED_AMOUNT_SET',{seq:200,amt:150,src:'SYSTEM'})],
+  trade:{acc:'200',seen:'200',note:'both pairs advance'}},
+ {t:'Request #2 opens for the shortfall — 50',n:'fold: 150 − 100 − 0 = 50. Ordinal 2 claims a NEW identity: hash(scope|2). The old key stays burned in PE_IDEM_UQ forever (rows are permanent). Note REQUIRED_AT_OPEN = 150 stamped for the UI amount series — immutable by nature, trigger-checked at birth.',
+  ref:'v2 §3 · 01 §6.3',add:[E('REQUEST_OPENED',{ord:2,amt:50,key:'h(scope|2)',src:'SYSTEM',reqAtOpen:150})]},
+ {t:'Try to open request #3 while #2 is open',n:'A buggy duplicate decision tries a second concurrent opening. The head CAS requires OPEN_REQUEST_ORDINAL IS NULL — row count 0 — and the trigger belt would refuse too. This is the single most dangerous invariant, held by a bookkeeper that does NOT trust the fold.',
+  ref:'v2 §5.2 · 01 §6.2',refuse:{gate:'Head CAS: one open request',detail:'UPDATE … WHERE OPEN_REQUEST_ORDINAL IS NULL → 0 rows. Transaction aborted; nothing appended.'}},
+ {t:'#2 posts, accepts, settles',n:'Same lifecycle, new UETR. paid_total is now the sum over ordinals whose AUTHORITATIVE outcome is executed-class — idempotent by ordinal, so no re-delivery can ever double-count.',
+  ref:'01 §5',add:[E('POST_STARTED',{ord:2,key:'h(scope|2)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:2,code:'ACCEPTED',key:'h(scope|2)',uetr:'U-202',src:'SYNC_RESPONSE'}),
+   E('SETTLED',{ord:2,amt:50,uetr:'U-202',src:'FEED'})],
+  verdict:{cls:'ok',txt:'CONFIRMED at 150: two requests, two identities, one stream telling the whole story.'}},
+]},
+
+{id:'cancel',name:'3 · Cancel-to-zero — release rights, the unified predicate',
+ pkey:'TR-3|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Required 100; request #1 opens',n:'Normal start — but the wire has NOT been reached yet (no POST_STARTED).',
+  ref:'—',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100})]},
+ {t:'Snapshot seq 150: amount 0 (cancelled)',n:'BA-2: absence/zero means cancel. required := 0. Now paid(0) + reserved(100) > required(0) — the open request is excess commitment.',
+  ref:'01 §4',add:[E('REQUIRED_AMOUNT_SET',{seq:150,amt:0,src:'SYSTEM'})],
+  trade:{acc:'150',seen:'150',note:'cancel-to-zero admitted like any newer truth'}},
+ {t:'Release: CANCELLED_NOT_SUBMITTED',n:'The release trigger demands the UNIFIED provably-NOT-SUBMITTED predicate (defined in exactly two places — v2 §5.3 and 01 §5; every other site cites it): ZERO POST_STARTED for ordinal 1 → holds. The outcome closes the ordinal, releases the reservation, books nothing.',
+  ref:'v2 §5.3 · 01 §5',add:[E('OUTCOME_RECORDED',{ord:1,code:'CANCELLED_NOT_SUBMITTED',amt:100,src:'SYSTEM'})],
+  verdict:{cls:'ok',txt:'Cancelled clean: required 0 = paid 0. The reservation released because the database could PROVE nothing was sent.'}},
+ {t:'Counter-example: what if it HAD posted?',n:'Rewind mentally: had a POST_STARTED existed with no closing synchronous reject, the same outcome would be REFUSED — a claim that MAY have executed closes only on evidence or through the dual-control door. One wrong "it was never sent" after a crash is exactly how a successor double-pays; the predicate is a CHECK, not a convention.',
+  ref:'v2 §5.3',refuse:{gate:'Release-rights trigger (thought experiment)',detail:'CANCELLED_NOT_SUBMITTED with a live POST_STARTED claim and no qualifying reject → raise. Shown for contrast — not appended above because our stream truly has zero attempts.'}},
+]},
+
+{id:'retry',name:'4 · Business reject — retry with the SAME key',
+ pkey:'TR-4|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Open, post, BUSINESS_REJECT',n:'The engine says "not now" (retry-class). The request stays OPEN — no outcome, reservation intact. Retry pacing derives from event timestamps + policy (set-once by immutability; the clock-discipline problem disappears).',
+  ref:'01 §4',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:1,code:'BUSINESS_REJECT',key:'h(scope|1)',src:'SYNC_RESPONSE'})]},
+ {t:'Retry: SAME ordinal, SAME key',n:'A business reject does not burn identity — the retry re-posts hash(scope|1). The key echo trigger checks every attempt event cites the OPEN key. PAYLOAD_HASH may differ (re-enrichment happened) — that is expected-divergent, and it is durable BEFORE the wire.',
+  ref:'v2 §5.3 · 01 §2.1',add:[E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'})]},
+ {t:'Try to close it REJECTED_PROVIDER off the stale reject',n:'A buggy resolver decides the FIRST attempt\'s BUSINESS_REJECT terminally closes the request. Refused: REJECTED_PROVIDER requires TERMINAL-class negative evidence POST-DATING the latest POST_STARTED — BUSINESS_REJECT never qualifies (retry-class; its negative fact expired when attempt 2 started). Without this, attempt 1\'s stale reject could close attempt 2\'s lost-response execution.',
+  ref:'v2 §5.3 · 01 §6.3',refuse:{gate:'Release-rights trigger: evidence recency + class',detail:'Latest POST_STARTED at v5; only negative row is v4 BUSINESS_REJECT (< v5, retry-class) → raise.'}},
+ {t:'Attempt 2 accepted, then settled',n:'The engine\'s dedup contract (§18 keystone) makes one key = one instruction — the retry could never double-pay even if attempt 1 had secretly landed.',
+  ref:'v2 §5.3 note',add:[E('POST_RESULT_RECORDED',{ord:1,code:'ACCEPTED',key:'h(scope|1)',uetr:'U-401',src:'SYNC_RESPONSE'}),
+   E('SETTLED',{ord:1,amt:100,uetr:'U-401',src:'FEED'})],
+  verdict:{cls:'ok',txt:'Paid once, on the second attempt, same identity. The stream shows both attempts — nothing was overwritten.'}},
+]},
+
+{id:'maybe',name:'5 · Timeout → MAYBE → downgrade → repost',
+ pkey:'TR-5|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Post times out — AMBIGUOUS',n:'No synchronous answer. The request enters MAYBE: it may or may not have reached the engine. NOTHING can release this reservation on a guess — the resolver owns it now.',
+  ref:'01 §4',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:1,code:'AMBIGUOUS',key:'h(scope|1)',src:'SYNC_RESPONSE'})],
+  phase:'MAYBE'},
+ {t:'Query by OUR key: NOT_FOUND (young)',n:'The resolver asks the platform by idempotency key — the event CARRIES the queried key, echo-checked against the open key. NOT_FOUND inside the trust-age window changes nothing: "not found YET" is not "never arrived".',
+  ref:'01 §4 · v2 §5.3',add:[E('QUERY_RESULT_RECORDED',{ord:1,code:'NOT_FOUND',key:'h(scope|1)',src:'QUERY'})],phase:'MAYBE'},
+ {t:'Trust age passes; NOT_FOUND again',n:'A second NOT_FOUND, now past trust age. This is the evidence the one sanctioned backward transition needs.',
+  ref:'01 §4',add:[E('QUERY_RESULT_RECORDED',{ord:1,code:'NOT_FOUND',key:'h(scope|1)',src:'QUERY'})],phase:'MAYBE'},
+ {t:'DOWNGRADED_FOR_REPOST',n:'Trigger-gated twice over: a same-ordinal NOT_FOUND must post-date the latest POST_STARTED, AND no acceptance-class row may post-date that attempt (recency alone proves recording order, not the absence of acceptance — a review find). Re-posting the SAME key becomes legal.',
+  ref:'v2 §5.3 · 01 §6.3',add:[E('DOWNGRADED_FOR_REPOST',{ord:1,src:'SYSTEM'})]},
+ {t:'Repost — and the truth comes out',n:'Attempt 2, same key. The engine deduped: it HAD received attempt 1 (our timeout, its success). The sync answer is COLLISION→dedup-return or plain ACCEPTED with the ORIGINAL UETR — recorded truthfully either way; the head UETR update is a legal no-op re-recording (the retracted event-level claim would have refused it).',
+  ref:'v2 §5 (PH_UETR_UQ note)',add:[E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:1,code:'ACCEPTED',key:'h(scope|1)',uetr:'U-501',src:'SYNC_RESPONSE'}),
+   E('SETTLED',{ord:1,amt:100,uetr:'U-501',src:'FEED'})],
+  verdict:{cls:'ok',txt:'Paid exactly once. The whole detective story — timeout, two queries, downgrade, repost — is sitting in the stream, readable forever.'}},
+]},
+
+{id:'contra',name:'6 · Contradiction → park → dual-control correction',
+ pkey:'TR-6|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Request #1 closed REJECTED_PROVIDER',n:'A definitive reject closed ordinal 1: released, marker provider_rejected latched, nothing paid. (Amount 100 restated on the outcome — trigger-enforced equality with the opening.)',
+  ref:'01 §4',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:1,code:'DEFINITIVE_REJECT',key:'h(scope|1)',src:'SYNC_RESPONSE'}),
+   E('OUTCOME_RECORDED',{ord:1,code:'REJECTED_PROVIDER',amt:100,src:'SYNC_RESPONSE'})]},
+ {t:'Feed: SETTLED 100 for that ordinal?!',n:'Terminal evidence against a CLOSED ordinal cannot be recorded as SETTLED — the open-ordinal trigger forces the contradiction routing. EVIDENCE_CONTRADICTION_RECORDED(SETTLED_AFTER_TERMINAL) has a FIXED fold effect: book NOTHING, PARK, CRITICAL alert. The bank says money moved; our record says it didn\'t. No automation may guess which is true.',
+  ref:'v2 §6 · 01 §6.3',add:[E('EVIDENCE_CONTRADICTION_RECORDED',{ord:1,code:'SETTLED_AFTER_TERMINAL',amt:100,uetr:'U-601',src:'FEED'})],
+  phase:'PARKED',verdict:{cls:'bad',txt:'PARKED. The only exit is the dual-control verified-outcome door.'}},
+ {t:'Try a solo "verified executed"',n:'A single operator tries to append OUTCOME_RECORDED(PLATFORM_VERIFIED_EXECUTED) alone. Refused: the pair gate requires the row at VERSION−1 to be OPS_VERIFIED_OUTCOME_APPLIED — same ordinal, same TX_ID (guard-stamped; writers cannot supply it), equal APPROVAL_REF. One person cannot move recorded money.',
+  ref:'v2 §5.3 · 01 §6.3',refuse:{gate:'Dual-control pair gate',detail:'VERSION−1 is not the paired ops event / TX_ID differs → raise. Nothing appended.'},phase:'PARKED'},
+ {t:'The real door: verified pair, one transaction',n:'Ops verifies against the platform (v4 §9.3 protocol: two-step approval, approval_id the sole execution input, consumed APPROVED→CONSUMED by CAS). ONE transaction appends the pair through the closed-ordinal door — the ONLY write a closed ordinal admits. The verified EXECUTED supersedes the wrong reject (latest-outcome-class rule); PAID_TOTAL += 100, delta pinned at decide time.',
+  ref:'v2 §6 · 01 §6.2',add:[E('OPS_VERIFIED_OUTCOME_APPLIED',{ord:1,src:'OPS',appr:'APR-77'}),
+   E('OUTCOME_RECORDED',{ord:1,code:'PLATFORM_VERIFIED_EXECUTED',amt:100,src:'OPS',appr:'APR-77'})],
+  verdict:{cls:'ok',txt:'Corrected: paid 100, unparked. History keeps BOTH outcomes — the wrong reject and its supersession — because history is never edited, it is extended.'}},
+]},
+
+{id:'mismatch',name:'7 · Settlement mismatch — 90 ≠ 100',
+ pkey:'TR-7|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Accepted request awaiting settlement',n:'Ordinal 1 open, accepted, UETR U-701, reserved 100.',
+  ref:'—',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:100,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:1,code:'ACCEPTED',key:'h(scope|1)',uetr:'U-701',src:'SYNC_RESPONSE'})]},
+ {t:'Feed says settled — for 90',n:'Try to record it as SETTLED(90): REFUSED — amount equality demands AMOUNT = RESERVED (100). The all-or-nothing engine contract makes 90 defect evidence, and the routing is enforced: it can only enter as a mismatch row.',
+  ref:'v2 §4/§5.3 · 01 §6.3',refuse:{gate:'Amount-equality trigger',detail:'SETTLED with :new.AMOUNT 90 ≠ RESERVED 100 → raise. The delivery-fidelity backstop also bars laundering it into a clean rejection.'}},
+ {t:'Recorded as SETTLEMENT_MISMATCH_RECORDED(90)',n:'Books NOTHING (paid_total unchanged, request still open), parks loudly, CRITICAL. Submission knowledge still tightens (something reached the engine). The witness stays clean: the close CAS carries AND RESERVED = :amount, so a wrong number cannot enter either bookkeeper.',
+  ref:'01 §4 · v2 §5.2',add:[E('SETTLEMENT_MISMATCH_RECORDED',{ord:1,amt:90,uetr:'U-701',src:'FEED'})],
+  phase:'PARKED',inbox:'(FEED, evt-901) → PROCESSED, EV content retained (MISMATCH, 90, U-701) for the fidelity rules',
+  verdict:{cls:'bad',txt:'PARKED with the defect on record at its true amount. Resolution goes through evidence or the dual-control door — never a silent adjustment.'}},
+]},
+
+{id:'invalid',name:'8 · First delivery is INVALID — markers, then truth',
+ pkey:'TR-8|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'Snapshot seq 100 fails whole-document validation',n:'Admission (under the TRADE_HEAD lock) advances only the SEEN pair — the accepted pair stays NULL (a trade whose first delivery is invalid must be representable without inventing truth). INSIDE the same admission transaction, SNAPSHOT_INVALID_MARKED(100) is appended to every knowable payment: existing heads ∪ the document\'s canonically extractable keys. This payment\'s head is born HERE — required NULL, so nothing can open, but the card shows validation-failed instead of NOT_STARTED.',
+  ref:'v2 §7 · 01 §7',add:[E('SNAPSHOT_INVALID_MARKED',{seq:100,src:'SYSTEM'})],
+  trade:{acc:'NULL',seen:'100',note:'seen digest stored — an identical invalid redelivery dedupes instead of reading as an upstream defect'},
+  verdict:{cls:'wait',txt:'Blocked from opening; in-flight work (none here) would be untouched.'}},
+ {t:'Try to open a request anyway',n:'Even if a buggy decision fired, opening is impossible twice over: required is NULL (shortfall undefined) and the marker blocks new opens. And the opening-amount trigger has no number to satisfy.',
+  ref:'01 §4/§6.3',refuse:{gate:'Marker + opening-amount trigger',detail:'SNAPSHOT_INVALID_MARKED(seq 100) live; REQUIRED_AMOUNT is NULL → no legal opening exists.'}},
+ {t:'Corrected snapshot seq 200 — valid, amount 100',n:'Validity is judged against ACCEPTED (NULL → first valid wins); seq 200 > marker seq 100 unlatches the marker. required := 100. The fan-out carries ACCEPTED truth only — markers were never its job (they rode the admission transaction).',
+  ref:'v2 §7 · 01 §4',add:[E('REQUIRED_AMOUNT_SET',{seq:200,amt:100,src:'SYSTEM'})],
+  trade:{acc:'200',seen:'200',note:'accepted pair fills on first valid truth'}},
+ {t:'Now it pays normally',n:'Marker gone, shortfall 100 → open, post, accept, settle.',
+  ref:'—',add:[E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:100}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:1,code:'ACCEPTED',key:'h(scope|1)',uetr:'U-801',src:'SYNC_RESPONSE'}),
+   E('SETTLED',{ord:1,amt:100,uetr:'U-801',src:'FEED'})],
+  verdict:{cls:'ok',txt:'Distrust barred the invalid document from supplying MONEY truth — but not from anchoring visibility. Inherited §6.6, kept honest by three review rounds (22, 28, 29, 30).'}},
+]},
+
+{id:'guards',name:'9 · Attack the guards — six illegal writes, six refusals',
+ pkey:'TR-9|PREMIUM|ACC-9|USD',
+ steps:[
+ {t:'The victim stream: mid-flight payment',n:'Required 150; ordinal 1 settled at 100; ordinal 2 open at 50, accepted (U-902). Now try to break it.',
+  ref:'—',add:[E('REQUIRED_AMOUNT_SET',{seq:100,amt:150,src:'SYSTEM'}),
+   E('REQUEST_OPENED',{ord:1,amt:100,key:'h(scope|1)',src:'SYSTEM',reqAtOpen:150}),
+   E('POST_STARTED',{ord:1,key:'h(scope|1)',src:'SYSTEM'}),
+   E('SETTLED',{ord:1,amt:100,uetr:'U-901',src:'FEED'}),
+   E('REQUEST_OPENED',{ord:2,amt:50,key:'h(scope|2)',src:'SYSTEM',reqAtOpen:150}),
+   E('POST_STARTED',{ord:2,key:'h(scope|2)',src:'SYSTEM'}),
+   E('POST_RESULT_RECORDED',{ord:2,code:'ACCEPTED',key:'h(scope|2)',uetr:'U-902',src:'SYNC_RESPONSE'})]},
+ {t:'① Oversized opening',n:'Bug opens ordinal 3 for 999 while ordinal 2 is open. TWO walls: the head CAS (open ordinal not NULL) and — even were it free — the opening-amount trigger (AMOUNT must equal REQUIRED − PAID = 50).',
+  ref:'01 §6.2/§6.3',refuse:{gate:'One-open-request CAS + opening-amount trigger',detail:'row count 0; and 999 ≠ 150 − 100.'}},
+ {t:'② Ordinal reuse',n:'A replayed message tries REQUEST_OPENED for ordinal 1 again. The generated ORDINAL_CLAIM column collides on PE_ORDINAL_UQ — a schema fact, independent of every trigger and every writer.',
+  ref:'01 §2',refuse:{gate:'PE_ORDINAL_UQ',detail:'ORA-00001 on ORDINAL_CLAIM "TR-9…#1". Loud, immediate, at ITS commit.'}},
+ {t:'③ Outcome with a wrong amount',n:'Record OUTCOME_RECORDED(EXECUTED, 999) for open ordinal 2. Amount equality: 999 ≠ RESERVED 50 → raise. "The request amount, restated" is an enforced equality — false history refused at the door.',
+  ref:'v2 §5.3',refuse:{gate:'Amount-equality trigger',detail:':new.AMOUNT 999 ≠ RESERVED 50.'}},
+ {t:'④ Stale evidence, wrong key',n:'A query result for ordinal 1\'s OLD key h(scope|1) arrives while ordinal 2 is open. Key echo: every attempt/query event must cite OPEN_IDEMPOTENCY_KEY = h(scope|2). Stale evidence for an earlier request dies at insert.',
+  ref:'01 §6.3',refuse:{gate:'Key-echo trigger',detail:':new.IDEMPOTENCY_KEY h(scope|1) ≠ OPEN_IDEMPOTENCY_KEY h(scope|2).'}},
+ {t:'⑤ Steal the UETR',n:'A resolver bug tries to attach U-901 (ordinal 1\'s UETR) to ordinal 2 — which would let ordinal 1\'s stale feed evidence release ordinal 2\'s reservation. The association relation (UETR-bearing events ∪ reconciled rows) says U-901 already belongs to ordinal 1 → refused.',
+  ref:'v2 §5.3 · 01 §6.3',refuse:{gate:'UETR-association binding',detail:'U-901 has an existing association (ordinal 1); the new event is neither a match nor a first claim.'}},
+ {t:'⑥ Rewrite history',n:'An incident-day human runs UPDATE PAYMENT_EVENT SET … The guard trigger raises on ANY update or delete; the application role never had more than INSERT+SELECT. There is no privileged writer — that sentence is a grant, not a hope.',
+  ref:'01 §2 (grants)',refuse:{gate:'Immutability guard trigger',detail:'raise on UPDATE — history is append-only against every actor, including us.'},
+  verdict:{cls:'ok',txt:'Six attacks, six refusals, zero rows written. Every wall here is schema/CAS/trigger — none of them trusts the fold, the app, or the human.'}},
+]},
+];
+
+/* ---------- engine ---------- */
+let scen=SC[0],si=0,evs=[],lastTrade=null,lastInbox=null,phaseOverride=null;
+const $=id=>document.getElementById(id);
+const sel=$('scenSel');
+SC.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s.name;sel.appendChild(o)});
+sel.onchange=()=>{scen=SC[+sel.value];restart()};
+$('btnRestart').onclick=()=>restart();
+$('btnPrev').onclick=()=>{if(si>0){si--;replay()}};
+$('btnNext').onclick=()=>{if(si<scen.steps.length){si++;replay()}};
+
+function restart(){si=0;replay()}
+function replay(){
+ evs=[];lastTrade=null;lastInbox=null;phaseOverride=null;
+ let refuse=null,noop=null,verdict=null,cur=null;
+ for(let i=0;i<si;i++){
+  const st=scen.steps[i];cur=st;
+  refuse=null;noop=null;
+  if(st.add)st.add.forEach(e=>evs.push({...e,fresh:i===si-1}));
+  if(st.refuse&&i===si-1)refuse=st.refuse;
+  if(st.noop&&i===si-1)noop=st.noop;
+  if(st.trade)lastTrade=st.trade;
+  if(st.inbox)lastInbox=st.inbox;
+  phaseOverride=st.phase||null;
+  verdict=st.verdict||null;
+ }
+ render(cur,refuse,noop,verdict);
+}
+function render(st,refuse,noop,verdict){
+ // dots
+ $('dots').innerHTML=scen.steps.map((_,i)=>`<i class="${i<si-1?'done':i===si-1?'on':''}"></i>`).join('');
+ $('btnPrev').disabled=si===0;
+ $('btnNext').disabled=si>=scen.steps.length;
+ $('pkey').textContent=' · '+scen.pkey;
+ // narration
+ if(!st){$('stepN').textContent='';$('stepT').textContent='Press Next to begin';
+  $('stepP').textContent=scen.blurb||'Each step narrates what the write path did and why the guards allowed or refused it.';
+  $('stepRef').textContent='';}
+ else{$('stepN').textContent=`step ${si}/${scen.steps.length}`;$('stepT').textContent=st.t;
+  $('stepP').textContent=st.n;$('stepRef').textContent=st.ref&&st.ref!=='—'?'→ '+st.ref:'';}
+ const v=$('verdict');v.className='verdict';
+ if(verdict&&si>=1){v.className='verdict '+verdict.cls;v.textContent=verdict.txt;}
+ // stream
+ const sEl=$('stream');
+ sEl.innerHTML=evs.length?evs.map((e,i)=>{
+  const xtra=[e.code?'':null,e.seq!=null?'seq '+e.seq:null,e.ord!=null?'ord '+e.ord:null,
+   e.amt!=null?'amt '+e.amt:null,e.key?e.key:null,e.uetr?e.uetr:null,e.appr?'appr '+e.appr:null,
+   e.src?e.src:null].filter(Boolean).join(' · ');
+  return `<div class="evrow ${K[e.ty]||''} ${e.fresh?'new':''}">
+   <span class="v">v${i+1}</span><span class="ty">${e.ty}</span>
+   ${e.code?`<span class="cd">${e.code}</span>`:''}<span class="xtra">${xtra}</span></div>`;
+ }).join(''):'<div class="noop">Empty stream — no head row exists yet (row absence = NOT_STARTED).</div>';
+ if(refuse)sEl.insertAdjacentHTML('beforeend',
+  `<div class="refused"><b>✗ REFUSED — ${refuse.gate}</b>${refuse.detail} <i>Nothing was appended; the transaction rolled back.</i></div>`);
+ if(noop)sEl.insertAdjacentHTML('beforeend',`<div class="noop">◦ ${noop}</div>`);
+ // fold + head
+ const f=fold(evs);
+ const phase=phaseOverride||(f.parked?'PARKED':f.maybe&&f.openOrd!=null?'MAYBE':f.openOrd!=null?'IN_FLIGHT':
+  f.req!=null&&f.short===0?'CONFIRMED':f.marker?'BLOCKED':f.req==null?'—':'PENDING');
+ $('phase').innerHTML=`<span class="badge ${phase==='PARKED'?'park':phase==='MAYBE'?'maybe':phase==='CONFIRMED'?'ok':'wait'}">${phase}</span>`;
+ const lastU=[...evs].reverse().find(e=>e.uetr);
+ $('headtbl').innerHTML=[
+  ['LAST_VERSION',evs.length],
+  ['NEXT_REQUEST_ORDINAL',f.nextOrd],
+  ['OPEN_REQUEST_ORDINAL',f.openOrd??'NULL'],
+  ['OPEN_IDEMPOTENCY_KEY',f.openKey??'NULL'],
+  ['REQUIRED_AMOUNT',f.req==null?'NULL':f.req],
+  ['PAID_TOTAL',f.paid],
+  ['RESERVED',f.reserved],
+  ['UETR',lastU?lastU.uetr:'NULL'],
+ ].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+ $('dims').innerHTML=
+  `<div class="dim"><b>required</b><span>${f.req==null?'NULL':f.req}</span></div>
+   <div class="dim"><b>paid</b><span>${f.paid}</span></div>
+   <div class="dim"><b>reserved</b><span>${f.reserved}</span></div>
+   <div class="dim ${f.short>0?'chg':''} ${f.short<0?'badv':''}"><b>shortfall</b><span>${f.short}</span></div>
+   ${f.marker?`<div class="dim badv"><b>marker</b><span>${f.marker.kind}@${f.marker.seq}</span></div>`:''}
+   ${f.provRejected?`<div class="dim badv"><b>marker</b><span>provider_rejected</span></div>`:''}`;
+ const mx=Math.max(f.req||0,f.paid+f.reserved,1);
+ $('bars').innerHTML=[['required',f.req||0,'f-req'],['paid',f.paid,'f-paid'],['reserved',f.reserved,'f-res']]
+  .map(b=>`<div class="bar"><label>${b[0]}</label><div class="tr"><div class="fl ${b[2]}" style="width:${100*b[1]/mx}%"></div></div><span class="v">${b[1]}</span></div>`).join('');
+ // trade + inbox
+ $('tradeCard').style.display=lastTrade?'':'none';
+ if(lastTrade)$('tradeBox').innerHTML=
+  `LAST_ACCEPTED_SEQ = <b>${lastTrade.acc}</b> · LAST_SEEN_SEQ = <b>${lastTrade.seen}</b><br><span style="color:var(--ink3)">${lastTrade.note}</span>`;
+ $('inboxCard').style.display=lastInbox?'':'none';
+ if(lastInbox)$('inboxBox').textContent=lastInbox;
+}
+restart();
+</script>
+</body>
+</html>

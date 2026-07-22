@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Event Model (Alt-B) — Interactive Guide</title>
+<style>
+:root{--bg:#f7f7f4;--fg:#20201e;--muted:#71716a;--line:#d8d7cf;--card:#fff;
+--blue:#2563ab;--green:#1e7d5a;--amber:#b26a00;--red:#b3261e;--purple:#6b4fa0;--code:#efeee8;--mono:ui-monospace,"Cascadia Code",Consolas,monospace}
+@media (prefers-color-scheme: dark){:root{--bg:#14171c;--fg:#e6e8ea;--muted:#9aa1a8;--line:#333a42;--card:#1c2128;
+--blue:#6ea3dd;--green:#5cb98f;--amber:#dfa14a;--red:#e07a72;--purple:#a996d8;--code:#262c34}}
+:root[data-theme="dark"]{--bg:#14171c;--fg:#e6e8ea;--muted:#9aa1a8;--line:#333a42;--card:#1c2128;
+--blue:#6ea3dd;--green:#5cb98f;--amber:#dfa14a;--red:#e07a72;--purple:#a996d8;--code:#262c34}
+:root[data-theme="light"]{--bg:#f7f7f4;--fg:#20201e;--muted:#71716a;--line:#d8d7cf;--card:#fff;
+--blue:#2563ab;--green:#1e7d5a;--amber:#b26a00;--red:#b3261e;--purple:#6b4fa0;--code:#efeee8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:.8rem 1.2rem}
+header h1{font-size:1.15rem;margin:0}
+header .sub{color:var(--muted);font-size:.8rem}
+.tabs{position:sticky;top:0;z-index:20;display:flex;gap:.35rem;flex-wrap:wrap;background:var(--card);border-bottom:2px solid var(--line);padding:.5rem 1.2rem}
+.tabs button{font:600 .85rem/1 inherit;padding:.5rem .9rem;border:1px solid var(--line);border-bottom:none;background:var(--code);border-radius:.5rem .5rem 0 0;cursor:pointer;color:var(--muted)}
+.tabs button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+main{max-width:1560px;margin:0 auto;padding:1.2rem 1.6rem 5rem}
+section.tab{display:none}section.tab.on{display:block}
+section.tab>svg,section.tab>.grid,section.tab>table,section.tab>p{max-width:1160px}
+h2{font-size:1.1rem;margin:1.4rem 0 .5rem}
+h3{font-size:.98rem;margin:1rem 0 .4rem}
+p{max-width:88ch;margin:.35rem 0}
+.sub{color:var(--muted);font-size:.83rem}
+.grid{display:grid;gap:1rem}.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:.55rem;padding:.85rem 1rem}
+.card h3{margin:.1rem 0 .5rem;font-size:.95rem}
+svg{max-width:100%;height:auto;display:block;background:var(--card);border:1px solid var(--line);border-radius:.55rem}
+svg text{font:13px ui-sans-serif,system-ui,sans-serif;fill:var(--fg)}
+svg .s11{font-size:11px}svg .s12{font-size:12px}svg .b{font-weight:700;font-size:14px}svg .m{fill:var(--muted)}svg .mono{font-family:var(--mono);font-size:11px}
+code{font-family:var(--mono);font-size:.85em;background:var(--code);padding:.05rem .3rem;border-radius:.25rem}
+pre{font-family:var(--mono);font-size:.8rem;background:var(--code);border:1px solid var(--line);border-radius:.45rem;padding:.7rem .9rem;overflow-x:auto;max-width:1160px;line-height:1.45}
+table{border-collapse:collapse;font-size:.84rem;width:100%}
+th,td{border:1px solid var(--line);padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code)}
+.pill{display:inline-block;border-radius:.8rem;padding:.1rem .6rem;font-size:.78rem;font-weight:700;color:#fff}
+.pG{background:var(--green)}.pB{background:var(--blue)}.pA{background:var(--amber)}.pR{background:var(--red)}.pP{background:var(--purple)}.pN{background:#8a8a82}
+button.act{font:inherit;font-size:.83rem;padding:.4rem .7rem;margin:.15rem;border:1px solid var(--line);background:var(--card);border-radius:.45rem;cursor:pointer;color:var(--fg)}
+button.act:hover{background:var(--code)}
+button.act:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.out{margin:.5rem 0;padding:.55rem .8rem;border-radius:.4rem;font-size:.88rem;border-left:4px solid var(--line);background:var(--code);min-height:2.6em}
+.out.ok{border-left-color:var(--green)}
+.out.bad{border-left-color:var(--red)}
+.out.info{border-left-color:var(--blue)}
+.gcard{cursor:pointer;transition:border-color .15s}
+.gcard:hover{border-color:var(--blue)}
+.gcard .kill{display:none;border-top:1px dashed var(--line);margin-top:.5rem;padding-top:.5rem;font-size:.84rem}
+.gcard.open .kill{display:block}
+.gcard .ref{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.step{display:flex;gap:.7rem;margin:.45rem 0;align-items:flex-start}
+.step .n{flex-shrink:0;width:1.7rem;height:1.7rem;border-radius:50%;background:var(--code);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem}
+.step.on .n{background:var(--blue);color:#fff;border-color:var(--blue)}
+.step.done .n{background:var(--green);color:#fff;border-color:var(--green)}
+.step .t{padding-top:.15rem}
+.step .t b{display:block}
+.step .t .d{font-size:.84rem;color:var(--muted)}
+.evrow{font-family:var(--mono);font-size:.78rem;display:flex;gap:.6rem;padding:.25rem .5rem;border-bottom:1px solid var(--line);align-items:baseline;flex-wrap:wrap}
+.evrow .v{color:var(--muted);width:2.2rem;flex-shrink:0}
+.evrow .ty{font-weight:700}
+.evrow.money .ty{color:var(--green)}
+.evrow.neg .ty{color:var(--red)}
+.evrow.opsy .ty{color:var(--purple)}
+.dims{display:flex;flex-wrap:wrap;gap:.5rem;margin:.5rem 0}
+.dim{border:1px solid var(--line);border-radius:.45rem;padding:.3rem .7rem;background:var(--card);min-width:120px}
+.dim b{display:block;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.dim span{font-family:var(--mono);font-size:.92rem;font-weight:600}
+.dim.chg{border-color:var(--amber)}
+.dim.chg span{color:var(--amber)}
+.legend{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin:.4rem 0}
+.legend i{display:inline-block;width:.8rem;height:.8rem;border-radius:.2rem;vertical-align:-2px;margin-right:.3rem}
+.note{border-left:4px solid var(--amber);background:var(--code);padding:.5rem .8rem;border-radius:.35rem;font-size:.88rem;max-width:100ch;margin:.6rem 0}
+</style>
+</head>
+<body>
+<header>
+ <h1>Event-Model Design (Alternative B) — Interactive Guide</h1>
+ <div class="sub">Explains <code>event-model-design/event-model-v2.md</code> + <code>01-event-table-schema.md</code>. Status: PROPOSAL — the adopted baseline remains <code>requirment-v4.md</code>. Companion: <code>event-model-playground.html</code> (step through real scenarios).</div>
+</header>
+<div class="tabs" id="tabs">
+ <button data-t="t1" class="on">1 · The big idea</button>
+ <button data-t="t2">2 · The event stream</button>
+ <button data-t="t3">3 · The write path</button>
+ <button data-t="t4">4 · The fold</button>
+ <button data-t="t5">5 · Guards &amp; gates</button>
+ <button data-t="t6">6 · Trades, feed &amp; inbox</button>
+ <button data-t="t7">7 · Ops &amp; honest limits</button>
+</div>
+<main>
+
+<!-- ================= TAB 1 : BIG IDEA ================= -->
+<section class="tab on" id="t1">
+<h2>One sentence</h2>
+<p><b>The baseline stores current state and updates it; the event model stores what happened and computes current state.</b>
+Both designs implement the same business semantics (requirment-v4 §4/§6/§7/§9/§10 — amounts, evidence precedence,
+release rights, trust-age, escalation). What differs is the <i>storage model</i> and where safety mechanisms live.</p>
+
+<svg viewBox="0 0 1120 400" aria-label="baseline vs event model">
+ <defs><marker id="a1" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#888"/></marker></defs>
+ <text x="20" y="30" class="b">Baseline (requirment-v4)</text>
+ <rect x="20" y="45" width="500" height="120" rx="8" fill="none" stroke="var(--line)"/>
+ <rect x="40" y="65" width="210" height="34" rx="6" fill="var(--code)" stroke="var(--blue)"/>
+ <text x="145" y="87" text-anchor="middle" class="s12">payment_request (mutable rows)</text>
+ <rect x="40" y="112" width="210" height="34" rx="6" fill="var(--code)" stroke="var(--blue)"/>
+ <text x="145" y="134" text-anchor="middle" class="s12">obligation row (lock + totals)</text>
+ <rect x="285" y="65" width="210" height="34" rx="6" fill="var(--code)" stroke="var(--muted)" stroke-dasharray="4 3"/>
+ <text x="390" y="87" text-anchor="middle" class="s12 m">attempt journal (diagnostic only)</text>
+ <text x="40" y="192" class="s12 m">State = the row, updated in place under SELECT FOR UPDATE.</text>
+ <text x="40" y="210" class="s12 m">History = the §14 log contract + a never-load-bearing journal.</text>
+ <text x="40" y="228" class="s12 m">Safety = CAS transitions, token locks, lint-frozen SQL inventory,</text>
+ <text x="40" y="246" class="s12 m">and a large reviewed playbook of cards, tests and gates.</text>
+
+ <text x="590" y="30" class="b">Event model (this folder)</text>
+ <rect x="590" y="45" width="510" height="120" rx="8" fill="none" stroke="var(--line)"/>
+ <rect x="610" y="65" width="220" height="34" rx="6" fill="var(--code)" stroke="var(--green)" stroke-width="2"/>
+ <text x="720" y="87" text-anchor="middle" class="s12">PAYMENT_EVENT (append-only)</text>
+ <rect x="610" y="112" width="220" height="34" rx="6" fill="var(--code)" stroke="var(--purple)"/>
+ <text x="720" y="134" text-anchor="middle" class="s12">PAYMENT_HEAD (1 row: lock+witness)</text>
+ <rect x="860" y="65" width="220" height="34" rx="6" fill="var(--code)" stroke="var(--amber)"/>
+ <text x="970" y="87" text-anchor="middle" class="s12">TRADE_HEAD (2 watermarks)</text>
+ <rect x="860" y="112" width="220" height="34" rx="6" fill="var(--code)" stroke="var(--muted)"/>
+ <text x="970" y="134" text-anchor="middle" class="s12">INBOUND_EVENT_INBOX (feed dedup)</text>
+ <text x="610" y="192" class="s12 m">State = fold(stream): a pure function over immutable events.</text>
+ <text x="610" y="210" class="s12 m">History = the table itself — every past state is reconstructible.</text>
+ <text x="610" y="228" class="s12 m">Safety = schema claims (UNIQUE on generated columns), CAS on the</text>
+ <text x="610" y="246" class="s12 m">head, trigger backstops, a witness checked on every write.</text>
+
+ <text x="20" y="295" class="b">The three rules everything follows from (00-README)</text>
+ <rect x="20" y="308" width="350" height="74" rx="8" fill="var(--code)" stroke="var(--line)"/>
+ <text x="35" y="330" class="s12"><tspan font-weight="700">1 · The stream is the only truth.</tspan></text>
+ <text x="35" y="348" class="s11 m">State is computed by THE fold (one shared, versioned,</text>
+ <text x="35" y="363" class="s11 m">golden-vector-tested implementation). The head can VETO</text>
+ <text x="35" y="378" class="s11 m">a write; it never authorizes one.</text>
+ <rect x="390" y="308" width="350" height="74" rx="8" fill="var(--code)" stroke="var(--line)"/>
+ <text x="405" y="330" class="s12"><tspan font-weight="700">2 · One write path.</tspan></text>
+ <text x="405" y="348" class="s11 m">Every append happens under the head-row lock; the fence</text>
+ <text x="405" y="363" class="s11 m">UNIQUE(payment_key, version) is the loud backstop. No</text>
+ <text x="405" y="378" class="s11 m">privileged writer — not scanners, not ops, not humans.</text>
+ <rect x="760" y="308" width="350" height="74" rx="8" fill="var(--code)" stroke="var(--line)"/>
+ <text x="775" y="330" class="s12"><tspan font-weight="700">3 · Money facts are events.</tspan></text>
+ <text x="775" y="348" class="s11 m">Every money-bearing fact carries its own amount and</text>
+ <text x="775" y="363" class="s11 m">classification, recorded at decision time. The fold may</text>
+ <text x="775" y="378" class="s11 m">only AGGREGATE them. Fold deploys are gated.</text>
+</svg>
+
+<h2>The four structures</h2>
+<table>
+<tr><th>Structure</th><th>Kind</th><th>Role</th></tr>
+<tr><td><code>PAYMENT_EVENT</code></td><td><span class="pill pG">append-only</span> THE authority</td><td>Everything that ever happened to a payment; per-payment total order via a dense <code>VERSION</code>. Rows are <b>permanent</b> (archival was removed after review proved it a defect factory — §9).</td></tr>
+<tr><td><code>PAYMENT_HEAD</code></td><td><span class="pill pP">1 mutable row</span> per payment</td><td>Write-serialization lock, money <b>witness</b> (REQUIRED / PAID_TOTAL / RESERVED), one-open-request backstop, scanner/UI index. Updated in the append transaction; rebuildable from the stream; <b>can veto a write, never authorize one</b>.</td></tr>
+<tr><td><code>TRADE_HEAD</code></td><td><span class="pill pA">1 mutable row</span> per trade</td><td>TWO snapshot watermarks, each with digest + pointer: <b>accepted</b> (newest VALID snapshot = trade truth) and <b>seen</b> (newest processed at all). The fan-out equality fence checks SEEN.</td></tr>
+<tr><td><code>INBOUND_EVENT_INBOX</code></td><td><code>UNIQUE(source, event_id)</code></td><td>Dedup of FEED deliveries only, atomic with processing. Snapshot deliveries need no inbox — admission + seq guards make redelivery converge.</td></tr>
+</table>
+<p class="sub">Everything else — required amount, paid, reserved, phase, markers, retry state, MAYBE, parked, escalation — is <b>derived by the fold</b>. There is no stored authoritative state machine, no mutable request row, no separate projection table, no transition journal (the stream IS the history).</p>
+
+<h2>Where it came from</h2>
+<p>The runnable <code>tl-proposal-proof</code> suite in this repo proved an append-only core CAN satisfy the money-safety
+scenarios <i>provided it carries the full guard set</i>. A v1 draft scaled that up; the v2 refactor closed every
+CRITICAL/HIGH item v1 ranked; then <b>32 external adversarial review rounds</b> (24 CRITICAL / 44 HIGH / 12 MEDIUM /
+5 LOW findings, every one folded) ended on a clean round. The remaining gap against the baseline is
+<b>implementation evidence</b> (fold golden vectors, real-Oracle trigger proofs — 00-README items 2–7), not design rounds.</p>
+</section>
+
+<!-- ================= TAB 2 : EVENT STREAM ================= -->
+<section class="tab" id="t2">
+<h2>PAYMENT_EVENT — one table, self-describing history</h2>
+<p>One row per fact. The interesting columns:</p>
+<div class="grid g2">
+ <div class="card"><h3>Identity &amp; order</h3>
+  <p class="sub"><code>PAYMENT_KEY</code> — the canonical scope tuple <code>business_id|payment_type|debit_account|currency</code>. The encoding is <b>identity input</b>: byte-exact spec, golden vectors, ONE shared encoder, injective by rule (no <code>|</code> in components; encoder fails closed).<br>
+  <code>VERSION</code> — dense fence slot, the stream's total order; allocated as <code>LAST_VERSION+1</code> under the head lock.<br>
+  <code>REQUEST_ORDINAL</code> — which request the event concerns. Identity = <code>hash(scope | ordinal)</code>, so a DB restore + replay regenerates the SAME keys and the engine rejects the collision (the baseline §5.2 runbook applies unchanged).</p></div>
+ <div class="card"><h3>Schema-claimed identity (generated columns)</h3>
+  <p class="sub"><code>IDEM_CLAIM</code> — generated: the idempotency key, only on <code>REQUEST_OPENED</code>. <code>UNIQUE</code> ⇒ two openings can never carry the same key, <i>whatever writer or bug produced them</i>.<br>
+  <code>ORDINAL_CLAIM</code> — generated: <code>key#ordinal</code>, only on openings. <code>UNIQUE</code> ⇒ ordinal reuse collides loudly.<br>
+  UETR uniqueness lives on the <b>head</b> (<code>PH_UETR_UQ</code>) because an event-level claim missed the query/feed channels and refused a legal CT-dedup re-recording.</p></div>
+ <div class="card"><h3>Money &amp; evidence</h3>
+  <p class="sub"><code>AMOUNT</code> — the event's own number (required amount, request amount, outcome amount restated, settled amount, mismatched amount). Money facts carry their numbers — the fold aggregates, never infers.<br>
+  <code>EVENT_CODE</code> — the structured classification the fold branches on, recorded at decision time (the CA-1 mapping), never re-derived later from raw <code>PROVIDER_CODE</code>.<br>
+  <code>EVIDENCE_SOURCE</code> — SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM; precedence rules key on it.</p></div>
+ <div class="card"><h3>Guard-stamped facts</h3>
+  <p class="sub"><code>TX_ID</code> — stamped by the guard trigger with the local transaction id; writers cannot supply it. This is how the dual-control pair proves same-transaction membership <i>in the database</i>.<br>
+  <code>CREATED_AT</code> — also guard-stamped, UTC only (<code>SYS_EXTRACT_UTC</code>): an immutable episode anchor may never be writer-supplied. Set-once timestamps come free with immutability — the clock-discipline problem disappears.<br>
+  <code>APPROVAL_REF</code> — typed dual-control approval id; free text in <code>DETAIL</code> binds nothing (the fold never reads DETAIL).</p></div>
+</div>
+
+<h3>Immutability is enforced, not promised</h3>
+<pre>Grants: application role has INSERT and SELECT only.
+A guard trigger raises on ANY UPDATE or DELETE —
+history is immutable against every writer, including humans in an incident.
+Rows are PERMANENT: no archival path exists (removed by review, §9/§10);
+partitioning (index-maintaining DDL only) is the only sanctioned tiering.</pre>
+
+<h2>The 19 event types</h2>
+<div class="legend">
+ <span><i style="background:var(--blue)"></i>upstream truth</span>
+ <span><i style="background:var(--green)"></i>request lifecycle</span>
+ <span><i style="background:var(--amber)"></i>provider evidence</span>
+ <span><i style="background:var(--red)"></i>conflict / park</span>
+ <span><i style="background:var(--purple)"></i>ops (dual-control where money-enabling)</span>
+</div>
+<table>
+<tr><th>Type</th><th>Meaning</th><th>Fold effect (short)</th></tr>
+<tr><td><span class="pill pB">REQUIRED_AMOUNT_SET</span></td><td>An ADMITTED snapshot names this payment (amount 0 = cancel; absence-means-cancel produces an explicit 0)</td><td><code>required := amount</code> if strictly newer seq; older markers unlatch</td></tr>
+<tr><td><span class="pill pB">SNAPSHOT_INVALID_MARKED</span></td><td>Whole-snapshot validation failed — appended INSIDE the seen-admission transaction over exactly the set knowable then</td><td>Blocks NEW opens; never touches in-flight; unlatched by newer valid truth</td></tr>
+<tr><td><span class="pill pG">REQUEST_OPENED</span></td><td>The standing rule pays a shortfall: claims ordinal + key + amount + payload hash (write-ahead part 1)</td><td>An OPEN request exists; reservation = its amount; one-open-request is DB-backstopped</td></tr>
+<tr><td><span class="pill pG">ENRICH_FAILED</span></td><td>Enrichment failed (TRANSIENT / DEFINITIVE); pre-open failures carry the seq they enriched for</td><td>Transient: retry timing. Definitive pre-open: latches <code>validation_failed</code> at its seq. Definitive on open request: outcome pair same tx</td></tr>
+<tr><td><span class="pill pG">POST_STARTED</span></td><td>Immediately BEFORE the wire call (write-ahead part 2) — the durable "the wire MAY have been reached". Mandatory pre-wire recheck after commit</td><td>Posting/ambiguous until a result; release requires the unified <b>provably-NOT-SUBMITTED</b> predicate</td></tr>
+<tr><td><span class="pill pA">POST_RESULT_RECORDED</span></td><td>The synchronous response, classified per CA-1 (ACCEPTED / BUSINESS_REJECT / DEFINITIVE_REJECT / AMBIGUOUS / COLLISION / UNMAPPED)</td><td>ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry same key; DEFINITIVE_REJECT → outcome same tx; AMBIGUOUS/UNMAPPED → MAYBE</td></tr>
+<tr><td><span class="pill pA">QUERY_RESULT_RECORDED</span></td><td>The resolver asked by OUR key (event carries the queried key, echo-checked)</td><td>EXECUTED/REJECTED → outcome same tx; ACCEPTED → keep waiting; NOT_FOUND past trust age → enables downgrade; LOOKBACK_EXPIRED → stays MAYBE</td></tr>
+<tr><td><span class="pill pG">DOWNGRADED_FOR_REPOST</span></td><td>The only backward transition: NOT_FOUND past trust age, same key will be re-sent. Trigger-gated</td><td>Re-posting becomes legal for the SAME key</td></tr>
+<tr><td><span class="pill pG">OUTCOME_RECORDED</span></td><td>Terminal for a request: EXECUTED / REJECTED_VALIDATION / REJECTED_PROVIDER / CANCELLED_NOT_SUBMITTED / SUPERSEDED_OPS / PLATFORM_VERIFIED_*</td><td>Closes the open request (head CAS); books or releases the reservation; latches markers; same tx re-evaluates the standing rule under the inherited gates</td></tr>
+<tr><td><span class="pill pA">SETTLED</span></td><td>Feed confirms full-amount settlement for a non-terminal request</td><td>Books confirmed money (idempotent by ordinal). Agreeing evidence for an already-executed terminal = benign no-op, NOT appended</td></tr>
+<tr><td><span class="pill pA">FEED_RESULT_RECORDED</span></td><td>Feed evidence for an active request: REJECTED (terminal) / ACCEPTED (intermediate)</td><td>REJECTED: qualifying negative evidence for REJECTED_PROVIDER. ACCEPTED: tightens submission knowledge, blocks downgrade</td></tr>
+<tr><td><span class="pill pR">SETTLEMENT_MISMATCH_RECORDED</span></td><td>Feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence)</td><td>Books NOTHING; parks loudly; submission knowledge still tightens</td></tr>
+<tr><td><span class="pill pR">EVIDENCE_CONTRADICTION_RECORDED</span></td><td>Evidence CONFLICTS with a terminal decision (SETTLED_AFTER_TERMINAL / MISMATCH_AFTER_TERMINAL / QUERY_CONTRADICTS_OUTCOME / FEED_REJECTS_OUTCOME). Conflict, never repetition</td><td>FIXED effect: book nothing, PARK, CRITICAL alert. Sole exit = dual-control verified outcome</td></tr>
+<tr><td><span class="pill pG">ESCALATION_MARKED</span></td><td>The MAYBE got old (once per episode)</td><td>Episode marked escalated; stays resolver-owned — the resolver keeps querying (§9.3 verbatim)</td></tr>
+<tr><td><span class="pill pP">OPS_VERIFIED_OUTCOME_APPLIED</span></td><td>The dual-control audited operation (typed APPROVAL_REF)</td><td>Appended with its <code>OUTCOME_RECORDED(PLATFORM_VERIFIED_*)</code> in ONE tx — the only manual door for possibly-moved money; a solo row has NO fold effect and pages</td></tr>
+<tr><td><span class="pill pP">OPS_RETRY_REARMED / OPS_BLOCKED / OPS_MARKER_CLEARED / OPS_ANNOTATED</span></td><td>Human actions through the SAME write path (no privileged writer). The two money-enabling ones (marker clear, retry re-arm) carry the typed four-eyes APPROVAL_REF</td><td>Budget reset / hard block / marker cleared / display note</td></tr>
+</table>
+
+<h3>The shape matrix — every cell is a CHECK</h3>
+<p>For every type, every governed column is either <b>R</b>equired, must-be-<b>N</b>ULL, or <b>O</b>ptional — and each row
+becomes ONE generated CHECK constraint. Two hard-won rules:</p>
+<div class="grid g2">
+ <div class="card"><h3>Oracle three-valued logic bites</h3><p class="sub">A bare <code>CHECK (EVENT_CODE IN (...))</code> evaluates UNKNOWN on NULL and <b>silently passes</b>. Every classified type's check carries an explicit <code>EVENT_CODE IS NOT NULL</code>. This lesson was re-learned twice during review (rounds 1 and 13) — it is now a derivation rule, not a convention.</p></div>
+ <div class="card"><h3>The constraint set is generated, not hand-written</h3><p class="sub">The complete 19-constraint set is a build deliverable: generated from the matrix by a small tool and proven equal to it by a parity self-test (every R/N/O cell exercised by an insert-must-fail / insert-must-pass pair). Comments and Markdown enforce nothing; only the generated set does.</p></div>
+</div>
+</section>
+
+<!-- ================= TAB 3 : WRITE PATH ================= -->
+<section class="tab" id="t3">
+<h2>The only write path — six steps, one transaction</h2>
+<p>Every writer — intake, scanner, resolver, feed handler, ops surface — goes through the same protocol.
+It is the baseline's own lock-then-write idiom (a pessimistic head lock replaced v1's optimistic fence-retry loop).
+Click <b>Step</b> to walk through it.</p>
+
+<div class="grid" style="grid-template-columns:minmax(340px,1fr) minmax(360px,1.2fr);max-width:1160px">
+<div class="card">
+ <div id="wpSteps">
+  <div class="step" data-s="1"><span class="n">1</span><div class="t"><b>Lock the head</b><div class="d"><code>SELECT … FOR UPDATE</code> on PAYMENT_HEAD (insert-on-first-contact: LAST_VERSION=0, NEXT_REQUEST_ORDINAL=1, REQUIRED_AMOUNT=NULL — explicit initial values, never NULL+1 arithmetic). Serializes all writers per payment.</div></div></div>
+  <div class="step" data-s="2"><span class="n">2</span><div class="t"><b>Fold the stream</b><div class="d">Read PAYMENT_EVENT by (key, version); compute required, paid_total, reserved, markers, open ordinal — the pure function.</div></div></div>
+  <div class="step" data-s="3"><span class="n">3</span><div class="t"><b>Witness check (fail closed)</b><div class="d">Fold money outputs must equal the locked head row — required, paid, reserved AND open ordinal, NULL-safe. ANY mismatch: abort with NO decision, page, quarantine (<code>PHASE=WITNESS_DIVERGED</code>). A veto, never an authorization.</div></div></div>
+  <div class="step" data-s="4"><span class="n">4</span><div class="t"><b>Decide</b><div class="d">Pure function: fold state → list of events. All business semantics (inherited from v4) live here and in the fold — testable with golden vectors, no DB needed.</div></div></div>
+  <div class="step" data-s="5"><span class="n">5</span><div class="t"><b>Per-event: INSERT, then head effect</b><div class="d">Each event inserts at <code>LAST_VERSION+1</code>, THEN applies ITS head effect (CAS / witness change / phase). Per event, not batched — the backstops check each insert against the head state its predecessors left behind.</div></div></div>
+  <div class="step" data-s="6"><span class="n">6</span><div class="t"><b>COMMIT</b><div class="d">Multi-event decisions (outcome + successor, enrich-fail + outcome) are ONE atomic transaction.</div></div></div>
+ </div>
+ <div style="margin-top:.6rem">
+  <button class="act primary" id="wpNext">Step ▸</button>
+  <button class="act" id="wpReset">Reset</button>
+ </div>
+</div>
+<div>
+ <div class="out info" id="wpOut">The write path in one line: <b>lock → fold → witness-check → decide → append+effect per event → commit</b>. Use Step to see what each stage protects.</div>
+ <div class="card">
+  <h3>Why per-event, not batched?</h3>
+  <p class="sub">The atomic outcome+successor decision is legal only in this interleaving: outcome insert (its ordinal still open) → close CAS (column goes NULL) → successor <code>REQUEST_OPENED</code> insert (trigger sees NULL) → open CAS. Batching all inserts before one head update would make the backstops reject the design's own legal writes. This defect was found while re-deriving the design and fixed before any review round.</p>
+ </div>
+ <div class="card" style="margin-top:1rem">
+  <h3>Two independent failure nets</h3>
+  <p class="sub"><b>The fence</b> — <code>PE_FENCE_UQ UNIQUE(payment_key, version)</code>: any writer that bypasses the lock collides and fails loudly instead of forking history.<br>
+  <b>The witness</b> — if head and fold disagree, nothing writes; the payment quarantines as <code>WITNESS_DIVERGED</code>, scanners skip it, and repair is the head-rebuild runbook. If rebuild doesn't clear it the stream itself is in dispute — only the dual-control door resolves it (that door alone runs in RECORDING mode under divergence, proceeds on the fold, and rebuilds the head in the same transaction).</p>
+ </div>
+</div>
+</div>
+
+<h2>The write-ahead discipline, inherited and sharpened</h2>
+<svg viewBox="0 0 1120 170" aria-label="write-ahead">
+ <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#888"/></marker></defs>
+ <rect x="20" y="30" width="200" height="52" rx="8" fill="var(--code)" stroke="var(--green)"/>
+ <text x="120" y="52" text-anchor="middle" class="s12" font-weight="700">POST_STARTED commits</text>
+ <text x="120" y="70" text-anchor="middle" class="s11 m">durable claim: wire MAY be reached</text>
+ <rect x="300" y="30" width="230" height="52" rx="8" fill="var(--code)" stroke="var(--amber)"/>
+ <text x="415" y="52" text-anchor="middle" class="s12" font-weight="700">Pre-wire recheck (no lock)</text>
+ <text x="415" y="70" text-anchor="middle" class="s11 m">skip send if parked / blocked / diverged / closed</text>
+ <rect x="610" y="30" width="160" height="52" rx="8" fill="var(--code)" stroke="var(--red)"/>
+ <text x="690" y="52" text-anchor="middle" class="s12" font-weight="700">Wire call</text>
+ <text x="690" y="70" text-anchor="middle" class="s11 m">the engine's dedup contract</text>
+ <line x1="220" y1="56" x2="298" y2="56" stroke="#888" stroke-width="1.6" marker-end="url(#a2)"/>
+ <line x1="530" y1="56" x2="608" y2="56" stroke="#888" stroke-width="1.6" marker-end="url(#a2)"/>
+ <text x="20" y="118" class="s12 m">The irreducible residue (honesty box item 7): a park committed between the recheck and the send cannot retract the claim —</text>
+ <text x="20" y="136" class="s12 m">identical in kind to the baseline's write-ahead window. The claim is "park = no NEW posting decisions + in-flight sends re-checked</text>
+ <text x="20" y="154" class="s12 m">at the last possible moment" — never "park = no posting, absolutely". No write-ahead design closes this from the database alone.</text>
+</svg>
+</section>
+
+<!-- ================= TAB 4 : FOLD ================= -->
+<section class="tab" id="t4">
+<h2>The fold — aggregation, never inference</h2>
+<pre>required_amount = AMOUNT of the REQUIRED_AMOUNT_SET with highest UPSTREAM_SEQ
+authoritative_outcome(ordinal)
+                = the LATEST outcome-class event (OUTCOME_RECORDED or SETTLED)
+                  for the ordinal in stream order — a PLATFORM_VERIFIED_* outcome
+                  appended through the dual-control door SUPERSEDES what it corrects
+paid_total      = Σ AMOUNT over ordinals whose authoritative outcome is
+                  executed-class (EXECUTED | PLATFORM_VERIFIED_EXECUTED | SETTLED)
+reserved        = AMOUNT of the open request, else 0
+shortfall       = required − paid_total − reserved      ← the standing-rule input</pre>
+<p>Because the inputs are literal recorded numbers, deploying a changed fold <b>cannot</b> retroactively change a settled
+payment's money totals unless the aggregation itself changes — which is exactly what the deploy gate catches.</p>
+
+<h3>Try it — toggle events, watch the fold</h3>
+<p class="sub">A tiny in-page fold over one payment's stream. Toggle rows on/off (as if they existed or not) and see what the pure function computes. Note what toggling does NOT do: no stored state was ever edited.</p>
+<div class="grid" style="grid-template-columns:minmax(380px,1.2fr) minmax(300px,1fr);max-width:1160px">
+ <div class="card" id="foldRows"></div>
+ <div>
+  <div class="dims" id="foldDims"></div>
+  <div class="out info" id="foldOut"></div>
+ </div>
+</div>
+
+<h2>Fold governance — the two standing controls</h2>
+<div class="grid g2">
+ <div class="card"><h3>1 · Deploy gate (before any fold change ships)</h3>
+ <p class="sub">Re-fold EVERY payment stream with a head row — open AND terminal, <b>no sampling, no exclusions</b> (events are permanent, so the full population is always foldable) — and compare against the head witness. Any money-field difference pages and blocks the deploy. A sampled gate provably lets a terminal-stream fold defect deploy silently and later reopen a phantom shortfall. At ~3,000 trades/day the full population is minutes of work.</p></div>
+ <div class="card"><h3>2 · Drift scan (continuous)</h3>
+ <p class="sub">A scheduled job re-folds open payments and compares fold output to the head witness; mismatch pages. This is the same two-bookkeepers control as the baseline's I1/I2 scan: the head is maintained by simple mechanical increments, the fold by rule evaluation — two independent computations of the same money.</p></div>
+</div>
+<div class="note"><b>What a fold deploy CAN still change:</b> control-state interpretation (marker liveness, retry pacing — not money). This is accepted in the honesty box as the same risk class as any code deploy in the baseline; the deploy gate bounds the money side to zero.</div>
+</section>
+
+<!-- ================= TAB 5 : GUARDS ================= -->
+<section class="tab" id="t5">
+<h2>The guard inventory — what the database itself refuses</h2>
+<p>All of these are independent of fold correctness: schema constraints, head CAS row-counts, and BEFORE-INSERT
+trigger backstops (implemented as ONE compound trigger validating each single-row insert at after-statement time;
+a statement guard forbids multi-row inserts so Oracle's mutating-table restriction never bites).
+<b>Click a card</b> to see the defect it kills.</p>
+<div class="grid g3">
+ <div class="card gcard"><h3>Fence <span class="ref">PE_FENCE_UQ</span></h3><p class="sub"><code>UNIQUE(payment_key, version)</code> — the backstop against lock-bypassing writers.</p>
+  <div class="kill"><b>Kills:</b> two writers extending the same stream concurrently forking history. A collision seen while HOLDING the lock means the head lost sync — page, rebuild from the stream.</div></div>
+ <div class="card gcard"><h3>Identity write-once <span class="ref">PE_IDEM_UQ / PE_ORDINAL_UQ</span></h3><p class="sub">Generated-column uniques on opening events.</p>
+  <div class="kill"><b>Kills:</b> two openings with the same idempotency key (double-spend of a key) and ordinal reuse splitting the per-ordinal aggregation — whatever writer, path, or bug produced them.</div></div>
+ <div class="card gcard"><h3>One open request <span class="ref">§6.2 CAS</span></h3><p class="sub">Opening CAS: <code>WHERE OPEN_REQUEST_ORDINAL IS NULL AND NEXT_REQUEST_ORDINAL = :ordinal</code>; row count 0 aborts.</p>
+  <div class="kill"><b>Kills:</b> two concurrent open requests (the single most dangerous invariant) — a second bookkeeper that does NOT trust the fold. The head's open key/amount are copied FROM the opening event row, never from a program variable, so the wire key is transitively bound to the schema-claimed key.</div></div>
+ <div class="card gcard"><h3>Opening amount = shortfall <span class="ref">§6.3</span></h3><p class="sub"><code>:new.AMOUNT = REQUIRED_AMOUNT − PAID_TOTAL</code> on the transaction-fresh head.</p>
+  <div class="kill"><b>Kills:</b> a wrong decision opening for MORE than the shortfall — without this, every downstream gate (reservation copy, key echo, terminal equality, close CAS) would faithfully carry the oversized amount to the wire and book paid 180 against required 100.</div></div>
+ <div class="card gcard"><h3>Amount equality on every outcome <span class="ref">§6.3</span></h3><p class="sub">Outcome/SETTLED for the open ordinal require <code>AMOUNT = RESERVED</code>; through the closed-ordinal door, = that ordinal's OWN opening amount.</p>
+  <div class="kill"><b>Kills:</b> false history — a reject recording amount 999 for a 100 request, or a 90-settlement booking as a 100-execution. A differing feed amount is only insertable as SETTLEMENT_MISMATCH_RECORDED (routing enforced). The money-terminal close CAS also carries <code>AND RESERVED = :amount</code> — the witness binds at what NUMBER the ordinal closes.</div></div>
+ <div class="card gcard"><h3>Key echo <span class="ref">§6.3</span></h3><p class="sub">POST_STARTED / POST_RESULT / QUERY_RESULT require <code>IDEMPOTENCY_KEY = OPEN_IDEMPOTENCY_KEY</code>.</p>
+  <div class="kill"><b>Kills:</b> stale evidence for an EARLIER request's key being recorded against the current one, and an attempt event citing a key other than its opening's.</div></div>
+ <div class="card gcard"><h3>Open-ordinal gate <span class="ref">§6.3</span></h3><p class="sub">Attempt/evidence/outcome events require their ordinal to BE the open one; terminal evidence against a closed ordinal must route to the contradiction park.</p>
+  <div class="kill"><b>Kills:</b> a feed rejection recorded against a closed executed ordinal without a park; a query result attaching a first UETR claim to a never-opened ordinal; a mismatch against a closed ordinal committing as a free-standing park with no exit.</div></div>
+ <div class="card gcard"><h3>Release rights <span class="ref">§6.3 · unified predicate</span></h3><p class="sub">CANCELLED_NOT_SUBMITTED / SUPERSEDED_OPS require <b>provably NOT SUBMITTED</b> — defined in exactly TWO places (v2 §5.3, 01 §5); everywhere else cites it.</p>
+  <div class="kill"><b>Kills:</b> one wrong "it was never sent" decision after a crash releasing an executed request's reservation — the successor then pays a second time. The predicate: zero POST_STARTED, OR latest attempt closed by a synchronous BUSINESS/DEFINITIVE reject with no later attempt AND no acceptance-class row post-dating it (a delayed query ACCEPTED proves SUBMITTED and revokes releasability). Four review rounds of drift came from restating it — hence define-once-cite-elsewhere.</div></div>
+ <div class="card gcard"><h3>REJECTED_PROVIDER needs real evidence <span class="ref">§6.3</span></h3><p class="sub">Requires a same-ordinal TERMINAL-class negative evidence row post-dating the latest attempt. BUSINESS_REJECT never qualifies.</p>
+  <div class="kill"><b>Kills:</b> attempt 1's stale retry-class reject terminally closing attempt 2's lost-response execution. Retry-class negative facts expire the moment a later attempt starts.</div></div>
+ <div class="card gcard"><h3>Downgrade gate <span class="ref">§6.3</span></h3><p class="sub">DOWNGRADED_FOR_REPOST requires NOT_FOUND post-dating the latest attempt AND no acceptance-class row post-dating that attempt.</p>
+  <div class="kill"><b>Kills:</b> downgrading an ACCEPTED request (the backward transition the baseline forbids). Recency alone proves recording order, not the absence of acceptance — the second conjunct was a review find.</div></div>
+ <div class="card gcard"><h3>Dual-control pair gate <span class="ref">§6.3 · TX_ID</span></h3><p class="sub">Every PLATFORM_VERIFIED_* outcome requires the row at VERSION−1 to be its OPS_VERIFIED_OUTCOME_APPLIED — same ordinal, same TX_ID, equal APPROVAL_REF.</p>
+  <div class="kill"><b>Kills:</b> a solo "verified" outcome booking money with no approval, and a dangling approval committed earlier being paired later. Same-transaction membership is DB-checked via the guard-stamped TX_ID, not promised by the application. The closed-ordinal case is additionally the ONLY write admitted for a closed ordinal.</div></div>
+ <div class="card gcard"><h3>UETR association <span class="ref">§6.3 + PH_UETR_UQ</span></h3><p class="sub">ONE association relation (UETR-bearing events ∪ permanent RECONCILED_BY_KEY rows); an event's UETR must match its ordinal's association or be the first claim anywhere. PH_UETR_UQ = the belt for simultaneous first claims.</p>
+  <div class="kill"><b>Kills:</b> a resolver re-attaching ordinal 1's UETR to open ordinal 2 (letting ordinal 1's stale feed reject release ordinal 2's reservation); a claim of an abandoned historical UETR; two heads silently sharing one UETR (platform contract violation becomes a loud constraint failure, never a silent double-booking).</div></div>
+ <div class="card gcard"><h3>Version continuity <span class="ref">§6.3</span></h3><p class="sub"><code>:new.VERSION = LAST_VERSION + 1</code>; head effect advances LAST_VERSION; drift scan asserts density.</p>
+  <div class="kill"><b>Kills:</b> skipped slots — the fence rejects duplicates but not holes. COUNT(*) = MAX(VERSION) = LAST_VERSION.</div></div>
+ <div class="card gcard"><h3>Opening stamp <span class="ref">§6.3</span></h3><p class="sub">REQUEST_OPENED requires <code>REQUIRED_AT_OPEN = REQUIRED_AMOUNT</code> on the transaction-fresh head.</p>
+  <div class="kill"><b>Kills:</b> the immutable UI amount-series stamp being born wrong — display-only, but unfixable if wrong (immutability cuts both ways).</div></div>
+ <div class="card gcard"><h3>Key/business binding <span class="ref">PH_BIZ_BIND_CK</span></h3><p class="sub">BUSINESS_ID must equal the key's leading component; the key must contain exactly three delimiters.</p>
+  <div class="kill"><b>Kills:</b> a mis-bound head dropping out of its trade's fan-out worklist and skipping an absence-cancellation; and non-injective key encodings merging two real payments into one head.</div></div>
+ <div class="card gcard"><h3>Delivery fidelity <span class="ref">inbox trigger, §8</span></h3><p class="sub">Two universal fold-state-free rules on every feed-delivery transaction: no class inversion; no witnessless no-op.</p>
+  <div class="kill"><b>Kills:</b> a SETTLED delivery being recorded as a rejection (or laundering a 90-mismatch into a clean 100-rejection), and a disagreeing delivery being silently no-opped past the contradiction park. Mandatory statement order: event inserts first, terminal inbox write LAST (triggers fire at statement time).</div></div>
+</div>
+<p class="sub" style="margin-top:.8rem"><b>Honesty box:</b> full temporal legality beyond this set stays code-enforced — fold logic under golden vectors. The backstopped subset covers the money-moving transitions; the residue is the same class as a wrong CAS in the baseline.</p>
+</section>
+
+<!-- ================= TAB 6 : TRADES & FEED ================= -->
+<section class="tab" id="t6">
+<h2>Snapshot admission — two watermarks, serialized at the trade</h2>
+<svg viewBox="0 0 1120 330" aria-label="trade head watermarks">
+ <defs><marker id="a3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#888"/></marker></defs>
+ <rect x="20" y="25" width="320" height="120" rx="8" fill="var(--code)" stroke="var(--amber)" stroke-width="2"/>
+ <text x="35" y="48" class="b">TRADE_HEAD (per trade)</text>
+ <text x="35" y="72" class="mono">LAST_ACCEPTED_SEQ  · digest · pointer</text>
+ <text x="35" y="90" class="s11 m">newest VALID snapshot = trade truth (NULL until first valid)</text>
+ <text x="35" y="114" class="mono">LAST_SEEN_SEQ      · digest · pointer</text>
+ <text x="35" y="132" class="s11 m">newest processed AT ALL, valid or invalid (≥ accepted)</text>
+
+ <rect x="400" y="25" width="330" height="120" rx="8" fill="none" stroke="var(--line)"/>
+ <text x="415" y="48" class="b">Admission (the only writer)</text>
+ <text x="415" y="70" class="s11">1 · SELECT FOR UPDATE on TRADE_HEAD — FIRST action,</text>
+ <text x="415" y="86" class="s11">    held through compare + update + every marker append</text>
+ <text x="415" y="104" class="s11">2 · validity judged against ACCEPTED (not seen):</text>
+ <text x="415" y="120" class="s11">    valid 150 after invalid 200 over accepted 100 LANDS</text>
+ <text x="415" y="138" class="s11">3 · invalid ⇒ markers appended INSIDE this transaction</text>
+
+ <rect x="790" y="25" width="310" height="120" rx="8" fill="none" stroke="var(--line)"/>
+ <text x="805" y="48" class="b">Fan-out (per payment, separate tx)</text>
+ <text x="805" y="70" class="s11">1 · lock TRADE_HEAD (same lock order)</text>
+ <text x="805" y="88" class="s11">2 · equality fence: my seq must STILL = LAST_SEEN_SEQ</text>
+ <text x="805" y="106" class="s11">3 · lock payment head, append seq-guarded —</text>
+ <text x="805" y="124" class="s11">    the FULL current ACCEPTED state, only that</text>
+
+ <line x1="340" y1="85" x2="398" y2="85" stroke="#888" stroke-width="1.6" marker-end="url(#a3)"/>
+ <line x1="730" y1="85" x2="788" y2="85" stroke="#888" stroke-width="1.6" marker-end="url(#a3)"/>
+
+ <text x="20" y="185" class="b">Why two watermarks?</text>
+ <text x="20" y="207" class="s12 m">· The fence checks SEEN: after invalid seq 200 is seen, a fan-out fenced on accepted-only would fight the 200 owner forever.</text>
+ <text x="20" y="225" class="s12 m">· Validity checks ACCEPTED: judging arrivals against SEEN discarded the valid-150-after-invalid-200 cancellation (inherited §6.6).</text>
+ <text x="20" y="243" class="s12 m">· The SEEN digest deduplicates an identical invalid redelivery (an accepted-only digest would misread it as an upstream defect).</text>
+ <text x="20" y="261" class="s12 m">· Equal seq + different digest = upstream DEFECT: refuse + CRITICAL. No tie machinery exists — upstream seq is a contract fact.</text>
+ <text x="20" y="291" class="s12 m">Invalid markers apply only to the set knowable at admission (existing heads ∪ the invalid document's extractable keys) — a payment</text>
+ <text x="20" y="309" class="s12 m">first introduced by later valid truth never inherits the marker. Crash = full-admission rollback; redelivery re-runs and converges.</text>
+</svg>
+
+<h2>Feed deliveries — inbox, matching, and the two exits</h2>
+<div class="grid g2">
+ <div class="card"><h3>Atomic seen-and-processed</h3>
+ <p class="sub">The inbox INSERT (<code>UNIQUE(source, event_id)</code>) rides the SAME transaction as the append it causes — or the same transaction that decides "benign no-op" (agreeing or stale evidence). A crash before commit leaves neither; redelivery hits the dedup or re-runs cleanly. Snapshot deliveries get NO inbox row at all.</p></div>
+ <div class="card"><h3>Three-source matching, fail-closed multiplicity</h3>
+ <p class="sub">Candidates = DISTINCT payments from <b>head matches ∪ event-index matches ∪ RECONCILED_BY_KEY rows</b>, all always consulted. 0 → durable <code>UNMATCHED_TERMINAL</code> row, level-triggered paging. 1 → lock, RE-RUN the union inside the transaction, then fold + append. 2+ at any point → CRITICAL, nothing committed. The post-recheck race dies on <code>PH_UETR_UQ</code> — a schema fact, not a promise.</p></div>
+ <div class="card"><h3>Exit 1 — RESOLVED_HANDLED</h3>
+ <p class="sub">The re-match found the payment; whatever the write path decides (append, contradiction park, benign no-op) is governed SOLELY by the normal gates under the head lock — a correspondence-verification relation was built, proved to be a diverging second implementation of write-path legality, and retracted. The inbox row keeps an audit pointer (payment key + head version at handling).</p></div>
+ <div class="card"><h3>Exit 2 — RESOLVED_DISPOSED</h3>
+ <p class="sub">For evidence that CANNOT go through a write path: <b>FOREIGN</b> (not ours) or <b>RECONCILED_BY_KEY</b> (the lost-UETR settlement — response timed out, key-query recovery carried no UETR, no stream will ever contain it). Reconciliation names payment + ordinal, locks the named head, verifies the stream ALREADY agrees (class and amount), binds the four-eyes approval to the stated claim, and sets the head's UETR slot. If the stream disagrees, disposal FAILS — truth enters through the dual-control door first. These rows are PERMANENT: they carry an association recorded nowhere else.</p></div>
+</div>
+<div class="note"><b>Delivery-fidelity backstop</b> (universal, fold-state-free, on every feed transaction): (1) no class inversion — a SETTLED delivery cannot produce rejected-class records, a REJECTED delivery cannot produce executed-class bookings, a MISMATCH delivery can only produce mismatch/contradiction rows; (2) no witnessless no-op — handling a terminal delivery with NO append requires the associated ordinal's authoritative outcome to agree in class (and amount, for settled/mismatch). The transcription residue (delivery → EV columns) is the inherited CA-1 recorded-at-the-time class: one shared, golden-vector-tested transcriber.</div>
+</section>
+
+<!-- ================= TAB 7 : OPS & LIMITS ================= -->
+<section class="tab" id="t7">
+<h2>The one manual door for possibly-moved money</h2>
+<svg viewBox="0 0 1120 240" aria-label="dual control door">
+ <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#888"/></marker></defs>
+ <rect x="20" y="30" width="230" height="60" rx="8" fill="var(--code)" stroke="var(--red)" stroke-width="2"/>
+ <text x="135" y="55" text-anchor="middle" class="s12" font-weight="700">PARKED / contradicted /</text>
+ <text x="135" y="73" text-anchor="middle" class="s12" font-weight="700">persistent WITNESS_DIVERGED</text>
+ <rect x="330" y="30" width="250" height="60" rx="8" fill="var(--code)" stroke="var(--purple)" stroke-width="2"/>
+ <text x="455" y="50" text-anchor="middle" class="s12" font-weight="700">v4 §9.3 approval protocol</text>
+ <text x="455" y="68" text-anchor="middle" class="s11 m">two-step approval · approval_id sole input</text>
+ <text x="455" y="83" text-anchor="middle" class="s11 m">APPROVED → CONSUMED by CAS</text>
+ <rect x="660" y="30" width="300" height="60" rx="8" fill="var(--code)" stroke="var(--green)" stroke-width="2"/>
+ <text x="810" y="50" text-anchor="middle" class="s12" font-weight="700">ONE transaction appends the pair</text>
+ <text x="810" y="68" text-anchor="middle" class="s11 mono">OPS_VERIFIED_OUTCOME_APPLIED</text>
+ <text x="810" y="83" text-anchor="middle" class="s11 mono">+ OUTCOME_RECORDED(PLATFORM_VERIFIED_*)</text>
+ <line x1="250" y1="60" x2="328" y2="60" stroke="#888" stroke-width="1.6" marker-end="url(#a4)"/>
+ <line x1="580" y1="60" x2="658" y2="60" stroke="#888" stroke-width="1.6" marker-end="url(#a4)"/>
+ <text x="20" y="130" class="s12 m">The fold takes the LATEST outcome-class event per ordinal as authoritative — the verified outcome SUPERSEDES the wrong one,</text>
+ <text x="20" y="148" class="s12 m">history keeps both. PAID_TOTAL adjusts by the signed difference, pinned at decide time (a post-insert lookup would see the</text>
+ <text x="20" y="166" class="s12 m">correction itself and apply a zero delta). Then the same transaction re-evaluates BOTH directions under the inherited gates:</text>
+ <text x="20" y="192" class="s12 m">· Shortfall direction: verified NOT_EXECUTED latches provider_rejected — NO automatic successor (marker must unlatch or ops re-arm).</text>
+ <text x="20" y="210" class="s12 m">· Excess direction: a provably-NOT-SUBMITTED open request cancels in the same tx; a claim that MAY have executed keeps the park.</text>
+</svg>
+
+<h2>Diagnosis: head for "where", stream for "why"</h2>
+<div class="grid g2">
+ <div class="card"><h3>fold --explain &lt;payment_key&gt;</h3>
+ <p class="sub">Prints the stream and the fold's state after each event — the event model's answer to "SELECT the state". Ships with the MVP <b>as a deliverable, not a nice-to-have</b> (honesty box item 6). The stream IS the transition history the baseline lacks locally; the team must learn to read it.</p></div>
+ <div class="card"><h3>No privileged writer, ever</h3>
+ <p class="sub">Ops actions arrive through the SAME write path as everything else: marker clear and retry re-arm (the two money-enabling single actions) carry a typed four-eyes APPROVAL_REF, consumed by CAS. Blocking and annotating bind nothing. Rogue-SQL arguments are out of scope by the PO standard — the front door is what gets reviewed, and every front door goes through the gates.</p></div>
+</div>
+
+<h2>The honesty box — accepted, with mitigations</h2>
+<table>
+<tr><th>#</th><th>Accepted residue</th><th>Mitigation / comparison</th></tr>
+<tr><td>1</td><td>Full temporal legality beyond the backstops is code-enforced</td><td>The backstopped subset covers money-moving transitions; the rest is fold logic under golden vectors — same class as a wrong CAS in the baseline</td></tr>
+<tr><td>2</td><td>Control-state reinterpretation on fold change (never money)</td><td>Same risk as any code deploy in the baseline; the deploy gate bounds the money side to zero</td></tr>
+<tr><td>3</td><td>The fold is a single point of interpretation</td><td>Deliberate — also the single place to test. Witness, deploy gate, and DB backstops are the independent checks</td></tr>
+<tr><td>4</td><td>Event-table growth (rows permanent)</td><td>&lt;1M rows/year at this volume — decades of headroom. A future 100× volume would reopen the archived-claims problems this design refused to carry</td></tr>
+<tr><td>5</td><td>Everything stands on the engine collision contract</td><td>Exactly as the baseline does; §18 BLOCKING item 1 gates go-live identically</td></tr>
+<tr><td>6</td><td>Ops learning curve (reading streams)</td><td><code>fold --explain</code> ships with the MVP</td></tr>
+<tr><td>7</td><td>The commit-to-wire window</td><td>Narrowed to recheck-to-send; identical in kind to the baseline's write-ahead window — no design closes it from the database alone</td></tr>
+</table>
+
+<h2>What must still be proven (00-README checklist)</h2>
+<p class="sub">The adversarial campaign is closed clean; these are the implementation-evidence items that remain before this could replace the baseline:
+<b>2</b> fold spec + golden vectors · <b>3</b> fold-change governance ops procedure · <b>4</b> upstream sequence fact in writing (BA-3 extension) ·
+<b>5</b> trigger/CAS/generated-constraint evidence on real Oracle · <b>6</b> data classification + PII vault (events are permanent — no erasable PII in events, ever) ·
+<b>7</b> full §-by-§ parity review against requirment-v4, then external re-review on TOTAL complexity.</p>
+</section>
+</main>
+
+<script>
+// tabs
+const tabs=document.getElementById('tabs');
+tabs.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('on',s.id===b.dataset.t));
+ window.scrollTo({top:0});});
+
+// guard cards
+document.querySelectorAll('.gcard').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('open')));
+
+// write-path stepper
+const wpMsgs=[
+ 'Step 1 — <b>Lock.</b> One writer per payment. First contact INSERTs the head with explicit initial values (REQUIRED_AMOUNT = NULL: "no valid data ever applied" — 0 would fail the first witness check).',
+ 'Step 2 — <b>Fold.</b> The pure function reads the stream. Nothing here trusts the head.',
+ 'Step 3 — <b>Witness check.</b> Two bookkeepers compared: fold (rule evaluation) vs head (mechanical increments). Mismatch ⇒ NO decision, page, WITNESS_DIVERGED quarantine. This check can only veto.',
+ 'Step 4 — <b>Decide.</b> fold state → events. All inherited v4 semantics live here — pure, golden-vector-testable.',
+ 'Step 5 — <b>Append per event.</b> INSERT at LAST_VERSION+1, then that event\'s head effect (CAS / witness / phase). The trigger backstops check each insert against the head state its predecessors left behind.',
+ 'Step 6 — <b>COMMIT.</b> Atomic. If ANYTHING failed — CAS row-count 0, trigger raise, fence collision — the whole transaction aborts and no history was written.'
+];
+let wp=0;
+const wpOut=document.getElementById('wpOut'),steps=[...document.querySelectorAll('#wpSteps .step')];
+document.getElementById('wpNext').onclick=()=>{
+ if(wp>=6){return}
+ wp++;
+ steps.forEach((s,i)=>{s.classList.toggle('done',i<wp-1);s.classList.toggle('on',i===wp-1)});
+ wpOut.innerHTML=wpMsgs[wp-1];wpOut.className='out '+(wp===3?'bad':wp===6?'ok':'info');
+ if(wp===6)steps.forEach(s=>s.classList.add('done'));
+};
+document.getElementById('wpReset').onclick=()=>{wp=0;steps.forEach(s=>{s.classList.remove('on','done')});
+ wpOut.className='out info';wpOut.innerHTML='Reset. Click Step to walk the protocol again.'};
+
+// fold toy
+const EV=[
+ {v:1,ty:'REQUIRED_AMOUNT_SET',cls:'money',seq:100,amt:100,on:true,lbl:'seq 100 · amount 100'},
+ {v:2,ty:'REQUEST_OPENED',cls:'',ord:1,amt:100,on:true,lbl:'ordinal 1 · amount 100'},
+ {v:3,ty:'POST_STARTED',cls:'',ord:1,on:true,lbl:'ordinal 1 · key k1'},
+ {v:4,ty:'POST_RESULT_RECORDED',cls:'',ord:1,code:'ACCEPTED',on:true,lbl:'ordinal 1 · ACCEPTED'},
+ {v:5,ty:'SETTLED',cls:'money',ord:1,amt:100,on:true,lbl:'ordinal 1 · amount 100 (executed-class)'},
+ {v:6,ty:'REQUIRED_AMOUNT_SET',cls:'money',seq:200,amt:150,on:true,lbl:'seq 200 · amount 150 (amendment)'},
+ {v:7,ty:'REQUEST_OPENED',cls:'',ord:2,amt:50,on:true,lbl:'ordinal 2 · amount 50 (the shortfall)'},
+ {v:8,ty:'OUTCOME_RECORDED',cls:'neg',ord:2,code:'REJECTED_PROVIDER',amt:50,on:false,lbl:'ordinal 2 · REJECTED_PROVIDER · amount 50'},
+];
+const foldRows=document.getElementById('foldRows'),foldDims=document.getElementById('foldDims'),foldOut=document.getElementById('foldOut');
+function renderFold(){
+ foldRows.innerHTML='<h3>PAYMENT_EVENT (click a row to toggle)</h3>'+EV.map((e,i)=>
+  `<div class="evrow ${e.cls}" data-i="${i}" style="cursor:pointer;opacity:${e.on?1:.35}">
+   <span class="v">v${e.v}</span><span class="ty">${e.ty}</span><span>${e.lbl}</span>
+   <span style="margin-left:auto">${e.on?'●':'○'}</span></div>`).join('');
+ // fold
+ const on=EV.filter(e=>e.on);
+ let req=null,reqSeq=-1;
+ on.filter(e=>e.ty==='REQUIRED_AMOUNT_SET').forEach(e=>{if(e.seq>reqSeq){reqSeq=e.seq;req=e.amt}});
+ const ords={};
+ on.forEach(e=>{if(e.ord){(ords[e.ord]=ords[e.ord]||[]).push(e)}});
+ let paid=0,reserved=0,openOrd=null;
+ Object.keys(ords).forEach(o=>{
+  const evs=ords[o],open=evs.find(e=>e.ty==='REQUEST_OPENED');
+  if(!open)return;
+  const outs=evs.filter(e=>e.ty==='OUTCOME_RECORDED'||e.ty==='SETTLED');
+  if(!outs.length){reserved+=open.amt;openOrd=o;return}
+  const auth=outs[outs.length-1];
+  if(auth.ty==='SETTLED'||auth.code==='EXECUTED'||auth.code==='PLATFORM_VERIFIED_EXECUTED')paid+=auth.amt;
+ });
+ const short=(req==null?0:req)-paid-reserved;
+ foldDims.innerHTML=
+  `<div class="dim"><b>required</b><span>${req==null?'NULL':req}</span></div>
+   <div class="dim"><b>paid_total</b><span>${paid}</span></div>
+   <div class="dim"><b>reserved</b><span>${reserved}</span></div>
+   <div class="dim ${short>0?'chg':''}"><b>shortfall</b><span>${short}</span></div>
+   <div class="dim"><b>open ordinal</b><span>${openOrd??'—'}</span></div>`;
+ let msg;
+ if(req==null)msg='No REQUIRED_AMOUNT_SET on ⇒ required is NULL — "no valid data ever applied". Nothing can open.';
+ else if(short>0&&openOrd==null)msg=`Shortfall ${short} with no open request ⇒ the standing rule would open ordinal ${Object.keys(ords).length+1} for exactly ${short} (opening-amount-equals-shortfall is trigger-enforced).`;
+ else if(openOrd!=null)msg=`Ordinal ${openOrd} is open (reserved ${reserved}). No second request can open — the head CAS refuses (OPEN_REQUEST_ORDINAL not NULL).`;
+ else if(short===0)msg='required = paid + reserved ⇒ CONFIRMED. Nothing to do — and note the fold got here from raw facts alone; no stored status column exists to be wrong.';
+ else msg=`paid + reserved exceeds required by ${-short} ⇒ excess: the correction rules (§6) decide — cancel a provably-NOT-SUBMITTED open request, or park until a live claim resolves.`;
+ foldOut.innerHTML=msg;
+ foldOut.className='out '+(short<0?'bad':short===0&&req!=null?'ok':'info');
+}
+foldRows.addEventListener('click',e=>{const r=e.target.closest('.evrow');if(!r)return;EV[+r.dataset.i].on=!EV[+r.dataset.i].on;renderFold()});
+renderFold();
+</script>
+</body>
+</html>

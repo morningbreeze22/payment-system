@@ -23,9 +23,13 @@
 |---|---|
 | `event-model-v2.md` | The refactor rationale: what changed from v1 and WHY — the v1-problem → v2-resolution map, the write-protocol redesign (pessimistic head lock, fence demoted to backstop), money-facts-as-events, fold governance, the contradiction exit, and the honesty box of what remains accepted |
 | `01-event-table-schema.md` | The normative schema reference: full DDL for all four structures, the complete 19-type shape matrix (with the CHECK derivation rule), identity (request-ordinal, restore-safe), the event vocabulary with fold effects, the per-event write protocol, backstops, and read surfaces |
+| `02-baseline-vs-event-model-comparison.md` | The decision-support comparison against the baseline (money-safety, simplicity, scalability, assurance cost, operability, evolvability), pros/cons of each, and the maintainer's conditional recommendation — decides nothing; the decision belongs to the team |
+| `event-model-explained.html` | Interactive concept guide (tabs: big idea, event stream, write path, fold, guard inventory, trades/feed/inbox, ops & honest limits) — derived from the two normative docs, teaching aid only |
+| `event-model-playground.html` | Interactive scenario player: nine scenarios stepped event-by-event with the stream, head, and fold panels recomputed live, including guard-refusal demonstrations — teaching aid only |
 
-Where the two disagree, `event-model-v2.md` wins — `01` is its
-derived reference and the mismatch is a defect in `01`.
+Where files disagree, `event-model-v2.md` wins — `01` is its derived
+reference, the HTMLs are teaching renderings, and any mismatch is a
+defect in the derived artifact.
 
 ## The design rules everything else follows from
 
