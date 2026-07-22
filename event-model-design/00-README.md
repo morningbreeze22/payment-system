@@ -32,8 +32,9 @@ derived reference and the mismatch is a defect in `01`.
 1. **The event stream is the only truth.** Current state is never
    stored authoritatively; it is computed by THE fold (one shared,
    versioned, golden-vector-tested implementation). `PAYMENT_HEAD` is
-   a transaction-fresh cache and witness: it can VETO a write (CAS +
-   triggers), it never authorizes one, and no money decision reads it.
+   a transaction-fresh cache and witness: it can VETO a write (the
+   write-path witness check, the CAS set, the triggers), it never
+   authorizes one, and no money decision reads it as an input.
 2. **One write path.** Every append happens under the head-row lock
    (the baseline's own lock-then-write idiom), events applied one at a
    time against the backstops; the fence `UNIQUE(payment_key, version)`
@@ -51,11 +52,11 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Every v2 closure mechanism (head
-   CAS + triggers, ordinal identity, deploy gate, atomic inbox,
-   admission-by-sequence) is one refactor old and has survived zero
-   external review rounds — the baseline's mechanisms have survived
-   many. This is the single largest open item.
+1. **Adversarial review rounds.** One external adversarial round has
+   now been folded (2026-07-21: 3 CRITICAL / 4 HIGH / 1 MEDIUM, all
+   closed by mechanism — see `event-model-v2.md` §0). The baseline's
+   mechanisms have survived MANY such rounds; more are required here
+   before the two are comparable. Still the single largest open item.
 2. **Fold specification + golden vectors.** The fold must implement
    the baseline §4/§6/§7/§9/§10 semantics verbatim; the vector set and
    the `fold --explain` MVP deliverable do not exist yet.
@@ -67,9 +68,12 @@ is needed in either direction.)
    the deleted tie machinery stays deleted only if this holds.
 5. **Trigger/CAS implementation evidence on real Oracle.** §6.2/§6.3
    of `01`: mutation-style tests proving each backstop actually
-   rejects (including the per-event apply order the atomic
-   outcome+successor transaction depends on), fence-collision head
-   rebuild, contention behavior.
+   rejects (per-event apply order, amount equality, key echo, version
+   continuity, the closed-ordinal door admitting ONLY the dual-control
+   pair), fence-collision head rebuild, contention behavior — plus the
+   generated 18-constraint shape set with its matrix parity self-test
+   (comments and Markdown enforce nothing; only the generated set
+   does).
 6. **Event retention, archival, and compliance-deletion rules** —
    preceded by data classification (which fields are personal data,
    which records carry mandatory retention); the no-erasable-PII-in-

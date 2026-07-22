@@ -39,6 +39,16 @@ this refactor keeps (fence backstop, write-once identity, write-ahead,
 idempotent fold) and are superseded where they target v1-specific
 choices (slot-derived identity, projection staleness).
 
+First external adversarial review of v2 (2026-07-21): 3 CRITICAL /
+4 HIGH / 1 MEDIUM, every finding closed here by mechanism — terminal
+amount binding (§4, §5.2, §5.3), full-population deploy gate + the
+synchronous write-path witness check (§4.2, §5.1 step 3), pre-wire
+recheck + the honest commit-to-wire window (§9, §10.7), the
+closed-ordinal correction door with outcome supersession (§4, §5.3,
+§6), ordinal claim + counter-equality CAS + key echo (§2, §3, §5.2,
+§5.3), the snapshot fan-out equality fence (§7), and version
+continuity (§5.3).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -77,9 +87,14 @@ CREATE TABLE PAYMENT_EVENT (
   -- identity is claimed exactly once, in the schema:
   IDEM_CLAIM         VARCHAR2(128)  GENERATED ALWAYS AS
                        (CASE WHEN EVENT_TYPE = 'REQUEST_OPENED' THEN IDEMPOTENCY_KEY END),
+  -- and so is the ordinal (one opening per (payment, ordinal), ever):
+  ORDINAL_CLAIM      VARCHAR2(220)  GENERATED ALWAYS AS
+                       (CASE WHEN EVENT_TYPE = 'REQUEST_OPENED'
+                             THEN PAYMENT_KEY || '#' || TO_CHAR(REQUEST_ORDINAL) END),
 
-  CONSTRAINT PE_FENCE_UQ UNIQUE (PAYMENT_KEY, VERSION),   -- backstop fence (§5.1)
-  CONSTRAINT PE_IDEM_UQ  UNIQUE (IDEM_CLAIM)              -- identity write-once
+  CONSTRAINT PE_FENCE_UQ   UNIQUE (PAYMENT_KEY, VERSION),  -- backstop fence (§5.1)
+  CONSTRAINT PE_IDEM_UQ    UNIQUE (IDEM_CLAIM),            -- identity write-once
+  CONSTRAINT PE_ORDINAL_UQ UNIQUE (ORDINAL_CLAIM)          -- ordinal write-once
   -- plus the full §2.2 shape-check set
 );
 CREATE INDEX PE_KEY_IX  ON PAYMENT_EVENT (PAYMENT_KEY, VERSION);
@@ -161,6 +176,13 @@ Version slots no longer participate in identity. Consequences:
   hash(scope | 1..N+K) exactly as v4 does).
 - `IDEM_CLAIM` remains the schema-level write-once guarantee: two
   opening events can never carry the same key, whatever produced them.
+- **The ordinal itself is schema-bound**: `PE_ORDINAL_UQ` makes ordinal
+  reuse collide loudly, and the §5.2 opening CAS carries
+  `NEXT_REQUEST_ORDINAL = :ordinal`, so a writer supplying a stale or
+  skipped ordinal aborts on row count 0 — counter, ordinal, and claim
+  cannot drift apart. What remains code discipline (stated honestly):
+  the KEY DERIVATION content — that the hash was computed over THIS
+  ordinal — which lives under the same golden-vector regime as v4 §5.1.
 - No epoch/generation machinery is needed for the main hazard. (An
   epoch component remains a cheap optional hardening; not required.)
 
@@ -174,13 +196,26 @@ amount not present on an event.
 
 ```
 required_amount = AMOUNT of the REQUIRED_AMOUNT_SET with the highest UPSTREAM_SEQ
-paid_total      = Σ AMOUNT over DISTINCT request_ordinals having an
-                  OUTCOME_RECORDED(EXECUTED | PLATFORM_VERIFIED_EXECUTED)
-                  or SETTLED event                       (idempotent by ordinal)
+authoritative_outcome(ordinal)
+                = the LATEST outcome-class event (OUTCOME_RECORDED or
+                  SETTLED) for that ordinal in stream order — a
+                  PLATFORM_VERIFIED_* outcome appended through the §6
+                  dual-control door SUPERSEDES the outcome it corrects
+paid_total      = Σ AMOUNT over request ordinals whose authoritative
+                  outcome is executed-class (EXECUTED |
+                  PLATFORM_VERIFIED_EXECUTED | SETTLED)  (idempotent by ordinal)
 reserved        = AMOUNT of the open request (opening event exists,
                   no outcome event for its ordinal), else 0
 shortfall       = required − paid_total − reserved
 ```
+
+Amount binding (normative): a money-terminal event for an ordinal must
+carry AMOUNT equal to that ordinal's OPENING amount — the all-or-nothing
+engine contract makes any other number defect evidence, recorded as
+`SETTLEMENT_MISMATCH_RECORDED` (or a contradiction), never as
+`OUTCOME_RECORDED(EXECUTED)`/`SETTLED`. §5.2/§5.3 enforce this equality
+in the database, so a wrong terminal number cannot silently enter
+either bookkeeper and reopen a phantom shortfall.
 
 Because the inputs are literal recorded numbers, deploying a changed
 fold CANNOT retroactively change a settled payment's money totals
@@ -194,10 +229,14 @@ frozen; no consumer (UI, scanner, resolver, ops surface) may
 re-implement any part of it. Two standing controls:
 
 1. **Deploy gate:** before a release containing a fold change goes
-   live, re-fold EVERY payment with an open request plus a sample of
-   terminal payments and compare against the `PAYMENT_HEAD` witness
-   (§5). Any money-field difference is a page and blocks the deploy.
-   (At ~3,000 trades/day this is seconds of work.)
+   live, re-fold EVERY payment stream still within operational
+   retention — open AND terminal, no sampling — and compare against
+   the `PAYMENT_HEAD` witness (§5). Any money-field difference is a
+   page and blocks the deploy. Sampling is forbidden: a sampled gate
+   provably lets a terminal-stream fold defect deploy silently and
+   later reopen a phantom shortfall when new upstream traffic touches
+   the unsampled stream. (At ~3,000 trades/day the full population is
+   minutes of work.)
 2. **Drift scan (continuous):** a scheduled job re-folds open payments
    and compares fold output to the head witness; mismatch pages. This
    is the same two-bookkeepers control as v4's I1/I2 scan: the head is
@@ -216,6 +255,7 @@ CREATE TABLE PAYMENT_HEAD (
   LAST_VERSION         NUMBER(10)    NOT NULL,     -- must equal stream max
   NEXT_REQUEST_ORDINAL NUMBER(10)    NOT NULL,     -- identity counter (§3)
   OPEN_REQUEST_ORDINAL NUMBER(10),                 -- NULL = no open request
+  OPEN_IDEMPOTENCY_KEY VARCHAR2(128),              -- the open request's key (echo check, §5.3)
   -- money WITNESS (mechanical increments; never read by decisions):
   REQUIRED_AMOUNT      NUMBER(18,3),
   PAID_TOTAL           NUMBER(18,3) DEFAULT 0 NOT NULL,
@@ -247,14 +287,20 @@ construction, not by a reconciling sweep).
    explicit initial values, never NULL+1 arithmetic; PK-race retry —
    the same idiom as v4's obligation row)
 2. fold(stream)                       -- read PAYMENT_EVENT by (key, version)
-3. decide                             -- pure function: fold state -> events
-4. FOR EACH decided event, IN ORDER:
+3. WITNESS CHECK (fail closed): compare the fold's money outputs
+   (paid_total, reserved, open ordinal) against the locked head row.
+   ANY mismatch: abort with NO decision, page, park the payment.
+   The two bookkeepers must agree BEFORE money logic runs — this is
+   the §4.2 drift scan made synchronous at the only moment it matters,
+   and it is a VETO, never an authorization
+4. decide                             -- pure function: fold state -> events
+5. FOR EACH decided event, IN ORDER:
      INSERT it at the next version slot,
      THEN apply ITS head effect (§5.2 CAS, witness change, phase)
-5. COMMIT   (multi-event decisions remain ONE transaction — atomic)
+6. COMMIT   (multi-event decisions remain ONE transaction — atomic)
 ```
 
-Step 4 is **per event, not batched**: the §5.2/§5.3 backstops check each
+Step 5 is **per event, not batched**: the §5.2/§5.3 backstops check each
 insert against the head state its predecessors IN THIS TRANSACTION left
 behind. The atomic outcome+successor decision is legal only in this
 interleaving — outcome insert (its ordinal still open) → close CAS
@@ -285,17 +331,24 @@ Opening a request executes, in the opening transaction:
 ```
 UPDATE PAYMENT_HEAD
    SET OPEN_REQUEST_ORDINAL = :ordinal,
+       OPEN_IDEMPOTENCY_KEY = :idem_key,
        NEXT_REQUEST_ORDINAL = NEXT_REQUEST_ORDINAL + 1,
        RESERVED = :amount
- WHERE PAYMENT_KEY = :key AND OPEN_REQUEST_ORDINAL IS NULL
+ WHERE PAYMENT_KEY = :key
+   AND OPEN_REQUEST_ORDINAL IS NULL
+   AND NEXT_REQUEST_ORDINAL = :ordinal      -- the counter IS the ordinal
 ```
 
 Row count 0 aborts the append. This is a second bookkeeper for the
 single most dangerous invariant — it does not trust the fold. Closing
-(outcome) clears the column the same way (`WHERE OPEN_REQUEST_ORDINAL
-= :ordinal`), zeroes `RESERVED`, and adds the amount to `PAID_TOTAL`
-only when the outcome is money-terminal (`EXECUTED` /
-`PLATFORM_VERIFIED_EXECUTED` / `SETTLED`). A trigger on
+(outcome) clears the ordinal and key columns the same way
+(`WHERE OPEN_REQUEST_ORDINAL = :ordinal`), zeroes `RESERVED`, and adds
+the amount to `PAID_TOTAL` only when the outcome is money-terminal
+(`EXECUTED` / `PLATFORM_VERIFIED_EXECUTED` / `SETTLED`) — and the
+money-terminal close additionally carries `AND RESERVED = :amount`:
+the witness binds not just WHICH ordinal closes but AT WHAT NUMBER it
+closes (the §4 amount-binding rule made mechanical; a differing feed
+amount can only enter as `SETTLEMENT_MISMATCH_RECORDED`). A trigger on
 `PAYMENT_EVENT` additionally rejects a `REQUEST_OPENED` insert when
 the head's column is non-NULL — belt and braces, both independent of
 fold correctness.
@@ -310,16 +363,37 @@ contradiction event, §6, never as a second increment).
 
 ### 5.3 Cheap cross-row trigger backstops (the rest of L1, partial)
 
-Because the head is transaction-fresh, a small set of cross-row
-legality checks becomes DB-enforceable as BEFORE-INSERT triggers on
+Because the head is transaction-fresh, a set of cross-row legality
+checks becomes DB-enforceable as BEFORE-INSERT triggers on
 `PAYMENT_EVENT` (each a single indexed head read under the lock
-already held): `POST_STARTED` / `POST_RESULT_RECORDED` /
-`OUTCOME_RECORDED` / `SETTLED` require `OPEN_REQUEST_ORDINAL =
-:new.REQUEST_ORDINAL` (except the terminal-evidence contradiction
-path, which must instead append `EVIDENCE_CONTRADICTION_RECORDED` —
-the trigger enforces that routing); `REQUEST_OPENED` requires it NULL
-(§5.2). Full temporal legality beyond this set stays code-enforced
-(honesty box, §10).
+already held):
+
+- **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
+  `OUTCOME_RECORDED` / `SETTLED` require `OPEN_REQUEST_ORDINAL =
+  :new.REQUEST_ORDINAL` (except the terminal-evidence contradiction
+  path, which must instead append `EVIDENCE_CONTRADICTION_RECORDED` —
+  the trigger enforces that routing); `REQUEST_OPENED` requires it
+  NULL (§5.2).
+- **One closed-ordinal exception** (the §6 correction door, and
+  nothing else): `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` appended in
+  the same transaction as `OPS_VERIFIED_OUTCOME_APPLIED` is admitted
+  for a CLOSED ordinal.
+- **Amount equality**: `OUTCOME_RECORDED` with an executed-class code
+  and `SETTLED` require `:new.AMOUNT = RESERVED` (the opened amount);
+  a differing feed amount is only insertable as
+  `SETTLEMENT_MISMATCH_RECORDED` (routing enforced).
+- **Key echo**: `POST_STARTED` / `POST_RESULT_RECORDED` require
+  `:new.IDEMPOTENCY_KEY = OPEN_IDEMPOTENCY_KEY` — an attempt event can
+  never cite a key other than its opening's.
+- **Version continuity**: every insert requires `:new.VERSION =
+  LAST_VERSION + 1`, and the per-event head effect sets
+  `LAST_VERSION = :new.VERSION` — closing the skipped-slot gap the
+  fence alone cannot see (a unique constraint rejects duplicates, not
+  holes); the drift scan additionally asserts density
+  (`COUNT(*) = MAX(VERSION) = LAST_VERSION`).
+
+Full temporal legality beyond this set stays code-enforced (honesty
+box, §10).
 
 ## 6. Contradictions and the unpark path — the L3 fix
 
@@ -333,6 +407,18 @@ treats a verified outcome AFTER a contradiction as the authoritative
 resolution: the park lifts, money books per the recorded outcome, and
 the standing rule resumes (a remaining shortfall opens a successor in
 the same transaction). Nothing else unparks a contradicted payment.
+
+**Correction mechanics (the closed-ordinal door).** The dual-control
+pair is the ONLY write admitted for a closed ordinal (§5.3 exception —
+without it, the design's sole unpark path would be rejected by its own
+trigger). Fold rule: an ordinal's authoritative outcome is the LATEST
+outcome-class event in stream order (§4), so the verified outcome
+supersedes the wrong recorded one while history keeps both. Head
+effect of a superseding verified outcome: `PAID_TOTAL` adjusted by the
+signed difference (verified NOT_EXECUTED over a booked EXECUTED
+subtracts the amount; verified EXECUTED over a booked reject adds it);
+`RESERVED` untouched — the ordinal stays closed. The same transaction
+re-evaluates the standing rule on the corrected numbers.
 
 **Scope rule — contradiction means CONFLICT, not repetition.** Evidence
 that AGREES with an already-recorded terminal outcome (the routine
@@ -352,13 +438,21 @@ healthy payments.
   SAME transaction as the resulting append (or the same transaction
   that decides "no-op": stale evidence). "Seen" and "processed" commit
   atomically; a crash before commit leaves neither.
-- **Snapshot deliveries (multi-payment):** NO inbox row at all. Dedup
-  and convergence come from the admission watermark (equal seq →
-  admit-without-update, fan out; per-payment appends are
-  seq-guarded, so already-applied blocks no-op) — the v4 §6.1 shape.
-  Kafka ack only after fan-out completes; redelivery re-runs and
-  converges. Side effects (metrics, alerts) key on state CHANGES
-  (an append that actually happened), so re-runs do not re-fire them.
+- **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
+  EXPLICIT transaction boundary: the ADMISSION transaction updates
+  only the watermark/digest/XML pointer; FAN-OUT then runs as separate
+  per-payment transactions, each of which (1) locks `TRADE_HEAD` (the
+  v4 lock order), (2) verifies its carried snapshot seq still EQUALS
+  `LAST_ACCEPTED_SEQ` — the **equality fence**: if a newer admission
+  owns the trade, abort; the newer fan-out covers every payment
+  including absences — then (3) locks the payment head and appends
+  seq-guarded. Resume after a crash re-derives the worklist from the
+  CURRENT watermark's stored XML, never from an in-memory snapshot, so
+  a stale resumed worker can neither create nor touch a payment from
+  superseded trade truth. Kafka ack only after fan-out completes;
+  redelivery re-runs and converges. Side effects (metrics, alerts) key
+  on state CHANGES (an append that actually happened), so re-runs do
+  not re-fire them.
 - Retention: inbox purge > Kafka retention ≥ replay window (owner
   rule inherited from v4 §16.2).
 
@@ -391,7 +485,14 @@ healthy payments.
 Posting freeze in Hazelcast (outside the DB; absent = frozen);
 write-ahead rule (identity + payload hash durable before the wire —
 here structural: `POST_STARTED` IS the durable claim, and "no
-POST_STARTED = provably never sent" is the release predicate);
+POST_STARTED = provably never sent" is the release predicate) — with
+one mandatory addition: between the COMMIT of `POST_STARTED` and the
+wire call the worker re-reads the head (no lock) and SKIPS the send if
+the payment is parked/blocked or the ordinal is no longer open; the
+committed claim then resolves through the standard §9.1-style ask path
+under the park (it is NOT provably unsent, so it is never released —
+only asked about). This narrows the irreducible commit-to-wire window
+to the recheck-to-send gap (honesty box item 7);
 evidence precedence and release rights (§9.4/§10.1 semantics live in
 the fold, golden-vector tested); trust-age / downgrade / escalation
 clocks (event timestamps are the episode anchors — set-once by
@@ -428,6 +529,17 @@ streams together with their head row and trade.
    stream and the fold's state after each event) should ship with the
    MVP; it is the event model's answer to "SELECT the state" and it
    must be treated as a deliverable, not a nice-to-have.
+7. **The commit-to-wire window.** A park or contradiction committed
+   after `POST_STARTED` commits but before the wire call cannot
+   retract the claim — identical in kind to v4's write-ahead window.
+   The mandatory pre-wire head recheck (§9) narrows it to the
+   recheck-to-send gap; the residual is an executed request whose
+   outcome is still truthfully recorded and then reconciled through
+   the §6 dual-control flow. No write-ahead design closes this window
+   from the database alone — claiming "park = no posting, absolutely"
+   would be dishonest, so the claim here is "park = no NEW posting
+   decisions + in-flight sends re-checked at the last possible
+   moment."
 
 ## 11. Why this version is presentable
 
