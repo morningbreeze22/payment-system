@@ -331,6 +331,14 @@ correction rules, the release trigger, and the §9 restatement (§5.3,
 §6, §9, 01 §4/§5). Everything else, including every round-22 fix
 under direct attack, checked and found sound.
 
+Twenty-fourth round (2026-07-22): 0 CRITICAL / 1 HIGH — the SAME
+unification, incomplete at two remaining 01 sites (the
+`OUTCOME_RECORDED` vocabulary row and the §5 correction gates still
+said "provably-unsent"); all sites now cite the one predicate, and
+the §9 skipped-send sentence uses the unified terminology. The
+reviewer's soundness list covered the full gate inventory under
+direct attack.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -1241,7 +1249,9 @@ the payment is parked/blocked, in WITNESS_DIVERGED quarantine (a
 diverged payment must not reach the wire on a claim decided from
 disputed numbers), or the ordinal is no longer open; the
 committed claim then resolves through the standard §9.1-style ask path
-under the park (it is NOT provably unsent, so it is never released —
+under the park (it fails the unified provably-NOT-SUBMITTED
+predicate — a claim with no closing synchronous result — so it is
+never released —
 only asked about). This narrows the irreducible commit-to-wire window
 to the recheck-to-send gap (honesty box item 7);
 evidence precedence and release rights (§9.4/§10.1 semantics live in
