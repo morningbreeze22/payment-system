@@ -86,6 +86,22 @@ checklist-5 evidence (§5.3); WITNESS_DIVERGED added to the pre-wire
 skip set (§9); `CREATED_AT` guard-trigger-stamped like `TX_ID` — an
 immutable episode anchor may never be writer-supplied (§2).
 
+Fifth round (2026-07-21, fresh-eyes sweep of untouched sections):
+2 CRITICAL / 2 HIGH / 2 MEDIUM, all closed — the v4 release-guard
+transplanted as trigger checks (`CANCELLED_NOT_SUBMITTED` /
+`REJECTED_VALIDATION` / `SUPERSEDED_OPS` require zero `POST_STARTED`;
+`REJECTED_PROVIDER` requires first-party negative evidence — §5.3);
+archival finality rules: PERMANENT heads, event-only archival behind
+terminality + reprocessing + key-retention windows, rehydration before
+any write (§9, §10.4 reworded: design pre-production, execution
+far-future); pre-open definitive enrichment failure = payment-level
+marker with NULL ordinal, no impossible outcome pair (§2.2);
+`ESCALATION_MARKED` given its real inherited fold effect — the episode
+transitions to ops-owned BLOCKED once per episode (01 §4);
+`REQUIRED_AT_OPEN` required + head-equality-checked at opening (§2.2);
+feed multiplicity counted in DISTINCT payments, event index consulted
+only on zero head matches (§8).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -175,7 +191,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | REQUIRED_AMOUNT_SET | N | N | R | R (≥0; 0 = removal) | N | N | SYSTEM |
 | SNAPSHOT_INVALID_MARKED | N | N | R | N | N | N | SYSTEM |
 | REQUEST_OPENED | N | R | N | R (>0) | R | R | SYSTEM/OPS |
-| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | R | N | N | N | N | SYSTEM |
+| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O — NULL when enrichment fails BEFORE any opening (no request exists to cite; fold effect = latch `validation_failed`, block new opens, NO outcome pair — an outcome would need an open ordinal and a payload hash that was never assembled); R when re-enrichment fails for an OPEN request | N | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | SYSTEM |
 | POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | SYNC_RESPONSE |
 | QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key that was QUERIED — echo-checked, §5.3) | N | QUERY |
@@ -188,10 +204,14 @@ silently passes); every N cell is a real CHECK, not a convention.
 | OPS_VERIFIED_OUTCOME_APPLIED | N | R | N | N | N | N | OPS |
 | OPS_RETRY_REARMED / OPS_BLOCKED / OPS_MARKER_CLEARED / OPS_ANNOTATED | N | O | N | N | N | N | OPS |
 
-(`REQUIRED_AT_OPEN` is permitted only on `REQUEST_OPENED`; `UETR` only
-on acceptance-class and feed events, per the v4 §5 UETR-persistence
-rule, which is inherited verbatim: reject/collision UETRs are never
-recorded.)
+(`REQUIRED_AT_OPEN` is REQUIRED on `REQUEST_OPENED` and must-be-NULL
+elsewhere — aligned with the derived schema, which wins nothing: this
+matrix is authoritative — and the opening backstop additionally checks
+`REQUIRED_AT_OPEN = REQUIRED_AMOUNT` on the transaction-fresh head, so
+the immutable UI amount-series stamp cannot be born wrong even though
+it is never load-bearing. `UETR` only on acceptance-class and feed
+events, per the v4 §5 UETR-persistence rule, inherited verbatim:
+reject/collision UETRs are never recorded.)
 
 Ops events carry the approval reference in the TYPED `APPROVAL_REF`
 column — R on `OPS_VERIFIED_OUTCOME_APPLIED` and its paired
@@ -485,6 +505,20 @@ already held):
   than its opening's, and a query result must name the key that was
   actually queried, so stale evidence for an EARLIER request's key
   cannot be recorded against the current one.
+- **Release rights (the v4 release-guard trigger, transplanted)** —
+  the release predicate is a CHECK, not a convention:
+  `CANCELLED_NOT_SUBMITTED` requires ZERO `POST_STARTED` rows for the
+  ordinal (one indexed existence check — "provably never sent" is
+  exactly this predicate, so enforce it); `REJECTED_VALIDATION`
+  likewise requires no `POST_STARTED` (validation rejects are
+  pre-wire) plus its same-transaction `ENRICH_FAILED(DEFINITIVE)`;
+  `SUPERSEDED_OPS` requires no `POST_STARTED` — a posted claim may
+  only close on evidence or through the verified door;
+  `REJECTED_PROVIDER` requires a same-ordinal first-party negative
+  evidence row (`POST_RESULT_RECORDED` reject-class or
+  `QUERY_RESULT_RECORDED(REJECTED)`). Without this set, one wrong
+  "it was never sent" decision after a crash releases an executed
+  request's reservation and the successor pays a second time.
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`, and the per-event head effect sets
   `LAST_VERSION = :new.VERSION` — closing the skipped-slot gap the
@@ -628,10 +662,14 @@ healthy payments.
   head lock. A stale candidate costs a wasted fold, never a wrong
   payment — and the head cannot be stale by more than an uncommitted
   transaction (§5).
-- **Feed matching multiplicity (explicit):** match UETR against head
-  first, event index second; 0 → unmatched path (ack; §9-style query
-  sweep recovers), 1 → fold + append, 2+ → CRITICAL anomaly, no state
-  change.
+- **Feed matching multiplicity (explicit, counted in PAYMENTS not
+  rows):** match UETR against the head first; ONLY on 0 head matches
+  consult the event index, and there count DISTINCT `PAYMENT_KEY`s —
+  one payment legitimately carries the same UETR on several events
+  (acceptance, query, outcome), which must resolve as ONE candidate,
+  not a false 3-row anomaly. 0 payments → unmatched path (ack;
+  §9-style query sweep recovers), 1 → fold + append under the lock,
+  2+ DISTINCT payments → CRITICAL anomaly, no state change.
 
 ## 9. Operational inheritances (unchanged from v4, restated as binding)
 
@@ -653,8 +691,23 @@ the fold, golden-vector tested); trust-age / downgrade / escalation
 clocks (event timestamps are the episode anchors — set-once by
 immutability, the v4 clock-discipline problem disappears); engine
 collision contract as the keystone, proven by the §18 item-1 sandbox
-test before go-live; retention: terminal payments archive as whole
-streams together with their head row and trade.
+test before go-live.
+
+**Archival (finality rules — an unfenced archive would fork history):**
+`PAYMENT_HEAD` and `TRADE_HEAD` rows are PERMANENT — they are the
+fences (version counter, ordinal counter, watermarks) and cost bytes
+per payment; a deleted head would let a later legitimate snapshot
+re-admit the trade as first contact, re-deal version 1 and ordinal 1,
+and fork the archived stream. Only `PAYMENT_EVENT` rows archive, and
+only when the payment is terminal AND the trade is past the upstream
+reprocessing window AND past the engine's key-retention window
+(CT-04). Any write touching a payment with archived events requires
+REHYDRATION first: restore the stream under the head lock and prove
+completeness by version continuity up to `LAST_VERSION`. The heads
+never forget, so counters continue and nothing resets. Designing
+these rules precedes the first production event (they are cheap on
+paper and unfixable retroactively); executing archival stays a
+far-future operation at this volume.
 
 ## 10. Honesty box v2 — what remains accepted, with mitigations
 
@@ -671,9 +724,12 @@ streams together with their head row and trade.
 3. **The fold is a single point of interpretation.** Deliberate — it
    is also the single place to test. The witness (§5), the deploy gate
    (§4.2), and the DB backstops (§5.2/5.3) are the independent checks.
-4. **Event-table growth.** Trivial at 3k trades/day for years;
-   stream-granular archival (§9) must exist before it matters. Not a
-   go-live item.
+4. **Event-table growth.** Trivial at 3k trades/day for years. The
+   archival DESIGN (§9 finality + rehydration rules, permanent heads)
+   is a pre-production requirement — retrofitting finality onto a
+   live append-only authority is exactly the kind of history surgery
+   this model forbids — but archival EXECUTION is a far-future
+   operation, not a go-live gate.
 5. **Everything still stands on the engine collision contract** —
    exactly as v4 does. §18 BLOCKING item 1 gates go-live for this
    design identically.

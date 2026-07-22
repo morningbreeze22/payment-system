@@ -52,14 +52,13 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Four external adversarial rounds
+1. **Adversarial review rounds.** Five external adversarial rounds
    folded (2026-07-21: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
-   round 3 = 2C/4H/1M; round 4 = 0C/5H — each targeting the previous
-   round's fixes, all closed by mechanism, see `event-model-v2.md`
-   §0; the trend is converging but has not yet produced a clean
-   round). The baseline's mechanisms have survived MANY more such
-   rounds; additional rounds are required before the two are
-   comparable. Still the single largest open item.
+   round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
+   2C/2H/2M — all closed by mechanism, see `event-model-v2.md` §0;
+   no clean round yet). The baseline's mechanisms have survived MANY
+   more such rounds; additional rounds are required before the two
+   are comparable. Still the single largest open item.
 2. **Fold specification + golden vectors.** The fold must implement
    the baseline §4/§6/§7/§9/§10 semantics verbatim; the vector set and
    the `fold --explain` MVP deliverable do not exist yet.

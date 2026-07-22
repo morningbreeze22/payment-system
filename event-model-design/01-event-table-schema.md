@@ -162,7 +162,7 @@ a matrix/DDL mismatch is a defect.
 | REQUIRED_AMOUNT_SET | N | N | R | R (≥0; 0 = removal) | N | N | N | N | SYSTEM |
 | SNAPSHOT_INVALID_MARKED | N | N | R | N | N | N | N | N | SYSTEM |
 | REQUEST_OPENED | N | R | N | R (>0) | R | R | N | R | SYSTEM/OPS |
-| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | R | N | N | N | N | N | N | SYSTEM |
+| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O (NULL = failure BEFORE any opening; R when re-enrichment fails for an open request) | N | N | N | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | N | N | SYSTEM |
 | POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | O (ACCEPTED only) | N | SYNC_RESPONSE |
 | QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key QUERIED — echo-checked §6.3) | N | O (EXECUTED/ACCEPTED only) | N | QUERY |
@@ -232,7 +232,7 @@ Version slots do NOT participate in identity. Consequences:
 | `REQUIRED_AMOUNT_SET` | an ADMITTED snapshot names this payment (incl. amount 0 = cancel-to-zero; absence-means-cancel per BA-2 produces an explicit 0) | `required := amount` if `UPSTREAM_SEQ` strictly newer; markers with older seq unlatch |
 | `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed at admission — appended to EVERY payment of the trade, in payment_key order | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
 | `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims ordinal + identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount; at most one open request is DB-backstopped (§6.2), not merely a fold invariant |
-| `ENRICH_FAILED` | enrichment failed; code says transient vs definitive | transient: retry timing derives from this event's timestamp + policy; definitive: appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx |
+| `ENRICH_FAILED` | enrichment failed; code says transient vs definitive. Ordinal NULL when it fails BEFORE any opening (no request exists; no payload hash was ever assembled, so no opening — and therefore no outcome — is even representable) | transient: retry timing derives from this event's timestamp + policy. Definitive PRE-open: latches the `validation_failed` marker — blocks new opens until strictly newer upstream truth; NO outcome pair. Definitive on an OPEN request (re-enrichment): appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx (release-guarded: zero `POST_STARTED`, §6.3) |
 | `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; **no `POST_STARTED` = provably never sent** — the safe-release predicate |
 | `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1 | ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry per policy (same key); DEFINITIVE_REJECT → outcome same tx; AMBIGUOUS → MAYBE; COLLISION → expected/unexpected via hash comparison; UNMAPPED → MAYBE + alert |
 | `QUERY_RESULT_RECORDED` | the resolver asked by OUR key — the event CARRIES that key, and the §6.3 echo refuses a key other than the open request's, so stale evidence for an earlier request's key cannot be recorded against the current one | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
@@ -241,7 +241,7 @@ Version slots do NOT participate in identity. Consequences:
 | `SETTLED` | the feed confirms full-amount settlement AND the fold shows a non-terminal request for the ordinal | books confirmed money (idempotent by ordinal); closes/freezes that request. Feed evidence AGREEING with an already-EXECUTED terminal (equal amount) is a benign no-op delivery — NOT appended, NOT a contradiction |
 | `SETTLEMENT_MISMATCH_RECORDED` | feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence) | books NOTHING; parks loudly; submission knowledge still tightens |
 | `EVIDENCE_CONTRADICTION_RECORDED` | evidence CONFLICTS with a terminal decision (codes per §2.2) — conflict, never mere repetition | FIXED effect: book nothing, PARK the payment, CRITICAL alert; sole exit is §7 of `event-model-v2.md` (§6 there): the dual-control verified outcome |
-| `ESCALATION_MARKED` | the MAYBE got old (once per episode) | audit of paging; derived state unchanged |
+| `ESCALATION_MARKED` | the MAYBE got old (once per episode — the fold derives "already escalated" from this event's presence within the episode, so repeated scans cannot re-append or re-page) | AUTHORITATIVE transition, inherited from the baseline §9.3: the episode becomes ops-owned BLOCKED — automatic retry/query cadence stops, the ops surface owns resolution. (An earlier draft said "derived state unchanged"; that made the inherited escalation transition unimplementable and is retracted — a head-only flag cannot supply authoritative state in this model) |
 | `OPS_VERIFIED_OUTCOME_APPLIED` | the dual-control audited operation (typed `APPROVAL_REF`, equal on both pair members) | appended with its `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in one tx — the only manual door for possibly-moved money, the only unpark of a contradicted payment, and (as a DB-verified pair: version-adjacent, same ordinal, same `TX_ID`, equal `APPROVAL_REF`) the ONLY write admitted for a CLOSED ordinal (§6.3). A solo verified-applied event has NO fold effect and pages as an anomaly |
 | `OPS_RETRY_REARMED` / `OPS_BLOCKED` / `OPS_MARKER_CLEARED` / `OPS_ANNOTATED` | human actions through the ops surface (`OPS_MARKER_CLEARED` = the §19.3-equivalent clear of a live reject marker). The two MONEY-ENABLING actions — marker clear and retry re-arm — carry the typed four-eyes `APPROVAL_REF` (R per §2.2); blocking and annotating do not | budget reset / hard block on new opens / marker cleared / display note. All arrive through the SAME write path — there is no privileged one |
 
@@ -459,6 +459,20 @@ read under the lock already held):
   `QUERY_RESULT_RECORDED` require `:new.IDEMPOTENCY_KEY =
   OPEN_IDEMPOTENCY_KEY` — stale evidence for an earlier request's key
   dies at insert.
+- **Release rights (the baseline release-guard, transplanted)**:
+  `CANCELLED_NOT_SUBMITTED` and `REJECTED_VALIDATION` and
+  `SUPERSEDED_OPS` require ZERO `POST_STARTED` rows for the ordinal
+  ("provably never sent" enforced as an existence check; a posted
+  claim closes only on evidence or through the verified door);
+  `REJECTED_VALIDATION` additionally pairs with its same-transaction
+  `ENRICH_FAILED(DEFINITIVE)`; `REJECTED_PROVIDER` requires a
+  same-ordinal first-party negative evidence row
+  (`POST_RESULT_RECORDED` reject-class or
+  `QUERY_RESULT_RECORDED(REJECTED)`).
+- **Opening stamp**: `REQUEST_OPENED` requires `:new.REQUIRED_AT_OPEN
+  = REQUIRED_AMOUNT` on the transaction-fresh head — the immutable UI
+  amount-series stamp cannot be born wrong (display-only, but
+  unfixable if wrong).
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`; the per-event head effect sets `LAST_VERSION =
   :new.VERSION`. The fence rejects duplicates; this closes holes. The
@@ -581,10 +595,14 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   (`PHASE, NEXT_ACTION_AT`); every ACTION folds the stream under the
   head lock. A stale candidate costs a wasted fold, never a wrong
   payment.
-- **Feed matching (fail-closed multiplicity):** match UETR against the
-  head first, the event index second; 0 → unmatched path (ack; query
-  sweep recovers by key later); 1 → fold + append under the lock;
-  2+ → CRITICAL anomaly, NO state change on any stream.
+- **Feed matching (fail-closed multiplicity, counted in PAYMENTS not
+  rows):** match UETR against the head first; ONLY on 0 head matches
+  consult the event index, counting DISTINCT `PAYMENT_KEY`s (one
+  payment legitimately carries the same UETR on acceptance, query,
+  and outcome events — that is ONE candidate, not a 3-row anomaly).
+  0 payments → unmatched path (ack; query sweep recovers by key
+  later); 1 → fold + append under the lock; 2+ DISTINCT payments →
+  CRITICAL anomaly, NO state change on any stream.
 
 ## 10. What deliberately does NOT exist
 
@@ -601,6 +619,12 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   number, not inherited.
 - **No transition-history journal** — the stream IS the history; the
   external §14 log contract is unchanged.
+- **Archival is DESIGNED but far-future** (`event-model-v2.md` §9):
+  heads are PERMANENT (they are the fences — deleting one would let a
+  later snapshot re-admit the trade as first contact and fork the
+  archived stream); only event rows archive, behind terminality +
+  upstream-reprocessing + engine-key-retention windows; rehydration
+  (version-continuity-proven) before any write.
 - **What is deliberately ACCEPTED** (with mitigations): see the
   honesty box in `event-model-v2.md` §10 — code-enforced temporal
   legality beyond the §6.2/6.3 backstops, control-state
