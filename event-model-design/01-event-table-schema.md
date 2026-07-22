@@ -797,7 +797,11 @@ BACKSTOP (fold-state-free; restored after review proved class
 fidelity is invisible to the write-path gates, then made UNIVERSAL
 after the matched path proved equally exposed; enforcement = one
 compound trigger on the inbox write reading its own transaction's
-appends): (1) no class inversion — EV SETTLED forbids
+appends, under a MANDATORY statement order — all event INSERTs +
+head effects FIRST, the terminal inbox write LAST, then commit:
+triggers fire at statement time, and an inbox-first order would
+misapply the no-op rule to a legitimate settlement and wedge every
+redelivery): (1) no class inversion — EV SETTLED forbids
 rejected-class evidence/outcomes for the associated ordinal;
 EV REJECTED forbids executed-class/`SETTLED` bookings; EV MISMATCH
 forbids BOTH (its legal appends: `SETTLEMENT_MISMATCH_RECORDED` or a

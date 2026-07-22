@@ -404,6 +404,16 @@ and every in-admission marker, lock order identical to fan-out (§7,
 deferred-marker fan-out — corrected to the round-29 in-admission
 rule (§1, 01 §1).
 
+Thirty-first round (2026-07-22): 0 CRITICAL / 2 HIGH, both
+consistency-level, both closed — one more stale round-22 sentence
+("applies accepted truth 150 plus the invalid-200 marker")
+contradicted the round-29 rule and was corrected in place (§7); the
+universal fidelity trigger gained its MANDATORY statement order —
+event inserts + head effects first, terminal inbox write LAST, then
+commit — because Oracle triggers fire at statement time and an
+inbox-first order would misapply the witnessless-no-op rule to a
+legitimate settlement and wedge every redelivery (§7, 01 §8).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -1122,7 +1132,14 @@ healthy payments.
   deliveries therefore retain their evidence content on the inbox row
   in ALL statuses, including PROCESSED; the enforcement point is one
   compound trigger on the inbox write, reading its own transaction's
-  appends:
+  appends — which requires a MANDATORY statement order: every decided
+  event INSERT and its per-event head effect run FIRST, the terminal
+  inbox INSERT/status flip runs LAST, then COMMIT (Oracle triggers
+  fire at statement time, not commit time — an inbox-first order
+  would make the trigger see zero appends, misapply the
+  witnessless-no-op rule to a legitimate settlement, and wedge every
+  redelivery; tolerating that would instead disable the check
+  entirely):
   1. **No class inversion**: EV SETTLED forbids same-transaction
      rejected-class evidence/outcomes for the associated ordinal;
      EV REJECTED forbids executed-class/`SETTLED` bookings;
@@ -1248,7 +1265,10 @@ healthy payments.
   full-current-state fan-out, whose fence token is the
   `LAST_SEEN_SEQ` current at worklist derivation (after admitting
   valid 150 under seen 200, the fan-out carries token 200 and applies
-  accepted truth 150 plus the invalid-200 marker). FAN-OUT then runs as separate per-payment
+  accepted truth 150 — and ONLY accepted truth: the invalid-200
+  markers were already appended inside seq-200's own admission
+  transaction over its stamped set, and the fan-out never applies
+  markers, per the rule below). FAN-OUT then runs as separate per-payment
   transactions, each of which (1) locks `TRADE_HEAD` (the v4 lock
   order), (2) verifies its carried snapshot seq still EQUALS
   `LAST_SEEN_SEQ` — the **equality fence**: if a newer arrival owns
