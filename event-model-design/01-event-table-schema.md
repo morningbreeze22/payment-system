@@ -646,9 +646,14 @@ CREATE TABLE INBOUND_EVENT_INBOX (
         AND EV_UETR IS NULL AND EV_CLASS IS NULL
         AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL
         AND RES_PAYMENT_KEY IS NULL AND DISPOSED_BY IS NULL)
-   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED_MATCHED','RESOLVED_DISPOSED')
+   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED_MATCHED',
+                        'RESOLVED_AGREED','RESOLVED_DISPOSED')
         AND EV_UETR IS NOT NULL
-        AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')
+        AND EV_CLASS IS NOT NULL                    -- Oracle 3VL: a NULL
+        AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')  -- class passed
+                                                    -- the bare IN-list as
+                                                    -- UNKNOWN (the round-1
+                                                    -- lesson, re-learned)
         AND EV_PAYLOAD_REF IS NOT NULL
         AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)
         AND (MATCH_STATUS != 'UNMATCHED_TERMINAL'
@@ -672,16 +677,27 @@ bury an evidence fact that was never resolved). Resolution is THREE
 schema-distinguished exits, all retaining the evidence trail:
 `RESOLVED_MATCHED` — the sweep's exit, appending the resulting event
 under the payment's head lock and flipping the row in the SAME
-transaction, the cited (`RES_PAYMENT_KEY`, `RES_VERSION`) VERIFIED by
-the resolution trigger for class correspondence (SETTLED→`SETTLED`,
-REJECTED→`FEED_RESULT_RECORDED(REJECTED)`,
-MISMATCH→`SETTLEMENT_MISMATCH_RECORDED`), UETR equality, and amount
-equality — a wrong mapping of stored SETTLED evidence to a fabricated
-rejection dies at the flip; `RESOLVED_AGREED` — for evidence agreeing
-with an already-recorded terminal (the benign no-op path appends
-nothing, so this exit cites and verifies the EXISTING terminal
-instead — without it, correctly handled agreeing evidence pages
-forever); and `RESOLVED_DISPOSED` — the ops exit for genuinely
+transaction, the cited (`RES_PAYMENT_KEY`, `RES_VERSION`) VERIFIED
+SEMANTICALLY by the resolution trigger (UETR equality always; then
+per stored class, the cited event is either THE RECORDING —
+SETTLED→`SETTLED` equal amount;
+REJECTED→`FEED_RESULT_RECORDED(REJECTED)`, EV amount when present
+equal to the ordinal's opening amount (the feed-result event itself
+carries none); MISMATCH→`SETTLEMENT_MISMATCH_RECORDED` equal amount —
+or THE CONTRADICTION this evidence produced: the same-UETR
+`EVIDENCE_CONTRADICTION_RECORDED` with the matching code
+(`SETTLED_AFTER_TERMINAL`/`FEED_REJECTS_OUTCOME`/
+`MISMATCH_AFTER_TERMINAL`) — conflicting evidence's legal append IS
+the contradiction event; a type-identity-only table refused it and
+rolled back the park). A wrong mapping of stored SETTLED evidence to
+a fabricated rejection still dies at the flip; `RESOLVED_AGREED` —
+for evidence agreeing with an already-recorded terminal (the benign
+no-op path appends nothing, so this exit cites the EXISTING
+authoritative terminal, agreement judged SEMANTICALLY: EV SETTLED
+agrees with `SETTLED` OR an equal-amount executed-class
+`OUTCOME_RECORDED`; EV REJECTED with a rejected-class terminal —
+without it, correctly handled agreeing evidence pages forever); and
+`RESOLVED_DISPOSED` — the ops exit for genuinely
 foreign evidence: actor + approval + reason, with the approval going
 through the INHERITED §9.3 protocol (bound to exactly this (source,
 event id) + action, consumed APPROVED→CONSUMED by CAS in the same

@@ -197,6 +197,21 @@ to R-when-ACCEPTED both ways, with the cell's dependence on the §18
 "acceptance always carries UETR" upstream ask stated fail-closed
 (01 §2, §2.2).
 
+Thirteenth round (2026-07-22, targeting the round-12 fixes):
+1 CRITICAL / 4 HIGH / 1 LOW, all in the inbox-resolution subsystem,
+all closed — the correspondence relation made SEMANTIC: legal
+resolution targets per class are THE RECORDING, THE CONTRADICTION the
+evidence produced (refusing it rolled back the park itself — the
+critical), or (for AGREED) an equivalent-class authoritative terminal
+(executed-class outcomes agree with SETTLED evidence); reject-class
+amount compared to the ordinal's opening amount (the feed-result
+event carries none); `RESOLVED_AGREED` added to the shape check's
+evidence arm (it was in the status list but not the arm — the update
+was schema-illegal); `EV_CLASS IS NOT NULL` added (a NULL class
+passed the bare IN-list as UNKNOWN — the round-1 Oracle-3VL lesson,
+re-learned in a new place); README round-count header corrected
+again (§7, 01 §8).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -820,21 +835,31 @@ healthy payments.
   - `RESOLVED_MATCHED` — the sweep's exit, in ONE transaction with
     the resulting append under the payment's head lock, the row
     recording WHICH append (payment key + version) — and the
-    reference is VERIFIED, not decorative: the resolution trigger
-    reads the cited event and requires CLASS CORRESPONDENCE
-    (EV SETTLED → `SETTLED`; EV REJECTED →
-    `FEED_RESULT_RECORDED(REJECTED)`; EV MISMATCH →
-    `SETTLEMENT_MISMATCH_RECORDED`), UETR equality, and amount
-    equality — a wrong decision mapping stored SETTLED evidence to a
-    fabricated feed REJECTION dies at the flip, in the same
-    transaction as its append.
+    reference is VERIFIED SEMANTICALLY, not by type identity (a
+    type-identity table refused three LEGAL resolutions and rolled
+    back a park). The cited event must be one of exactly three
+    things, per stored class, always with UETR equality:
+    (a) THE RECORDING of this evidence — EV SETTLED → `SETTLED`
+    (equal amount); EV REJECTED → `FEED_RESULT_RECORDED(REJECTED)`
+    (that event carries no amount; EV amount, when present, must
+    equal the cited ordinal's opening amount); EV MISMATCH →
+    `SETTLEMENT_MISMATCH_RECORDED` (equal amount); or
+    (b) THE CONTRADICTION this evidence produced — the same-UETR
+    `EVIDENCE_CONTRADICTION_RECORDED` with the matching code
+    (`SETTLED_AFTER_TERMINAL` / `FEED_REJECTS_OUTCOME` /
+    `MISMATCH_AFTER_TERMINAL`): conflicting evidence's LEGAL append
+    IS the contradiction event, and refusing it as provenance would
+    roll back the park itself and let a successor pay after a real
+    settlement.
   - `RESOLVED_AGREED` — the exit for evidence that AGREES with an
     already-recorded terminal (the §6 benign no-op: nothing may be
     appended, so there is no new append to cite): the row cites the
-    EXISTING terminal event it agrees with, verified by the same
-    class/UETR/amount correspondence. Without this exit, correctly
-    handled agreeing evidence would page forever with no legal
-    close.
+    EXISTING authoritative terminal, and agreement is SEMANTIC —
+    EV SETTLED agrees with `SETTLED` OR an executed-class
+    `OUTCOME_RECORDED` (EXECUTED / PLATFORM_VERIFIED_EXECUTED) of
+    equal amount; EV REJECTED agrees with a rejected-class terminal.
+    Without this exit, correctly handled agreeing evidence would
+    page forever with no legal close.
   - `RESOLVED_DISPOSED` — the ops exit for genuinely foreign
     evidence: actor + approval + reason on the row, AND the approval
     goes through the INHERITED v4 §9.3 protocol — an approval record
