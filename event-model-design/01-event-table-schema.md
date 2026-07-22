@@ -659,8 +659,17 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   -- explicit IS NOT NULL against Oracle 3VL
   CONSTRAINT INB_SHAPE_CK CHECK (
       (MATCH_STATUS = 'PROCESSED'
-        AND EV_UETR IS NULL AND EV_CLASS IS NULL
-        AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL
+        -- non-terminal delivery: no evidence content; TERMINAL
+        -- delivery handled at arrival: evidence content RETAINED so
+        -- the universal fidelity rules can see it (a NULLed matched
+        -- path was the hole that let SETTLED record as a rejection)
+        AND ((EV_UETR IS NULL AND EV_CLASS IS NULL
+              AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL)
+          OR (EV_UETR IS NOT NULL
+              AND EV_CLASS IS NOT NULL
+              AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')
+              AND EV_PAYLOAD_REF IS NOT NULL
+              AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)))
         AND RES_PAYMENT_KEY IS NULL AND RES_AT_VERSION IS NULL
         AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
         AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL)
@@ -710,27 +719,38 @@ contradiction park, or benign no-op — is governed SOLELY by the
 normal write-path gates under the head lock (§6.3), in the same
 transaction as the flip to `RESOLVED_HANDLED`, whose
 (`RES_PAYMENT_KEY`, `RES_AT_VERSION` = head `LAST_VERSION` at
-handling) is an AUDIT POINTER. The flip itself carries the two-rule
-DELIVERY-FIDELITY BACKSTOP (fold-state-free; restored after review
-proved class fidelity is invisible to the write-path gates): (1) no
-class inversion — an EV SETTLED flip may not ride a transaction
-appending rejected-class evidence/outcomes for the associated
-ordinal, and symmetrically (contradiction events always admissible);
-(2) no witnessless no-op — a flip with NO append requires an existing
-same-UETR event whose class AGREES with the evidence, so disagreeing
-evidence can never be silently no-opped past the contradiction park.
+handling) is an AUDIT POINTER. Every feed-delivery transaction — matched at
+arrival or unmatched flip — carries the two-rule DELIVERY-FIDELITY
+BACKSTOP (fold-state-free; restored after review proved class
+fidelity is invisible to the write-path gates, then made UNIVERSAL
+after the matched path proved equally exposed; enforcement = one
+compound trigger on the inbox write reading its own transaction's
+appends): (1) no class inversion — EV SETTLED forbids
+rejected-class evidence/outcomes for the associated ordinal;
+EV REJECTED forbids executed-class/`SETTLED` bookings; EV MISMATCH
+forbids BOTH (its legal appends: `SETTLEMENT_MISMATCH_RECORDED` or a
+contradiction); contradiction events always admissible; (2) no
+witnessless no-op — a terminal delivery handled with NO append
+requires an existing same-UETR event whose class AGREES with the
+evidence. Transcription fidelity (delivery → EV columns) is the
+inherited CA-1 recorded-at-the-time code class, one shared
+golden-vector-tested transcriber.
 `RESOLVED_DISPOSED` covers evidence that CANNOT go
 through a payment's write path, in two audited categories: `FOREIGN`
 (not ours) and `RECONCILED_BY_KEY` (the lost-UETR settlement: the
 response timed out, the key-query recovery carried no UETR, no
 stream will ever contain this delivery's UETR — a human reconciles
 it to the payment via the §9.1 query trail and records that payment
-key). `RECONCILED_BY_KEY` is STATE-GATED: legal only when the
-reconciled stream ALREADY contains an authoritative outcome agreeing
-with the evidence in class and amount; if the stream disagrees, the
-truth enters through the dual-control verified-outcome door FIRST —
-reconciliation acknowledges recorded truth, it never substitutes for
-it. Both categories require actor + reason + an approval through
+key). `RECONCILED_BY_KEY` is STATE-GATED with a real
+enforcement point: the disposal transaction is a write-path citizen —
+it locks the NAMED payment's head (`SELECT FOR UPDATE`), and under
+that lock the inbox trigger verifies the stream contains an
+authoritative outcome agreeing with the evidence (class and amount)
+AND the head is not parked/quarantined, serialized against any
+concurrent verified-outcome correction. If the stream disagrees,
+disposal FAILS — the truth enters through the dual-control
+verified-outcome door FIRST; reconciliation acknowledges recorded
+truth, it never substitutes for it. Both categories require actor + reason + an approval through
 the INHERITED §9.3 protocol (bound to exactly this (source, event
 id) + action, consumed APPROVED→CONSUMED by CAS in the same
 transaction — columns are the echo, the approval-store CAS is the

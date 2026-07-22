@@ -239,6 +239,19 @@ transaction-fresh head) — a 14-round-old gap in the flagship
 invariant (§5.3); the single-UTC rule made GLOBAL across all four
 structures' timestamps (§2, MEDIUM).
 
+Sixteenth round (2026-07-22): 3 CRITICAL, all closed — the fidelity
+rules made UNIVERSAL across matched and unmatched paths (scoping them
+to the flip left the ordinary matched path unprotected; terminal
+deliveries now retain evidence content in every status, enforcement =
+one compound trigger on the inbox write reading its own transaction's
+appends); the MISMATCH inversion arm added (a mismatch could be
+laundered into a clean rejection); `RECONCILED_BY_KEY` given its real
+enforcement point — the disposal transaction locks the named
+payment's head, and the agreeing-outcome + not-parked checks run
+under that lock, serialized against concurrent corrections (§7). The
+transcription-fidelity residue stated honestly as the inherited CA-1
+recorded-at-the-time class.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -892,19 +905,36 @@ healthy payments.
   in them sees the DELIVERY — class fidelity between what the feed
   said and what got recorded is real protection the old machinery
   provided. It returns as a DELIVERY-FIDELITY BACKSTOP of exactly two
-  narrow, fold-state-free rules on the flip (none of the failed
-  enumeration: no target lists, no amount arithmetic):
-  1. **No class inversion**: a flip for EV SETTLED may not ride a
-     transaction that appends rejected-class evidence or a
-     rejected-class outcome for the associated ordinal (and
-     symmetrically for EV REJECTED vs executed-class/`SETTLED`
-     bookings) — contradiction events are ALWAYS admissible.
-  2. **No witnessless no-op**: a flip with NO append in its
-     transaction requires an existing same-UETR event whose class
-     AGREES with the evidence (executed-class terminal or `SETTLED`
-     for EV SETTLED; rejected-class for EV REJECTED; a mismatch row
-     for EV MISMATCH) — evidence that DISAGREES with the stream can
-     never be silently no-opped past the contradiction park.
+  narrow, fold-state-free rules (none of the failed enumeration: no
+  target lists, no amount arithmetic) — and the rules are UNIVERSAL:
+  they bind EVERY feed-delivery transaction, matched-at-arrival and
+  unmatched-flip alike (scoping them to the flip left the ordinary
+  matched path free to record SETTLED as a rejection). TERMINAL
+  deliveries therefore retain their evidence content on the inbox row
+  in ALL statuses, including PROCESSED; the enforcement point is one
+  compound trigger on the inbox write, reading its own transaction's
+  appends:
+  1. **No class inversion**: EV SETTLED forbids same-transaction
+     rejected-class evidence/outcomes for the associated ordinal;
+     EV REJECTED forbids executed-class/`SETTLED` bookings;
+     EV MISMATCH forbids BOTH executed-class bookings AND
+     rejected-class outcomes (its legal appends are
+     `SETTLEMENT_MISMATCH_RECORDED` or a contradiction — this arm
+     was missing, and a 90-mismatch could be laundered into a clean
+     100-rejection). Contradiction events are ALWAYS admissible.
+  2. **No witnessless no-op**: a terminal delivery handled with NO
+     append requires an existing same-UETR event whose class AGREES
+     with the evidence (executed-class terminal or `SETTLED` for EV
+     SETTLED; rejected-class for EV REJECTED; a mismatch row for EV
+     MISMATCH) — disagreeing evidence can never be silently no-opped
+     past the contradiction park.
+  The irreducible residue, stated honestly: TRANSCRIPTION fidelity —
+  that the handler wrote the delivery's actual class/amount/UETR into
+  the EV columns at all — is code: exactly the CA-1
+  recorded-at-the-time class this design already inherits for
+  provider-code mapping, under the same one-shared-implementation +
+  golden-vector regime. The trigger checks action-vs-transcription;
+  only the tested transcriber can vouch for transcription-vs-wire.
   Every other wrong handling decision is the same front-door decide()
   risk class as any write, mitigated by the same gates.
   The second exit, `RESOLVED_DISPOSED`, is for evidence that CANNOT
@@ -915,17 +945,22 @@ healthy payments.
   and no automatic match can ever succeed — a human reconciles it to
   the payment via the §9.1 query trail and records that payment key).
   `RECONCILED_BY_KEY` is an ACKNOWLEDGMENT that the money truth is
-  ALREADY in the stream, never a substitute for putting it there: the
-  disposal is legal only if the reconciled payment's stream contains
-  an authoritative outcome AGREEING with the evidence (class and
-  amount). If the stream DISAGREES — the evidence says settled, the
-  stream says rejected — disposal is ILLEGAL; the truth must first
-  enter through the §6 dual-control verified-outcome door (booking
-  the money and re-evaluating under the inherited gates), and only
-  then may the delivery be reconciled. Without this state gate, a
-  correctly-authorized reconciliation could acknowledge a real
-  settlement while the stream still says rejected, and a later
-  snapshot would pay a second time.
+  ALREADY in the stream, never a substitute for putting it there —
+  and the state gate has a REAL ENFORCEMENT POINT, not a prose
+  predicate: the disposal transaction is a write-path citizen. It
+  takes `SELECT FOR UPDATE` on the NAMED payment's head (it has the
+  key — that is what reconciliation supplies), and under that lock
+  the inbox compound trigger performs two same-transaction reads:
+  the stream must contain an authoritative outcome AGREEING with the
+  evidence (class and amount), and the head must not be parked or
+  quarantined. The head lock serializes the check against any
+  concurrent verified-outcome correction. If the stream DISAGREES —
+  the evidence says settled, the stream says rejected — disposal
+  FAILS; the truth must first enter through the §6 dual-control
+  verified-outcome door (booking the money and re-evaluating under
+  the inherited gates), and only then may the delivery be
+  reconciled. Approval CAS proves authorization; the locked state
+  check proves the acknowledgment is true.
   Both categories: actor + reason + an approval through the INHERITED
   v4 §9.3 protocol — bound to exactly this (source, event id) and
   action, consumed APPROVED → CONSUMED by CAS in the same transaction
