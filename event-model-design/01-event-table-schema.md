@@ -67,15 +67,14 @@ CREATE TABLE PAYMENT_EVENT (
   ORDINAL_CLAIM      VARCHAR2(220)  GENERATED ALWAYS AS
                        (CASE WHEN EVENT_TYPE = 'REQUEST_OPENED'
                              THEN PAYMENT_KEY || '#' || TO_CHAR(REQUEST_ORDINAL) END),
-  -- and so is the accepted UETR (cross-payment uniqueness backstop):
-  UETR_CLAIM         VARCHAR2(64)   GENERATED ALWAYS AS
-                       (CASE WHEN EVENT_TYPE = 'POST_RESULT_RECORDED'
-                              AND EVENT_CODE = 'ACCEPTED' THEN UETR END),
+  -- (UETR uniqueness lives on the HEAD — PH_UETR_UQ, §6: an
+  --  event-level acceptance claim missed the query/feed channels and
+  --  refused the legal re-recording of a CT-dedup-returned original
+  --  acceptance after a downgrade re-post)
 
   CONSTRAINT PE_FENCE_UQ   UNIQUE (PAYMENT_KEY, VERSION), -- backstop fence (§6.1)
   CONSTRAINT PE_IDEM_UQ    UNIQUE (IDEM_CLAIM),           -- identity write-once
   CONSTRAINT PE_ORDINAL_UQ UNIQUE (ORDINAL_CLAIM),        -- ordinal write-once
-  CONSTRAINT PE_UETR_UQ    UNIQUE (UETR_CLAIM),           -- one acceptance per UETR, ever
   CONSTRAINT PE_SOURCE_CK  CHECK (EVIDENCE_SOURCE IS NULL OR EVIDENCE_SOURCE IN
       ('SYNC_RESPONSE','QUERY','FEED','OPS','SYSTEM')),
   CONSTRAINT PE_TYPE_CK  CHECK (EVENT_TYPE IN (
@@ -134,7 +133,7 @@ of the table or its indexes).
 
 | Column | Why |
 |---|---|
-| `PAYMENT_KEY` | the §1 scope tuple, canonically encoded — one stream per payment. Trade membership is derivable from the key. The ENCODING is identity input: byte-exact canonical spec + golden vectors + ONE shared encoder (same regime as key derivation) — two "reasonable" encodings of one tuple would create two heads and re-derive the same idempotency keys under a fresh stream. |
+| `PAYMENT_KEY` | the §1 scope tuple, canonically encoded — one stream per payment. Trade membership is derivable from the key. The ENCODING is identity input: byte-exact canonical spec + golden vectors + ONE shared encoder (same regime as key derivation) — two "reasonable" encodings of one tuple would create two heads and re-derive the same idempotency keys under a fresh stream. NORMATIVE frozen form (consumed by `PH_BIZ_BIND_CK`): `business_id \|\| '\|' \|\| payment_type \|\| '\|' \|\| debit_account \|\| '\|' \|\| currency`. |
 | `VERSION` | the fence slot and the stream's total order. Dense, starts at 1; allocated as `PAYMENT_HEAD.LAST_VERSION + 1` under the head lock (§6.1). No reliance on timestamps or identity columns for ordering. |
 | `EVENT_TYPE` | closed vocabulary, CHECK-bound. Adding a type is a design change, not a code convenience. |
 | `EVENT_CODE` | the STRUCTURED classification the fold branches on — a decision RECORDED AT THE TIME (e.g. the CA-1 mapping of a raw provider code), never re-derived later from `PROVIDER_CODE`: re-mapping raw codes during a fold would be load-bearing replay of a mutable mapping, forbidden exactly as in the baseline. |
@@ -333,12 +332,24 @@ CREATE TABLE PAYMENT_HEAD (
   UETR                 VARCHAR2(64),
   UI_STEP_STATUS       VARCHAR2(16),
   ESCALATED            CHAR(1) DEFAULT 'N',
-  UPDATED_AT           TIMESTAMP
+  UPDATED_AT           TIMESTAMP,
+  -- the key/business binding (consumes the §3 frozen canonical form —
+  -- an unbound copy drops the payment from its trade's worklist):
+  CONSTRAINT PH_BIZ_BIND_CK CHECK
+    (BUSINESS_ID = SUBSTR(PAYMENT_KEY, 1, INSTR(PAYMENT_KEY,'|') - 1))
 );
 CREATE INDEX PH_DUE_IX  ON PAYMENT_HEAD (PHASE, NEXT_ACTION_AT);
 CREATE INDEX PH_BIZ_IX  ON PAYMENT_HEAD (BUSINESS_ID);
-CREATE INDEX PH_UETR_IX ON PAYMENT_HEAD (UETR);
+CREATE UNIQUE INDEX PH_UETR_UQ ON PAYMENT_HEAD (UETR);
 ```
+
+**The UETR claim lives here:** every UETR-bearing evidence recording
+(sync acceptance, query, feed) sets `UETR` in its per-event head
+effect, and `PH_UETR_UQ` makes the CURRENT association unique across
+all payments — a competing same-UETR claim on another head dies
+loudly at its commit. Historical associations are covered by the §9
+UNION multiplicity rule. Re-recording a CT-dedup-returned original
+acceptance (same payment, same UETR) is a no-op update — legal.
 
 A CACHE with respect to truth (rebuildable from the stream at any
 time) but a CONTRACT with respect to freshness: updated in the append
@@ -496,8 +507,13 @@ read under the lock already held):
   lost-response execution).
 - **Downgrade gate**: `DOWNGRADED_FOR_REPOST` requires a same-ordinal
   `QUERY_RESULT_RECORDED(NOT_FOUND)` post-dating the latest
-  `POST_STARTED` (evidence existence in the trigger; trust-age
-  arithmetic stays fold policy).
+  `POST_STARTED` AND NO acceptance-class row
+  (`POST_RESULT_RECORDED(ACCEPTED)` /
+  `QUERY_RESULT_RECORDED(ACCEPTED | EXECUTED)`) post-dating that same
+  `POST_STARTED` — recency alone proves recording order, not the
+  absence of an intervening acceptance; an ACCEPTED request must
+  never be downgraded (evidence existence/absence in the trigger;
+  trust-age arithmetic stays fold policy).
 - **Opening stamp**: `REQUEST_OPENED` requires `:new.REQUIRED_AT_OPEN
   = REQUIRED_AMOUNT` on the transaction-fresh head — the immutable UI
   amount-series stamp cannot be born wrong (display-only, but
@@ -595,7 +611,17 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   EV_PAYLOAD_REF VARCHAR2(200),
   CONSTRAINT INB_UQ UNIQUE (SOURCE, EVENT_ID),
   CONSTRAINT INB_STATUS_CK CHECK (MATCH_STATUS IN
-      ('PROCESSED','UNMATCHED_TERMINAL'))
+      ('PROCESSED','UNMATCHED_TERMINAL')),
+  -- evidence content is SHAPE-BOUND per status: an unresolvable
+  -- purge-exempt row must be schema-impossible
+  CONSTRAINT INB_SHAPE_CK CHECK (
+      (MATCH_STATUS = 'PROCESSED'
+        AND EV_UETR IS NULL AND EV_CLASS IS NULL
+        AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL)
+   OR (MATCH_STATUS = 'UNMATCHED_TERMINAL'
+        AND EV_UETR IS NOT NULL AND EV_CLASS IS NOT NULL
+        AND EV_PAYLOAD_REF IS NOT NULL
+        AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)))
 );
 ```
 
@@ -660,11 +686,12 @@ closer. Inbox purge NEVER removes an `UNMATCHED_TERMINAL` row; only
   booking, not be sealed under the inbox); recheck 1 → fold + append;
   recheck 2+ → abort, CRITICAL, nothing committed. 2+ DISTINCT
   payments at any point → CRITICAL anomaly, NO state change. The
-  post-recheck race is caught BY THE SCHEMA: `PE_UETR_UQ` (§2 — one
-  acceptance claim per UETR, ever) makes the competing same-UETR
-  acceptance die loudly at ITS commit — UETR uniqueness is a platform
-  contract fact whose violation is a constraint failure + CRITICAL
-  page, never a silent double-booking.
+  post-recheck race is caught BY THE SCHEMA: `PH_UETR_UQ` (§6 — one
+  HEAD per UETR; every association channel funnels through the head
+  effect) makes the competing same-UETR claim die loudly at ITS
+  commit — UETR uniqueness is a platform contract fact whose
+  violation is a constraint failure + CRITICAL page, never a silent
+  double-booking.
 
 ## 10. What deliberately does NOT exist
 
