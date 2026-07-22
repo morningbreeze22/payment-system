@@ -352,6 +352,17 @@ classification deciding the code (§5.3, 01 §4/§6.3). Everything else
 in the full gate inventory checked and found sound, including the
 completed predicate unification.
 
+Twenty-sixth round (2026-07-22): 1 CRITICAL — the NOT_SUBMITTED
+predicate lacked the downgrade gate's no-later-acceptance exclusion:
+a delayed key-scoped query ACCEPTED landing after a business-rejected
+attempt proves SUBMITTED (§9.4) but did not revoke releasability, so
+a cancel + new-key successor could run against an
+acknowledged-accepted claim. The predicate's FULL definition (now
+with the acceptance-exclusion conjunct) lives in exactly TWO places —
+§5.3 and 01 §5 — and every other site cites it WITHOUT restating its
+arms, which is also the structural fix for the four rounds of
+restatement drift.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -875,17 +886,28 @@ already held):
   NOT_SUBMITTED and cancellable — demanding zero attempts wedged the
   mandatory cancel-after-reject flow and left a stale requirement
   retryable past its accepted cancellation):
-  `CANCELLED_NOT_SUBMITTED` requires ZERO `POST_STARTED` rows for the
-  ordinal OR that the LATEST `POST_STARTED` is followed by a
+  the predicate's FULL definition (defined here and in 01 §5; every
+  other site must CITE it, never restate its arms — four rounds of
+  drift came from restatements): ZERO `POST_STARTED` rows for the
+  ordinal, OR (the LATEST `POST_STARTED` is followed by a
   same-ordinal `POST_RESULT_RECORDED(BUSINESS_REJECT |
-  DEFINITIVE_REJECT)` with no later attempt — first-party synchronous
-  proof that no executable payment exists; `REJECTED_VALIDATION` is
+  DEFINITIVE_REJECT)`, with no later attempt AND no acceptance-class
+  row — `POST_RESULT_RECORDED(ACCEPTED)` /
+  `QUERY_RESULT_RECORDED(ACCEPTED | EXECUTED)` /
+  `FEED_RESULT_RECORDED(ACCEPTED)` — post-dating that latest
+  `POST_STARTED`). The acceptance exclusion mirrors the downgrade
+  gate's: key-scoped evidence is attempt-agnostic, so a delayed
+  query ACCEPTED landing after a business-rejected attempt proves
+  SUBMITTED and must revoke releasability — without it, a release +
+  new-key successor could run against an acknowledged-accepted
+  claim (inherited §9.4). `CANCELLED_NOT_SUBMITTED` requires this
+  predicate; `REJECTED_VALIDATION` is
   admissible in TWO forms — pre-wire: no `POST_STARTED` plus its
   same-transaction `ENRICH_FAILED(DEFINITIVE)`; or post-wire
-  synchronous: the LATEST `POST_STARTED` followed by a same-ordinal
-  `POST_RESULT_RECORDED(DEFINITIVE_REJECT)` with no later attempt,
-  where the CA-1 classification of the definitive response is
-  invalid-data (inherited §7.2: a synchronous engine invalid-data
+  synchronous: the unified predicate's second arm holds (latest
+  attempt definitively rejected, no later attempt, no post-dating
+  acceptance) with `DEFINITIVE_REJECT` specifically, where the CA-1
+  classification of the definitive response is invalid-data (inherited §7.2: a synchronous engine invalid-data
   rejection releases and latches `validation_failed`, which is
   recoverable by strictly newer corrected truth — treating all
   validation rejects as pre-wire forced this case into
@@ -988,13 +1010,11 @@ INHERITED gates:
 - **Excess direction — the correction may strand an open successor:**
   if the corrected numbers show `paid_total + reserved > required`
   and a request is open, the open request is now excess commitment.
-  If it is provably NOT SUBMITTED (the UNIFIED §5.3 predicate: no
-  `POST_STARTED`, OR the latest `POST_STARTED` is closed by a
-  synchronous `BUSINESS_REJECT`/`DEFINITIVE_REJECT` with no later
-  attempt — an earlier draft said "no POST_STARTED" here while §5.3
-  had already widened, so a synchronously-rejected excess request
-  had NO forthcoming resolution and parked forever), the same
-  transaction closes it `CANCELLED_NOT_SUBMITTED`. Only a claim that
+  If it is provably NOT SUBMITTED (the UNIFIED §5.3 predicate,
+  cited without restating its arms — an earlier draft restated a
+  stale version here and a synchronously-rejected excess request
+  parked forever), the same transaction closes it
+  `CANCELLED_NOT_SUBMITTED`. Only a claim that
   MAY have executed keeps **the park in place**: the payment stays
   parked until that claim resolves through the ask path, and the §9
   pre-wire recheck (which sees the persisting park) blocks any
@@ -1261,9 +1281,8 @@ healthy payments.
 Posting freeze in Hazelcast (outside the DB; absent = frozen);
 write-ahead rule (identity + payload hash durable before the wire —
 here structural: `POST_STARTED` IS the durable claim, and the release
-predicate is the UNIFIED §5.3 "provably NOT SUBMITTED": no
-`POST_STARTED`, or the latest attempt synchronously closed
-BUSINESS/DEFINITIVE-rejected with no later attempt) — with
+predicate is the UNIFIED §5.3 "provably NOT SUBMITTED", cited without
+restating its arms) — with
 one mandatory addition: between the COMMIT of `POST_STARTED` and the
 wire call the worker re-reads the head (no lock) and SKIPS the send if
 the payment is parked/blocked, in WITNESS_DIVERGED quarantine (a

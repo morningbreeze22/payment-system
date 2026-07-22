@@ -253,11 +253,11 @@ Version slots do NOT participate in identity. Consequences:
 | `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed at admission — appended to EVERY payment of the trade, in payment_key order | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
 | `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims ordinal + identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount; at most one open request is DB-backstopped (§6.2), not merely a fold invariant |
 | `ENRICH_FAILED` | enrichment failed; code says transient vs definitive. Ordinal NULL when it fails BEFORE any opening (no request exists; no payload hash was ever assembled, so no opening — and therefore no outcome — is even representable); pre-open events carry the UPSTREAM_SEQ of the truth they were enriching | transient: retry timing derives from this event's timestamp + policy. Definitive PRE-open: latches the `validation_failed` marker AT its carried seq — unlatched by any strictly NEWER `REQUIRED_AMOUNT_SET`, so a delayed stale failure cannot outlive the correction that superseded it; NO outcome pair. Definitive on an OPEN request (re-enrichment): appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx (release-guarded: zero `POST_STARTED`, §6.3) |
-| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; the safe-release predicate is the UNIFIED **provably NOT SUBMITTED** (§5, §6.3): no `POST_STARTED`, or the latest attempt synchronously closed BUSINESS/DEFINITIVE-rejected with no later attempt |
+| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; the safe-release predicate is the UNIFIED **provably NOT SUBMITTED** (§5 full definition, cited without restating) |
 | `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1 | ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry per policy (same key); DEFINITIVE_REJECT → outcome same tx, code per the CA-1 classification of the response: invalid-data → `REJECTED_VALIDATION` (latches `validation_failed`, newer-truth-recoverable, §6.3 post-wire form), otherwise `REJECTED_PROVIDER`; AMBIGUOUS → MAYBE; COLLISION → expected/unexpected via hash comparison; UNMAPPED → MAYBE + alert |
 | `QUERY_RESULT_RECORDED` | the resolver asked by OUR key — the event CARRIES that key, and the §6.3 echo refuses a key other than the open request's, so stale evidence for an earlier request's key cannot be recorded against the current one | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
 | `DOWNGRADED_FOR_REPOST` | the §9.2-equivalent move: NOT_FOUND past trust age, same key will be re-sent. Trigger-gated (§6.3): requires a same-ordinal `QUERY_RESULT_RECORDED(NOT_FOUND)` post-dating the latest `POST_STARTED` — a wrong decision cannot downgrade an ACCEPTED request | re-posting becomes legal for the SAME key; audit of the only backward transition. Key-scoped evidence stays attempt-agnostic BY the §18 engine dedup contract (one key = one engine-side instruction) |
-| `OUTCOME_RECORDED` | terminal for a request (codes per §2.2, with `EVIDENCE_SOURCE`); AMOUNT of EVERY code must equal the OPENED amount (§6.3 — "restated" is an enforced equality; any other number is defect evidence, not an outcome). `PLATFORM_VERIFIED_*` may additionally supersede a CLOSED ordinal's outcome through the §6.3 dual-control door (amount checked against THAT ordinal's opening amount) | closes the open request (head CAS, §6.2); books or releases its reservation; latches the corresponding marker; the same transaction re-evaluates the standing rule UNDER THE INHERITED GATES — a shortfall opens a successor only if no live marker forbids it (a verified NOT_EXECUTED latches `provider_rejected` per the baseline §9.3: NO automatic successor); a corrected EXCESS (`paid + reserved > required`) cancels a provably-NOT-SUBMITTED open request (the §5 unified predicate — zero attempts OR latest attempt synchronously BUSINESS/DEFINITIVE-rejected with no later attempt) in the same tx, or keeps the payment PARKED until a claim that MAY have executed resolves. A superseding verified outcome adjusts `PAID_TOTAL` by the signed difference; the fold takes the LATEST outcome-class event per ordinal as authoritative (§5) |
+| `OUTCOME_RECORDED` | terminal for a request (codes per §2.2, with `EVIDENCE_SOURCE`); AMOUNT of EVERY code must equal the OPENED amount (§6.3 — "restated" is an enforced equality; any other number is defect evidence, not an outcome). `PLATFORM_VERIFIED_*` may additionally supersede a CLOSED ordinal's outcome through the §6.3 dual-control door (amount checked against THAT ordinal's opening amount) | closes the open request (head CAS, §6.2); books or releases its reservation; latches the corresponding marker; the same transaction re-evaluates the standing rule UNDER THE INHERITED GATES — a shortfall opens a successor only if no live marker forbids it (a verified NOT_EXECUTED latches `provider_rejected` per the baseline §9.3: NO automatic successor); a corrected EXCESS (`paid + reserved > required`) cancels a provably-NOT-SUBMITTED open request (the §5 unified predicate, cited without restating) in the same tx, or keeps the payment PARKED until a claim that MAY have executed resolves. A superseding verified outcome adjusts `PAID_TOTAL` by the signed difference; the fold takes the LATEST outcome-class event per ordinal as authoritative (§5) |
 | `SETTLED` | the feed confirms full-amount settlement AND the fold shows a non-terminal request for the ordinal | books confirmed money (idempotent by ordinal); closes/freezes that request. Feed evidence AGREEING with an already-EXECUTED terminal (equal amount) is a benign no-op delivery — NOT appended, NOT a contradiction |
 | `FEED_RESULT_RECORDED` | the feed channel's evidence for an active request: `REJECTED` = terminal rejection; `ACCEPTED` = intermediate status-feed acceptance (feed-executed is `SETTLED`, feed-vs-terminal conflict is a contradiction event) | REJECTED: qualifying terminal-class negative evidence for `OUTCOME_RECORDED(REJECTED_PROVIDER)` in the same tx, under the §6.3 recency rule. ACCEPTED: tightens submission knowledge per inherited §4.4 and blocks downgrade via the §6.3 acceptance list. Without this type, feed rejects were unrecordable and feed acceptance silently droppable |
 | `SETTLEMENT_MISMATCH_RECORDED` | feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence) | books NOTHING; parks loudly; submission knowledge still tightens |
@@ -289,13 +289,16 @@ reserved        = AMOUNT of the open request (opening event exists,
 shortfall       = required − paid_total − reserved    (standing-rule input)
 plus derived:     markers (+ their seqs), retry state, MAYBE/park/escalation
                   ages, provably_not_submitted — the UNIFIED release
-                  predicate: open request with no POST_STARTED, OR
-                  whose latest POST_STARTED is closed by a synchronous
-                  BUSINESS_REJECT / DEFINITIVE_REJECT with no later
-                  attempt (§6.3; the fold, the §6 correction rules,
-                  and the release trigger all consume THIS definition
-                  — a fold-level "no POST_STARTED ever" variant parked
-                  synchronously-rejected requests forever)
+                  predicate (FULL definition, here and v2 §5.3; all
+                  other sites cite it): open request with no
+                  POST_STARTED, OR whose latest POST_STARTED is closed
+                  by a synchronous BUSINESS_REJECT / DEFINITIVE_REJECT
+                  with no later attempt AND no acceptance-class row
+                  (POST_RESULT ACCEPTED / QUERY ACCEPTED|EXECUTED /
+                  FEED ACCEPTED) post-dating that latest POST_STARTED
+                  — the acceptance exclusion mirrors the downgrade
+                  gate's: a delayed key-scoped acceptance proves
+                  SUBMITTED and revokes releasability (inherited §9.4)
 ```
 
 Amount binding (normative): EVERY outcome-class event carries AMOUNT
@@ -311,11 +314,10 @@ re-evaluates the payment in BOTH directions under the INHERITED rules —
 verified NOT_EXECUTED latches `provider_rejected` (baseline §9.3), so
 NO automatic successor; corrected excess (`paid + reserved > required`)
 cancels a provably-NOT-SUBMITTED open request (the ONE unified
-predicate above — zero attempts OR latest attempt synchronously
-BUSINESS/DEFINITIVE-rejected with no later attempt) in the same
-transaction, or keeps the payment PARKED until a claim that MAY have
-executed resolves (the §4 pre-wire recheck sees the persisting park
-and blocks the send).
+predicate above, cited without restating) in the same transaction,
+or keeps the payment PARKED until a claim that MAY have executed
+resolves (the §4 pre-wire recheck sees the persisting park and
+blocks the send).
 
 One shared fold artifact — semantically versioned, golden-vector
 frozen; no consumer (UI, scanner, resolver, ops surface) re-implements
@@ -520,21 +522,19 @@ read under the lock already held):
   dies at insert.
 - **Release rights (the baseline release-guard, transplanted; the
   predicate is "provably NOT SUBMITTED", wider than "never sent")**:
-  `CANCELLED_NOT_SUBMITTED` and `SUPERSEDED_OPS` require ZERO
-  `POST_STARTED` rows for the ordinal OR that the LATEST
-  `POST_STARTED` is followed by a same-ordinal
-  `POST_RESULT_RECORDED(BUSINESS_REJECT | DEFINITIVE_REJECT)` with no
-  later attempt — first-party synchronous proof that no executable
-  payment exists (inherited §6.4/§7.1: a business-rejected attempt is
-  NOT_SUBMITTED and cancellable; demanding zero attempts wedged the
-  mandatory cancel-after-reject flow); a claim that MAY have executed
+  `CANCELLED_NOT_SUBMITTED` and `SUPERSEDED_OPS` require the UNIFIED
+  §5 predicate — zero attempts, OR latest attempt synchronously
+  BUSINESS/DEFINITIVE-rejected with no later attempt AND no
+  acceptance-class row post-dating it (the trigger enforces all
+  three conjuncts; a delayed key-scoped acceptance revokes
+  releasability, inherited §9.4); a claim that MAY have executed
   closes only on evidence or through the verified door.
   `REJECTED_VALIDATION` is admissible in TWO forms — pre-wire: zero
   `POST_STARTED` paired with its same-transaction
-  `ENRICH_FAILED(DEFINITIVE)`; or post-wire synchronous: the LATEST
-  `POST_STARTED` followed by a same-ordinal
-  `POST_RESULT_RECORDED(DEFINITIVE_REJECT)` with no later attempt,
-  where CA-1 classifies the definitive response as invalid-data
+  `ENRICH_FAILED(DEFINITIVE)`; or post-wire synchronous: the unified
+  §5 predicate's second arm with `DEFINITIVE_REJECT` specifically
+  (incl. its no-post-dating-acceptance conjunct), where CA-1
+  classifies the definitive response as invalid-data
   (inherited §7.2: it releases and latches `validation_failed`,
   recoverable by strictly newer truth — the pre-wire-only rule
   forced it into `REJECTED_PROVIDER` and the wrong marker); `REJECTED_PROVIDER` requires a
