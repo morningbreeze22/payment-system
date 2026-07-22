@@ -46,10 +46,11 @@ CREATE TABLE PAYMENT_EVENT (
   PROVIDER_REFERENCE VARCHAR2(128),
   PROVIDER_CODE      VARCHAR2(64),
   EVIDENCE_SOURCE    VARCHAR2(16),              -- SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM
-  APPROVAL_REF       VARCHAR2(64),              -- dual-control approval id, TYPED: R on the §6.3
-                                                --   correction pair (equal on both) AND on the
-                                                --   money-enabling ops actions OPS_MARKER_CLEARED /
-                                                --   OPS_RETRY_REARMED; N elsewhere (see §2.2)
+  APPROVAL_REF       VARCHAR2(64),              -- dual-control approval id, TYPED; the NORMATIVE
+                                                --   requirement set lives in §2.2 (correction pair,
+                                                --   OPS_MARKER_CLEARED, OPS_RETRY_REARMED, and
+                                                --   OUTCOME_RECORDED(SUPERSEDED_OPS)) — §2.2
+                                                --   governs, not this comment
   ACTOR              VARCHAR2(64)   NOT NULL,   -- SYSTEM / SCANNER / RESOLVER / OPS:<user>
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
   TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
@@ -507,12 +508,19 @@ read under the lock already held):
   `QUERY_RESULT_RECORDED` require `:new.IDEMPOTENCY_KEY =
   OPEN_IDEMPOTENCY_KEY` — stale evidence for an earlier request's key
   dies at insert.
-- **Release rights (the baseline release-guard, transplanted)**:
-  `CANCELLED_NOT_SUBMITTED` and `REJECTED_VALIDATION` and
-  `SUPERSEDED_OPS` require ZERO `POST_STARTED` rows for the ordinal
-  ("provably never sent" enforced as an existence check; a posted
-  claim closes only on evidence or through the verified door);
-  `REJECTED_VALIDATION` additionally pairs with its same-transaction
+- **Release rights (the baseline release-guard, transplanted; the
+  predicate is "provably NOT SUBMITTED", wider than "never sent")**:
+  `CANCELLED_NOT_SUBMITTED` and `SUPERSEDED_OPS` require ZERO
+  `POST_STARTED` rows for the ordinal OR that the LATEST
+  `POST_STARTED` is followed by a same-ordinal
+  `POST_RESULT_RECORDED(BUSINESS_REJECT | DEFINITIVE_REJECT)` with no
+  later attempt — first-party synchronous proof that no executable
+  payment exists (inherited §6.4/§7.1: a business-rejected attempt is
+  NOT_SUBMITTED and cancellable; demanding zero attempts wedged the
+  mandatory cancel-after-reject flow); a claim that MAY have executed
+  closes only on evidence or through the verified door.
+  `REJECTED_VALIDATION` requires zero `POST_STARTED` (pre-wire) and
+  additionally pairs with its same-transaction
   `ENRICH_FAILED(DEFINITIVE)`; `REJECTED_PROVIDER` requires a
   same-ordinal TERMINAL-class negative evidence row —
   `POST_RESULT_RECORDED(DEFINITIVE_REJECT)`,
@@ -606,16 +614,21 @@ CREATE TABLE TRADE_HEAD (
 Admission (this table's only writer) and fan-out have an EXPLICIT
 transaction boundary:
 
-- **Admission tx**: strictly newer seq → update the SEEN pair always;
-  update the ACCEPTED pair too ONLY when whole-document validation
-  PASSES — an invalid snapshot advances what the trade has SEEN
-  without ever becoming accepted truth (first-contact insert with an
-  invalid document leaves the accepted pair NULL). Equal seq + equal
+- **Admission tx**: validity is judged against the RIGHT watermark —
+  a VALID snapshot strictly newer than `LAST_ACCEPTED_SEQ` is
+  ADMITTED even when older than `LAST_SEEN_SEQ` (inherited §6.6:
+  valid 150 after invalid 200 over accepted 100 must land; judging
+  arrivals against SEEN discarded cancellations); the SEEN pair
+  advances monotonically on any newer-than-seen arrival, valid or
+  invalid (first-contact insert with an invalid document leaves the
+  accepted pair NULL). ANY watermark change re-triggers the
+  full-current-state fan-out below, fenced by the `LAST_SEEN_SEQ`
+  current at worklist derivation. Equal seq + equal
   SEEN_DIGEST → identical redelivery, admit-without-update (comparing
   an invalid redelivery against an accepted-only digest would misread
   it as a defect). Equal seq + DIFFERENT digest → upstream DEFECT:
   refuse + CRITICAL alert (no tie workflow exists in this design).
-  Older seq → ignore.
+  Older than BOTH watermarks → ignore.
 - **Fan-out**: separate per-payment transactions in sorted payment_key
   order, each of which (1) locks `TRADE_HEAD` (the baseline lock
   order), (2) verifies its carried snapshot seq still EQUALS
@@ -631,8 +644,11 @@ transaction boundary:
   without the catch-up would starve an already-accepted cancellation
   behind the fence and let a cancelled payment post. Worklist =
   payments named in the stored ACCEPTED snapshot ∪ existing head rows
-  of the trade (an invalid document's own payment list is never
-  trusted). Already-applied streams no-op, so partial fan-out is
+  of the trade ∪ — for the MARKER only — canonically extractable keys
+  from the invalid document (distrust bars an invalid document from
+  MONEY truth, not from anchoring visibility: a first-delivery-invalid
+  trade still gets its head + marker, required stays NULL, nothing can
+  open). Already-applied streams no-op, so partial fan-out is
   safely resumable; resume re-derives the worklist from the CURRENT
   watermarks' stored state, never from an in-memory snapshot — a
   stale resumed worker can neither create nor touch a payment from

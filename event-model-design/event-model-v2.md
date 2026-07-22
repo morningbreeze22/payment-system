@@ -305,6 +305,21 @@ round-20 unified association relation governs; the two load-bearing
 specifications are now textually identical (§7, 01 §8). Everything
 else checked and found sound.
 
+Twenty-second round (2026-07-22, effort redirected at the non-inbox
+sections): 2 CRITICAL / 1 HIGH / 1 MEDIUM, all closed — admission
+validity is judged against ACCEPTED truth, not SEEN (a valid
+cancellation arriving after a newer invalid snapshot was being
+discarded — inherited §6.6 restored; any watermark change re-triggers
+the current-state fan-out under the current seen token) (§7); the
+release predicate corrected to "provably NOT SUBMITTED" — a latest
+attempt closed by a synchronous BUSINESS/DEFINITIVE reject is
+cancellable (demanding zero attempts wedged the mandatory
+cancel-after-reject flow) — and `SUPERSEDED_OPS` carries the same
+predicate (§5.3); the stale `APPROVAL_REF` DDL comments now defer to
+the normative §2.2 rule (HIGH); invalid-marker worklist includes
+canonically extractable keys so first-delivery-invalid trades anchor
+their heads and markers (MEDIUM) (§7).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -337,7 +352,9 @@ CREATE TABLE PAYMENT_EVENT (
   PROVIDER_CODE      VARCHAR2(64),
   EVIDENCE_SOURCE    VARCHAR2(16),              -- SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM
   APPROVAL_REF       VARCHAR2(64),              -- dual-control approval id, TYPED (fold-visible);
-                                                --   R on the §6 pair, N elsewhere — never DETAIL
+                                                --   REQUIRED per the NORMATIVE §2.2 rule (the pair,
+                                                --   the money-enabling ops actions, SUPERSEDED_OPS);
+                                                --   never DETAIL — §2.2 governs, not this comment
   ACTOR              VARCHAR2(64)   NOT NULL,
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
   TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
@@ -820,14 +837,22 @@ already held):
   belt for two SIMULTANEOUS first claims, which committed-data probes
   cannot see.
 - **Release rights (the v4 release-guard trigger, transplanted)** —
-  the release predicate is a CHECK, not a convention:
+  the release predicate is a CHECK, not a convention — and it means
+  "provably NOT SUBMITTED", which is WIDER than "never sent"
+  (inherited §6.4/§7.1: a synchronously business-rejected attempt is
+  NOT_SUBMITTED and cancellable — demanding zero attempts wedged the
+  mandatory cancel-after-reject flow and left a stale requirement
+  retryable past its accepted cancellation):
   `CANCELLED_NOT_SUBMITTED` requires ZERO `POST_STARTED` rows for the
-  ordinal (one indexed existence check — "provably never sent" is
-  exactly this predicate, so enforce it); `REJECTED_VALIDATION`
-  likewise requires no `POST_STARTED` (validation rejects are
-  pre-wire) plus its same-transaction `ENRICH_FAILED(DEFINITIVE)`;
-  `SUPERSEDED_OPS` requires no `POST_STARTED` — a posted claim may
-  only close on evidence or through the verified door;
+  ordinal OR that the LATEST `POST_STARTED` is followed by a
+  same-ordinal `POST_RESULT_RECORDED(BUSINESS_REJECT |
+  DEFINITIVE_REJECT)` with no later attempt — first-party synchronous
+  proof that no executable payment exists; `REJECTED_VALIDATION`
+  requires no `POST_STARTED` (validation rejects are pre-wire) plus
+  its same-transaction `ENRICH_FAILED(DEFINITIVE)`; `SUPERSEDED_OPS`
+  carries the same not-submitted predicate as
+  `CANCELLED_NOT_SUBMITTED` — a claim that MAY have executed closes
+  only on evidence or through the verified door;
   `REJECTED_PROVIDER` requires a same-ordinal first-party negative
   evidence row that POST-DATES THE LATEST ATTEMPT — evidence
   `VERSION >` the version of the ordinal's latest `POST_STARTED` —
@@ -1091,11 +1116,20 @@ healthy payments.
   delivery parks as a multiplicity anomaly, and dual-control
   adjudicates ownership — loud and blocked, never a silent booking.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
-  EXPLICIT transaction boundary. The ADMISSION transaction updates
-  `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +
-  digest + XML pointer only when whole-document validation PASSES —
-  an invalid snapshot advances what the trade has SEEN without ever
-  becoming accepted truth. FAN-OUT then runs as separate per-payment
+  EXPLICIT transaction boundary. ADMISSION compares an arrival
+  against the RIGHT watermark: acceptance is judged against
+  `LAST_ACCEPTED_SEQ` — a VALID snapshot strictly newer than accepted
+  truth is ADMITTED even when an even-newer INVALID snapshot was
+  already seen (inherited §6.6: valid 150 after invalid 200 over
+  accepted 100 must land; comparing validity arrivals against SEEN
+  discarded the cancellation and let a stale requirement post) —
+  while seen-ness advances `LAST_SEEN_SEQ` monotonically. The
+  admission updates the accepted pair on validity, the seen pair when
+  newer-than-seen; ANY watermark change re-triggers the
+  full-current-state fan-out, whose fence token is the
+  `LAST_SEEN_SEQ` current at worklist derivation (after admitting
+  valid 150 under seen 200, the fan-out carries token 200 and applies
+  accepted truth 150 plus the invalid-200 marker). FAN-OUT then runs as separate per-payment
   transactions, each of which (1) locks `TRADE_HEAD` (the v4 lock
   order), (2) verifies its carried snapshot seq still EQUALS
   `LAST_SEEN_SEQ` — the **equality fence**: if a newer arrival owns
@@ -1111,8 +1145,13 @@ healthy payments.
   that skipped the catch-up would starve an already-accepted
   cancellation behind the fence and let a cancelled payment post.
   Worklist = payments named in the stored ACCEPTED snapshot ∪ existing
-  head rows of the trade (an invalid document's own payment list is
-  never trusted). Resume after a crash re-derives the worklist from
+  head rows of the trade ∪ — for the MARKER only — payments whose keys
+  are CANONICALLY EXTRACTABLE from the invalid document (the distrust
+  rule bars an invalid document from supplying MONEY truth, not from
+  anchoring visibility: a first-delivery-invalid trade must still get
+  its head + `SNAPSHOT_INVALID_MARKED` so the card shows the inherited
+  validation-failed state instead of NOT_STARTED; such a head has
+  NULL required amount, so nothing can open from it). Resume after a crash re-derives the worklist from
   the CURRENT watermarks' stored state, never from an in-memory
   snapshot, so a stale resumed worker can neither create nor touch a
   payment from superseded trade truth. Kafka ack only after fan-out

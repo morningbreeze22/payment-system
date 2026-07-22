@@ -52,7 +52,7 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Twenty-one external adversarial
+1. **Adversarial review rounds.** Twenty-two external adversarial
    rounds folded (2026-07-21/22: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
@@ -86,9 +86,13 @@ is needed in either direction.)
    once and consumed everywhere; SUPERSEDED_OPS approval;
    rebuild-stable reconciliation); round 21 = 0C/1H — one residual
    wording contradiction between the unified association relation
-   and the detailed no-op rule, now textually identical — all closed
-   by mechanism or removal, see `event-model-v2.md` §0; no clean
-   round yet after twenty-one). The baseline's mechanisms have
+   and the detailed no-op rule, now textually identical; round 22
+   (effort redirected at the non-inbox sections) = 2C/1H/1M —
+   admission validity vs ACCEPTED not SEEN, the
+   provably-NOT-SUBMITTED release predicate, stale APPROVAL_REF
+   comments, invalid-marker anchoring — all closed by mechanism or
+   removal, see `event-model-v2.md` §0; no clean round yet after
+   twenty-two). The baseline's mechanisms have
    survived MANY more such rounds; additional rounds are required
    before the two are comparable. Still the single largest open
    item.
