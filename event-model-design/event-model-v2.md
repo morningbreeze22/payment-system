@@ -263,6 +263,19 @@ legal no-UETR query-recovered outcome qualifies (§7);
 check runs at that granularity, the approval bound to the stated
 association claim (§7).
 
+Eighteenth round (2026-07-22): 1 CRITICAL / 2 HIGH / 1 LOW, all
+closed — reconciled UETR associations made DURABLE and GUARD-VISIBLE
+(`RECONCILED_BY_KEY` rows permanent; UNION + first-claim probe
+include them, so platform reuse of a reconciled UETR is loud, never
+a silent duplicate booking); the MISMATCH no-op witness redefined as
+the existing equal mismatch row (mismatch rows are not outcomes —
+the authoritative-outcome form was unsatisfiable and looped legal
+redeliveries); `QUERY_RESULT_RECORDED` joined the open-ordinal gate
+(a query result could attach a first UETR claim to a never-opened
+ordinal and wedge the real request's evidence);
+`RES_REQUEST_ORDINAL` bound in every shape arm (LOW) (§5.3, §7, 01
+§8).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -698,14 +711,17 @@ checks becomes DB-enforceable as BEFORE-INSERT triggers on
 already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
-  `OUTCOME_RECORDED` / `SETTLED` / `FEED_RESULT_RECORDED` — and
-  `ENRICH_FAILED` when it names an ordinal — require
-  `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` (except the
-  terminal-evidence contradiction path, which must instead append
-  `EVIDENCE_CONTRADICTION_RECORDED` — the trigger enforces that
-  routing; omitting `FEED_RESULT_RECORDED` from this list let a feed
-  rejection be recorded against a CLOSED executed ordinal WITHOUT
-  the contradiction park); `REQUEST_OPENED` requires it NULL (§5.2).
+  `QUERY_RESULT_RECORDED` / `OUTCOME_RECORDED` / `SETTLED` /
+  `FEED_RESULT_RECORDED` — and `ENRICH_FAILED` when it names an
+  ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL`
+  (except the terminal-evidence contradiction path, which must
+  instead append `EVIDENCE_CONTRADICTION_RECORDED` — the trigger
+  enforces that routing; omitting `FEED_RESULT_RECORDED` let a feed
+  rejection be recorded against a CLOSED executed ordinal without
+  the park, and omitting `QUERY_RESULT_RECORDED` let a query result
+  attach a FIRST UETR claim to an arbitrary never-opened ordinal,
+  wedging the real request's terminal evidence);
+  `REQUEST_OPENED` requires it NULL (§5.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — for ANY ordinal
   state — is admitted only when the row at `VERSION − 1` is
@@ -752,9 +768,11 @@ already held):
   no event row with this UETR exists on any OTHER payment (one probe
   on `PE_UETR_IX` — events are permanent, so the index IS the full
   history and a claim of an ABANDONED historical UETR dies at ITS
-  commit, not as a later permanent matching ambiguity) and on no
-  other ordinal of this payment. `PH_UETR_UQ` (§5) stays as the belt
-  for two SIMULTANEOUS first claims, which committed-data probes
+  commit, not as a later permanent matching ambiguity), no RECONCILED
+  inbox association names it (§7 — the lost-UETR association lives
+  ONLY there, which is why those rows are permanent), and no other
+  ordinal of this payment carries it. `PH_UETR_UQ` (§5) stays as the
+  belt for two SIMULTANEOUS first claims, which committed-data probes
   cannot see.
 - **Release rights (the v4 release-guard trigger, transplanted)** —
   the release predicate is a CHECK, not a convention:
@@ -947,9 +965,15 @@ healthy payments.
      mismatch row for EV MISMATCH) AND, for settled/mismatch
      classes, whose AMOUNT equals the evidence amount (§6 already
      declares a differing terminal amount CONTRADICTORY — a
-     100-executed witness must not no-op a 90-settlement).
-     Disagreeing evidence can never be silently no-opped past the
-     contradiction park.
+     100-executed witness must not no-op a 90-settlement). One
+     class-specific witness form: EV MISMATCH's witness is an
+     existing same-ordinal `SETTLEMENT_MISMATCH_RECORDED` row of
+     equal UETR and amount — mismatch rows are deliberately NOT
+     outcomes (the request stays open, the payment parks), so an
+     authoritative-outcome requirement would make the legal
+     repeated-mismatch no-op unsatisfiable and loop the redelivery
+     forever. Disagreeing evidence can never be silently no-opped
+     past the contradiction park.
   The irreducible residue, stated honestly: TRANSCRIPTION fidelity —
   that the handler wrote the delivery's actual class/amount/UETR into
   the EV columns at all — is code: exactly the CA-1
@@ -983,7 +1007,15 @@ healthy payments.
   claim visible to the four-eyes approver, whose approval is bound
   to it (a wrong association now needs two people wrong about a
   stated, checkable claim — the same residue class as any §9.3
-  action). If the stream DISAGREES —
+  action). The reconciled association is DURABLE AND GUARD-VISIBLE:
+  `RECONCILED_BY_KEY` rows are PERMANENT (exempt from inbox purge —
+  they carry a UETR→(payment, ordinal) association recorded NOWHERE
+  else; purging one would un-forget the UETR), and both the §8
+  feed-matching UNION and the §5.3 first-claim association probe
+  include them as a source — a later platform reuse of a reconciled
+  UETR dies loudly at its commit instead of silently booking a
+  duplicate settlement against a successor ordinal.
+  If the stream DISAGREES —
   the evidence says settled, the stream says rejected — disposal
   FAILS; the truth must first enter through the §6 dual-control
   verified-outcome door (booking the money and re-evaluating under
@@ -1048,12 +1080,14 @@ healthy payments.
   payment — and the head cannot be stale by more than an uncommitted
   transaction (§5).
 - **Feed matching multiplicity (explicit, counted in PAYMENTS not
-  rows, over the UNION of both sources):** the candidate set is
-  DISTINCT `PAYMENT_KEY`s from head matches ∪ event-index matches —
-  BOTH always consulted (a head-first shortcut would return one head
-  match and never see that the event index names a DIFFERENT payment
-  for the same UETR, silently booking the wrong one; two indexed
-  queries are trivial at this volume). One payment carrying the same
+  rows, over the UNION of all THREE sources):** the candidate set is
+  DISTINCT `PAYMENT_KEY`s from head matches ∪ event-index matches ∪
+  RECONCILED inbox associations (`RECONCILED_BY_KEY` rows, §7 — the
+  only place a lost-UETR association exists) — ALL always consulted
+  (a head-first shortcut would return one head match and never see
+  that another source names a DIFFERENT payment for the same UETR,
+  silently booking the wrong one; three indexed queries are trivial
+  at this volume). One payment carrying the same
   UETR on several events resolves as ONE candidate. 0 payments →
   unmatched path: the inbox row is written with
   `MATCH_STATUS = UNMATCHED_TERMINAL` — a DURABLE fact, so paging is

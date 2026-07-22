@@ -467,14 +467,15 @@ BEFORE-INSERT triggers on `PAYMENT_EVENT` (each a single indexed head
 read under the lock already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
-  `OUTCOME_RECORDED` / `SETTLED` / `FEED_RESULT_RECORDED` — and
-  `ENRICH_FAILED` when it names an ordinal — require
-  `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` — except the
-  contradiction path, which must instead append
+  `QUERY_RESULT_RECORDED` / `OUTCOME_RECORDED` / `SETTLED` /
+  `FEED_RESULT_RECORDED` — and `ENRICH_FAILED` when it names an
+  ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` —
+  except the contradiction path, which must instead append
   `EVIDENCE_CONTRADICTION_RECORDED` (routing enforced; a feed
-  rejection against a CLOSED executed ordinal must park, not slide
-  in as a plain evidence row); `REQUEST_OPENED` requires the column
-  NULL (§6.2).
+  rejection against a CLOSED executed ordinal must park, and a query
+  result must not attach a first UETR claim to a never-opened
+  ordinal, wedging the real request's evidence); `REQUEST_OPENED`
+  requires the column NULL (§6.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` for ANY ordinal
   state is admitted only when the row at `VERSION − 1` is
@@ -530,7 +531,9 @@ read under the lock already held):
   UETR anywhere — no event row with this UETR on any OTHER payment
   (one probe on the permanent `PE_UETR_IX` — a claim of an abandoned
   historical UETR dies at ITS commit, not as a later permanent
-  matching ambiguity) and none on another ordinal of this payment
+  matching ambiguity), no RECONCILED inbox association naming it (§8
+  — the lost-UETR association lives ONLY there, which is why those
+  rows are permanent), and none on another ordinal of this payment
   (a resolver cannot re-attach ordinal 1's UETR to open ordinal 2
   and let ordinal 1's stale feed reject release ordinal 2's
   reservation). `PH_UETR_UQ` (§6) remains the belt for two
@@ -674,7 +677,8 @@ CREATE TABLE INBOUND_EVENT_INBOX (
               AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')
               AND EV_PAYLOAD_REF IS NOT NULL
               AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)))
-        AND RES_PAYMENT_KEY IS NULL AND RES_AT_VERSION IS NULL
+        AND RES_PAYMENT_KEY IS NULL AND RES_REQUEST_ORDINAL IS NULL
+        AND RES_AT_VERSION IS NULL
         AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
         AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL)
    OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED_HANDLED',
@@ -685,11 +689,13 @@ CREATE TABLE INBOUND_EVENT_INBOX (
         AND EV_PAYLOAD_REF IS NOT NULL
         AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)
         AND (MATCH_STATUS != 'UNMATCHED_TERMINAL'
-             OR (RES_PAYMENT_KEY IS NULL AND RES_AT_VERSION IS NULL
+             OR (RES_PAYMENT_KEY IS NULL AND RES_REQUEST_ORDINAL IS NULL
+                 AND RES_AT_VERSION IS NULL
                  AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
                  AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL))
         AND (MATCH_STATUS != 'RESOLVED_HANDLED'
              OR (RES_PAYMENT_KEY IS NOT NULL AND RES_AT_VERSION IS NOT NULL
+                 AND RES_REQUEST_ORDINAL IS NULL
                  AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
                  AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL))
         AND (MATCH_STATUS != 'RESOLVED_DISPOSED'
@@ -741,7 +747,13 @@ requires that the ASSOCIATED ORDINAL (bound to the delivery's UETR
 via any of its UETR-bearing events — an acceptance row suffices) has
 an AUTHORITATIVE outcome (latest outcome-class event, §5 supersession
 — never a superseded historical one) agreeing in CLASS and, for
-settled/mismatch classes, in AMOUNT with the evidence. Transcription
+settled/mismatch classes, in AMOUNT with the evidence — with ONE
+class-specific form: EV MISMATCH's witness is an existing
+same-ordinal `SETTLEMENT_MISMATCH_RECORDED` row of equal UETR and
+amount (mismatch rows are deliberately NOT outcomes — the request
+stays open and the payment parks — so an authoritative-outcome
+requirement would make the legal repeated-mismatch no-op
+unsatisfiable and loop the redelivery forever). Transcription
 fidelity (delivery → EV columns) is the inherited CA-1
 recorded-at-the-time code class, one shared golden-vector-tested
 transcriber.
@@ -768,8 +780,14 @@ substitutes for it. Both categories require actor + reason + an approval through
 the INHERITED §9.3 protocol (bound to exactly this (source, event
 id) + action, consumed APPROVED→CONSUMED by CAS in the same
 transaction — columns are the echo, the approval-store CAS is the
-enforcement). Inbox purge NEVER removes an `UNMATCHED_TERMINAL` row;
-the other statuses age out on the retention chain.
+enforcement). The reconciled association is DURABLE and
+GUARD-VISIBLE: `RECONCILED_BY_KEY` rows are PERMANENT (they carry a
+UETR→(payment, ordinal) association recorded NOWHERE else — purging
+one would un-forget the UETR), and both the §9 matching UNION and
+the §6.3 first-claim probe include them as a source, so a later
+platform reuse of a reconciled UETR dies loudly at its commit. Inbox
+purge NEVER removes an `UNMATCHED_TERMINAL` or `RECONCILED_BY_KEY`
+row; the other statuses age out on the retention chain.
 
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction
@@ -806,9 +824,10 @@ the other statuses age out on the retention chain.
   head lock. A stale candidate costs a wasted fold, never a wrong
   payment.
 - **Feed matching (fail-closed multiplicity, counted in PAYMENTS not
-  rows, over the UNION of both sources):** candidates = DISTINCT
-  `PAYMENT_KEY`s from head matches ∪ event-index matches, BOTH always
-  consulted — a head-first shortcut returning one match would never
+  rows, over the UNION of all THREE sources):** candidates = DISTINCT
+  `PAYMENT_KEY`s from head matches ∪ event-index matches ∪ RECONCILED
+  inbox associations (§8 — the only place a lost-UETR association
+  exists), ALL always consulted — a head-first shortcut returning one match would never
   see the event index naming a DIFFERENT payment for the same UETR
   and would book the wrong one (one payment's several UETR-bearing
   events still resolve as ONE candidate). 0 payments → unmatched
