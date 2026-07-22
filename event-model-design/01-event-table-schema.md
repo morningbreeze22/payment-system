@@ -200,7 +200,11 @@ is R on `OPS_VERIFIED_OUTCOME_APPLIED` and on
 AND on the two money-enabling single ops actions `OPS_MARKER_CLEARED`
 and `OPS_RETRY_REARMED` (their inherited §19.3-class four-eyes
 authorization must be representable on the very event that re-opens
-the road to fresh payment); N on `OPS_BLOCKED` / `OPS_ANNOTATED`
+the road to fresh payment) AND on
+`OUTCOME_RECORDED(SUPERSEDED_OPS)` — the manual close releases a
+reservation and re-arms the standing rule, which the inherited
+approval workflow gates; every approval consumes APPROVED→CONSUMED
+by CAS in its transaction; N on `OPS_BLOCKED` / `OPS_ANNOTATED`
 (restrictive/neutral) and every other type/code. `TX_ID` is stamped by
 the guard trigger on EVERY row and can never be writer-supplied (it is
 how the pair gate proves same-transaction membership in the database).
@@ -380,7 +384,11 @@ it never AUTHORIZES one — authorization always derives from the fold.
    (PHASE = WITNESS_DIVERGED — a candidate-selection mutation, never
    a derivation input; scanners skip diverged payments, so the
    quarantine needs no append). Repair = the head rebuild runbook
-   (§6.1 below), triggered by fence collision OR witness divergence.
+   (§6.1 below), triggered by fence collision OR witness divergence;
+   rebuild input = the stream PLUS the payment's permanent
+   `RECONCILED_BY_KEY` rows (§8 — the one sanctioned non-stream
+   input: the reconciled UETR exists nowhere in the stream, and a
+   stream-only rebuild would drop it out of the `PH_UETR_UQ` fence).
    If rebuild does not clear it, only the dual-control door resolves —
    reachable because that door ALONE runs under divergence in
    RECORDING mode: proceeds on the step-2 fold (the stream is the
@@ -525,10 +533,15 @@ read under the lock already held):
   absence of an intervening acceptance; an ACCEPTED request must
   never be downgraded (evidence existence/absence in the trigger;
   trust-age arithmetic stays fold policy).
-- **UETR-association binding**: an event carrying a UETR must either
-  MATCH its ordinal's existing association (any prior UETR-bearing
-  event of the same ordinal), or be the FIRST association of that
-  UETR anywhere — no event row with this UETR on any OTHER payment
+- **UETR-association binding**: THE ASSOCIATION RELATION is defined
+  once — UETR-bearing `PAYMENT_EVENT` rows ∪ permanent
+  `RECONCILED_BY_KEY` rows (§8) — and every consumer resolves
+  UETR→ordinal through it (this binding, the no-op witness's ordinal
+  resolution, contradiction routing; a veto-only reconciled row left
+  the lost-UETR ordinal positively unresolvable). An event carrying a
+  UETR must either MATCH its ordinal's existing association, or be
+  the FIRST association of that UETR anywhere — no event row with
+  this UETR on any OTHER payment
   (one probe on the permanent `PE_UETR_IX` — a claim of an abandoned
   historical UETR dies at ITS commit, not as a later permanent
   matching ambiguity), no RECONCILED inbox association naming it (§8

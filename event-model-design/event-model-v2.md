@@ -286,6 +286,18 @@ multiplicity anomaly under dual control) and the stale "all resolved
 rows age out" sentence — which contradicted the permanence rule with
 v2 winning precedence — was corrected in place (§7).
 
+Twentieth round (2026-07-22): 0 CRITICAL / 2 HIGH / 1 MEDIUM — second
+consecutive zero-critical round, all closed: the ASSOCIATION RELATION
+defined once (UETR-bearing events ∪ reconciled rows) and consumed by
+every resolver — the reconciled row had been a veto only, leaving the
+lost-UETR ordinal positively unresolvable (re-emission deadlock,
+unreachable park) (§5.3); `OUTCOME_RECORDED(SUPERSEDED_OPS)` joined
+the typed-approval set — the manual close releases a reservation and
+re-arms the standing rule, which the inherited approval workflow
+gates (§2.2); head rebuild input = stream + reconciled rows, the one
+sanctioned non-stream input, so the round-19 head effect is
+rebuild-stable (§5.1, MEDIUM).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -419,11 +431,16 @@ reject/collision UETRs are never recorded.)
 
 Ops events carry the approval reference in the TYPED `APPROVAL_REF`
 column — R on `OPS_VERIFIED_OUTCOME_APPLIED` and its paired
-`OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` (equal on both), and R on the
+`OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` (equal on both), R on the
 two MONEY-ENABLING single ops actions, `OPS_MARKER_CLEARED` and
 `OPS_RETRY_REARMED` (the v4 §19.3-class clears carry four-eyes
 authorization; a nullable approval on the event that re-opens the
-road to fresh payment would make that authorization unrepresentable).
+road to fresh payment would make that authorization unrepresentable),
+AND R on `OUTCOME_RECORDED(SUPERSEDED_OPS)` — the manual close
+RELEASES a reservation and re-arms the standing rule, which v4's
+approval workflow explicitly gates; without a typed consumed
+approval, one actor could release money and enable a successor. All
+approvals consume APPROVED → CONSUMED by CAS in their transaction.
 N on `OPS_BLOCKED`/`OPS_ANNOTATED` (restrictive/neutral actions) and
 every non-ops type — free text in DETAIL binds nothing. The verified
 pair is appended in the SAME transaction — dual-control protocol
@@ -626,8 +643,12 @@ construction, not by a reconciling sweep).
    quarantine needs no append and cannot itself be blocked by the
    check it serves. Repair = the head REBUILD runbook (§5.1), which
    now triggers on fence collision OR witness divergence: rebuild the
-   head from the stream under the lock; if the divergence clears, the
-   head was wrong — resume. If it persists, the stream itself is under
+   head from the stream PLUS the payment's permanent
+   RECONCILED_BY_KEY rows (§7 — the ONE sanctioned non-stream rebuild
+   input: the reconciled UETR association exists nowhere in the
+   stream, and a stream-only rebuild would silently drop it out of
+   the PH_UETR_UQ fence) under the lock; if the divergence clears,
+   the head was wrong — resume. If it persists, the stream itself is under
    dispute and only the §6 dual-control door may resolve it — and so
    that exit is REACHABLE, the door transaction alone runs under
    divergence with the witness check in RECORDING mode: it proceeds on
@@ -770,10 +791,17 @@ already held):
   actually queried, so stale evidence for an EARLIER request's key
   cannot be recorded against the current one.
 - **UETR-association binding (write-once per ordinal, first-claim
-  global)**: an event carrying a UETR must either MATCH its ordinal's
-  existing association (any prior UETR-bearing event of the same
-  ordinal — so a resolver cannot re-attach ordinal 1's UETR to open
-  ordinal 2 and let ordinal 1's stale feed reject release ordinal 2's
+  global)**: THE ASSOCIATION RELATION is defined ONCE — UETR-bearing
+  `PAYMENT_EVENT` rows ∪ permanent `RECONCILED_BY_KEY` rows (§7) —
+  and EVERY consumer resolves UETR→ordinal through it: this binding,
+  the no-op witness's ordinal resolution, and contradiction routing
+  (a reconciled row consulted only as a first-claim VETO would leave
+  the lost-UETR ordinal positively unresolvable — re-emissions would
+  deadlock and the mandatory park would be unreachable for exactly
+  the case reconciliation exists to serve). An event carrying a UETR
+  must either MATCH its ordinal's existing association (so a
+  resolver cannot re-attach ordinal 1's UETR to open ordinal 2 and
+  let ordinal 1's stale feed reject release ordinal 2's
   reservation), or be the FIRST association of that UETR anywhere:
   no event row with this UETR exists on any OTHER payment (one probe
   on `PE_UETR_IX` — events are permanent, so the index IS the full
