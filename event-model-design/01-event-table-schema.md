@@ -467,11 +467,14 @@ BEFORE-INSERT triggers on `PAYMENT_EVENT` (each a single indexed head
 read under the lock already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
-  `OUTCOME_RECORDED` / `SETTLED` — and `ENRICH_FAILED` when it names
-  an ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL`
-  — except the contradiction path, which must instead append
-  `EVIDENCE_CONTRADICTION_RECORDED` (routing enforced);
-  `REQUEST_OPENED` requires the column NULL (§6.2).
+  `OUTCOME_RECORDED` / `SETTLED` / `FEED_RESULT_RECORDED` — and
+  `ENRICH_FAILED` when it names an ordinal — require
+  `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` — except the
+  contradiction path, which must instead append
+  `EVIDENCE_CONTRADICTION_RECORDED` (routing enforced; a feed
+  rejection against a CLOSED executed ordinal must park, not slide
+  in as a plain evidence row); `REQUEST_OPENED` requires the column
+  NULL (§6.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` for ANY ordinal
   state is admitted only when the row at `VERSION − 1` is
@@ -628,43 +631,55 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   EV_AMOUNT    NUMBER(18,3),
   EV_PAYLOAD_REF VARCHAR2(200),
   -- resolution provenance (which exit closed an unmatched row):
-  RES_PAYMENT_KEY  VARCHAR2(200),             -- RESOLVED_MATCHED: the append it rode with
-  RES_VERSION      NUMBER(10),
+  RES_PAYMENT_KEY  VARCHAR2(200),             -- RESOLVED_HANDLED / RECONCILED_BY_KEY:
+                                              --   the payment it was handled against
+  RES_AT_VERSION   NUMBER(10),                -- RESOLVED_HANDLED: head LAST_VERSION at
+                                              --   handling time (audit pointer, NEVER
+                                              --   load-bearing)
   DISPOSED_BY      VARCHAR2(64),              -- RESOLVED_DISPOSED: audited ops exit
+  DISPOSED_CATEGORY VARCHAR2(20),             --   FOREIGN | RECONCILED_BY_KEY
   DISPOSED_APPROVAL VARCHAR2(64),
   DISPOSED_REASON  VARCHAR2(400),
   CONSTRAINT INB_UQ UNIQUE (SOURCE, EVENT_ID),
   CONSTRAINT INB_STATUS_CK CHECK (MATCH_STATUS IN
-      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED_MATCHED',
-       'RESOLVED_AGREED','RESOLVED_DISPOSED')),
-  -- evidence content is SHAPE-BOUND per status, with a CLOSED class
-  -- vocabulary AND resolution provenance bound to its exit: an
-  -- unresolvable, unauditable, or free-standing resolved row must be
-  -- schema-impossible
+      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED_HANDLED',
+       'RESOLVED_DISPOSED')),
+  -- every column bound in EVERY arm (an arm that ignores a column
+  -- leaks free-standing provenance); closed vocabularies carry
+  -- explicit IS NOT NULL against Oracle 3VL
   CONSTRAINT INB_SHAPE_CK CHECK (
       (MATCH_STATUS = 'PROCESSED'
         AND EV_UETR IS NULL AND EV_CLASS IS NULL
         AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL
-        AND RES_PAYMENT_KEY IS NULL AND DISPOSED_BY IS NULL)
-   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED_MATCHED',
-                        'RESOLVED_AGREED','RESOLVED_DISPOSED')
+        AND RES_PAYMENT_KEY IS NULL AND RES_AT_VERSION IS NULL
+        AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
+        AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL)
+   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED_HANDLED',
+                        'RESOLVED_DISPOSED')
         AND EV_UETR IS NOT NULL
-        AND EV_CLASS IS NOT NULL                    -- Oracle 3VL: a NULL
-        AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')  -- class passed
-                                                    -- the bare IN-list as
-                                                    -- UNKNOWN (the round-1
-                                                    -- lesson, re-learned)
+        AND EV_CLASS IS NOT NULL
+        AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')
         AND EV_PAYLOAD_REF IS NOT NULL
         AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)
         AND (MATCH_STATUS != 'UNMATCHED_TERMINAL'
-             OR (RES_PAYMENT_KEY IS NULL AND DISPOSED_BY IS NULL))
-        AND (MATCH_STATUS NOT IN ('RESOLVED_MATCHED','RESOLVED_AGREED')
-             OR (RES_PAYMENT_KEY IS NOT NULL AND RES_VERSION IS NOT NULL
-                 AND DISPOSED_BY IS NULL))
+             OR (RES_PAYMENT_KEY IS NULL AND RES_AT_VERSION IS NULL
+                 AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
+                 AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL))
+        AND (MATCH_STATUS != 'RESOLVED_HANDLED'
+             OR (RES_PAYMENT_KEY IS NOT NULL AND RES_AT_VERSION IS NOT NULL
+                 AND DISPOSED_BY IS NULL AND DISPOSED_CATEGORY IS NULL
+                 AND DISPOSED_APPROVAL IS NULL AND DISPOSED_REASON IS NULL))
         AND (MATCH_STATUS != 'RESOLVED_DISPOSED'
-             OR (DISPOSED_BY IS NOT NULL AND DISPOSED_APPROVAL IS NOT NULL
+             OR (DISPOSED_BY IS NOT NULL
+                 AND DISPOSED_CATEGORY IS NOT NULL
+                 AND DISPOSED_CATEGORY IN ('FOREIGN','RECONCILED_BY_KEY')
+                 AND DISPOSED_APPROVAL IS NOT NULL
                  AND DISPOSED_REASON IS NOT NULL
-                 AND RES_PAYMENT_KEY IS NULL))))
+                 AND RES_AT_VERSION IS NULL
+                 AND ((DISPOSED_CATEGORY = 'RECONCILED_BY_KEY'
+                       AND RES_PAYMENT_KEY IS NOT NULL)
+                   OR (DISPOSED_CATEGORY = 'FOREIGN'
+                       AND RES_PAYMENT_KEY IS NULL))))))
 );
 ```
 
@@ -673,39 +688,31 @@ paging is LEVEL-TRIGGERED — a sweep re-runs matching (from the stored
 evidence columns) and pages while any `UNMATCHED_TERMINAL` row exists
 (re-match finds a head created later; a crash between commit and page
 loses nothing, and redelivery hitting the inbox dedup cannot silently
-bury an evidence fact that was never resolved). Resolution is THREE
-schema-distinguished exits, all retaining the evidence trail:
-`RESOLVED_MATCHED` — the sweep's exit, appending the resulting event
-under the payment's head lock and flipping the row in the SAME
-transaction, the cited (`RES_PAYMENT_KEY`, `RES_VERSION`) VERIFIED
-SEMANTICALLY by the resolution trigger (UETR equality always; then
-per stored class, the cited event is either THE RECORDING —
-SETTLED→`SETTLED` equal amount;
-REJECTED→`FEED_RESULT_RECORDED(REJECTED)`, EV amount when present
-equal to the ordinal's opening amount (the feed-result event itself
-carries none); MISMATCH→`SETTLEMENT_MISMATCH_RECORDED` equal amount —
-or THE CONTRADICTION this evidence produced: the same-UETR
-`EVIDENCE_CONTRADICTION_RECORDED` with the matching code
-(`SETTLED_AFTER_TERMINAL`/`FEED_REJECTS_OUTCOME`/
-`MISMATCH_AFTER_TERMINAL`) — conflicting evidence's legal append IS
-the contradiction event; a type-identity-only table refused it and
-rolled back the park). A wrong mapping of stored SETTLED evidence to
-a fabricated rejection still dies at the flip; `RESOLVED_AGREED` —
-for evidence agreeing with an already-recorded terminal (the benign
-no-op path appends nothing, so this exit cites the EXISTING
-authoritative terminal, agreement judged SEMANTICALLY: EV SETTLED
-agrees with `SETTLED` OR an equal-amount executed-class
-`OUTCOME_RECORDED`; EV REJECTED with a rejected-class terminal —
-without it, correctly handled agreeing evidence pages forever); and
-`RESOLVED_DISPOSED` — the ops exit for genuinely
-foreign evidence: actor + approval + reason, with the approval going
-through the INHERITED §9.3 protocol (bound to exactly this (source,
-event id) + action, consumed APPROVED→CONSUMED by CAS in the same
-transaction — the columns are the echo, the approval-store CAS is
-the enforcement). A bare unaudited "resolved" flag would let one
-wrong ops click bury live terminal evidence unrecoverably. Inbox
-purge NEVER removes an `UNMATCHED_TERMINAL` row; the other statuses
-age out on the retention chain.
+bury an evidence fact that was never resolved). **Resolution
+(SIMPLIFIED — the correspondence-verification relation of two earlier
+revisions is RETRACTED):** three review rounds proved that
+schema-verifying inbox evidence against specific stream events is a
+second implementation of write-path legality that diverges from the
+real one (it refused legal parks, agreements, and rejections, and
+could not see fold state without re-implementing the fold in a
+trigger). The rule now: whatever the re-match decides — append,
+contradiction park, or benign no-op — is governed SOLELY by the
+normal write-path gates under the head lock (§6.3), in the same
+transaction as the flip to `RESOLVED_HANDLED`, whose
+(`RES_PAYMENT_KEY`, `RES_AT_VERSION` = head `LAST_VERSION` at
+handling) is an AUDIT POINTER, never load-bearing and never
+content-verified. `RESOLVED_DISPOSED` covers evidence that CANNOT go
+through a payment's write path, in two audited categories: `FOREIGN`
+(not ours) and `RECONCILED_BY_KEY` (the lost-UETR settlement: the
+response timed out, the key-query recovery carried no UETR, no
+stream will ever contain this delivery's UETR — a human reconciles
+it to the payment via the §9.1 query trail and records that payment
+key). Both categories require actor + reason + an approval through
+the INHERITED §9.3 protocol (bound to exactly this (source, event
+id) + action, consumed APPROVED→CONSUMED by CAS in the same
+transaction — columns are the echo, the approval-store CAS is the
+enforcement). Inbox purge NEVER removes an `UNMATCHED_TERMINAL` row;
+the other statuses age out on the retention chain.
 
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction

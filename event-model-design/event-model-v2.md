@@ -212,6 +212,20 @@ passed the bare IN-list as UNKNOWN — the round-1 Oracle-3VL lesson,
 re-learned in a new place); README round-count header corrected
 again (§7, 01 §8).
 
+Fourteenth round (2026-07-22): 1 CRITICAL / 4 HIGH / 1 LOW — the
+third consecutive round concentrated in the inbox-resolution
+correspondence machinery, which was therefore RETRACTED as a class
+(the same removal judgment as round 7's archival): the write path's
+gates are the sole legality authority, the inbox keeps only a
+non-load-bearing audit pointer (`RESOLVED_HANDLED` = payment key +
+head version at handling), and disposal gained the audited
+`RECONCILED_BY_KEY` category for the lost-UETR settlement that no
+automatic match can ever reach (§7). The round's one write-path
+finding fixed for real: `FEED_RESULT_RECORDED` joined the
+open-ordinal trigger set, so feed evidence against a CLOSED ordinal
+must route through the contradiction park (§5.3). Provenance columns
+are now bound in every shape arm (LOW).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -643,11 +657,14 @@ checks becomes DB-enforceable as BEFORE-INSERT triggers on
 already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
-  `OUTCOME_RECORDED` / `SETTLED` — and `ENRICH_FAILED` when it names
-  an ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL`
-  (except the terminal-evidence contradiction path, which must
-  instead append `EVIDENCE_CONTRADICTION_RECORDED` — the trigger
-  enforces that routing); `REQUEST_OPENED` requires it NULL (§5.2).
+  `OUTCOME_RECORDED` / `SETTLED` / `FEED_RESULT_RECORDED` — and
+  `ENRICH_FAILED` when it names an ordinal — require
+  `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` (except the
+  terminal-evidence contradiction path, which must instead append
+  `EVIDENCE_CONTRADICTION_RECORDED` — the trigger enforces that
+  routing; omitting `FEED_RESULT_RECORDED` from this list let a feed
+  rejection be recorded against a CLOSED executed ordinal WITHOUT
+  the contradiction park); `REQUEST_OPENED` requires it NULL (§5.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — for ANY ordinal
   state — is admitted only when the row at `VERSION − 1` is
@@ -828,49 +845,38 @@ healthy payments.
   optional only for reject-class), the class drawn from the CLOSED
   vocabulary (`SETTLED` / `REJECTED` / `MISMATCH` — a misspelled
   class would be a permanently unroutable purge-exempt row), and NULL
-  on plain PROCESSED rows. Resolution is THREE schema-distinguished
-  exits, evidence content RETAINED on all (a bare "resolved" flag
-  would let one wrong ops click bury live terminal evidence
-  unrecoverably and unauditably):
-  - `RESOLVED_MATCHED` — the sweep's exit, in ONE transaction with
-    the resulting append under the payment's head lock, the row
-    recording WHICH append (payment key + version) — and the
-    reference is VERIFIED SEMANTICALLY, not by type identity (a
-    type-identity table refused three LEGAL resolutions and rolled
-    back a park). The cited event must be one of exactly three
-    things, per stored class, always with UETR equality:
-    (a) THE RECORDING of this evidence — EV SETTLED → `SETTLED`
-    (equal amount); EV REJECTED → `FEED_RESULT_RECORDED(REJECTED)`
-    (that event carries no amount; EV amount, when present, must
-    equal the cited ordinal's opening amount); EV MISMATCH →
-    `SETTLEMENT_MISMATCH_RECORDED` (equal amount); or
-    (b) THE CONTRADICTION this evidence produced — the same-UETR
-    `EVIDENCE_CONTRADICTION_RECORDED` with the matching code
-    (`SETTLED_AFTER_TERMINAL` / `FEED_REJECTS_OUTCOME` /
-    `MISMATCH_AFTER_TERMINAL`): conflicting evidence's LEGAL append
-    IS the contradiction event, and refusing it as provenance would
-    roll back the park itself and let a successor pay after a real
-    settlement.
-  - `RESOLVED_AGREED` — the exit for evidence that AGREES with an
-    already-recorded terminal (the §6 benign no-op: nothing may be
-    appended, so there is no new append to cite): the row cites the
-    EXISTING authoritative terminal, and agreement is SEMANTIC —
-    EV SETTLED agrees with `SETTLED` OR an executed-class
-    `OUTCOME_RECORDED` (EXECUTED / PLATFORM_VERIFIED_EXECUTED) of
-    equal amount; EV REJECTED agrees with a rejected-class terminal.
-    Without this exit, correctly handled agreeing evidence would
-    page forever with no legal close.
-  - `RESOLVED_DISPOSED` — the ops exit for genuinely foreign
-    evidence: actor + approval + reason on the row, AND the approval
-    goes through the INHERITED v4 §9.3 protocol — an approval record
-    bound to exactly this (source, event id) and the disposal
-    action, consumed APPROVED → CONSUMED by CAS in the same
-    transaction. The inbox columns are the echo; the approval-store
-    CAS is the enforcement — a nonexistent, expired, consumed, or
-    other-row approval reference fails the consumption CAS, exactly
-    as it would on a payment-event ops action.
-  All three age out on the purge chain; inbox purge NEVER removes an
-  UNMATCHED_TERMINAL row.
+  on plain PROCESSED rows. **Resolution (SIMPLIFIED by design — the
+  correspondence-verification relation of two earlier revisions is
+  RETRACTED):** three review rounds proved that a schema-verified
+  correspondence between inbox evidence and specific stream events is
+  a SECOND implementation of write-path legality — it refused legal
+  parks, legal agreements, and legal rejections, and it could not see
+  fold state without re-implementing the fold in a trigger, which is
+  the duplicated-state-machine cost this design refuses everywhere
+  else. The honest rule: the NORMAL write path (open-ordinal +
+  contradiction routing + amount equality + release rights +
+  UETR-association gates, under the head lock) is the SOLE legality
+  authority for whatever the re-match decides — append, contradiction
+  park, or benign no-op. The inbox row then closes as
+  `RESOLVED_HANDLED` in the same transaction, recording an
+  AUDIT POINTER, never a load-bearing constraint: the payment key it
+  was handled against and the head's `LAST_VERSION` at handling time
+  (the stream position containing the full context). A wrong handling
+  decision is the same front-door decide() risk class as every other
+  write, mitigated by the same gates — not by a parallel validator.
+  The second exit, `RESOLVED_DISPOSED`, is for evidence that CANNOT
+  be handled through a payment's write path, in two audited
+  categories: `FOREIGN` (genuinely not ours) and `RECONCILED_BY_KEY`
+  (the lost-UETR case: the response timed out, the key-query recovery
+  carried no UETR, so no stream ever contains this delivery's UETR
+  and no automatic match can ever succeed — a human reconciles it to
+  the payment via the §9.1 query trail and records that payment key).
+  Both categories: actor + reason + an approval through the INHERITED
+  v4 §9.3 protocol — bound to exactly this (source, event id) and
+  action, consumed APPROVED → CONSUMED by CAS in the same transaction
+  (the columns are the echo; the approval-store CAS is the
+  enforcement). All resolved rows age out on the purge chain; inbox
+  purge NEVER removes an UNMATCHED_TERMINAL row.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
   EXPLICIT transaction boundary. The ADMISSION transaction updates
   `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +
