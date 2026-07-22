@@ -21,7 +21,7 @@
 |---|---|---|
 | `PAYMENT_EVENT` | append-only, THE authority | everything that ever happened to a payment; per-payment total order |
 | `PAYMENT_HEAD` | ONE mutable row per payment | write serialization lock, money WITNESS, open-request backstop, scanner/UI index — updated in the append transaction; rebuildable from the stream; can VETO a write, never authorize one |
-| `TRADE_HEAD` | one mutable row per trade | snapshot admission watermark (`LAST_ACCEPTED_SEQ`) + payload digest (defect detection, not tie adjudication) + XML storage pointer |
+| `TRADE_HEAD` | one mutable row per trade | TWO watermarks — `LAST_ACCEPTED_SEQ` (accepted truth) and `LAST_SEEN_SEQ` (newest processed, valid or invalid) — + payload digest (defect detection, not tie adjudication) + XML storage pointer; the fan-out fence checks SEEN so invalid markers can fan out (§7) |
 | `INBOUND_EVENT_INBOX` | `UNIQUE(SOURCE, EVENT_ID)` | dedup of FEED deliveries only, atomic with processing (§8) |
 
 Everything else — required amount, paid, reserved, phase, markers,
@@ -46,8 +46,12 @@ CREATE TABLE PAYMENT_EVENT (
   PROVIDER_REFERENCE VARCHAR2(128),
   PROVIDER_CODE      VARCHAR2(64),
   EVIDENCE_SOURCE    VARCHAR2(16),              -- SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM
+  APPROVAL_REF       VARCHAR2(64),              -- dual-control approval id, TYPED: R on the §6.3
+                                                --   correction pair (equal on both), N elsewhere
   ACTOR              VARCHAR2(64)   NOT NULL,   -- SYSTEM / SCANNER / RESOLVER / OPS:<user>
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
+  TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
+                                                --   transaction id; writers cannot supply it
   CREATED_AT         TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
 
   -- identity is claimed exactly once, in the schema:
@@ -129,7 +133,9 @@ application role.)
 | `PAYLOAD_HASH` | §5.1-style write-ahead instruction hash on `REQUEST_OPENED` and every `POST_STARTED`. A re-POST whose hash differs from the previous `POST_STARTED` is expected-divergent (re-enrichment happened); collision classification builds on this being durable BEFORE the wire call. |
 | `UETR` / `PROVIDER_REFERENCE` / `PROVIDER_CODE` | provider evidence. UETR persisted only from acceptance-class responses and feed events (platform-SDK rule inherited verbatim; reject/collision UETRs never recorded). |
 | `EVIDENCE_SOURCE` | which channel produced the event — evidence-precedence rules key on it. |
-| `ACTOR` | audit. `OPS:*` events carry the approval reference in `DETAIL`. |
+| `APPROVAL_REF` | the dual-control approval id, TYPED so the §6.3 door can bind the correction pair — free text in `DETAIL` binds nothing. |
+| `TX_ID` | guard-trigger-stamped local transaction id: the DB-checkable fact "these rows were written together," consumed only by the §6.3 correction-door check. Writers cannot supply it. |
+| `ACTOR` | audit. |
 | `DETAIL` | display/audit text only. THE FOLD NEVER READS IT — a design rule, enforced by the fold's golden vectors. |
 | `IDEM_CLAIM` (generated) | identity write-once IN THE SCHEMA: two opening events can never carry the same key, whatever writer, path, or bug produced them. |
 | `ORDINAL_CLAIM` (generated) | ordinal write-once IN THE SCHEMA: one `REQUEST_OPENED` per (payment, ordinal), ever — ordinal reuse collides loudly instead of splitting the fold's per-ordinal aggregation. Single-column unique on a generated key-qualified string, so non-opening rows (NULL) are simply not indexed. |
@@ -157,7 +163,7 @@ a matrix/DDL mismatch is a defect.
 | ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | R | N | N | N | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | N | N | SYSTEM |
 | POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | O (ACCEPTED only) | N | SYNC_RESPONSE |
-| QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | N | N | O (EXECUTED/ACCEPTED only) | N | QUERY |
+| QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key QUERIED — echo-checked §6.3) | N | O (EXECUTED/ACCEPTED only) | N | QUERY |
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated) | N | N | O (executed-class only) | N | R (any) |
 | SETTLED | N | R | N | R | N | N | O | N | FEED |
@@ -170,6 +176,13 @@ a matrix/DDL mismatch is a defect.
 (The "only" qualifiers on O cells — e.g. UETR only when the code is
 acceptance-class — are conditional conjuncts inside the same per-type
 CHECK.)
+
+Two columns are governed globally rather than per row: `APPROVAL_REF`
+is R on `OPS_VERIFIED_OUTCOME_APPLIED` and on
+`OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — equal across the §6.3 pair —
+and N on every other type/code; `TX_ID` is stamped by the guard
+trigger on EVERY row and can never be writer-supplied (it is how the
+correction door proves same-transaction membership in the database).
 
 ## 3. Identity — request ordinal, not stream position
 
@@ -216,14 +229,14 @@ Version slots do NOT participate in identity. Consequences:
 | `ENRICH_FAILED` | enrichment failed; code says transient vs definitive | transient: retry timing derives from this event's timestamp + policy; definitive: appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx |
 | `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; **no `POST_STARTED` = provably never sent** — the safe-release predicate |
 | `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1 | ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry per policy (same key); DEFINITIVE_REJECT → outcome same tx; AMBIGUOUS → MAYBE; COLLISION → expected/unexpected via hash comparison; UNMAPPED → MAYBE + alert |
-| `QUERY_RESULT_RECORDED` | the resolver asked by OUR key | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
+| `QUERY_RESULT_RECORDED` | the resolver asked by OUR key — the event CARRIES that key, and the §6.3 echo refuses a key other than the open request's, so stale evidence for an earlier request's key cannot be recorded against the current one | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
 | `DOWNGRADED_FOR_REPOST` | the §9.2-equivalent move: NOT_FOUND past trust age, same key will be re-sent | re-posting becomes legal for the SAME key; audit of the only backward transition |
-| `OUTCOME_RECORDED` | terminal for a request (codes per §2.2, with `EVIDENCE_SOURCE`); executed-class AMOUNT must equal the OPENED amount (§6.3 amount equality — any other number is defect evidence, not an outcome). `PLATFORM_VERIFIED_*` may additionally supersede a CLOSED ordinal's outcome through the §6.3 dual-control door | closes the open request (head CAS, §6.2); books or releases its reservation; latches the corresponding marker; **the same transaction re-evaluates the standing rule** — a remaining shortfall opens the successor atomically (per-event apply order, §6.1). A superseding verified outcome adjusts `PAID_TOTAL` by the signed difference; the fold takes the LATEST outcome-class event per ordinal as authoritative (§5) |
+| `OUTCOME_RECORDED` | terminal for a request (codes per §2.2, with `EVIDENCE_SOURCE`); AMOUNT of EVERY code must equal the OPENED amount (§6.3 — "restated" is an enforced equality; any other number is defect evidence, not an outcome). `PLATFORM_VERIFIED_*` may additionally supersede a CLOSED ordinal's outcome through the §6.3 dual-control door (amount checked against THAT ordinal's opening amount) | closes the open request (head CAS, §6.2); books or releases its reservation; latches the corresponding marker; the same transaction re-evaluates the standing rule UNDER THE INHERITED GATES — a shortfall opens a successor only if no live marker forbids it (a verified NOT_EXECUTED latches `provider_rejected` per the baseline §9.3: NO automatic successor); a corrected EXCESS (`paid + reserved > required`) cancels a provably-unsent open request in the same tx, or keeps the payment PARKED until an in-flight claim resolves. A superseding verified outcome adjusts `PAID_TOTAL` by the signed difference; the fold takes the LATEST outcome-class event per ordinal as authoritative (§5) |
 | `SETTLED` | the feed confirms full-amount settlement AND the fold shows a non-terminal request for the ordinal | books confirmed money (idempotent by ordinal); closes/freezes that request. Feed evidence AGREEING with an already-EXECUTED terminal (equal amount) is a benign no-op delivery — NOT appended, NOT a contradiction |
 | `SETTLEMENT_MISMATCH_RECORDED` | feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence) | books NOTHING; parks loudly; submission knowledge still tightens |
 | `EVIDENCE_CONTRADICTION_RECORDED` | evidence CONFLICTS with a terminal decision (codes per §2.2) — conflict, never mere repetition | FIXED effect: book nothing, PARK the payment, CRITICAL alert; sole exit is §7 of `event-model-v2.md` (§6 there): the dual-control verified outcome |
 | `ESCALATION_MARKED` | the MAYBE got old (once per episode) | audit of paging; derived state unchanged |
-| `OPS_VERIFIED_OUTCOME_APPLIED` | the dual-control audited operation (approval reference in DETAIL) | appended with its `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in one tx — the only manual door for possibly-moved money, the only unpark of a contradicted payment, and (as a pair) the ONLY write admitted for a CLOSED ordinal (§6.3 exception) |
+| `OPS_VERIFIED_OUTCOME_APPLIED` | the dual-control audited operation (typed `APPROVAL_REF`, equal on both pair members) | appended with its `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in one tx — the only manual door for possibly-moved money, the only unpark of a contradicted payment, and (as a DB-verified pair: version-adjacent, same ordinal, same `TX_ID`, equal `APPROVAL_REF`) the ONLY write admitted for a CLOSED ordinal (§6.3). A solo verified-applied event has NO fold effect and pages as an anomaly |
 | `OPS_RETRY_REARMED` / `OPS_BLOCKED` / `OPS_MARKER_CLEARED` / `OPS_ANNOTATED` | human actions through the ops surface (`OPS_MARKER_CLEARED` = the §19.3-equivalent clear of a live reject marker) | budget reset / hard block on new opens / marker cleared / display note. All arrive through the SAME write path — there is no privileged one |
 
 ## 5. The canonical fold — aggregation, never inference
@@ -251,12 +264,21 @@ plus derived:     markers (+ their seqs), retry state, MAYBE/park/escalation
                   ages, provably_unsent (open request with no POST_STARTED)
 ```
 
-Amount binding (normative): a money-terminal event must carry AMOUNT
+Amount binding (normative): EVERY outcome-class event carries AMOUNT
 equal to its ordinal's OPENING amount — the all-or-nothing contract
 makes any other number defect evidence (`SETTLEMENT_MISMATCH_RECORDED`
 or a contradiction), and §6.2/§6.3 enforce the equality in the
 database, so a wrong terminal number cannot silently enter either
-bookkeeper and reopen a phantom shortfall.
+bookkeeper, reopen a phantom shortfall, or plant false immutable
+history.
+
+Correction gates (normative): a superseding verified outcome
+re-evaluates the payment in BOTH directions under the INHERITED rules —
+verified NOT_EXECUTED latches `provider_rejected` (baseline §9.3), so
+NO automatic successor; corrected excess (`paid + reserved > required`)
+cancels a provably-unsent open request in the same transaction or
+keeps the payment PARKED until the in-flight claim resolves (the §4
+pre-wire recheck sees the persisting park and blocks the send).
 
 One shared fold artifact — semantically versioned, golden-vector
 frozen; no consumer (UI, scanner, resolver, ops surface) re-implements
@@ -341,15 +363,24 @@ money.
 Opening, in the opening transaction:
 
 ```sql
-UPDATE PAYMENT_HEAD
-   SET OPEN_REQUEST_ORDINAL = :ordinal,
-       OPEN_IDEMPOTENCY_KEY = :idem_key,
-       NEXT_REQUEST_ORDINAL = NEXT_REQUEST_ORDINAL + 1,
-       RESERVED = :amount
- WHERE PAYMENT_KEY = :key
-   AND OPEN_REQUEST_ORDINAL IS NULL
-   AND NEXT_REQUEST_ORDINAL = :ordinal      -- the counter IS the ordinal
+UPDATE PAYMENT_HEAD h
+   SET h.OPEN_REQUEST_ORDINAL = :ordinal,
+       (h.OPEN_IDEMPOTENCY_KEY, h.RESERVED) =
+         (SELECT e.IDEMPOTENCY_KEY, e.AMOUNT    -- copied FROM THE OPENING ROW
+            FROM PAYMENT_EVENT e                -- (via PE_ORDINAL_UQ, same tx),
+           WHERE e.ORDINAL_CLAIM =              -- never from a program variable
+                 :key || '#' || TO_CHAR(:ordinal)),
+       h.NEXT_REQUEST_ORDINAL = h.NEXT_REQUEST_ORDINAL + 1
+ WHERE h.PAYMENT_KEY = :key
+   AND h.OPEN_REQUEST_ORDINAL IS NULL
+   AND h.NEXT_REQUEST_ORDINAL = :ordinal      -- the counter IS the ordinal
 ```
+
+The binding rule matters: the head's open key/amount are copies of the
+OPENING EVENT ROW, so the wire echo (§6.3) transitively checks the
+wire key against the SCHEMA-CLAIMED key — a program variable can never
+put one key into `IDEM_CLAIM` and send a different one, which would
+otherwise burn an unenumerable key and defeat the §3 restore story.
 
 Row count 0 aborts the append. Closing (outcome/settled) clears the
 ordinal and key columns the same way (`WHERE OPEN_REQUEST_ORDINAL =
@@ -379,14 +410,25 @@ read under the lock already held):
   instead append `EVIDENCE_CONTRADICTION_RECORDED` (routing enforced);
   `REQUEST_OPENED` requires the column NULL (§6.2).
 - **The one closed-ordinal exception** (the correction door):
-  `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in the same transaction as
-  `OPS_VERIFIED_OUTCOME_APPLIED` is admitted for a closed ordinal —
-  the dual-control unpark/correction path, and nothing else.
-- **Amount equality**: executed-class `OUTCOME_RECORDED` and `SETTLED`
-  require `:new.AMOUNT = RESERVED`; a differing feed amount is only
-  insertable as `SETTLEMENT_MISMATCH_RECORDED`.
-- **Key echo**: `POST_STARTED` / `POST_RESULT_RECORDED` require
-  `:new.IDEMPOTENCY_KEY = OPEN_IDEMPOTENCY_KEY`.
+  `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` for a closed ordinal is
+  admitted only when the row at `VERSION − 1` is
+  `OPS_VERIFIED_OUTCOME_APPLIED` for the SAME ordinal with the SAME
+  `TX_ID` (same-transaction membership, DB-checked — a dangling
+  approval committed earlier can never be paired later) and equal
+  `APPROVAL_REF` — the dual-control unpark/correction path, nothing
+  else. A solo verified-applied event has no fold effect; the drift
+  scan pages it.
+- **Amount equality (every outcome)**: `OUTCOME_RECORDED` of ANY code
+  and `SETTLED` on the OPEN ordinal require `:new.AMOUNT = RESERVED`;
+  through the closed-ordinal door the comparison is against THAT
+  ordinal's OPENING amount (indexed read via `PE_ORDINAL_UQ`), never
+  the payment-wide `RESERVED`, which may belong to a LATER open
+  request. A differing feed amount is only insertable as
+  `SETTLEMENT_MISMATCH_RECORDED`.
+- **Key echo**: `POST_STARTED` / `POST_RESULT_RECORDED` /
+  `QUERY_RESULT_RECORDED` require `:new.IDEMPOTENCY_KEY =
+  OPEN_IDEMPOTENCY_KEY` — stale evidence for an earlier request's key
+  dies at insert.
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`; the per-event head effect sets `LAST_VERSION =
   :new.VERSION`. The fence rejects duplicates; this closes holes. The
@@ -401,7 +443,9 @@ mitigations, in `event-model-v2.md` §10.
 ```sql
 CREATE TABLE TRADE_HEAD (
   BUSINESS_ID       VARCHAR2(64) PRIMARY KEY,
-  LAST_ACCEPTED_SEQ NUMBER(19)   NOT NULL,
+  LAST_ACCEPTED_SEQ NUMBER(19)   NOT NULL,   -- newest VALID snapshot (accepted truth)
+  LAST_SEEN_SEQ     NUMBER(19)   NOT NULL,   -- newest snapshot processed AT ALL
+                                             --   (valid or invalid; >= accepted)
   PAYLOAD_DIGEST    VARCHAR2(64) NOT NULL,   -- defect detection, not ties
   SNAPSHOT_XML_REF  VARCHAR2(200),
   UPDATED_AT        TIMESTAMP
@@ -411,21 +455,25 @@ CREATE TABLE TRADE_HEAD (
 Admission (this table's only writer) and fan-out have an EXPLICIT
 transaction boundary:
 
-- **Admission tx**: strictly newer seq → update watermark + digest +
-  XML pointer, commit. Equal seq + equal digest → identical
-  redelivery, admit-without-update. Equal seq + DIFFERENT digest →
-  upstream DEFECT: refuse + CRITICAL alert (no tie workflow exists in
-  this design). Older seq → ignore.
+- **Admission tx**: strictly newer seq → update `LAST_SEEN_SEQ`
+  always; update `LAST_ACCEPTED_SEQ` + digest + XML pointer ONLY when
+  whole-document validation PASSES — an invalid snapshot advances
+  what the trade has SEEN without ever becoming accepted truth. Equal
+  seq + equal digest → identical redelivery, admit-without-update.
+  Equal seq + DIFFERENT digest → upstream DEFECT: refuse + CRITICAL
+  alert (no tie workflow exists in this design). Older seq → ignore.
 - **Fan-out**: separate per-payment transactions in sorted payment_key
   order, each of which (1) locks `TRADE_HEAD` (the baseline lock
   order), (2) verifies its carried snapshot seq still EQUALS
-  `LAST_ACCEPTED_SEQ` — the **equality fence**: abort if a newer
-  admission owns the trade (the newer fan-out covers every payment,
-  including absences) — then (3) locks the payment head and appends
-  seq-guarded. Already-applied streams no-op, so partial fan-out is
-  safely resumable; resume re-derives the worklist from the CURRENT
-  watermark's stored XML, never from an in-memory snapshot — a stale
-  resumed worker can neither create nor touch a payment from
+  `LAST_SEEN_SEQ` — the **equality fence**: abort if a newer arrival
+  owns the trade (the newer fan-out covers every payment, including
+  absences) — then (3) locks the payment head and appends seq-guarded:
+  `REQUIRED_AMOUNT_SET` only from the snapshot that is ALSO accepted
+  (`= LAST_ACCEPTED_SEQ`); `SNAPSHOT_INVALID_MARKED` from an invalid
+  one. Already-applied streams no-op, so partial fan-out is safely
+  resumable; resume re-derives the worklist from the CURRENT
+  watermarks' stored state, never from an in-memory snapshot — a
+  stale resumed worker can neither create nor touch a payment from
   superseded trade truth.
 - Kafka ack only after fan-out completes; redelivery re-runs and
   converges.

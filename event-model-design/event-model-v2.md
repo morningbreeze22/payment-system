@@ -49,13 +49,26 @@ closed-ordinal correction door with outcome supersession (§4, §5.3,
 §5.3), the snapshot fan-out equality fence (§7), and version
 continuity (§5.3).
 
+Second round (2026-07-21, same harness, targeting the round-1 fixes):
+3 CRITICAL / 3 HIGH / 1 MEDIUM, all closed — correction-door amount
+equality re-anchored to the ordinal's OWN opening amount + the
+excess-direction park-persistence rule (§5.3, §6), query results now
+carry and echo the QUERIED key (§2.2, §5.3), the head's open key/amount
+copied FROM the opening row instead of program variables (§5.2), the
+`TX_ID` + typed `APPROVAL_REF` pair binding for the correction door
+(§2, §5.3), verified-NOT-executed latches the inherited
+`provider_rejected` marker — the same-transaction-successor promise
+RETRACTED (§6), the two-watermark `TRADE_HEAD` so invalid-snapshot
+markers fan out under the fence (§1, §7), and amount equality extended
+to every outcome code (§5.3).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
 |---|---|---|
 | `PAYMENT_EVENT` | append-only, THE authority | everything that ever happened to a payment; per-payment total order |
 | `PAYMENT_HEAD` | ONE mutable row per payment | write serialization lock, money WITNESS, open-request backstop, scanner/UI index — updated in the append transaction, rebuildable from the stream, NEVER read by a money decision |
-| `TRADE_HEAD` | one mutable row per trade | snapshot admission watermark (`last_accepted_seq`) + XML storage pointer. Simplified from v4's trade_snapshot_state: with a contractual sequence number there is no tie to adjudicate — an equal-seq redelivery is admitted-without-update; equal seq with different content is an upstream DEFECT (refuse + CRITICAL alert), not a workflow |
+| `TRADE_HEAD` | one mutable row per trade | TWO snapshot watermarks — `LAST_ACCEPTED_SEQ` (newest VALID snapshot = accepted trade truth) and `LAST_SEEN_SEQ` (newest snapshot processed at all, valid or invalid; `≥ LAST_ACCEPTED_SEQ`) — + payload digest + XML storage pointer. The fan-out equality fence (§7) checks against `LAST_SEEN_SEQ`, so invalid-snapshot markers CAN fan out without ever admitting invalid content as truth. With a contractual sequence number there is no tie to adjudicate — an equal-seq redelivery is admitted-without-update; equal seq with different content is an upstream DEFECT (refuse + CRITICAL alert), not a workflow |
 | `INBOUND_EVENT_INBOX` | `UNIQUE(source, event_id)` | dedup of FEED deliveries only, atomic with processing (§7) |
 
 Everything else — required amount, paid, reserved, phase, markers,
@@ -80,8 +93,12 @@ CREATE TABLE PAYMENT_EVENT (
   PROVIDER_REFERENCE VARCHAR2(128),
   PROVIDER_CODE      VARCHAR2(64),
   EVIDENCE_SOURCE    VARCHAR2(16),              -- SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM
+  APPROVAL_REF       VARCHAR2(64),              -- dual-control approval id, TYPED (fold-visible);
+                                                --   R on the §6 pair, N elsewhere — never DETAIL
   ACTOR              VARCHAR2(64)   NOT NULL,
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
+  TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
+                                                --   transaction id; writers cannot supply it
   CREATED_AT         TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
 
   -- identity is claimed exactly once, in the schema:
@@ -133,7 +150,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | R | N | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | SYSTEM |
 | POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | SYNC_RESPONSE |
-| QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | N | N | QUERY |
+| QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key that was QUERIED — echo-checked, §5.3) | N | QUERY |
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated — §4) | N | N | R |
 | SETTLED | N | R | N | R | N | N | FEED |
@@ -148,10 +165,14 @@ on acceptance-class and feed events, per the v4 §5 UETR-persistence
 rule, which is inherited verbatim: reject/collision UETRs are never
 recorded.)
 
-Ops events carry the approval reference in DETAIL and, for
-`OPS_VERIFIED_OUTCOME_APPLIED`, are appended in the SAME transaction
-as their `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — dual-control
-protocol inherited from v4 §9.3 unchanged.
+Ops events carry the approval reference in the TYPED `APPROVAL_REF`
+column (R on `OPS_VERIFIED_OUTCOME_APPLIED` AND on its paired
+`OUTCOME_RECORDED(PLATFORM_VERIFIED_*)`, equal on both, N on every
+other type — free text in DETAIL cannot bind anything). The pair is
+appended in the SAME transaction — dual-control protocol inherited
+from v4 §9.3 unchanged, and the same-transaction fact is
+DB-checkable via `TX_ID` (§5.3), not merely promised by the
+application.
 
 ## 3. Identity — the L6 fix
 
@@ -329,15 +350,24 @@ inputs and not money.
 Opening a request executes, in the opening transaction:
 
 ```
-UPDATE PAYMENT_HEAD
-   SET OPEN_REQUEST_ORDINAL = :ordinal,
-       OPEN_IDEMPOTENCY_KEY = :idem_key,
-       NEXT_REQUEST_ORDINAL = NEXT_REQUEST_ORDINAL + 1,
-       RESERVED = :amount
- WHERE PAYMENT_KEY = :key
-   AND OPEN_REQUEST_ORDINAL IS NULL
-   AND NEXT_REQUEST_ORDINAL = :ordinal      -- the counter IS the ordinal
+UPDATE PAYMENT_HEAD h
+   SET h.OPEN_REQUEST_ORDINAL = :ordinal,
+       (h.OPEN_IDEMPOTENCY_KEY, h.RESERVED) =
+         (SELECT e.IDEMPOTENCY_KEY, e.AMOUNT     -- copied FROM THE OPENING
+            FROM PAYMENT_EVENT e                 -- ROW, never from a program
+           WHERE e.ORDINAL_CLAIM =               -- variable (binding rule)
+                 :key || '#' || TO_CHAR(:ordinal)),
+       h.NEXT_REQUEST_ORDINAL = h.NEXT_REQUEST_ORDINAL + 1
+ WHERE h.PAYMENT_KEY = :key
+   AND h.OPEN_REQUEST_ORDINAL IS NULL
+   AND h.NEXT_REQUEST_ORDINAL = :ordinal    -- the counter IS the ordinal
 ```
+
+The head's open-request key and amount are COPIES OF THE OPENING EVENT
+ROW (read back through `PE_ORDINAL_UQ` inside the same transaction) —
+a program variable can therefore never put one key into the schema
+claim and a different one onto the head that the wire echo checks
+against; the wire key is transitively bound to the claimed key.
 
 Row count 0 aborts the append. This is a second bookkeeper for the
 single most dangerous invariant — it does not trust the fold. Closing
@@ -375,16 +405,29 @@ already held):
   the trigger enforces that routing); `REQUEST_OPENED` requires it
   NULL (§5.2).
 - **One closed-ordinal exception** (the §6 correction door, and
-  nothing else): `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` appended in
-  the same transaction as `OPS_VERIFIED_OUTCOME_APPLIED` is admitted
-  for a CLOSED ordinal.
-- **Amount equality**: `OUTCOME_RECORDED` with an executed-class code
-  and `SETTLED` require `:new.AMOUNT = RESERVED` (the opened amount);
-  a differing feed amount is only insertable as
-  `SETTLEMENT_MISMATCH_RECORDED` (routing enforced).
-- **Key echo**: `POST_STARTED` / `POST_RESULT_RECORDED` require
-  `:new.IDEMPOTENCY_KEY = OPEN_IDEMPOTENCY_KEY` — an attempt event can
-  never cite a key other than its opening's.
+  nothing else): `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` for a CLOSED
+  ordinal is admitted only when the row at `VERSION − 1` is
+  `OPS_VERIFIED_OUTCOME_APPLIED` for the SAME ordinal with the SAME
+  `TX_ID` (same transaction, DB-checked — a dangling approval
+  committed earlier can never be paired later) and equal
+  `APPROVAL_REF`. A solo `OPS_VERIFIED_OUTCOME_APPLIED` has no fold
+  effect and is surfaced by the drift scan as an anomaly.
+- **Amount equality (every outcome)**: `OUTCOME_RECORDED` of ANY code
+  and `SETTLED` for the OPEN ordinal require `:new.AMOUNT = RESERVED`
+  ("the request amount, restated" is an enforced equality, not a
+  convention — a reject recording amount 999 for a 100 request is
+  false history and is refused). Through the closed-ordinal door the
+  comparison is instead against THAT ordinal's OPENING amount (one
+  indexed read via `PE_ORDINAL_UQ` — NEVER against the payment-wide
+  `RESERVED`, which may belong to a LATER open request). A differing
+  feed amount is only insertable as `SETTLEMENT_MISMATCH_RECORDED`
+  (routing enforced).
+- **Key echo**: `POST_STARTED` / `POST_RESULT_RECORDED` /
+  `QUERY_RESULT_RECORDED` require `:new.IDEMPOTENCY_KEY =
+  OPEN_IDEMPOTENCY_KEY` — an attempt event can never cite a key other
+  than its opening's, and a query result must name the key that was
+  actually queried, so stale evidence for an EARLIER request's key
+  cannot be recorded against the current one.
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`, and the per-event head effect sets
   `LAST_VERSION = :new.VERSION` — closing the skipped-slot gap the
@@ -404,9 +447,10 @@ protocol verbatim — two-step approval, approval_id as the sole
 execution input), which appends `OPS_VERIFIED_OUTCOME_APPLIED` +
 `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in one transaction. The fold
 treats a verified outcome AFTER a contradiction as the authoritative
-resolution: the park lifts, money books per the recorded outcome, and
-the standing rule resumes (a remaining shortfall opens a successor in
-the same transaction). Nothing else unparks a contradicted payment.
+resolution: money books per the recorded outcome and the standing rule
+resumes UNDER THE INHERITED GATES (markers, park consistency — see
+correction mechanics below). Nothing else unparks a contradicted
+payment.
 
 **Correction mechanics (the closed-ordinal door).** The dual-control
 pair is the ONLY write admitted for a closed ordinal (§5.3 exception —
@@ -418,7 +462,28 @@ effect of a superseding verified outcome: `PAID_TOTAL` adjusted by the
 signed difference (verified NOT_EXECUTED over a booked EXECUTED
 subtracts the amount; verified EXECUTED over a booked reject adds it);
 `RESERVED` untouched — the ordinal stays closed. The same transaction
-re-evaluates the standing rule on the corrected numbers.
+then re-evaluates the payment on the corrected numbers, in BOTH
+directions and under the INHERITED gates:
+
+- **Shortfall direction — markers gate it (v4 §9.3 inherited
+  verbatim):** a verified NOT_EXECUTED latches the `provider_rejected`
+  marker exactly as the baseline's platform-verified rejection does,
+  so NO successor opens automatically in the correction transaction —
+  re-payment requires the marker to unlatch (strictly newer upstream
+  truth) or the explicit ops re-arm/clear path. An earlier draft of
+  this section promised a same-transaction successor; that contradicted
+  the inherited marker semantics and is retracted.
+- **Excess direction — the correction may strand an open successor:**
+  if the corrected numbers show `paid_total + reserved > required`
+  and a request is open, the open request is now excess commitment.
+  If it is provably unsent (no `POST_STARTED`), the same transaction
+  closes it `CANCELLED_NOT_SUBMITTED`. If a `POST_STARTED` exists,
+  **the park does NOT lift**: the payment stays parked until the
+  in-flight claim resolves through the ask path, and the §9 pre-wire
+  recheck (which sees the persisting park) blocks any not-yet-sent
+  wire call. The unpark is then the resolution of that claim — never
+  a state in which a corrected history and a live excess request run
+  concurrently.
 
 **Scope rule — contradiction means CONFLICT, not repetition.** Evidence
 that AGREES with an already-recorded terminal outcome (the routine
@@ -439,20 +504,25 @@ healthy payments.
   that decides "no-op": stale evidence). "Seen" and "processed" commit
   atomically; a crash before commit leaves neither.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
-  EXPLICIT transaction boundary: the ADMISSION transaction updates
-  only the watermark/digest/XML pointer; FAN-OUT then runs as separate
-  per-payment transactions, each of which (1) locks `TRADE_HEAD` (the
-  v4 lock order), (2) verifies its carried snapshot seq still EQUALS
-  `LAST_ACCEPTED_SEQ` — the **equality fence**: if a newer admission
-  owns the trade, abort; the newer fan-out covers every payment
-  including absences — then (3) locks the payment head and appends
-  seq-guarded. Resume after a crash re-derives the worklist from the
-  CURRENT watermark's stored XML, never from an in-memory snapshot, so
-  a stale resumed worker can neither create nor touch a payment from
-  superseded trade truth. Kafka ack only after fan-out completes;
-  redelivery re-runs and converges. Side effects (metrics, alerts) key
-  on state CHANGES (an append that actually happened), so re-runs do
-  not re-fire them.
+  EXPLICIT transaction boundary. The ADMISSION transaction updates
+  `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +
+  digest + XML pointer only when whole-document validation PASSES —
+  an invalid snapshot advances what the trade has SEEN without ever
+  becoming accepted truth. FAN-OUT then runs as separate per-payment
+  transactions, each of which (1) locks `TRADE_HEAD` (the v4 lock
+  order), (2) verifies its carried snapshot seq still EQUALS
+  `LAST_SEEN_SEQ` — the **equality fence**: if a newer arrival owns
+  the trade, abort; the newer fan-out covers every payment including
+  absences — then (3) locks the payment head and appends seq-guarded:
+  `REQUIRED_AMOUNT_SET` only from a snapshot that is also the
+  accepted one (`= LAST_ACCEPTED_SEQ`), `SNAPSHOT_INVALID_MARKED`
+  from an invalid one. Resume after a crash re-derives the worklist
+  from the CURRENT watermarks' stored state, never from an in-memory
+  snapshot, so a stale resumed worker can neither create nor touch a
+  payment from superseded trade truth. Kafka ack only after fan-out
+  completes; redelivery re-runs and converges. Side effects (metrics,
+  alerts) key on state CHANGES (an append that actually happened), so
+  re-runs do not re-fire them.
 - Retention: inbox purge > Kafka retention ≥ replay window (owner
   rule inherited from v4 §16.2).
 
