@@ -539,6 +539,14 @@ read under the lock already held):
   = REQUIRED_AMOUNT` on the transaction-fresh head — the immutable UI
   amount-series stamp cannot be born wrong (display-only, but
   unfixable if wrong).
+- **Opening amount = shortfall**: `REQUEST_OPENED` requires
+  `:new.AMOUNT = REQUIRED_AMOUNT − PAID_TOTAL` on the
+  transaction-fresh head (the standing rule pays the FULL remaining
+  shortfall, baseline §6.8; both fields just witness-checked, and
+  `RESERVED` is 0 at opening). Without it, an oversized opening rides
+  every downstream gate — reservation copy, key echo, terminal
+  equality, close CAS — faithfully to the wire and books paid 180
+  against required 100.
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`; the per-event head effect sets `LAST_VERSION =
   :new.VERSION`. The fence rejects duplicates; this closes holes. The
@@ -622,7 +630,9 @@ transaction boundary:
 CREATE TABLE INBOUND_EVENT_INBOX (
   SOURCE       VARCHAR2(32)  NOT NULL,
   EVENT_ID     VARCHAR2(128) NOT NULL,
-  RECEIVED_AT  TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+  RECEIVED_AT  TIMESTAMP     NOT NULL,  -- guard-stamped UTC (SYS_EXTRACT_UTC):
+                                        --   a retention anchor; the single-UTC
+                                        --   rule is global to all four structures
   MATCH_STATUS VARCHAR2(20)  DEFAULT 'PROCESSED' NOT NULL,
   -- evidence CONTENT, populated on UNMATCHED_TERMINAL/RESOLVED rows —
   -- a status flag without the payload would be unresolvable:
@@ -700,14 +710,27 @@ contradiction park, or benign no-op — is governed SOLELY by the
 normal write-path gates under the head lock (§6.3), in the same
 transaction as the flip to `RESOLVED_HANDLED`, whose
 (`RES_PAYMENT_KEY`, `RES_AT_VERSION` = head `LAST_VERSION` at
-handling) is an AUDIT POINTER, never load-bearing and never
-content-verified. `RESOLVED_DISPOSED` covers evidence that CANNOT go
+handling) is an AUDIT POINTER. The flip itself carries the two-rule
+DELIVERY-FIDELITY BACKSTOP (fold-state-free; restored after review
+proved class fidelity is invisible to the write-path gates): (1) no
+class inversion — an EV SETTLED flip may not ride a transaction
+appending rejected-class evidence/outcomes for the associated
+ordinal, and symmetrically (contradiction events always admissible);
+(2) no witnessless no-op — a flip with NO append requires an existing
+same-UETR event whose class AGREES with the evidence, so disagreeing
+evidence can never be silently no-opped past the contradiction park.
+`RESOLVED_DISPOSED` covers evidence that CANNOT go
 through a payment's write path, in two audited categories: `FOREIGN`
 (not ours) and `RECONCILED_BY_KEY` (the lost-UETR settlement: the
 response timed out, the key-query recovery carried no UETR, no
 stream will ever contain this delivery's UETR — a human reconciles
 it to the payment via the §9.1 query trail and records that payment
-key). Both categories require actor + reason + an approval through
+key). `RECONCILED_BY_KEY` is STATE-GATED: legal only when the
+reconciled stream ALREADY contains an authoritative outcome agreeing
+with the evidence in class and amount; if the stream disagrees, the
+truth enters through the dual-control verified-outcome door FIRST —
+reconciliation acknowledges recorded truth, it never substitutes for
+it. Both categories require actor + reason + an approval through
 the INHERITED §9.3 protocol (bound to exactly this (source, event
 id) + action, consumed APPROVED→CONSUMED by CAS in the same
 transaction — columns are the echo, the approval-store CAS is the

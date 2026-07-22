@@ -226,6 +226,19 @@ open-ordinal trigger set, so feed evidence against a CLOSED ordinal
 must route through the contradiction park (§5.3). Provenance columns
 are now bound in every shape arm (LOW).
 
+Fifteenth round (2026-07-22): 3 CRITICAL / 1 MEDIUM, all closed — the
+round-14 retraction rationale HONESTLY CORRECTED: delivery-class
+fidelity is real protection the write-path gates cannot see, restored
+as the two-rule DELIVERY-FIDELITY BACKSTOP (no class inversion in the
+flip transaction; no witnessless no-op) without the failed
+enumeration (§7); `RECONCILED_BY_KEY` state-gated — legal only when
+the stream ALREADY agrees with the evidence, else the dual-control
+verified-outcome door FIRST (§7); the opening amount bound to the
+computed shortfall (`AMOUNT = REQUIRED_AMOUNT − PAID_TOTAL` on the
+transaction-fresh head) — a 14-round-old gap in the flagship
+invariant (§5.3); the single-UTC rule made GLOBAL across all four
+structures' timestamps (§2, MEDIUM).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -268,7 +281,11 @@ CREATE TABLE PAYMENT_EVENT (
                                                 --   inherited v4 §16.4 single-UTC rule (a
                                                 --   local-clock stamp crosses DST jumps and
                                                 --   corrupts trust-age arithmetic forever);
-                                                --   no writer may supply it
+                                                --   no writer may supply it. The single-UTC
+                                                --   rule is GLOBAL: every persisted timestamp
+                                                --   in all four structures (incl. inbox
+                                                --   RECEIVED_AT — a retention anchor — and
+                                                --   the heads' UPDATED_AT) is UTC the same way
 
   -- identity is claimed exactly once, in the schema:
   IDEM_CLAIM         VARCHAR2(128)  GENERATED ALWAYS AS
@@ -677,6 +694,15 @@ already held):
   write admitted for a closed ordinal (§6). A solo
   `OPS_VERIFIED_OUTCOME_APPLIED` has no fold effect and is surfaced by
   the drift scan as an anomaly.
+- **Opening amount = shortfall**: `REQUEST_OPENED` requires
+  `:new.AMOUNT = REQUIRED_AMOUNT − PAID_TOTAL` on the
+  transaction-fresh head (the standing rule pays the FULL remaining
+  shortfall — v4 §6.8; both head fields were just witness-checked
+  against the fold, and `RESERVED` is 0 with no open ordinal at
+  opening time). Without this conjunct, a wrong decision could open
+  for MORE than the shortfall and every downstream gate — reservation
+  copy, key echo, terminal amount equality, close CAS — would
+  faithfully carry the oversized amount to the wire and book it.
 - **Amount equality (every outcome)**: `OUTCOME_RECORDED` of ANY code
   and `SETTLED` for the OPEN ordinal require `:new.AMOUNT = RESERVED`
   ("the request amount, restated" is an enforced equality, not a
@@ -859,11 +885,28 @@ healthy payments.
   authority for whatever the re-match decides — append, contradiction
   park, or benign no-op. The inbox row then closes as
   `RESOLVED_HANDLED` in the same transaction, recording an
-  AUDIT POINTER, never a load-bearing constraint: the payment key it
-  was handled against and the head's `LAST_VERSION` at handling time
-  (the stream position containing the full context). A wrong handling
-  decision is the same front-door decide() risk class as every other
-  write, mitigated by the same gates — not by a parallel validator.
+  AUDIT POINTER: the payment key it was handled against and the
+  head's `LAST_VERSION` at handling time. One honest correction to
+  the retraction rationale (next round proved it overclaimed): the
+  write-path gates validate the EVENT against the STREAM, but nothing
+  in them sees the DELIVERY — class fidelity between what the feed
+  said and what got recorded is real protection the old machinery
+  provided. It returns as a DELIVERY-FIDELITY BACKSTOP of exactly two
+  narrow, fold-state-free rules on the flip (none of the failed
+  enumeration: no target lists, no amount arithmetic):
+  1. **No class inversion**: a flip for EV SETTLED may not ride a
+     transaction that appends rejected-class evidence or a
+     rejected-class outcome for the associated ordinal (and
+     symmetrically for EV REJECTED vs executed-class/`SETTLED`
+     bookings) — contradiction events are ALWAYS admissible.
+  2. **No witnessless no-op**: a flip with NO append in its
+     transaction requires an existing same-UETR event whose class
+     AGREES with the evidence (executed-class terminal or `SETTLED`
+     for EV SETTLED; rejected-class for EV REJECTED; a mismatch row
+     for EV MISMATCH) — evidence that DISAGREES with the stream can
+     never be silently no-opped past the contradiction park.
+  Every other wrong handling decision is the same front-door decide()
+  risk class as any write, mitigated by the same gates.
   The second exit, `RESOLVED_DISPOSED`, is for evidence that CANNOT
   be handled through a payment's write path, in two audited
   categories: `FOREIGN` (genuinely not ours) and `RECONCILED_BY_KEY`
@@ -871,6 +914,18 @@ healthy payments.
   carried no UETR, so no stream ever contains this delivery's UETR
   and no automatic match can ever succeed — a human reconciles it to
   the payment via the §9.1 query trail and records that payment key).
+  `RECONCILED_BY_KEY` is an ACKNOWLEDGMENT that the money truth is
+  ALREADY in the stream, never a substitute for putting it there: the
+  disposal is legal only if the reconciled payment's stream contains
+  an authoritative outcome AGREEING with the evidence (class and
+  amount). If the stream DISAGREES — the evidence says settled, the
+  stream says rejected — disposal is ILLEGAL; the truth must first
+  enter through the §6 dual-control verified-outcome door (booking
+  the money and re-evaluating under the inherited gates), and only
+  then may the delivery be reconciled. Without this state gate, a
+  correctly-authorized reconciliation could acknowledge a real
+  settlement while the stream still says rejected, and a later
+  snapshot would pay a second time.
   Both categories: actor + reason + an approval through the INHERITED
   v4 §9.3 protocol — bound to exactly this (source, event id) and
   action, consumed APPROVED → CONSUMED by CAS in the same transaction
