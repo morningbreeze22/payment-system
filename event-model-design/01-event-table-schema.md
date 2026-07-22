@@ -757,8 +757,10 @@ forbids BOTH (its legal appends: `SETTLEMENT_MISMATCH_RECORDED` or a
 contradiction); contradiction events always admissible; (2) no
 witnessless no-op — a terminal delivery handled with NO append
 requires that the ASSOCIATED ORDINAL (bound to the delivery's UETR
-via any of its UETR-bearing events — an acceptance row suffices) has
-an AUTHORITATIVE outcome (latest outcome-class event, §5 supersession
+via THE UNIFIED ASSOCIATION RELATION of §6.3 — UETR-bearing events ∪
+permanent `RECONCILED_BY_KEY` rows; an acceptance row suffices, and
+an events-only lookup would make the reconciled ordinal
+unresolvable) has an AUTHORITATIVE outcome (latest outcome-class event, §5 supersession
 — never a superseded historical one) agreeing in CLASS and, for
 settled/mismatch classes, in AMOUNT with the evidence — with ONE
 class-specific form: EV MISMATCH's witness is an existing

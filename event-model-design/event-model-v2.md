@@ -298,6 +298,13 @@ gates (§2.2); head rebuild input = stream + reconciled rows, the one
 sanctioned non-stream input, so the round-19 head effect is
 rebuild-stable (§5.1, MEDIUM).
 
+Twenty-first round (2026-07-22): 0 CRITICAL / 1 HIGH — a single
+residual wording contradiction: the detailed no-op witness rule still
+resolved the ordinal through UETR-bearing events only, while the
+round-20 unified association relation governs; the two load-bearing
+specifications are now textually identical (§7, 01 §8). Everything
+else checked and found sound.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -991,10 +998,12 @@ healthy payments.
      100-rejection). Contradiction events are ALWAYS admissible.
   2. **No witnessless no-op**: a terminal delivery handled with NO
      append requires that THE ASSOCIATED ORDINAL — the ordinal the
-     delivery's UETR is bound to by the association gate, resolved
-     through ANY of its UETR-bearing events (an acceptance row
-     suffices; requiring the UETR on the terminal itself refused the
-     legal query-recovered outcome, which legitimately carries none)
+     delivery's UETR is bound to, resolved through THE UNIFIED
+     ASSOCIATION RELATION of §5.3 (UETR-bearing events ∪ permanent
+     `RECONCILED_BY_KEY` rows — an acceptance row suffices; requiring
+     the UETR on the terminal itself refused the legal
+     query-recovered outcome, and an events-only lookup here would
+     make the reconciled ordinal unresolvable and loop re-emissions)
      — has an AUTHORITATIVE outcome (the §4 latest-outcome-class
      rule, NOT any historical event: a superseded `EXECUTED` under a
      later verified NOT_EXECUTED is precisely what must NOT witness
