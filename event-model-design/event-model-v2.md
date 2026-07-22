@@ -382,6 +382,17 @@ now applies only to the MARKER SET stamped durably at seen-admission
 pair), restoring inherited §6.6 (§7, 01 §7). The full gate inventory
 otherwise checked sound.
 
+Twenty-ninth round (2026-07-22): 0 CRITICAL / 1 HIGH — the round-28
+marker set had NO durable schema home and 01 §4 still said "EVERY
+payment of the trade". The mechanism was SIMPLIFIED instead of given
+a sidecar: `SNAPSHOT_INVALID_MARKED` appends happen INSIDE the
+seen-admission transaction, atomically with the watermark, over
+exactly the set knowable then — the stream rows ARE the durable
+record (no sidecar, no resume rule; crash = full-admission rollback +
+redelivery re-run); the current-state fan-out carries ACCEPTED truth
+only, and the extractable-key worklist branch moved into admission
+with the markers (§7, 01 §4/§7).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -1229,25 +1240,32 @@ healthy payments.
   (seq-guarded — catching up any accepted admission whose own fan-out
   was fenced out, including cancels-to-zero), THEN, if the seen
   snapshot is invalid (`LAST_SEEN_SEQ > LAST_ACCEPTED_SEQ`),
-  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)` — applied ONLY to the
-  MARKER SET stamped DURABLY at seen-admission (payments whose heads
-  existed at that moment ∪ the invalid document's canonically
-  extractable keys, recorded alongside the seen pair so crash-resume
-  reads the same set): a payment FIRST INTRODUCED by later-admitted
-  valid truth the invalid document never named must NOT inherit the
-  marker — blanket application blocked such a payment behind an
-  unlatch bar of `> LAST_SEEN_SEQ` that no necessary future snapshot
-  would ever clear (inherited §6.6). An invalid-only fan-out
-  that skipped the catch-up would starve an already-accepted
+  nothing — because invalid markers are NOT this fan-out's job: the
+  `SNAPSHOT_INVALID_MARKED(seq)` appends happen INSIDE the
+  seen-admission transaction itself, atomically with the watermark
+  update, over exactly the set knowable at that moment (payments
+  whose heads exist ∪ the invalid document's canonically extractable
+  keys, heads locked in sorted key order — the v4 lock order; the
+  set is small at this volume). The appended stream rows ARE the
+  durable record — no sidecar set, no resume rule, and a crash rolls
+  the whole admission back for redelivery to re-run. A payment FIRST
+  INTRODUCED by later-admitted valid truth the invalid document
+  never named therefore never inherits the marker (inherited §6.6 —
+  a deferred blanket marker blocked such a payment behind an unlatch
+  bar of `> LAST_SEEN_SEQ` that no necessary future snapshot would
+  ever clear, and a deferred SET had no durable home). The
+  current-state fan-out carries ACCEPTED truth only. An
+  accepted-catch-up skip would starve an already-accepted
   cancellation behind the fence and let a cancelled payment post.
   Worklist = payments named in the stored ACCEPTED snapshot ∪ existing
-  head rows of the trade ∪ — for the MARKER only — payments whose keys
-  are CANONICALLY EXTRACTABLE from the invalid document (the distrust
-  rule bars an invalid document from supplying MONEY truth, not from
-  anchoring visibility: a first-delivery-invalid trade must still get
-  its head + `SNAPSHOT_INVALID_MARKED` so the card shows the inherited
-  validation-failed state instead of NOT_STARTED; such a head has
-  NULL required amount, so nothing can open from it). Resume after a crash re-derives the worklist from
+  head rows of the trade (the extractable-key branch moved INTO the
+  seen-admission transaction with the markers themselves: the
+  distrust rule bars an invalid document from supplying MONEY truth,
+  not from anchoring visibility — a first-delivery-invalid trade
+  gets its head + `SNAPSHOT_INVALID_MARKED` at admission, so the
+  card shows the inherited validation-failed state instead of
+  NOT_STARTED; such a head has NULL required amount, so nothing can
+  open from it). Resume after a crash re-derives the worklist from
   the CURRENT watermarks' stored state, never from an in-memory
   snapshot, so a stale resumed worker can neither create nor touch a
   payment from superseded trade truth. Kafka ack only after fan-out

@@ -250,7 +250,7 @@ Version slots do NOT participate in identity. Consequences:
 | Event | Appended when | Fold effect |
 |---|---|---|
 | `REQUIRED_AMOUNT_SET` | an ADMITTED snapshot names this payment (incl. amount 0 = cancel-to-zero; absence-means-cancel per BA-2 produces an explicit 0) | `required := amount` if `UPSTREAM_SEQ` strictly newer; markers with older seq unlatch |
-| `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed at admission — appended to EVERY payment of the trade, in payment_key order | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
+| `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed — appended INSIDE the seen-admission transaction (atomic with the watermark), to exactly the set knowable then: existing heads ∪ the invalid document's canonically extractable keys, locked in sorted payment_key order. A payment first introduced by later-admitted valid truth NEVER inherits it (§7) | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
 | `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims ordinal + identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount; at most one open request is DB-backstopped (§6.2), not merely a fold invariant |
 | `ENRICH_FAILED` | enrichment failed; code says transient vs definitive. Ordinal NULL when it fails BEFORE any opening (no request exists; no payload hash was ever assembled, so no opening — and therefore no outcome — is even representable); pre-open events carry the UPSTREAM_SEQ of the truth they were enriching | transient: retry timing derives from this event's timestamp + policy. Definitive PRE-open: latches the `validation_failed` marker AT its carried seq — unlatched by any strictly NEWER `REQUIRED_AMOUNT_SET`, so a delayed stale failure cannot outlive the correction that superseded it; NO outcome pair. Definitive on an OPEN request (re-enrichment): appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx (release-guarded: zero `POST_STARTED`, §6.3) |
 | `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; the safe-release predicate is the UNIFIED **provably NOT SUBMITTED** (§5 full definition, cited without restating) |
@@ -656,23 +656,23 @@ transaction boundary:
   the STORED accepted snapshot (seq-guarded — catching up any
   accepted admission whose own fan-out was fenced out, including
   cancels-to-zero; skipped only when the accepted pair is NULL),
-  THEN, if `LAST_SEEN_SEQ > LAST_ACCEPTED_SEQ` (or accepted is NULL),
-  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)` — applied ONLY to the
-  MARKER SET stamped durably at seen-admission (heads existing at
-  that moment ∪ the invalid document's canonically extractable keys,
-  recorded alongside the seen pair for crash-resume): a payment
-  first introduced by later-admitted valid truth the invalid
-  document never named must NOT inherit the marker (inherited §6.6 —
-  blanket application blocked it behind an unlatch bar no necessary
-  future snapshot would clear). An invalid-only fan-out
-  without the catch-up would starve an already-accepted cancellation
-  behind the fence and let a cancelled payment post. Worklist =
+  and NOTHING else — invalid markers are NOT this fan-out's job:
+  `SNAPSHOT_INVALID_MARKED(seq)` appends happen INSIDE the
+  seen-admission transaction, atomically with the watermark, over
+  exactly the set knowable then (existing heads ∪ the invalid
+  document's canonically extractable keys, heads locked in sorted
+  key order). The stream rows ARE the durable record — no sidecar
+  set, no resume rule; a crash rolls the admission back and
+  redelivery re-runs. A payment first introduced by later-admitted
+  valid truth never inherits the marker (inherited §6.6). An
+  accepted-catch-up skip would starve an already-accepted
+  cancellation behind the fence and let a cancelled payment post. Worklist =
   payments named in the stored ACCEPTED snapshot ∪ existing head rows
-  of the trade ∪ — for the MARKER only — canonically extractable keys
-  from the invalid document (distrust bars an invalid document from
-  MONEY truth, not from anchoring visibility: a first-delivery-invalid
-  trade still gets its head + marker, required stays NULL, nothing can
-  open). Already-applied streams no-op, so partial fan-out is
+  of the trade (the extractable-key branch moved INTO the
+  seen-admission transaction with the markers: distrust bars an
+  invalid document from MONEY truth, not from anchoring visibility —
+  a first-delivery-invalid trade gets its head + marker at
+  admission, required stays NULL, nothing can open). Already-applied streams no-op, so partial fan-out is
   safely resumable; resume re-derives the worklist from the CURRENT
   watermarks' stored state, never from an in-memory snapshot — a
   stale resumed worker can neither create nor touch a payment from
