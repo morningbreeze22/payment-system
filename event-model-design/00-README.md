@@ -52,8 +52,9 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Thirty-one external adversarial
-   rounds folded (2026-07-21/22: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
+1. **Adversarial review rounds — CAMPAIGN CLOSED CLEAN.** Thirty-two
+   external adversarial rounds folded, ending on a CLEAN round
+   (2026-07-21/22: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
    archival mechanism outright; round 8 = 3C/4H/1L; round 9 =
@@ -106,13 +107,15 @@ is needed in either direction.)
    unserialized watermark compare could regress under concurrency)
    + the §1 summaries aligned to the in-admission marker rule;
    round 31 = 0C/2H — one more stale marker sentence + the fidelity
-   trigger's mandatory statement order — all closed by mechanism or
-   removal, see `event-model-v2.md` §0; no clean round yet after
-   thirty-one).
-   The baseline's mechanisms have
-   survived MANY more such rounds; additional rounds are required
-   before the two are comparable. Still the single largest open
-   item.
+   trigger's mandatory statement order; **round 32 = 0C/0H/1M — the
+   CLEAN round**, its one Medium recorded as an accepted deferral
+   the baseline itself shares (`PROVIDER_REFERENCE` fallback) — all
+   closed by mechanism, removal, or recorded acceptance, see
+   `event-model-v2.md` §0. Campaign totals: 24 CRITICAL / 44 HIGH /
+   12 MEDIUM / 5 LOW folded across 32 rounds). The review-maturity
+   gap against the baseline has materially narrowed; what remains is
+   the implementation-evidence work in the items below, not further
+   paper rounds of this kind.
 2. **Fold specification + golden vectors.** The fold must implement
    the baseline §4/§6/§7/§9/§10 semantics verbatim; the vector set and
    the `fold --explain` MVP deliverable do not exist yet.

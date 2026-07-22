@@ -917,6 +917,10 @@ the other statuses age out on the retention chain.
   commit — UETR uniqueness is a platform contract fact whose
   violation is a constraint failure + CRITICAL page, never a silent
   double-booking.
+- **Deferred, as the baseline itself defers it:** `PROVIDER_REFERENCE`
+  fallback matching — a UETR-less delivery lands `UNMATCHED_TERMINAL`
+  and recovers via the key-query path (bounded latency, never safety;
+  round-32 accepted MEDIUM).
 
 ## 10. What deliberately does NOT exist
 

@@ -414,6 +414,16 @@ commit — because Oracle triggers fire at statement time and an
 inbox-first order would misapply the witnessless-no-op rule to a
 legitimate settlement and wedge every redelivery (§7, 01 §8).
 
+Thirty-second round (2026-07-22): **0 CRITICAL / 0 HIGH** / 1 MEDIUM
+— the first clean round of the campaign. The one Medium
+(`PROVIDER_REFERENCE` fallback matching absent) is recorded as an
+ACCEPTED DEFERRAL (§8): the baseline's own deferrable list carries
+the identical item, and the key-query path bounds it to latency,
+never safety. The reviewer's soundness list covered the full
+mechanism inventory. Campaign totals across 32 rounds: 24 CRITICAL,
+44 HIGH, 12 MEDIUM, 5 LOW findings folded — every one closed by
+mechanism, removal, or recorded acceptance.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -1364,6 +1374,13 @@ healthy payments.
   constraint failure + CRITICAL page. UETR uniqueness is a platform
   contract fact (§18 class); its violation is now a loud event,
   never a silent double-booking.
+- **Deferred, exactly as the baseline itself defers it:**
+  `PROVIDER_REFERENCE` fallback matching (inherited §8's
+  single-active-match branch). A UETR-less delivery lands
+  `UNMATCHED_TERMINAL` and recovers through the key-query path — a
+  bounded latency regression, never a safety gap (round-32 review,
+  accepted at MEDIUM; the baseline's own deferrable list carries the
+  same item).
 
 ## 9. Operational inheritances (unchanged from v4, restated as binding)
 
