@@ -253,7 +253,7 @@ Version slots do NOT participate in identity. Consequences:
 | `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed at admission — appended to EVERY payment of the trade, in payment_key order | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
 | `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims ordinal + identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount; at most one open request is DB-backstopped (§6.2), not merely a fold invariant |
 | `ENRICH_FAILED` | enrichment failed; code says transient vs definitive. Ordinal NULL when it fails BEFORE any opening (no request exists; no payload hash was ever assembled, so no opening — and therefore no outcome — is even representable); pre-open events carry the UPSTREAM_SEQ of the truth they were enriching | transient: retry timing derives from this event's timestamp + policy. Definitive PRE-open: latches the `validation_failed` marker AT its carried seq — unlatched by any strictly NEWER `REQUIRED_AMOUNT_SET`, so a delayed stale failure cannot outlive the correction that superseded it; NO outcome pair. Definitive on an OPEN request (re-enrichment): appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx (release-guarded: zero `POST_STARTED`, §6.3) |
-| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; **no `POST_STARTED` = provably never sent** — the safe-release predicate |
+| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; the safe-release predicate is the UNIFIED **provably NOT SUBMITTED** (§5, §6.3): no `POST_STARTED`, or the latest attempt synchronously closed BUSINESS/DEFINITIVE-rejected with no later attempt |
 | `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1 | ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry per policy (same key); DEFINITIVE_REJECT → outcome same tx; AMBIGUOUS → MAYBE; COLLISION → expected/unexpected via hash comparison; UNMAPPED → MAYBE + alert |
 | `QUERY_RESULT_RECORDED` | the resolver asked by OUR key — the event CARRIES that key, and the §6.3 echo refuses a key other than the open request's, so stale evidence for an earlier request's key cannot be recorded against the current one | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
 | `DOWNGRADED_FOR_REPOST` | the §9.2-equivalent move: NOT_FOUND past trust age, same key will be re-sent. Trigger-gated (§6.3): requires a same-ordinal `QUERY_RESULT_RECORDED(NOT_FOUND)` post-dating the latest `POST_STARTED` — a wrong decision cannot downgrade an ACCEPTED request | re-posting becomes legal for the SAME key; audit of the only backward transition. Key-scoped evidence stays attempt-agnostic BY the §18 engine dedup contract (one key = one engine-side instruction) |
@@ -288,7 +288,14 @@ reserved        = AMOUNT of the open request (opening event exists,
                   no outcome/settled event for its ordinal), else 0
 shortfall       = required − paid_total − reserved    (standing-rule input)
 plus derived:     markers (+ their seqs), retry state, MAYBE/park/escalation
-                  ages, provably_unsent (open request with no POST_STARTED)
+                  ages, provably_not_submitted — the UNIFIED release
+                  predicate: open request with no POST_STARTED, OR
+                  whose latest POST_STARTED is closed by a synchronous
+                  BUSINESS_REJECT / DEFINITIVE_REJECT with no later
+                  attempt (§6.3; the fold, the §6 correction rules,
+                  and the release trigger all consume THIS definition
+                  — a fold-level "no POST_STARTED ever" variant parked
+                  synchronously-rejected requests forever)
 ```
 
 Amount binding (normative): EVERY outcome-class event carries AMOUNT

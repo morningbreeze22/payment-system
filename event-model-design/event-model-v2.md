@@ -320,6 +320,17 @@ the normative §2.2 rule (HIGH); invalid-marker worklist includes
 canonically extractable keys so first-delivery-invalid trades anchor
 their heads and markers (MEDIUM) (§7).
 
+Twenty-third round (2026-07-22): 0 CRITICAL / 1 HIGH — the round-22
+predicate widening had reached only the release trigger; the fold's
+`provably_unsent` output and the §6 excess-direction rule still said
+"no POST_STARTED", so decide() could never emit the cancellation the
+trigger now accepts and a synchronously-rejected excess request
+parked forever. The predicate is now UNIFIED — one definition
+(`provably_not_submitted`), consumed identically by the fold, the §6
+correction rules, the release trigger, and the §9 restatement (§5.3,
+§6, §9, 01 §4/§5). Everything else, including every round-22 fix
+under direct attack, checked and found sound.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -948,12 +959,17 @@ INHERITED gates:
 - **Excess direction — the correction may strand an open successor:**
   if the corrected numbers show `paid_total + reserved > required`
   and a request is open, the open request is now excess commitment.
-  If it is provably unsent (no `POST_STARTED`), the same transaction
-  closes it `CANCELLED_NOT_SUBMITTED`. If a `POST_STARTED` exists,
-  **the park does NOT lift**: the payment stays parked until the
-  in-flight claim resolves through the ask path, and the §9 pre-wire
-  recheck (which sees the persisting park) blocks any not-yet-sent
-  wire call. The unpark is then the resolution of that claim — never
+  If it is provably NOT SUBMITTED (the UNIFIED §5.3 predicate: no
+  `POST_STARTED`, OR the latest `POST_STARTED` is closed by a
+  synchronous `BUSINESS_REJECT`/`DEFINITIVE_REJECT` with no later
+  attempt — an earlier draft said "no POST_STARTED" here while §5.3
+  had already widened, so a synchronously-rejected excess request
+  had NO forthcoming resolution and parked forever), the same
+  transaction closes it `CANCELLED_NOT_SUBMITTED`. Only a claim that
+  MAY have executed keeps **the park in place**: the payment stays
+  parked until that claim resolves through the ask path, and the §9
+  pre-wire recheck (which sees the persisting park) blocks any
+  not-yet-sent wire call. The unpark is then the resolution of that claim — never
   a state in which a corrected history and a live excess request run
   concurrently.
 
@@ -1215,8 +1231,10 @@ healthy payments.
 
 Posting freeze in Hazelcast (outside the DB; absent = frozen);
 write-ahead rule (identity + payload hash durable before the wire —
-here structural: `POST_STARTED` IS the durable claim, and "no
-POST_STARTED = provably never sent" is the release predicate) — with
+here structural: `POST_STARTED` IS the durable claim, and the release
+predicate is the UNIFIED §5.3 "provably NOT SUBMITTED": no
+`POST_STARTED`, or the latest attempt synchronously closed
+BUSINESS/DEFINITIVE-rejected with no later attempt) — with
 one mandatory addition: between the COMMIT of `POST_STARTED` and the
 wire call the worker re-reads the head (no lock) and SKIPS the send if
 the payment is parked/blocked, in WITNESS_DIVERGED quarantine (a
