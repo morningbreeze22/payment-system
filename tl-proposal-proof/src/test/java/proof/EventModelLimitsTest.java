@@ -20,11 +20,14 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * THE OTHER HALF OF THE DEMO — the five issues from
- * event-model-design/04 ("Five Issues That Remain After Assuming
- * Correct Service Code"), each reproduced against Model 2 (the
- * event-table design's runnable stand-in: fence, write-once identity,
- * write-ahead, idempotent fold, ask-before-retry).
+ * THE OTHER HALF OF THE DEMO — the five issues the v1 event draft's
+ * decision digest identified ("Five Issues That Remain After Assuming
+ * Correct Service Code" — doc superseded and removed, see git history;
+ * "04 issue N" in the comments below refers to it), each reproduced
+ * against Model 2 (the event-table design's runnable stand-in: fence,
+ * write-once identity, write-ahead, idempotent fold, ask-before-retry).
+ * The v2 refactor (event-model-design/event-model-v2.md) added a
+ * mechanism for each; this suite is the runnable record of WHY.
  *
  * MinimalSingleWriterSurvivesTest proves the model SURVIVES every
  * concurrency scenario — that suite is what the model does well.

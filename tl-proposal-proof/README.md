@@ -77,10 +77,14 @@ moved). The surviving models end every scenario with belief == truth.
 ## The fourth suite — `EventModelLimitsTest` (the other half of the story)
 
 `MinimalSingleWriterSurvivesTest` shows what the event-table model does
-WELL. This suite reproduces, runnably, the five issues from
-`event-model-design/04-top-unresolvable-problems.md` — what remains when
-the code, not the schema, is the last line of defense. **Every test
-asserts the damage HAPPENS: green means the limits are real.**
+WELL. This suite reproduces, runnably, the five issues the v1 event
+draft's decision digest identified — what remains when the code, not
+the schema, is the last line of defense. **Every test asserts the
+damage HAPPENS: green means the limits are real.** (The v1 analysis
+docs are superseded and removed — git history has them; the v2
+refactor, `event-model-design/event-model-v2.md`, added mechanisms for
+exactly these issues, and this suite remains as the runnable record of
+WHY each mechanism exists.)
 
 | # | Issue (04) | What the test proves |
 |---|---|---|
@@ -94,8 +98,10 @@ Honesty notes: where tests write event rows directly they replay exactly
 what protocol-following service code writes (next fenced slot, fresh
 identity, write-ahead order) — front-door decision defects, never a
 privileged bypass; issue 4's DELETE is a restore simulation, not an
-actor. These runnable results are the executable companions of the L1 /
-L2 / L6 / L9 simulated-row examples in `03-known-limits.md`.
+actor. In v2 terms: issue 1 → the head CAS + trigger backstops, issue 2
+→ the head money witness + drift scan, issue 3 → money-facts-as-events
++ the fold deploy gate, issue 4 → request-ordinal identity, issue 5 →
+the no-erasable-PII-in-events prerequisite.
 
 ## The honest conclusion
 

@@ -1,306 +1,421 @@
-# Event-Model Schema Design
+# Event-Model Schema Reference (v2)
 
-> Status: DRAFT (see `00-README.md`). Amount semantics, identity
-> derivation, and contract facts are inherited unchanged from
-> `requirment-v4.md` (§1 scope tuple, §5.1 identity, §18-1 provider
-> facts). This document defines HOW they are stored, not WHAT they mean.
+> Status: PROPOSAL (see `00-README.md`). This is the normative schema
+> reference for the refactored event model; `event-model-v2.md` is its
+> companion — the what-changed-and-why document that records how every
+> CRITICAL/HIGH item from the v1 draft was closed. Business semantics
+> (amount rules, evidence precedence, release rights, trust-age,
+> escalation, absence-as-zero) are inherited unchanged from
+> `requirment-v4.md`; this document defines HOW facts are stored and
+> which mechanisms make the storage safe. Where the two files disagree,
+> this one is wrong — fix it here.
+>
+> Design input honored throughout: upstream ordering is a confirmed
+> per-trade SEQUENCE NUMBER carried in the message. There is no tie
+> class in this design (equal seq = identical redelivery; equal seq
+> with different content = upstream defect, refuse + CRITICAL).
 
-## 1. Overview — three physical structures
+## 1. Physical structures — four
 
 | Structure | Kind | Role |
 |---|---|---|
-| `PAYMENT_EVENT` | THE table (append-only) | the only authoritative store: everything that ever happened to a payment, fenced per payment |
-| `TRADE_SNAPSHOT_STATE` | small mutable table (unchanged from the baseline design) | trade-level snapshot admission: newest-wins ordering anchor + payload digest, ONE row per trade |
-| `INBOUND_EVENT_INBOX` | small table, `UNIQUE(source, event_id)` (restored per review — the first draft wrongly dropped it) | dedup of DELIVERIES (feed/upstream messages) BEFORE folding: money folding is idempotent anyway, but side effects (metrics, incidents, alerts) and history hygiene are not |
-| `PAYMENT_STATUS_PROJECTION` | derived cache (rebuildable) | how scanners, the feed matcher, and the UI FIND payments; never read by a money decision — see the FRESHNESS CONTRACT in §6 (a stale false negative is NOT harmless) |
+| `PAYMENT_EVENT` | append-only, THE authority | everything that ever happened to a payment; per-payment total order |
+| `PAYMENT_HEAD` | ONE mutable row per payment | write serialization lock, money WITNESS, open-request backstop, scanner/UI index — updated in the append transaction; rebuildable from the stream; can VETO a write, never authorize one |
+| `TRADE_HEAD` | one mutable row per trade | snapshot admission watermark (`LAST_ACCEPTED_SEQ`) + payload digest (defect detection, not tie adjudication) + XML storage pointer |
+| `INBOUND_EVENT_INBOX` | `UNIQUE(SOURCE, EVENT_ID)` | dedup of FEED deliveries only, atomic with processing (§8) |
 
-Everything else — required amount, paid amount, reservation, markers,
-retry state, MAYBE, blocked/parked, escalation — is **derived by the
-fold** (§4 below), never stored authoritatively.
+Everything else — required amount, paid, reserved, phase, markers,
+retry state, MAYBE, parked, escalation — is derived by the fold (§5).
 
-## 2. `PAYMENT_EVENT` — the table
+## 2. `PAYMENT_EVENT`
 
 ```sql
 CREATE TABLE PAYMENT_EVENT (
   ID                 NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  PAYMENT_KEY        VARCHAR2(200)  NOT NULL,
-  VERSION            NUMBER(10)     NOT NULL,
+  PAYMENT_KEY        VARCHAR2(200)  NOT NULL,   -- canonical scope tuple
+  VERSION            NUMBER(10)     NOT NULL,   -- fence slot; the stream's total order
   EVENT_TYPE         VARCHAR2(40)   NOT NULL,
-  EVENT_CODE         VARCHAR2(40),          -- STRUCTURED business classification (review finding:
-                                            -- the fold's inputs must be typed columns, never DETAIL
-                                            -- and never re-derived from raw provider codes)
-  UPSTREAM_ORDERING  NUMBER(19),
-  AMOUNT             NUMBER(18,3),          -- same domain/scale rules as the baseline amount columns
+  EVENT_CODE         VARCHAR2(40),              -- typed classification, per-type CHECK-bound
+  REQUEST_ORDINAL    NUMBER(10),                -- WHICH request this event concerns (identity input, §3)
+  UPSTREAM_SEQ       NUMBER(19),                -- confirmed upstream sequence (snapshot-derived events only)
+  AMOUNT             NUMBER(18,3),              -- same domain/scale rules as the baseline amount columns
+  REQUIRED_AT_OPEN   NUMBER(18,3),              -- display stamp on REQUEST_OPENED only; never load-bearing
   IDEMPOTENCY_KEY    VARCHAR2(128),
   PAYLOAD_HASH       VARCHAR2(64),
   UETR               VARCHAR2(64),
   PROVIDER_REFERENCE VARCHAR2(128),
   PROVIDER_CODE      VARCHAR2(64),
-  EVIDENCE_SOURCE    VARCHAR2(16),          -- SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM
-  ACTOR              VARCHAR2(64)   NOT NULL,  -- SYSTEM / SCANNER / RESOLVER / OPS:<user> / MIGRATION
-  DETAIL             VARCHAR2(1000),        -- human-readable context; NEVER read by the fold
+  EVIDENCE_SOURCE    VARCHAR2(16),              -- SYNC_RESPONSE / QUERY / FEED / OPS / SYSTEM
+  ACTOR              VARCHAR2(64)   NOT NULL,   -- SYSTEM / SCANNER / RESOLVER / OPS:<user>
+  DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
   CREATED_AT         TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
 
-  -- identity is claimed exactly once: only the opening event carries it
-  -- into this generated column, and no writer can supply the column
+  -- identity is claimed exactly once, in the schema:
   IDEM_CLAIM         VARCHAR2(128)  GENERATED ALWAYS AS
                        (CASE WHEN EVENT_TYPE = 'REQUEST_OPENED' THEN IDEMPOTENCY_KEY END),
 
-  CONSTRAINT PE_FENCE_UQ  UNIQUE (PAYMENT_KEY, VERSION),   -- THE fence
-  CONSTRAINT PE_IDEM_UQ   UNIQUE (IDEM_CLAIM),             -- identity is write-once
-  CONSTRAINT PE_TYPE_CK   CHECK (EVENT_TYPE IN (
+  CONSTRAINT PE_FENCE_UQ UNIQUE (PAYMENT_KEY, VERSION),   -- backstop fence (§6.1)
+  CONSTRAINT PE_IDEM_UQ  UNIQUE (IDEM_CLAIM),             -- identity write-once
+  CONSTRAINT PE_TYPE_CK  CHECK (EVENT_TYPE IN (
       'REQUIRED_AMOUNT_SET','SNAPSHOT_INVALID_MARKED',
       'REQUEST_OPENED','ENRICH_FAILED','POST_STARTED','POST_RESULT_RECORDED',
       'QUERY_RESULT_RECORDED','DOWNGRADED_FOR_REPOST',
       'OUTCOME_RECORDED','SETTLED','SETTLEMENT_MISMATCH_RECORDED',
-      'EVIDENCE_CONTRADICTION_RECORDED',
-      'ESCALATION_MARKED','OPS_VERIFIED_OUTCOME_APPLIED','OPS_RETRY_REARMED',
-      'OPS_BLOCKED','OPS_ANNOTATED')),
-
-  -- PER-TYPE SHAPE CHECKS (row-local legality IS DB-enforceable — use it;
-  -- the temporal/cross-row legality that is NOT enforceable is documented
-  -- honestly in 03-known-limits.md L1). Every classified type carries an
-  -- explicit IS NOT NULL: under Oracle three-valued logic a NULL
-  -- EVENT_CODE makes a bare IN-list CHECK evaluate UNKNOWN, which
-  -- PASSES — without the IS NOT NULL, an unclassified row of a
-  -- classified type is silently accepted (the L4 gap). Representative
-  -- set — the full per-type matrix, including which types REQUIRE
-  -- EVENT_CODE to be NULL, is open work (03 L4):
-  CONSTRAINT PE_SHAPE_RESULT_CK CHECK (EVENT_TYPE != 'POST_RESULT_RECORDED'
+      'EVIDENCE_CONTRADICTION_RECORDED','ESCALATION_MARKED',
+      'OPS_VERIFIED_OUTCOME_APPLIED','OPS_RETRY_REARMED',
+      'OPS_BLOCKED','OPS_MARKER_CLEARED','OPS_ANNOTATED'))
+  -- plus ONE shape CHECK per type, derived mechanically from the §2.2
+  -- matrix (see the derivation rule there). Representative examples:
+  , CONSTRAINT PE_SHAPE_RESULT_CK CHECK (EVENT_TYPE != 'POST_RESULT_RECORDED'
       OR (EVENT_CODE IS NOT NULL
           AND EVENT_CODE IN ('ACCEPTED','BUSINESS_REJECT','DEFINITIVE_REJECT',
-                             'AMBIGUOUS','COLLISION','UNMAPPED'))),
-  CONSTRAINT PE_SHAPE_QUERY_CK CHECK (EVENT_TYPE != 'QUERY_RESULT_RECORDED'
-      OR (EVENT_CODE IS NOT NULL
-          AND EVENT_CODE IN ('EXECUTED','NOT_FOUND','LOOKBACK_EXPIRED'))),
-  CONSTRAINT PE_SHAPE_OUTCOME_CK CHECK (EVENT_TYPE != 'OUTCOME_RECORDED'
-      OR (EVENT_CODE IS NOT NULL
-          AND EVENT_CODE IN ('EXECUTED','REJECTED_VALIDATION','REJECTED_PROVIDER',
-                             'CANCELLED_NOT_SUBMITTED',
-                             'PLATFORM_VERIFIED_EXECUTED','PLATFORM_VERIFIED_NOT_EXECUTED'))),
-  CONSTRAINT PE_SHAPE_ENRICH_CK CHECK (EVENT_TYPE != 'ENRICH_FAILED'
-      OR (EVENT_CODE IS NOT NULL
-          AND EVENT_CODE IN ('TRANSIENT','DEFINITIVE'))),
-  CONSTRAINT PE_SHAPE_CONTRA_CK CHECK (EVENT_TYPE != 'EVIDENCE_CONTRADICTION_RECORDED'
-      OR (EVENT_CODE IS NOT NULL
-          AND EVENT_CODE IN ('SETTLED_AFTER_TERMINAL','MISMATCH_AFTER_TERMINAL',
-                             'QUERY_CONTRADICTS_OUTCOME'))),
-  CONSTRAINT PE_SHAPE_OPEN_CK CHECK (EVENT_TYPE != 'REQUEST_OPENED'
-      OR (IDEMPOTENCY_KEY IS NOT NULL AND AMOUNT IS NOT NULL AND PAYLOAD_HASH IS NOT NULL)),
-  CONSTRAINT PE_SHAPE_POST_CK CHECK (EVENT_TYPE != 'POST_STARTED'
-      OR (IDEMPOTENCY_KEY IS NOT NULL AND PAYLOAD_HASH IS NOT NULL)),
-  CONSTRAINT PE_SHAPE_REQ_CK CHECK (EVENT_TYPE != 'REQUIRED_AMOUNT_SET'
-      OR (AMOUNT IS NOT NULL AND UPSTREAM_ORDERING IS NOT NULL))
+                             'AMBIGUOUS','COLLISION','UNMAPPED')
+          AND REQUEST_ORDINAL IS NOT NULL AND IDEMPOTENCY_KEY IS NOT NULL
+          AND UPSTREAM_SEQ IS NULL AND AMOUNT IS NULL
+          AND PAYLOAD_HASH IS NULL AND REQUIRED_AT_OPEN IS NULL
+          AND (EVENT_CODE = 'ACCEPTED' OR UETR IS NULL)))  -- O-only-when rule
+  , CONSTRAINT PE_SHAPE_OPEN_CK CHECK (EVENT_TYPE != 'REQUEST_OPENED'
+      OR (EVENT_CODE IS NULL AND REQUEST_ORDINAL IS NOT NULL
+          AND AMOUNT IS NOT NULL AND AMOUNT > 0
+          AND IDEMPOTENCY_KEY IS NOT NULL AND PAYLOAD_HASH IS NOT NULL
+          AND REQUIRED_AT_OPEN IS NOT NULL
+          AND UPSTREAM_SEQ IS NULL AND UETR IS NULL))
+  , CONSTRAINT PE_SHAPE_REQ_CK CHECK (EVENT_TYPE != 'REQUIRED_AMOUNT_SET'
+      OR (EVENT_CODE IS NULL AND UPSTREAM_SEQ IS NOT NULL
+          AND AMOUNT IS NOT NULL AND AMOUNT >= 0        -- 0 = removal (BA-2)
+          AND REQUEST_ORDINAL IS NULL AND IDEMPOTENCY_KEY IS NULL
+          AND PAYLOAD_HASH IS NULL AND UETR IS NULL AND REQUIRED_AT_OPEN IS NULL))
 );
 CREATE INDEX PE_KEY_IX  ON PAYMENT_EVENT (PAYMENT_KEY, VERSION);
 CREATE INDEX PE_UETR_IX ON PAYMENT_EVENT (UETR);            -- feed-matching assist
 ```
 
-### Why each column exists
+Grants: the application role has INSERT and SELECT only. A guard
+trigger raises on any UPDATE or DELETE — history is immutable against
+every writer, including humans in an incident. (Stream-granular
+archival, §10, runs under a separate maintenance role in a controlled
+window with the guard's documented archive exemption — never the
+application role.)
+
+### 2.1 Why each column exists
 
 | Column | Why |
 |---|---|
-| `PAYMENT_KEY` | the §1 scope tuple, canonically encoded — one stream per payment. Trade membership is derivable from the key (fan-out and lock-free ordering rules sort by it). |
-| `VERSION` | the fence slot. Dense, starts at 1, no gaps by construction (an insert claims exactly `max+1`; a lost race is retried after re-folding). Doubles as the total order of the stream — no reliance on timestamps or identity columns for ordering. |
-| `EVENT_TYPE` | closed vocabulary, CHECK-bound (§3). Adding a type is a design change, not a code convenience. |
-| `EVENT_CODE` | the STRUCTURED business classification the fold branches on (result class, query verdict, outcome kind, enrichment kind, contradiction kind) — CHECK-bound per type. This is a decision RECORDED AT THE TIME (e.g. the CA-1 mapping of a raw provider code), never re-derived later from `PROVIDER_CODE`: re-mapping raw codes during a fold would be load-bearing replay of a mutable mapping, which this design forbids exactly as the baseline does. |
-| `UPSTREAM_ORDERING` | carried only on snapshot-derived events (`REQUIRED_AMOUNT_SET`, `SNAPSHOT_INVALID_MARKED`); the strictly-newer guard and marker unlatching compare against it. |
-| `AMOUNT` | the event's amount where meaningful (required amount; request amount; settled amount; mismatched amount). Immutable like every event field — an in-flight request's amount can never change because nothing can rewrite its opening event. |
-| `IDEMPOTENCY_KEY` | present on `REQUEST_OPENED` (allocation — see identity rule below) and echoed on the attempt/outcome events that concern that request, so the stream is self-describing. |
-| `PAYLOAD_HASH` | §5.1 write-ahead instruction hash, on `REQUEST_OPENED` and on every `POST_STARTED`. Divergence expectation is DERIVED: a re-POST whose hash differs from the previous `POST_STARTED` hash is expected-divergent (re-enrichment happened); the collision handling in the scenarios builds on this being in the durable record BEFORE the wire call. |
-| `UETR` / `PROVIDER_REFERENCE` / `PROVIDER_CODE` | provider evidence, recorded on acceptance/result/feed events exactly as the baseline records them (UETR only from acceptance-class responses, per the platform-SDK rule). |
-| `EVIDENCE_SOURCE` | which §-channel produced the event — the fold's evidence-precedence rules key on it. |
-| `ACTOR` | audit: which component or human appended. `OPS:*` events additionally carry the approval reference in `DETAIL`. |
-| `DETAIL` | display/audit text only. THE FOLD NEVER READS IT — this line is a design rule, enforced by the fold's golden vectors. |
-| `IDEM_CLAIM` (generated) | makes identity write-once IN THE SCHEMA: two `REQUEST_OPENED` events can never carry the same key, no matter which writer, path, or bug produced them. |
+| `PAYMENT_KEY` | the §1 scope tuple, canonically encoded — one stream per payment. Trade membership is derivable from the key. |
+| `VERSION` | the fence slot and the stream's total order. Dense, starts at 1; allocated as `PAYMENT_HEAD.LAST_VERSION + 1` under the head lock (§6.1). No reliance on timestamps or identity columns for ordering. |
+| `EVENT_TYPE` | closed vocabulary, CHECK-bound. Adding a type is a design change, not a code convenience. |
+| `EVENT_CODE` | the STRUCTURED classification the fold branches on — a decision RECORDED AT THE TIME (e.g. the CA-1 mapping of a raw provider code), never re-derived later from `PROVIDER_CODE`: re-mapping raw codes during a fold would be load-bearing replay of a mutable mapping, forbidden exactly as in the baseline. |
+| `REQUEST_ORDINAL` | which request the event concerns. The identity input (§3) and the join key for the request-granular view (§9). NOT the version slot — that is the L6 fix. |
+| `UPSTREAM_SEQ` | carried only on snapshot-derived events; the strictly-newer guard and marker unlatching compare against it. |
+| `AMOUNT` | the event's own amount where meaningful (required amount; request amount; outcome amount restated; settled amount; mismatched amount). Money facts carry their numbers — the fold aggregates, never infers (§5). |
+| `REQUIRED_AT_OPEN` | the UI amount-series stamp on the opening event. Immutable by nature — no set-once discipline, no capture-boundary machinery needed. Never load-bearing. |
+| `IDEMPOTENCY_KEY` | present on `REQUEST_OPENED` (the allocation, §3) and echoed on `POST_STARTED` / `POST_RESULT_RECORDED` so the stream is self-describing about what went to the wire. |
+| `PAYLOAD_HASH` | §5.1-style write-ahead instruction hash on `REQUEST_OPENED` and every `POST_STARTED`. A re-POST whose hash differs from the previous `POST_STARTED` is expected-divergent (re-enrichment happened); collision classification builds on this being durable BEFORE the wire call. |
+| `UETR` / `PROVIDER_REFERENCE` / `PROVIDER_CODE` | provider evidence. UETR persisted only from acceptance-class responses and feed events (platform-SDK rule inherited verbatim; reject/collision UETRs never recorded). |
+| `EVIDENCE_SOURCE` | which channel produced the event — evidence-precedence rules key on it. |
+| `ACTOR` | audit. `OPS:*` events carry the approval reference in `DETAIL`. |
+| `DETAIL` | display/audit text only. THE FOLD NEVER READS IT — a design rule, enforced by the fold's golden vectors. |
+| `IDEM_CLAIM` (generated) | identity write-once IN THE SCHEMA: two opening events can never carry the same key, whatever writer, path, or bug produced them. |
 
-### Identity rule
+### 2.2 Complete shape matrix (normative)
 
-`IDEMPOTENCY_KEY = derive(payment_key, opening_version)` using the SAME
-§5.1 derivation as the baseline, with `request_seq := the version slot
-that the REQUEST_OPENED event won`. Because the slot is granted by the
-fence exactly once, identity is allocated exactly once in NORMAL
-operation — never computed from `MAX(history)+1`.
+R = required (`IS NOT NULL`, plus the listed domain), N = must be NULL
+(a real CHECK conjunct, not a convention), O = optional.
 
-> **OPEN — database restore (money-safety blocker, see
-> `03-known-limits.md` L6):** a restore rewinds versions while
-> provider-side executions do not, and `IDEM_CLAIM` cannot remember rows
-> the restore erased — post-restore traffic can REUSE an opening slot
-> and therefore a key, possibly with different content. An earlier draft
-> claimed the baseline §5.2 discussion "applies unchanged"; that was
-> WRONG (non-request events also consume slots, so replay re-deals them).
-> Required before adoption: a restore procedure that treats every key
-> with an opening slot ≥ the restore point as potentially burned
-> (enumerate → query the provider per key → reconcile → posting held for
-> affected streams until signed off), plus an epoch/generation component
-> in the identity so post-restore slots can never collide with
-> pre-restore ones.
+**Derivation rule for the DDL:** one CHECK constraint per type,
+generated mechanically from this table — every R cell becomes an
+`IS NOT NULL` conjunct (with its IN-list or range), every N cell an
+`IS NULL` conjunct. Every classified type's EVENT_CODE check carries
+the explicit `IS NOT NULL`: under Oracle three-valued logic a bare
+IN-list CHECK evaluates UNKNOWN on NULL and silently PASSES. The
+matrix is the normative artifact; a matrix/DDL mismatch is a defect.
 
-### Append discipline (the only write path)
+| EVENT_TYPE | EVENT_CODE | ORDINAL | UPSTREAM_SEQ | AMOUNT | IDEM_KEY | PAYLOAD_HASH | UETR | REQUIRED_AT_OPEN | EVIDENCE_SOURCE |
+|---|---|---|---|---|---|---|---|---|---|
+| REQUIRED_AMOUNT_SET | N | N | R | R (≥0; 0 = removal) | N | N | N | N | SYSTEM |
+| SNAPSHOT_INVALID_MARKED | N | N | R | N | N | N | N | N | SYSTEM |
+| REQUEST_OPENED | N | R | N | R (>0) | R | R | N | R | SYSTEM/OPS |
+| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | R | N | N | N | N | N | N | SYSTEM |
+| POST_STARTED | N | R | N | N | R | R | N | N | SYSTEM |
+| POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | O (ACCEPTED only) | N | SYNC_RESPONSE |
+| QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | N | N | O (EXECUTED/ACCEPTED only) | N | QUERY |
+| DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | N | N | SYSTEM/OPS |
+| OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated) | N | N | O (executed-class only) | N | R (any) |
+| SETTLED | N | R | N | R | N | N | O | N | FEED |
+| SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | O | N | FEED |
+| EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME | R | N | O | N | N | O | N | R (any) |
+| ESCALATION_MARKED | N | R | N | N | N | N | N | N | SYSTEM |
+| OPS_VERIFIED_OUTCOME_APPLIED | N | R | N | N | N | N | N | N | OPS |
+| OPS_RETRY_REARMED / OPS_BLOCKED / OPS_MARKER_CLEARED / OPS_ANNOTATED | N | O | N | N | N | N | N | N | OPS |
+
+(The "only" qualifiers on O cells — e.g. UETR only when the code is
+acceptance-class — are conditional conjuncts inside the same per-type
+CHECK.)
+
+## 3. Identity — request ordinal, not stream position
 
 ```
-loop (bounded):
-  state  = fold(payment_key)                -- read the stream
-  decide                                     -- pure function of state
-  try INSERT event(s) at VERSION = state.maxVersion + 1 (, +2 …)
-  on PE_FENCE_UQ violation: re-fold and re-decide (the world moved)
+request_ordinal  = 1 + (count of prior REQUEST_OPENED events in this stream)
+                   — maintained as PAYMENT_HEAD.NEXT_REQUEST_ORDINAL
+                     (initialized to 1 at insert-on-first-contact — an
+                     explicit value, never NULL+1 arithmetic), consumed
+                     and stamped onto the opening event in the opening
+                     transaction; write-once by the §2.2 shape check
+idempotency_key  = hash(business_id | payment_type | debit_account |
+                        currency | request_ordinal)
+                   — byte-exact spec + golden vectors, identical
+                     discipline to the baseline §5.1
 ```
 
-- Multi-event decisions (e.g. "record outcome AND open the successor")
-  append consecutive versions **in one transaction** — atomicity without
-  any lock: either both slots are won or the transaction retries.
-- The table is INSERT-only by grant (application role has no
-  UPDATE/DELETE) **and** by a guard trigger that raises on UPDATE/DELETE
-  — the equivalent of the baseline's freeze trigger, protecting history
-  against any writer including humans in an incident.
+Version slots do NOT participate in identity. Consequences:
 
-## 3. Event vocabulary — when appended, what it means to the fold
+- A database restore + Kafka replay regenerates the SAME ordinals from
+  business history — recreated requests carry the SAME keys, the
+  engine rejects the collision, and the baseline §5.2 restore runbook
+  applies essentially unchanged: posting freeze lives in Hazelcast
+  (outside the database), and the burned-key sweep enumerates
+  `hash(scope | 1..N+K)` exactly as the baseline does.
+- `PE_IDEM_UQ` on the generated `IDEM_CLAIM` is the schema-level
+  write-once guarantee, independent of any writer's correctness.
+- No epoch/generation machinery is required for the main hazard (an
+  epoch component remains a cheap optional hardening).
+
+## 4. Event vocabulary — when appended, what it means to the fold
 
 | Event | Appended when | Fold effect |
 |---|---|---|
-| `REQUIRED_AMOUNT_SET` | an ADMITTED snapshot names this payment (incl. amount 0 = cancel-to-zero; absence-means-cancel per BA-2 produces an explicit 0 here) | `required := amount` if `upstream_ordering` is strictly newer; markers with older ordering unlatch |
+| `REQUIRED_AMOUNT_SET` | an ADMITTED snapshot names this payment (incl. amount 0 = cancel-to-zero; absence-means-cancel per BA-2 produces an explicit 0) | `required := amount` if `UPSTREAM_SEQ` strictly newer; markers with older seq unlatch |
 | `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed at admission — appended to EVERY payment of the trade, in payment_key order | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
-| `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount (derived); at most one open request per payment is a FOLD INVARIANT (and the fence makes racing opens impossible) |
-| `ENRICH_FAILED` | enrichment failed; `DETAIL`/`PROVIDER_CODE` say transient vs definitive-invalid | transient: retry timing derives from this event's timestamp + policy; definitive: appended together with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx |
-| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2 — the posting claim). Its very existence is the durable fact "the wire MAY have been reached" | the request is posting/ambiguous until a result event follows; **no `POST_STARTED` = provably never sent** (this is what makes auto-cancel and safe release provable) |
-| `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1: `ACCEPTED` (uetr), `BUSINESS_REJECT`, `DEFINITIVE_REJECT`, `AMBIGUOUS`, `COLLISION`, `UNMAPPED` | drives the §7 classes: accepted→awaiting settlement; business reject→retry per policy (same key); definitive→outcome in same tx; ambiguous→MAYBE; collision→expected/unexpected via hash comparison |
-| `QUERY_RESULT_RECORDED` | the resolver asked by OUR key (§9.1): `EXECUTED` / `NOT_FOUND` (+ store age) / `LOOKBACK_EXPIRED` | EXECUTED→outcome same tx; NOT_FOUND young→no change (trust age); NOT_FOUND past trust age→enables the one sanctioned downgrade; LOOKBACK_EXPIRED→stays MAYBE (ops path) |
-| `DOWNGRADED_FOR_REPOST` | the §9.2 move: NOT_FOUND past trust age, same key will be re-sent | re-posting becomes legal for the SAME key; audit trail of the only backward transition |
-| `OUTCOME_RECORDED` | terminal for a request: `EXECUTED` / `REJECTED_VALIDATION` / `REJECTED_PROVIDER` / `CANCELLED_NOT_SUBMITTED` / `PLATFORM_VERIFIED_*` — with `EVIDENCE_SOURCE` | closes the open request; releases or books its reservation; latches the corresponding marker WITH the ordering current at that time; **the same transaction re-evaluates the standing rule** (successor opens atomically if shortfall remains) |
-| `SETTLED` | the feed confirms settlement of the full amount — ONLY appended when the fold shows a non-terminal request for the key; evidence contradicting a terminal state is appended as `EVIDENCE_CONTRADICTION_RECORDED` instead | books confirmed money (idempotent by request key); freezes that request in the fold |
-| `EVIDENCE_CONTRADICTION_RECORDED` | evidence arrives that contradicts an already-terminal decision (codes: `SETTLED_AFTER_TERMINAL`, `MISMATCH_AFTER_TERMINAL`, `QUERY_CONTRADICTS_OUTCOME`) — first-class, per the external assessment: contradictions are recorded, never silently resolved by precedence rules hidden in the fold | FIXED fold effect: book nothing, PARK the payment (freezes any in-flight successor from posting), raise CRITICAL, require authoritative reconciliation before any further money movement |
-| `SETTLEMENT_MISMATCH_RECORDED` | feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence) | books NOTHING; derived state parks loudly; submission knowledge still tightens (even wrong evidence proves it was sent) |
-| `ESCALATION_MARKED` | the MAYBE got old (once per episode) | audit of paging; derived state unchanged (escalation alerts, never mutates) |
-| `OPS_VERIFIED_OUTCOME_APPLIED` | the dual-control audited operation applies a platform-verified outcome (§9.3 equivalent; approval reference in DETAIL) | appended together with the matching `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in one tx — the only manual door for possibly-moved money |
-| `OPS_RETRY_REARMED` / `OPS_BLOCKED` / `OPS_ANNOTATED` | human actions through the ops surface | budget reset / hard block on new opens / display note. All arrive through the SAME fence — there is no privileged write path |
+| `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims ordinal + identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount; at most one open request is DB-backstopped (§6.2), not merely a fold invariant |
+| `ENRICH_FAILED` | enrichment failed; code says transient vs definitive | transient: retry timing derives from this event's timestamp + policy; definitive: appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx |
+| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached" | request is posting/ambiguous until a result follows; **no `POST_STARTED` = provably never sent** — the safe-release predicate |
+| `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1 | ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry per policy (same key); DEFINITIVE_REJECT → outcome same tx; AMBIGUOUS → MAYBE; COLLISION → expected/unexpected via hash comparison; UNMAPPED → MAYBE + alert |
+| `QUERY_RESULT_RECORDED` | the resolver asked by OUR key | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
+| `DOWNGRADED_FOR_REPOST` | the §9.2-equivalent move: NOT_FOUND past trust age, same key will be re-sent | re-posting becomes legal for the SAME key; audit of the only backward transition |
+| `OUTCOME_RECORDED` | terminal for a request (codes per §2.2, with `EVIDENCE_SOURCE`) | closes the open request (head CAS, §6.2); books or releases its reservation; latches the corresponding marker; **the same transaction re-evaluates the standing rule** — a remaining shortfall opens the successor atomically (per-event apply order, §6.1) |
+| `SETTLED` | the feed confirms full-amount settlement AND the fold shows a non-terminal request for the ordinal | books confirmed money (idempotent by ordinal); closes/freezes that request. Feed evidence AGREEING with an already-EXECUTED terminal (equal amount) is a benign no-op delivery — NOT appended, NOT a contradiction |
+| `SETTLEMENT_MISMATCH_RECORDED` | feed amount ≠ instructed amount (all-or-nothing engine ⇒ defect evidence) | books NOTHING; parks loudly; submission knowledge still tightens |
+| `EVIDENCE_CONTRADICTION_RECORDED` | evidence CONFLICTS with a terminal decision (codes per §2.2) — conflict, never mere repetition | FIXED effect: book nothing, PARK the payment, CRITICAL alert; sole exit is §7 of `event-model-v2.md` (§6 there): the dual-control verified outcome |
+| `ESCALATION_MARKED` | the MAYBE got old (once per episode) | audit of paging; derived state unchanged |
+| `OPS_VERIFIED_OUTCOME_APPLIED` | the dual-control audited operation (approval reference in DETAIL) | appended with its `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` in one tx — the only manual door for possibly-moved money, and the only unpark of a contradicted payment |
+| `OPS_RETRY_REARMED` / `OPS_BLOCKED` / `OPS_MARKER_CLEARED` / `OPS_ANNOTATED` | human actions through the ops surface (`OPS_MARKER_CLEARED` = the §19.3-equivalent clear of a live reject marker) | budget reset / hard block on new opens / marker cleared / display note. All arrive through the SAME write path — there is no privileged one |
 
-## 4. The canonical fold
+## 5. The canonical fold — aggregation, never inference
 
-One shared implementation (one artifact, semantic-versioned, golden-vector
-tested exactly like the baseline's identity derivation). Inputs: the
-payment's events ordered by `VERSION`. Outputs (all derived):
+**Rule (normative):** every money-bearing fact is an explicit event
+carrying its own amount and its own classification, recorded at
+decision time. The fold may AGGREGATE money events; it may never
+re-classify them, re-derive them from raw provider codes, or infer an
+amount not present on an event.
 
 ```
-required_amount        latest REQUIRED_AMOUNT_SET by strictly-newer ordering
-snapshot_invalid       latched/unlatched by ordering comparison
-markers                validation_failed / provider_rejected (+ their orderings, counts)
-open_request           (key, amount, phase: OPEN/POSTING/AWAITING/MAYBE/RETRY_WAIT/PARKED)
-                       — from REQUEST_OPENED … outcome-less tail of the stream
-paid_total             Σ amounts of DISTINCT request keys with EXECUTED/SETTLED   (idempotent)
-reserved               open_request.amount (0 if none)
-shortfall              required − paid − reserved   (the standing rule's input)
-retry state            attempts used, next due time (event timestamps + policy)
-escalation/park state  derived ages + mismatch/exhaustion evidence
-provably_unsent        open request with NO POST_STARTED event — the safe-release predicate
+required_amount = AMOUNT of the REQUIRED_AMOUNT_SET with highest UPSTREAM_SEQ
+paid_total      = Σ AMOUNT over DISTINCT request ordinals having an
+                  OUTCOME_RECORDED(EXECUTED | PLATFORM_VERIFIED_EXECUTED)
+                  or SETTLED event                    (idempotent by ordinal)
+reserved        = AMOUNT of the open request (opening event exists,
+                  no outcome/settled event for its ordinal), else 0
+shortfall       = required − paid_total − reserved    (standing-rule input)
+plus derived:     markers (+ their seqs), retry state, MAYBE/park/escalation
+                  ages, provably_unsent (open request with no POST_STARTED)
 ```
 
-Fold rules replicate the baseline §4/§6/§7/§9/§10 semantics verbatim —
-those sections remain the specification; the fold is their event-sourced
-implementation. **Rule: no consumer may re-implement any part of this.**
-UI, scanners, resolver, drift checks, and the ops surface all call the
-one fold.
+One shared fold artifact — semantically versioned, golden-vector
+frozen; no consumer (UI, scanner, resolver, ops surface) re-implements
+any part of it. Fold rules replicate the baseline §4/§6/§7/§9/§10
+semantics verbatim; those sections remain the specification. Fold
+changes are governed by the deploy gate + continuous drift scan of
+`event-model-v2.md` §4.2 — the head witness (§6) is the independent
+second bookkeeper both compare against.
 
-## 5. `TRADE_SNAPSHOT_STATE` — unchanged
-
-Exactly the baseline table (one row per trade, overwritten; last accepted
-ordering + payload digest; the §6.1 admission transaction is its only
-writer). Snapshot admission, whole-document validation, and newest-wins
-stay OUTSIDE the event streams; an admitted snapshot then fans out
-`REQUIRED_AMOUNT_SET` (or `SNAPSHOT_INVALID_MARKED`) to each payment
-stream in sorted payment_key order — each under its own fence, so
-redeliveries can never deadlock and a partial fan-out is safely re-run
-(appends are ordering-guarded, hence idempotent).
-
-## 6. `PAYMENT_STATUS_PROJECTION` — the find-things cache
+## 6. `PAYMENT_HEAD` — lock, witness, backstop, index
 
 ```sql
-CREATE TABLE PAYMENT_STATUS_PROJECTION (
-  PAYMENT_KEY     VARCHAR2(200) PRIMARY KEY,
-  FOLD_VERSION    NUMBER(10)  NOT NULL,     -- stream version this row reflects
-  PHASE           VARCHAR2(24),             -- derived phase for scanner scoping
-  NEXT_ACTION_AT  TIMESTAMP,                -- retry due / query due / escalation due
-  UETR            VARCHAR2(64),
-  UI_STEP_STATUS  VARCHAR2(16),
-  ESCALATED       CHAR(1),
-  UPDATED_AT      TIMESTAMP
+CREATE TABLE PAYMENT_HEAD (
+  PAYMENT_KEY          VARCHAR2(200) PRIMARY KEY,
+  BUSINESS_ID          VARCHAR2(64)  NOT NULL,     -- card lookup (indexed)
+  LAST_VERSION         NUMBER(10)    NOT NULL,     -- must equal stream max
+  NEXT_REQUEST_ORDINAL NUMBER(10)    NOT NULL,     -- identity counter (§3)
+  OPEN_REQUEST_ORDINAL NUMBER(10),                 -- NULL = no open request
+  -- money WITNESS (mechanical increments; never read by decisions):
+  REQUIRED_AMOUNT      NUMBER(18,3),
+  PAID_TOTAL           NUMBER(18,3) DEFAULT 0 NOT NULL,
+  RESERVED             NUMBER(18,3) DEFAULT 0 NOT NULL,
+  -- scanner / UI index (display + candidate selection only):
+  PHASE                VARCHAR2(24),
+  NEXT_ACTION_AT       TIMESTAMP,
+  UETR                 VARCHAR2(64),
+  UI_STEP_STATUS       VARCHAR2(16),
+  ESCALATED            CHAR(1) DEFAULT 'N',
+  UPDATED_AT           TIMESTAMP
 );
-CREATE INDEX PSP_DUE_IX  ON PAYMENT_STATUS_PROJECTION (PHASE, NEXT_ACTION_AT);
-CREATE INDEX PSP_UETR_IX ON PAYMENT_STATUS_PROJECTION (UETR);
+CREATE INDEX PH_DUE_IX  ON PAYMENT_HEAD (PHASE, NEXT_ACTION_AT);
+CREATE INDEX PH_BIZ_IX  ON PAYMENT_HEAD (BUSINESS_ID);
+CREATE INDEX PH_UETR_IX ON PAYMENT_HEAD (UETR);
 ```
 
-Rules that keep it honest:
+A CACHE with respect to truth (rebuildable from the stream at any
+time) but a CONTRACT with respect to freshness: updated in the append
+transaction — no async projector, no stale-false-negative class. It
+can VETO a write (§6.2 CAS, §6.3 triggers); it never AUTHORIZES one —
+authorization always derives from the fold.
 
-1. **Never load-bearing for money.** A money decision NEVER reads it.
-   Scanners use it only to pick CANDIDATES; the action itself folds the
-   stream and goes through the fence — a stale FALSE POSITIVE therefore
-   costs a wasted fold, never a wrong payment.
-2. **FRESHNESS CONTRACT (review finding — a stale FALSE NEGATIVE is NOT
-   harmless: it can strand a MAYBE payment invisibly forever, see
-   `03-known-limits.md` L5):** at this volume the projection row is
-   updated IN the append transaction (it remains a rebuildable cache —
-   it stops being a skippable one). Independently, a timed FULL-SWEEP
-   job re-folds every payment with an open request on a fixed cadence
-   and reconciles the projection; the sweep's own liveness is monitored.
-   Bounded staleness by construction, not by hope.
-3. **Feed matching with an explicit multiplicity rule** (review finding
-   — a non-unique UETR index answers "which streams mention it", not
-   "which stream owns it"):
-   ```
-   0 matches  -> unmatched path (ack; recover by key later — baseline contract)
-   1 match    -> fold + fenced append
-   2+ matches -> CRITICAL anomaly; NO state change on any stream
-   ```
-4. **Request-granular UI is NOT served by this projection** (see
-   `03-known-limits.md` L8): the §12 listing contract (one row per
-   logical request + obligation-only placeholders + keyset pagination +
-   amount series) needs either fold-and-expand on read or a second,
-   request-granular UI projection under the same freshness contract —
-   an open design choice, deliberately not decided here.
+### 6.1 Write protocol — the only write path
 
-## 6b. `INBOUND_EVENT_INBOX` — delivery identity (restored per review)
-
-The baseline's inbound dedup, kept for the same reason it exists there:
-`(SOURCE, EVENT_ID)` UNIQUE; a delivery already seen is acked and
-ignored BEFORE any fold or append. Money folding is idempotent without
-it — but duplicate deliveries would still re-fire side effects
-(metrics, alerts, incident counters) and pollute streams with duplicate
-evidence rows. Purged on the same retention chain rules as the
-baseline's inbox.
-
-**Open item (transaction boundary — see 03 L7):** "seen" must never be
-allowed to mean "fully processed." A multi-payment upstream delivery
-fans out across several streams; if the inbox row commits before that
-fan-out completes, a crash in between turns the redelivery into a
-silent no-op and the remaining fan-out is lost forever. The rule still
-to be written: either the inbox row commits atomically with the
-COMPLETION of processing, or the fan-out is separately resumable (the
-baseline's recoverable fan-out shape) and the inbox row only suppresses
-side-effect re-fires, never the resume.
-
-## 7. What deliberately does NOT exist
-
-- **No stored required/committed/confirmed counters** — the fold is the
-  ledger. Consequence accepted: there is no independent arithmetic anchor
-  for an I1/I2-style drift scan; the replacement control is fold
-  determinism (golden vectors + a periodic re-fold-and-compare job
-  between the projection and a fresh fold).
-- **No mutable request row, no claim/lease columns** — the posting claim
-  is the `POST_STARTED` event; worker exclusivity is the fence.
-- **No parked-event table, no local cutoff machinery, no
-  transition-history journal** — same exclusions as the baseline (the
-  stream itself IS the full history, which also subsumes the §14.1
-  attempt journal's purpose; the §14 external log contract is unchanged).
-- **What is deliberately NOT claimed** (honesty box — full ranked
-  analysis with simulated rows in `03-known-limits.md`): the two
-  CRITICALs, inherent to the model and ACCEPTED rather than fixable —
-  temporal/cross-row legality has no declarative schema backstop (L1 —
-  the boundary sentence) and money state is fold-derived (no LOCAL
-  independent witness; reinterpretation on fold change is the default
-  unless explicit versioning/correction governance is designed — L2,
-  and `04` P3); the one HIGH — restore-time identity recovery is
-  designable but UNDESIGNED (L6); plus bounded MEDIUM work (L4 full
-  per-type EVENT_CODE matrix, L5 test set, L7 UETR claim + the inbox
-  transaction boundary above, L8 §12 read contract) and LOW items (L9
-  policy; L3 contradiction handling is CONTAINED — the safe-stop is
-  designed, the resolution/unpark flow is not yet specified).
 ```
+1. SELECT ... FOR UPDATE on PAYMENT_HEAD (insert-on-first-contact:
+   LAST_VERSION = 0, NEXT_REQUEST_ORDINAL = 1, witness columns 0;
+   PK-race retry — the baseline's obligation-row idiom)
+2. fold(stream)                      -- read PAYMENT_EVENT by (key, version)
+3. decide                            -- pure function: fold state -> events
+4. FOR EACH decided event, IN ORDER:
+     INSERT it at LAST_VERSION+1 (+2, ...),
+     THEN apply ITS head effect (§6.2 CAS / witness change / phase)
+5. COMMIT                            -- multi-event decisions are ONE tx
+```
+
+Step 4 is **per event, not batched** — each backstop check runs
+against the head state its predecessors in the same transaction left
+behind. The atomic outcome+successor decision is legal only in this
+interleaving: outcome insert (its ordinal still open) → close CAS →
+successor `REQUEST_OPENED` insert (column now NULL) → open CAS.
+
+The head lock serializes writers per payment; the only lock-order rule
+is TRADE_HEAD → PAYMENT_HEAD (sorted) during snapshot fan-out — the
+baseline's exact order. `PE_FENCE_UQ` stays as the backstop against
+lock-bypassing writers. A fence collision seen by a writer HOLDING the
+lock means the head lost sync with the stream: page, stop the stream's
+writes, rebuild the head from the stream (the cache's rebuild path,
+exercised in tests), resume.
+
+Narrow exemption (mirrors the baseline's claim-field rule): pure
+scheduling updates (`NEXT_ACTION_AT` backoff after an INDETERMINATE
+query) may be written without an append — not derivation inputs, not
+money.
+
+### 6.2 The one-open-request backstop (fold-independent)
+
+Opening, in the opening transaction:
+
+```sql
+UPDATE PAYMENT_HEAD
+   SET OPEN_REQUEST_ORDINAL = :ordinal,
+       NEXT_REQUEST_ORDINAL = NEXT_REQUEST_ORDINAL + 1,
+       RESERVED = :amount
+ WHERE PAYMENT_KEY = :key AND OPEN_REQUEST_ORDINAL IS NULL
+```
+
+Row count 0 aborts the append. Closing (outcome/settled) clears the
+column the same way (`WHERE OPEN_REQUEST_ORDINAL = :ordinal`), zeroes
+`RESERVED`, and adds the amount to `PAID_TOTAL` only for money-terminal
+codes (`EXECUTED` / `PLATFORM_VERIFIED_EXECUTED` / `SETTLED`).
+
+**Witness-exactly-once:** §6.3 admits money-bearing events for an
+ordinal only WHILE that ordinal is the open one, and the close CAS
+fires exactly once per ordinal — so `PAID_TOTAL` increments exactly
+once per request, whatever late confirming evidence arrives later
+(that is a no-op or a contradiction event, never a second increment).
+
+### 6.3 Cross-row trigger backstops
+
+BEFORE-INSERT triggers on `PAYMENT_EVENT` (each a single indexed head
+read under the lock already held): `POST_STARTED` /
+`POST_RESULT_RECORDED` / `OUTCOME_RECORDED` / `SETTLED` require
+`OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` — except the
+contradiction path, which must instead append
+`EVIDENCE_CONTRADICTION_RECORDED` (the trigger enforces that routing);
+`REQUEST_OPENED` requires the column NULL (§6.2). Both backstops are
+independent of fold correctness. Full temporal legality beyond this
+set stays code-enforced — accepted, with mitigations, in
+`event-model-v2.md` §10.
+
+## 7. `TRADE_HEAD` — snapshot admission
+
+```sql
+CREATE TABLE TRADE_HEAD (
+  BUSINESS_ID       VARCHAR2(64) PRIMARY KEY,
+  LAST_ACCEPTED_SEQ NUMBER(19)   NOT NULL,
+  PAYLOAD_DIGEST    VARCHAR2(64) NOT NULL,   -- defect detection, not ties
+  SNAPSHOT_XML_REF  VARCHAR2(200),
+  UPDATED_AT        TIMESTAMP
+);
+```
+
+Admission (the §6.1-equivalent transaction, this table's only writer):
+strictly newer seq → accept, update row, fan out `REQUIRED_AMOUNT_SET`
+(or `SNAPSHOT_INVALID_MARKED`) to each payment stream in sorted
+payment_key order; equal seq + equal digest → identical redelivery,
+admit-without-update and re-run the fan-out (per-payment appends are
+seq-guarded, so already-applied streams no-op — partial fan-out is
+safely resumable); equal seq + DIFFERENT digest → upstream DEFECT:
+refuse + CRITICAL alert (no tie workflow exists in this design); older
+seq → ignore. Kafka ack only after fan-out completes.
+
+## 8. `INBOUND_EVENT_INBOX` — delivery identity
+
+```sql
+CREATE TABLE INBOUND_EVENT_INBOX (
+  SOURCE      VARCHAR2(32)  NOT NULL,
+  EVENT_ID    VARCHAR2(128) NOT NULL,
+  RECEIVED_AT TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT INB_UQ UNIQUE (SOURCE, EVENT_ID)
+);
+```
+
+- **Feed deliveries (single-payment):** the inbox INSERT rides the
+  SAME transaction as the resulting append (or the same transaction
+  that decides "no-op": stale or agreeing evidence). "Seen" and
+  "processed" commit atomically; a crash before commit leaves neither.
+- **Snapshot deliveries (multi-payment): NO inbox row.** Dedup and
+  convergence come from the §7 watermark + seq-guarded per-payment
+  appends; redelivery re-runs and converges. Side effects (metrics,
+  alerts) key on appends that actually happened, so re-runs do not
+  re-fire them.
+- Retention: inbox purge > Kafka retention ≥ replay window (owner rule
+  inherited from the baseline §16.2).
+
+## 9. Read surfaces
+
+- **Step card (obligation-granular):** reads `PAYMENT_HEAD`
+  (`UI_STEP_STATUS`, exception summary via phase) — display-only, and
+  the head is transaction-fresh. Lookup by `BUSINESS_ID` returns all
+  of a trade's payments; row absence = NOT_STARTED.
+- **All-payments table (request-granular):** a read-only SQL VIEW over
+  `PAYMENT_EVENT` — one row per `REQUEST_OPENED` (request identity =
+  payment_key + ordinal), outcome joined by ordinal, obligation-only
+  placeholders from head rows with `NEXT_REQUEST_ORDINAL = 1`. The
+  amount series is free: `REQUIRED_AT_OPEN` sits on the opening event.
+  Keyset pagination on (payment_key, version). No projection, no
+  maintenance job.
+- **Scanners/resolver:** select CANDIDATES from the head
+  (`PHASE, NEXT_ACTION_AT`); every ACTION folds the stream under the
+  head lock. A stale candidate costs a wasted fold, never a wrong
+  payment.
+- **Feed matching (fail-closed multiplicity):** match UETR against the
+  head first, the event index second; 0 → unmatched path (ack; query
+  sweep recovers by key later); 1 → fold + append under the lock;
+  2+ → CRITICAL anomaly, NO state change on any stream.
+
+## 10. What deliberately does NOT exist
+
+- **No stored authoritative state machine** — phase/markers/retry
+  state are fold-derived; the head's copies are display/candidate
+  index only.
+- **No mutable request row, no claim/lease columns** — the posting
+  claim is the `POST_STARTED` event; writer exclusivity is the head
+  lock, backstopped by the fence.
+- **No projection table** — merged into the head, updated in the
+  append transaction (the v1 draft's staleness class is closed by
+  construction).
+- **No tie machinery** — deleted with the confirmed upstream sequence
+  number, not inherited.
+- **No transition-history journal** — the stream IS the history; the
+  external §14 log contract is unchanged.
+- **What is deliberately ACCEPTED** (with mitigations): see the
+  honesty box in `event-model-v2.md` §10 — code-enforced temporal
+  legality beyond the §6.2/6.3 backstops, control-state
+  reinterpretation on fold deploys (money side gated to zero by the
+  §4.2 deploy gate), the single interpretation point, event-table
+  growth, the engine collision contract as keystone (§18 item 1 gates
+  go-live identically), and the ops learning curve (`fold --explain`
+  ships with the MVP as a deliverable).
