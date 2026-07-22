@@ -339,6 +339,19 @@ the §9 skipped-send sentence uses the unified terminology. The
 reviewer's soundness list covered the full gate inventory under
 direct attack.
 
+Twenty-fifth round (2026-07-22): 0 CRITICAL / 1 HIGH — a genuine
+inherited-semantics gap outside every prior finding: the synchronous
+engine INVALID-DATA rejection (§7.2 class) had no admissible
+`REJECTED_VALIDATION` path (the trigger treated all validation
+rejects as pre-wire), forcing it into `REJECTED_PROVIDER` and the
+wrong marker whose repeat rules are not newer-truth-recoverable.
+`REJECTED_VALIDATION` is now admissible in its two inherited forms —
+pre-wire (enrichment) and post-wire synchronous (definitive
+invalid-data response on the latest attempt) — with the CA-1
+classification deciding the code (§5.3, 01 §4/§6.3). Everything else
+in the full gate inventory checked and found sound, including the
+completed predicate unification.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -866,9 +879,17 @@ already held):
   ordinal OR that the LATEST `POST_STARTED` is followed by a
   same-ordinal `POST_RESULT_RECORDED(BUSINESS_REJECT |
   DEFINITIVE_REJECT)` with no later attempt — first-party synchronous
-  proof that no executable payment exists; `REJECTED_VALIDATION`
-  requires no `POST_STARTED` (validation rejects are pre-wire) plus
-  its same-transaction `ENRICH_FAILED(DEFINITIVE)`; `SUPERSEDED_OPS`
+  proof that no executable payment exists; `REJECTED_VALIDATION` is
+  admissible in TWO forms — pre-wire: no `POST_STARTED` plus its
+  same-transaction `ENRICH_FAILED(DEFINITIVE)`; or post-wire
+  synchronous: the LATEST `POST_STARTED` followed by a same-ordinal
+  `POST_RESULT_RECORDED(DEFINITIVE_REJECT)` with no later attempt,
+  where the CA-1 classification of the definitive response is
+  invalid-data (inherited §7.2: a synchronous engine invalid-data
+  rejection releases and latches `validation_failed`, which is
+  recoverable by strictly newer corrected truth — treating all
+  validation rejects as pre-wire forced this case into
+  `REJECTED_PROVIDER` and the WRONG marker); `SUPERSEDED_OPS`
   carries the same not-submitted predicate as
   `CANCELLED_NOT_SUBMITTED` — a claim that MAY have executed closes
   only on evidence or through the verified door;
