@@ -62,13 +62,26 @@ RETRACTED (§6), the two-watermark `TRADE_HEAD` so invalid-snapshot
 markers fan out under the fence (§1, §7), and amount equality extended
 to every outcome code (§5.3).
 
+Third round (2026-07-21, same harness, targeting the round-2 fixes):
+2 CRITICAL / 4 HIGH / 1 MEDIUM, all closed — the pair gate extended to
+EVERY verified outcome, open or closed (§5.3); full-current-state
+fan-out: the seen-fence owner catches up the stored ACCEPTED truth
+before marking invalid, so a fenced-out cancellation can never starve
+(§7); `TRADE_HEAD` carries digest + pointer PER WATERMARK and a
+nullable accepted pair for first-delivery-invalid trades (§1, 01 §7);
+`APPROVAL_REF` required on the money-enabling single ops actions
+(§2.2); the witness check covers required_amount and gained the
+WITNESS_DIVERGED quarantine + rebuild path (§5.1); the correction
+delta pinned to the decide-time prior (§6); the request view selects
+the authoritative outcome (01 §9).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
 |---|---|---|
 | `PAYMENT_EVENT` | append-only, THE authority | everything that ever happened to a payment; per-payment total order |
 | `PAYMENT_HEAD` | ONE mutable row per payment | write serialization lock, money WITNESS, open-request backstop, scanner/UI index — updated in the append transaction, rebuildable from the stream, NEVER read by a money decision |
-| `TRADE_HEAD` | one mutable row per trade | TWO snapshot watermarks — `LAST_ACCEPTED_SEQ` (newest VALID snapshot = accepted trade truth) and `LAST_SEEN_SEQ` (newest snapshot processed at all, valid or invalid; `≥ LAST_ACCEPTED_SEQ`) — + payload digest + XML storage pointer. The fan-out equality fence (§7) checks against `LAST_SEEN_SEQ`, so invalid-snapshot markers CAN fan out without ever admitting invalid content as truth. With a contractual sequence number there is no tie to adjudicate — an equal-seq redelivery is admitted-without-update; equal seq with different content is an upstream DEFECT (refuse + CRITICAL alert), not a workflow |
+| `TRADE_HEAD` | one mutable row per trade | TWO snapshot watermarks, EACH with its own digest + storage pointer — accepted (`LAST_ACCEPTED_SEQ`, newest VALID snapshot = trade truth; NULL until the first valid one) and seen (`LAST_SEEN_SEQ`, newest processed at all, valid or invalid; `≥` accepted). The fan-out equality fence (§7) checks SEEN, so invalid-snapshot markers CAN fan out without admitting invalid content as truth; the seen digest/pointer make an invalid redelivery deduplicable and its fan-out resumable (a single accepted-only digest would misread an identical invalid redelivery as an upstream defect). With a contractual sequence number there is no tie to adjudicate — an equal-seq redelivery (equal digest, per the SEEN pair) is admitted-without-update; equal seq with different content is an upstream DEFECT (refuse + CRITICAL alert), not a workflow |
 | `INBOUND_EVENT_INBOX` | `UNIQUE(source, event_id)` | dedup of FEED deliveries only, atomic with processing (§7) |
 
 Everything else — required amount, paid, reserved, phase, markers,
@@ -166,11 +179,16 @@ rule, which is inherited verbatim: reject/collision UETRs are never
 recorded.)
 
 Ops events carry the approval reference in the TYPED `APPROVAL_REF`
-column (R on `OPS_VERIFIED_OUTCOME_APPLIED` AND on its paired
-`OUTCOME_RECORDED(PLATFORM_VERIFIED_*)`, equal on both, N on every
-other type — free text in DETAIL cannot bind anything). The pair is
-appended in the SAME transaction — dual-control protocol inherited
-from v4 §9.3 unchanged, and the same-transaction fact is
+column — R on `OPS_VERIFIED_OUTCOME_APPLIED` and its paired
+`OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` (equal on both), and R on the
+two MONEY-ENABLING single ops actions, `OPS_MARKER_CLEARED` and
+`OPS_RETRY_REARMED` (the v4 §19.3-class clears carry four-eyes
+authorization; a nullable approval on the event that re-opens the
+road to fresh payment would make that authorization unrepresentable).
+N on `OPS_BLOCKED`/`OPS_ANNOTATED` (restrictive/neutral actions) and
+every non-ops type — free text in DETAIL binds nothing. The verified
+pair is appended in the SAME transaction — dual-control protocol
+inherited from v4 §9.3 unchanged, and the same-transaction fact is
 DB-checkable via `TX_ID` (§5.3), not merely promised by the
 application.
 
@@ -308,12 +326,22 @@ construction, not by a reconciling sweep).
    explicit initial values, never NULL+1 arithmetic; PK-race retry —
    the same idiom as v4's obligation row)
 2. fold(stream)                       -- read PAYMENT_EVENT by (key, version)
-3. WITNESS CHECK (fail closed): compare the fold's money outputs
-   (paid_total, reserved, open ordinal) against the locked head row.
-   ANY mismatch: abort with NO decision, page, park the payment.
-   The two bookkeepers must agree BEFORE money logic runs — this is
-   the §4.2 drift scan made synchronous at the only moment it matters,
-   and it is a VETO, never an authorization
+3. WITNESS CHECK (fail closed): compare the fold's money outputs —
+   required_amount, paid_total, reserved, AND open ordinal — against
+   the locked head row (the COMPLETE money witness; omitting
+   required_amount would let a mis-witnessed requirement drive an
+   oversized opening). ANY mismatch: abort with NO decision, page,
+   and QUARANTINE: set the head's PHASE to WITNESS_DIVERGED through
+   the same narrow head-only exemption as scheduling updates (a
+   display/candidate-selection mutation, never a derivation input) —
+   scanners skip diverged payments, so the quarantine needs no append
+   and cannot itself be blocked by the check it serves. Repair = the
+   head REBUILD runbook (§5.1), which now triggers on fence collision
+   OR witness divergence: rebuild the head from the stream under the
+   lock; if the divergence clears, the head was wrong — resume; if it
+   persists, the stream itself is under dispute and only the §6
+   dual-control door may resolve it. The check is a VETO, never an
+   authorization
 4. decide                             -- pure function: fold state -> events
 5. FOR EACH decided event, IN ORDER:
      INSERT it at the next version slot,
@@ -404,14 +432,18 @@ already held):
   path, which must instead append `EVIDENCE_CONTRADICTION_RECORDED` —
   the trigger enforces that routing); `REQUEST_OPENED` requires it
   NULL (§5.2).
-- **One closed-ordinal exception** (the §6 correction door, and
-  nothing else): `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` for a CLOSED
-  ordinal is admitted only when the row at `VERSION − 1` is
+- **The dual-control pair gate — on EVERY verified outcome, open or
+  closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — for ANY ordinal
+  state — is admitted only when the row at `VERSION − 1` is
   `OPS_VERIFIED_OUTCOME_APPLIED` for the SAME ordinal with the SAME
   `TX_ID` (same transaction, DB-checked — a dangling approval
   committed earlier can never be paired later) and equal
-  `APPROVAL_REF`. A solo `OPS_VERIFIED_OUTCOME_APPLIED` has no fold
-  effect and is surfaced by the drift scan as an anomaly.
+  `APPROVAL_REF`. Gating only the closed-ordinal case would let a solo
+  verified outcome close the OPEN ordinal and book money with no
+  approval at all. The closed-ordinal case is additionally the ONLY
+  write admitted for a closed ordinal (§6). A solo
+  `OPS_VERIFIED_OUTCOME_APPLIED` has no fold effect and is surfaced by
+  the drift scan as an anomaly.
 - **Amount equality (every outcome)**: `OUTCOME_RECORDED` of ANY code
   and `SETTLED` for the OPEN ordinal require `:new.AMOUNT = RESERVED`
   ("the request amount, restated" is an enforced equality, not a
@@ -460,10 +492,16 @@ outcome-class event in stream order (§4), so the verified outcome
 supersedes the wrong recorded one while history keeps both. Head
 effect of a superseding verified outcome: `PAID_TOTAL` adjusted by the
 signed difference (verified NOT_EXECUTED over a booked EXECUTED
-subtracts the amount; verified EXECUTED over a booked reject adds it);
-`RESERVED` untouched — the ordinal stays closed. The same transaction
-then re-evaluates the payment on the corrected numbers, in BOTH
-directions and under the INHERITED gates:
+subtracts the amount; verified EXECUTED over a booked reject adds it).
+**The delta is pinned at decide time**: the prior side of the
+difference is the authoritative outcome over events with `VERSION <`
+the correction's version — i.e., the step-2 fold the decision was made
+from — never re-derived after the insert (a post-insert "latest
+outcome" lookup would see the correction itself and apply a zero
+delta, silently splitting the bookkeepers). `RESERVED` untouched — the
+ordinal stays closed. The same transaction then re-evaluates the
+payment on the corrected numbers, in BOTH directions and under the
+INHERITED gates:
 
 - **Shortfall direction — markers gate it (v4 §9.3 inherited
   verbatim):** a verified NOT_EXECUTED latches the `provider_rejected`
@@ -512,12 +550,21 @@ healthy payments.
   transactions, each of which (1) locks `TRADE_HEAD` (the v4 lock
   order), (2) verifies its carried snapshot seq still EQUALS
   `LAST_SEEN_SEQ` — the **equality fence**: if a newer arrival owns
-  the trade, abort; the newer fan-out covers every payment including
-  absences — then (3) locks the payment head and appends seq-guarded:
-  `REQUIRED_AMOUNT_SET` only from a snapshot that is also the
-  accepted one (`= LAST_ACCEPTED_SEQ`), `SNAPSHOT_INVALID_MARKED`
-  from an invalid one. Resume after a crash re-derives the worklist
-  from the CURRENT watermarks' stored state, never from an in-memory
+  the trade, abort — then (3) locks the payment head and appends
+  seq-guarded. **The current owner fans out the FULL current trade
+  state, not just its own document** (this is what makes "the newer
+  fan-out covers everything" true): per payment, FIRST the accepted
+  truth's `REQUIRED_AMOUNT_SET` from the STORED accepted snapshot
+  (seq-guarded — catching up any accepted admission whose own fan-out
+  was fenced out, including cancels-to-zero), THEN, if the seen
+  snapshot is invalid (`LAST_SEEN_SEQ > LAST_ACCEPTED_SEQ`),
+  `SNAPSHOT_INVALID_MARKED(LAST_SEEN_SEQ)`. An invalid-only fan-out
+  that skipped the catch-up would starve an already-accepted
+  cancellation behind the fence and let a cancelled payment post.
+  Worklist = payments named in the stored ACCEPTED snapshot ∪ existing
+  head rows of the trade (an invalid document's own payment list is
+  never trusted). Resume after a crash re-derives the worklist from
+  the CURRENT watermarks' stored state, never from an in-memory
   snapshot, so a stale resumed worker can neither create nor touch a
   payment from superseded trade truth. Kafka ack only after fan-out
   completes; redelivery re-runs and converges. Side effects (metrics,
