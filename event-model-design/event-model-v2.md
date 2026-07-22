@@ -75,6 +75,17 @@ WITNESS_DIVERGED quarantine + rebuild path (§5.1); the correction
 delta pinned to the decide-time prior (§6); the request view selects
 the authoritative outcome (01 §9).
 
+Fourth round (2026-07-21, targeting the round-3 fixes): 0 CRITICAL /
+5 HIGH, all closed — first-contact `REQUIRED_AMOUNT` = NULL with a
+NULL-safe witness comparison (§5.1); the dual-control door runs in
+RECORDING mode under persistent divergence (fold-authoritative, head
+rebuilt in the same transaction) so the prescribed exit is reachable
+(§5.1); the backstop trigger set specified as a COMPOUND trigger +
+single-row-insert guard, with the mutating-table behavior itself
+checklist-5 evidence (§5.3); WITNESS_DIVERGED added to the pre-wire
+skip set (§9); `CREATED_AT` guard-trigger-stamped like `TX_ID` — an
+immutable episode anchor may never be writer-supplied (§2).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -112,7 +123,11 @@ CREATE TABLE PAYMENT_EVENT (
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
   TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
                                                 --   transaction id; writers cannot supply it
-  CREATED_AT         TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
+  CREATED_AT         TIMESTAMP      NOT NULL,   -- ALSO guard-trigger-stamped (SYSTIMESTAMP,
+                                                --   database clock): a writer-supplied value
+                                                --   would make an IMMUTABLE episode anchor
+                                                --   born wrong — trust-age/escalation clocks
+                                                --   depend on it, so no writer may supply it
 
   -- identity is claimed exactly once, in the schema:
   IDEM_CLAIM         VARCHAR2(128)  GENERATED ALWAYS AS
@@ -322,7 +337,10 @@ construction, not by a reconciling sweep).
 
 ```
 1. SELECT ... FOR UPDATE on PAYMENT_HEAD (insert-on-first-contact:
-   LAST_VERSION = 0, NEXT_REQUEST_ORDINAL = 1, witness columns 0 —
+   LAST_VERSION = 0, NEXT_REQUEST_ORDINAL = 1, PAID_TOTAL = 0,
+   RESERVED = 0, REQUIRED_AMOUNT = NULL — NULL is the inherited
+   "no valid data ever applied" value and matches the empty stream's
+   fold, where 0 would fail the first witness check ever run;
    explicit initial values, never NULL+1 arithmetic; PK-race retry —
    the same idiom as v4's obligation row)
 2. fold(stream)                       -- read PAYMENT_EVENT by (key, version)
@@ -330,17 +348,24 @@ construction, not by a reconciling sweep).
    required_amount, paid_total, reserved, AND open ordinal — against
    the locked head row (the COMPLETE money witness; omitting
    required_amount would let a mis-witnessed requirement drive an
-   oversized opening). ANY mismatch: abort with NO decision, page,
-   and QUARANTINE: set the head's PHASE to WITNESS_DIVERGED through
-   the same narrow head-only exemption as scheduling updates (a
-   display/candidate-selection mutation, never a derivation input) —
-   scanners skip diverged payments, so the quarantine needs no append
-   and cannot itself be blocked by the check it serves. Repair = the
-   head REBUILD runbook (§5.1), which now triggers on fence collision
-   OR witness divergence: rebuild the head from the stream under the
-   lock; if the divergence clears, the head was wrong — resume; if it
-   persists, the stream itself is under dispute and only the §6
-   dual-control door may resolve it. The check is a VETO, never an
+   oversized opening). Comparison is NULL-safe: fold-NULL equals
+   head-NULL (the first-contact state). ANY mismatch: abort with NO
+   decision, page, and QUARANTINE: set the head's PHASE to
+   WITNESS_DIVERGED through the same narrow head-only exemption as
+   scheduling updates (a display/candidate-selection mutation, never
+   a derivation input) — scanners skip diverged payments, so the
+   quarantine needs no append and cannot itself be blocked by the
+   check it serves. Repair = the head REBUILD runbook (§5.1), which
+   now triggers on fence collision OR witness divergence: rebuild the
+   head from the stream under the lock; if the divergence clears, the
+   head was wrong — resume. If it persists, the stream itself is under
+   dispute and only the §6 dual-control door may resolve it — and so
+   that exit is REACHABLE, the door transaction alone runs under
+   divergence with the witness check in RECORDING mode: it proceeds on
+   the step-2 fold (the stream is the authority; the head is a cache),
+   appends the gated pair, then REBUILDS the head from the post-append
+   stream in the same transaction and clears the quarantine. Nothing
+   else may write while diverged. The check is a VETO, never an
    authorization
 4. decide                             -- pure function: fold state -> events
 5. FOR EACH decided event, IN ORDER:
@@ -466,6 +491,17 @@ already held):
   fence alone cannot see (a unique constraint rejects duplicates, not
   holes); the drift scan additionally asserts density
   (`COUNT(*) = MAX(VERSION) = LAST_VERSION`).
+
+**Enforcement point (Oracle-real):** the `:new`-style predicates above
+are the SPECIFICATION; the implementation is a COMPOUND trigger that
+validates each inserted row at after-statement time against
+`PAYMENT_EVENT` and `PAYMENT_HEAD` (raising aborts the transaction —
+backstop semantics preserved). The per-event apply order means every
+event arrives by its own single-row `INSERT ... VALUES` — where
+Oracle's mutating-table restriction does not bite — and a statement
+guard FORBIDS multi-row inserts into `PAYMENT_EVENT` so no path can
+reintroduce it. Proving this behavior on real Oracle is checklist
+item 5 evidence, not an assumption.
 
 Full temporal legality beyond this set stays code-enforced (honesty
 box, §10).
@@ -605,7 +641,9 @@ here structural: `POST_STARTED` IS the durable claim, and "no
 POST_STARTED = provably never sent" is the release predicate) — with
 one mandatory addition: between the COMMIT of `POST_STARTED` and the
 wire call the worker re-reads the head (no lock) and SKIPS the send if
-the payment is parked/blocked or the ordinal is no longer open; the
+the payment is parked/blocked, in WITNESS_DIVERGED quarantine (a
+diverged payment must not reach the wire on a claim decided from
+disputed numbers), or the ordinal is no longer open; the
 committed claim then resolves through the standard §9.1-style ask path
 under the park (it is NOT provably unsent, so it is never released —
 only asked about). This narrows the irreducible commit-to-wire window

@@ -52,7 +52,9 @@ CREATE TABLE PAYMENT_EVENT (
   DETAIL             VARCHAR2(1000),            -- human text; the fold NEVER reads it
   TX_ID              VARCHAR2(64),              -- stamped BY THE GUARD TRIGGER with the local
                                                 --   transaction id; writers cannot supply it
-  CREATED_AT         TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
+  CREATED_AT         TIMESTAMP      NOT NULL,   -- ALSO guard-trigger-stamped (SYSTIMESTAMP):
+                                                --   immutable episode anchor for trust-age /
+                                                --   escalation clocks — never writer-supplied
 
   -- identity is claimed exactly once, in the schema:
   IDEM_CLAIM         VARCHAR2(128)  GENERATED ALWAYS AS
@@ -231,7 +233,7 @@ Version slots do NOT participate in identity. Consequences:
 | `SNAPSHOT_INVALID_MARKED` | whole-snapshot validation failed at admission — appended to EVERY payment of the trade, in payment_key order | blocks NEW request opening; never touches in-flight work; unlatched by a newer valid `REQUIRED_AMOUNT_SET` |
 | `REQUEST_OPENED` | the standing rule decides to pay a shortfall: claims ordinal + identity + amount + payload hash (write-ahead part 1) | an OPEN request exists; reservation = its amount; at most one open request is DB-backstopped (§6.2), not merely a fold invariant |
 | `ENRICH_FAILED` | enrichment failed; code says transient vs definitive | transient: retry timing derives from this event's timestamp + policy; definitive: appended with `OUTCOME_RECORDED(REJECTED_VALIDATION)` in one tx |
-| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; **no `POST_STARTED` = provably never sent** — the safe-release predicate |
+| `POST_STARTED` | immediately BEFORE the wire call (write-ahead part 2). Its existence is the durable fact "the wire MAY have been reached". **Mandatory pre-wire recheck:** between COMMIT and the wire call the worker re-reads the head (no lock) and SKIPS the send if the payment is parked/blocked, in WITNESS_DIVERGED quarantine, or the ordinal is no longer open — the claim then resolves via the ask path under the park | request is posting/ambiguous until a result follows; **no `POST_STARTED` = provably never sent** — the safe-release predicate |
 | `POST_RESULT_RECORDED` | the synchronous response, classified per CA-1 | ACCEPTED → awaiting settlement; BUSINESS_REJECT → retry per policy (same key); DEFINITIVE_REJECT → outcome same tx; AMBIGUOUS → MAYBE; COLLISION → expected/unexpected via hash comparison; UNMAPPED → MAYBE + alert |
 | `QUERY_RESULT_RECORDED` | the resolver asked by OUR key — the event CARRIES that key, and the §6.3 echo refuses a key other than the open request's, so stale evidence for an earlier request's key cannot be recorded against the current one | EXECUTED → outcome same tx; REJECTED → `OUTCOME_RECORDED(REJECTED_PROVIDER)` same tx; ACCEPTED → still in flight, keep waiting (submission knowledge tightens); NOT_FOUND young → no change (trust age); NOT_FOUND past trust age → enables the one sanctioned downgrade; LOOKBACK_EXPIRED → stays MAYBE (ops path) |
 | `DOWNGRADED_FOR_REPOST` | the §9.2-equivalent move: NOT_FOUND past trust age, same key will be re-sent | re-posting becomes legal for the SAME key; audit of the only backward transition |
@@ -303,7 +305,8 @@ CREATE TABLE PAYMENT_HEAD (
   OPEN_REQUEST_ORDINAL NUMBER(10),                 -- NULL = no open request
   OPEN_IDEMPOTENCY_KEY VARCHAR2(128),              -- the open request's key (echo check, §6.3)
   -- money WITNESS (mechanical increments; can VETO, never authorize):
-  REQUIRED_AMOUNT      NUMBER(18,3),
+  REQUIRED_AMOUNT      NUMBER(18,3),               -- NULL = no valid data ever applied
+                                                   --   (first-contact value; matches empty-stream fold)
   PAID_TOTAL           NUMBER(18,3) DEFAULT 0 NOT NULL,
   RESERVED             NUMBER(18,3) DEFAULT 0 NOT NULL,
   -- scanner / UI index (display + candidate selection only):
@@ -329,18 +332,25 @@ it never AUTHORIZES one — authorization always derives from the fold.
 
 ```
 1. SELECT ... FOR UPDATE on PAYMENT_HEAD (insert-on-first-contact:
-   LAST_VERSION = 0, NEXT_REQUEST_ORDINAL = 1, witness columns 0;
+   LAST_VERSION = 0, NEXT_REQUEST_ORDINAL = 1, PAID_TOTAL = 0,
+   RESERVED = 0, REQUIRED_AMOUNT = NULL — the inherited "no valid
+   data ever applied" value, matching the empty stream's fold;
    PK-race retry — the baseline's obligation-row idiom)
 2. fold(stream)                      -- read PAYMENT_EVENT by (key, version)
-3. WITNESS CHECK (fail closed): fold money outputs — required_amount,
+3. WITNESS CHECK (fail closed, NULL-safe: fold-NULL equals head-NULL,
+   the first-contact state): fold money outputs — required_amount,
    paid_total, reserved, AND open ordinal (the COMPLETE witness) —
    must equal the locked head row. ANY mismatch: abort with NO
    decision, page, and QUARANTINE via the head-only exemption
    (PHASE = WITNESS_DIVERGED — a candidate-selection mutation, never
    a derivation input; scanners skip diverged payments, so the
    quarantine needs no append). Repair = the head rebuild runbook
-   (§6.1 below), triggered by fence collision OR witness divergence;
-   if rebuild does not clear it, only the dual-control door resolves.
+   (§6.1 below), triggered by fence collision OR witness divergence.
+   If rebuild does not clear it, only the dual-control door resolves —
+   reachable because that door ALONE runs under divergence in
+   RECORDING mode: proceeds on the step-2 fold (the stream is the
+   authority), appends the gated pair, rebuilds the head from the
+   post-append stream in the same transaction, clears the quarantine.
    A veto, never an authorization
 4. decide                            -- pure function: fold state -> events
 5. FOR EACH decided event, IN ORDER:
@@ -453,6 +463,16 @@ read under the lock already held):
   LAST_VERSION + 1`; the per-event head effect sets `LAST_VERSION =
   :new.VERSION`. The fence rejects duplicates; this closes holes. The
   drift scan asserts density (`COUNT(*) = MAX(VERSION) = LAST_VERSION`).
+
+**Enforcement point (Oracle-real):** the `:new`-style predicates are
+the SPECIFICATION; the implementation is a COMPOUND trigger validating
+each inserted row at after-statement time against `PAYMENT_EVENT` and
+`PAYMENT_HEAD` (raise = transaction aborts — backstop semantics
+preserved). Per-event apply order means every event is its own
+single-row `INSERT ... VALUES` (no mutating-table bite), and a
+statement guard FORBIDS multi-row inserts into `PAYMENT_EVENT`.
+Real-Oracle proof of this behavior is 00-README checklist item 5
+evidence, not an assumption.
 
 All backstops are independent of fold correctness. Full temporal
 legality beyond this set stays code-enforced — accepted, with
