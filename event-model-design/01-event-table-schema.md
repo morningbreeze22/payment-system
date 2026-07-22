@@ -21,7 +21,7 @@
 |---|---|---|
 | `PAYMENT_EVENT` | append-only, THE authority | everything that ever happened to a payment; per-payment total order |
 | `PAYMENT_HEAD` | ONE mutable row per payment | write serialization lock, money WITNESS, open-request backstop, scanner/UI index — updated in the append transaction; rebuildable from the stream; can VETO a write, never authorize one |
-| `TRADE_HEAD` | one mutable row per trade | TWO watermarks, EACH with digest + storage pointer — accepted (= trade truth; NULL until the first valid snapshot) and seen (newest processed, valid or invalid); the fan-out fence checks SEEN so invalid markers can fan out, and the owner catches up ACCEPTED truth first (§7) |
+| `TRADE_HEAD` | one mutable row per trade | TWO watermarks, EACH with digest + storage pointer — accepted (= trade truth; NULL until the first valid snapshot) and seen (newest processed, valid or invalid); the fan-out fence checks SEEN; invalid markers are appended INSIDE the seen-admission transaction (never by the fan-out, which carries ACCEPTED truth only, §7) |
 | `INBOUND_EVENT_INBOX` | `UNIQUE(SOURCE, EVENT_ID)` | dedup of FEED deliveries only, atomic with processing (§8) |
 
 Everything else — required amount, paid, reserved, phase, markers,
@@ -631,7 +631,14 @@ CREATE TABLE TRADE_HEAD (
 Admission (this table's only writer) and fan-out have an EXPLICIT
 transaction boundary:
 
-- **Admission tx**: validity is judged against the RIGHT watermark —
+- **Admission tx**: SERIALIZED at the trade — its FIRST action is
+  `SELECT FOR UPDATE` (insert-on-first-contact) on `TRADE_HEAD`, held
+  through the comparison, the watermark update, and every
+  in-admission marker append (an unserialized read-compare-update
+  lets two concurrent valid arrivals both judge themselves newer,
+  regress the watermarks, and hand the fence to the stale snapshot);
+  lock order `TRADE_HEAD → PAYMENT_HEAD` (sorted), same as fan-out.
+  Under that lock, validity is judged against the RIGHT watermark —
   a VALID snapshot strictly newer than `LAST_ACCEPTED_SEQ` is
   ADMITTED even when older than `LAST_SEEN_SEQ` (inherited §6.6:
   valid 150 after invalid 200 over accepted 100 must land; judging

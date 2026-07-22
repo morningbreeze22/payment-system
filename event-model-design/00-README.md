@@ -52,7 +52,7 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Twenty-nine external adversarial
+1. **Adversarial review rounds.** Thirty external adversarial
    rounds folded (2026-07-21/22: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
@@ -101,9 +101,12 @@ is needed in either direction.)
    routing + the last predicate restatement; round 28 = 0C/1H — the
    invalid marker scoped to its seen-admission set; round 29 = 0C/1H
    — that set given durable form by SIMPLIFICATION (markers append
-   inside the admission transaction; stream rows = the record) —
-   all closed by mechanism or removal, see `event-model-v2.md` §0;
-   no clean round yet after twenty-nine).
+   inside the admission transaction; stream rows = the record);
+   round 30 = 1C/1H — admission serialized at the trade head (the
+   unserialized watermark compare could regress under concurrency)
+   + the §1 summaries aligned to the in-admission marker rule — all
+   closed by mechanism or removal, see `event-model-v2.md` §0; no
+   clean round yet after thirty).
    The baseline's mechanisms have
    survived MANY more such rounds; additional rounds are required
    before the two are comparable. Still the single largest open

@@ -393,13 +393,24 @@ redelivery re-run); the current-state fan-out carries ACCEPTED truth
 only, and the extractable-key worklist branch moved into admission
 with the markers (§7, 01 §4/§7).
 
+Thirtieth round (2026-07-22): 1 CRITICAL / 1 HIGH — admission never
+explicitly serialized the watermark comparison (two concurrent valid
+arrivals could both judge themselves newer, regress the watermarks,
+and hand the equality fence to the stale snapshot, which then posts
+a cancelled amount): admission now takes `SELECT FOR UPDATE` on
+`TRADE_HEAD` as its FIRST action, held through comparison, update,
+and every in-admission marker, lock order identical to fan-out (§7,
+01 §7); and both §1 structure summaries still authorized the retired
+deferred-marker fan-out — corrected to the round-29 in-admission
+rule (§1, 01 §1).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
 |---|---|---|
 | `PAYMENT_EVENT` | append-only, THE authority | everything that ever happened to a payment; per-payment total order |
 | `PAYMENT_HEAD` | ONE mutable row per payment | write serialization lock, money WITNESS, open-request backstop, scanner/UI index — updated in the append transaction, rebuildable from the stream, NEVER read by a money decision |
-| `TRADE_HEAD` | one mutable row per trade | TWO snapshot watermarks, EACH with its own digest + storage pointer — accepted (`LAST_ACCEPTED_SEQ`, newest VALID snapshot = trade truth; NULL until the first valid one) and seen (`LAST_SEEN_SEQ`, newest processed at all, valid or invalid; `≥` accepted). The fan-out equality fence (§7) checks SEEN, so invalid-snapshot markers CAN fan out without admitting invalid content as truth; the seen digest/pointer make an invalid redelivery deduplicable and its fan-out resumable (a single accepted-only digest would misread an identical invalid redelivery as an upstream defect). With a contractual sequence number there is no tie to adjudicate — an equal-seq redelivery (equal digest, per the SEEN pair) is admitted-without-update; equal seq with different content is an upstream DEFECT (refuse + CRITICAL alert), not a workflow |
+| `TRADE_HEAD` | one mutable row per trade | TWO snapshot watermarks, EACH with its own digest + storage pointer — accepted (`LAST_ACCEPTED_SEQ`, newest VALID snapshot = trade truth; NULL until the first valid one) and seen (`LAST_SEEN_SEQ`, newest processed at all, valid or invalid; `≥` accepted). The fan-out equality fence (§7) checks SEEN; invalid-snapshot markers are appended INSIDE the seen-admission transaction itself (§7 — never by the fan-out, which carries accepted truth only); the seen digest/pointer make an invalid redelivery deduplicable (a single accepted-only digest would misread an identical invalid redelivery as an upstream defect). With a contractual sequence number there is no tie to adjudicate — an equal-seq redelivery (equal digest, per the SEEN pair) is admitted-without-update; equal seq with different content is an upstream DEFECT (refuse + CRITICAL alert), not a workflow |
 | `INBOUND_EVENT_INBOX` | `UNIQUE(source, event_id)` | dedup of FEED deliveries only, atomic with processing (§7) |
 
 Everything else — required amount, paid, reserved, phase, markers,
@@ -1215,8 +1226,17 @@ healthy payments.
   delivery parks as a multiplicity anomaly, and dual-control
   adjudicates ownership — loud and blocked, never a silent booking.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
-  EXPLICIT transaction boundary. ADMISSION compares an arrival
-  against the RIGHT watermark: acceptance is judged against
+  EXPLICIT transaction boundary. ADMISSION is SERIALIZED at the trade:
+  its FIRST action is `SELECT FOR UPDATE` (insert-on-first-contact) on
+  the `TRADE_HEAD` row, held through the watermark comparison, the
+  watermark update, AND every in-admission marker append — an
+  unserialized read-compare-then-update lets two concurrent valid
+  arrivals (200 and delayed 150) both judge themselves newer, commit
+  in either order, REGRESS the watermarks, and hand the equality
+  fence to the stale snapshot, which then posts an amount the newer
+  truth cancelled. The lock order is `TRADE_HEAD → PAYMENT_HEAD`
+  (sorted) for admission exactly as for fan-out. Under that lock,
+  admission compares the arrival against the RIGHT watermark: acceptance is judged against
   `LAST_ACCEPTED_SEQ` — a VALID snapshot strictly newer than accepted
   truth is ADMITTED even when an even-newer INVALID snapshot was
   already seen (inherited §6.6: valid 150 after invalid 200 over
