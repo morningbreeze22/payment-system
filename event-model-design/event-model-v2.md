@@ -99,8 +99,22 @@ marker with NULL ordinal, no impossible outcome pair (§2.2);
 `ESCALATION_MARKED` given its real inherited fold effect — the episode
 transitions to ops-owned BLOCKED once per episode (01 §4);
 `REQUIRED_AT_OPEN` required + head-equality-checked at opening (§2.2);
-feed multiplicity counted in DISTINCT payments, event index consulted
-only on zero head matches (§8).
+feed multiplicity counted in DISTINCT payments (§8).
+
+Sixth round (2026-07-21, targeting the round-5 fixes): 3 CRITICAL /
+3 HIGH, all closed — feed candidates = UNION of head and event-index
+matches, both always consulted, unmatched terminal evidence paged
+never silently acked (§8); `REJECTED_PROVIDER` evidence must be
+terminal-class AND post-date the latest `POST_STARTED` —
+`BUSINESS_REJECT` never qualifies (§5.3); archival eligibility also
+waits out every evidence channel's lateness bound and the archive
+stays fold-readable, with the deploy gate covering archived streams
+(§4.2, §9); pre-open `ENRICH_FAILED` carries the seq it enriched for
+(marker provenance + strictly-newer unlatch) and ordinal-bearing
+`ENRICH_FAILED` joined the open-ordinal trigger (§2.2, §5.3);
+`ESCALATION_MARKED` reverted to §9.3-verbatim semantics — escalated
+MAYBE stays resolver-owned, the resolver keeps querying, no separate
+unblock exists (01 §4).
 
 ## 1. Physical structures — four, same count as v4
 
@@ -191,7 +205,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | REQUIRED_AMOUNT_SET | N | N | R | R (≥0; 0 = removal) | N | N | SYSTEM |
 | SNAPSHOT_INVALID_MARKED | N | N | R | N | N | N | SYSTEM |
 | REQUEST_OPENED | N | R | N | R (>0) | R | R | SYSTEM/OPS |
-| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O — NULL when enrichment fails BEFORE any opening (no request exists to cite; fold effect = latch `validation_failed`, block new opens, NO outcome pair — an outcome would need an open ordinal and a payload hash that was never assembled); R when re-enrichment fails for an OPEN request | N | N | N | N | SYSTEM |
+| ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O — NULL when enrichment fails BEFORE any opening (no request exists to cite; fold effect = latch `validation_failed`, block new opens, NO outcome pair — an outcome would need an open ordinal and a payload hash that was never assembled); R when re-enrichment fails for an OPEN request (then open-ordinal trigger-checked like attempt events) | R when ORDINAL is NULL — the seq of the required-amount truth being enriched, so the marker has replayable provenance and unlatches on strictly NEWER truth (without it a delayed stale failure could outlive the correction that superseded it); N when ORDINAL is R | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | SYSTEM |
 | POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | SYNC_RESPONSE |
 | QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key that was QUERIED — echo-checked, §5.3) | N | QUERY |
@@ -303,8 +317,11 @@ frozen; no consumer (UI, scanner, resolver, ops surface) may
 re-implement any part of it. Two standing controls:
 
 1. **Deploy gate:** before a release containing a fold change goes
-   live, re-fold EVERY payment stream still within operational
-   retention — open AND terminal, no sampling — and compare against
+   live, re-fold EVERY payment stream with a head row — open,
+   terminal, AND archived (archive storage is fold-readable, §9;
+   excluding archived-but-reopenable streams would convert a
+   deploy-time gate into a production WITNESS_DIVERGED liveness
+   failure on first later touch), no sampling — and compare against
    the `PAYMENT_HEAD` witness (§5). Any money-field difference is a
    page and blocks the deploy. Sampling is forbidden: a sampled gate
    provably lets a terminal-stream fold defect deploy silently and
@@ -472,11 +489,11 @@ checks becomes DB-enforceable as BEFORE-INSERT triggers on
 already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
-  `OUTCOME_RECORDED` / `SETTLED` require `OPEN_REQUEST_ORDINAL =
-  :new.REQUEST_ORDINAL` (except the terminal-evidence contradiction
-  path, which must instead append `EVIDENCE_CONTRADICTION_RECORDED` —
-  the trigger enforces that routing); `REQUEST_OPENED` requires it
-  NULL (§5.2).
+  `OUTCOME_RECORDED` / `SETTLED` — and `ENRICH_FAILED` when it names
+  an ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL`
+  (except the terminal-evidence contradiction path, which must
+  instead append `EVIDENCE_CONTRADICTION_RECORDED` — the trigger
+  enforces that routing); `REQUEST_OPENED` requires it NULL (§5.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — for ANY ordinal
   state — is admitted only when the row at `VERSION − 1` is
@@ -515,10 +532,17 @@ already held):
   `SUPERSEDED_OPS` requires no `POST_STARTED` — a posted claim may
   only close on evidence or through the verified door;
   `REJECTED_PROVIDER` requires a same-ordinal first-party negative
-  evidence row (`POST_RESULT_RECORDED` reject-class or
-  `QUERY_RESULT_RECORDED(REJECTED)`). Without this set, one wrong
-  "it was never sent" decision after a crash releases an executed
-  request's reservation and the successor pays a second time.
+  evidence row that POST-DATES THE LATEST ATTEMPT — evidence
+  `VERSION >` the version of the ordinal's latest `POST_STARTED` —
+  and only terminal-class evidence qualifies:
+  `POST_RESULT_RECORDED(DEFINITIVE_REJECT)` or
+  `QUERY_RESULT_RECORDED(REJECTED)`; `BUSINESS_REJECT` NEVER
+  qualifies (it is retry-class — its negative fact expires the
+  moment a later attempt starts, and consuming it would let a lost
+  response on attempt 2 be closed by attempt 1's stale reject).
+  Without this set, one wrong "it was never sent" / "it was
+  rejected" decision after a crash releases an executed request's
+  reservation and the successor pays a second time.
 - **Version continuity**: every insert requires `:new.VERSION =
   LAST_VERSION + 1`, and the per-event head effect sets
   `LAST_VERSION = :new.VERSION` — closing the skipped-slot gap the
@@ -663,13 +687,18 @@ healthy payments.
   payment — and the head cannot be stale by more than an uncommitted
   transaction (§5).
 - **Feed matching multiplicity (explicit, counted in PAYMENTS not
-  rows):** match UETR against the head first; ONLY on 0 head matches
-  consult the event index, and there count DISTINCT `PAYMENT_KEY`s —
-  one payment legitimately carries the same UETR on several events
-  (acceptance, query, outcome), which must resolve as ONE candidate,
-  not a false 3-row anomaly. 0 payments → unmatched path (ack;
-  §9-style query sweep recovers), 1 → fold + append under the lock,
-  2+ DISTINCT payments → CRITICAL anomaly, no state change.
+  rows, over the UNION of both sources):** the candidate set is
+  DISTINCT `PAYMENT_KEY`s from head matches ∪ event-index matches —
+  BOTH always consulted (a head-first shortcut would return one head
+  match and never see that the event index names a DIFFERENT payment
+  for the same UETR, silently booking the wrong one; two indexed
+  queries are trivial at this volume). One payment carrying the same
+  UETR on several events resolves as ONE candidate. 0 payments →
+  unmatched path — and unmatched TERMINAL-class evidence (a
+  settlement no live or archived identity claims) is inbox-recorded
+  AND paged to ops, never silently acked; 1 → fold + append under
+  the lock; 2+ DISTINCT payments → CRITICAL anomaly, no state
+  change.
 
 ## 9. Operational inheritances (unchanged from v4, restated as binding)
 
@@ -701,13 +730,20 @@ re-admit the trade as first contact, re-deal version 1 and ordinal 1,
 and fork the archived stream. Only `PAYMENT_EVENT` rows archive, and
 only when the payment is terminal AND the trade is past the upstream
 reprocessing window AND past the engine's key-retention window
-(CT-04). Any write touching a payment with archived events requires
-REHYDRATION first: restore the stream under the head lock and prove
-completeness by version continuity up to `LAST_VERSION`. The heads
-never forget, so counters continue and nothing resets. Designing
-these rules precedes the first production event (they are cheap on
-paper and unfixable retroactively); executing archival stays a
-far-future operation at this volume.
+(CT-04) AND past every evidence channel's contractual lateness bound
+(feed/Kafka retention included — archiving inside the window would
+make a late settlement's UETR unmatchable, silently ack it, and let a
+later snapshot open a successor against understated paid money). Any
+write touching a payment with archived events requires REHYDRATION
+first: restore the stream under the head lock and prove completeness
+by version continuity up to `LAST_VERSION`. Archive storage stays
+FOLD-READABLE for governance reads — the §4.2 deploy gate and feed
+identity matching cover archived streams too; only the hot write path
+requires rehydration. The heads never forget, so counters continue
+and nothing resets. Designing these rules precedes the first
+production event (they are cheap on paper and unfixable
+retroactively); executing archival stays a far-future operation at
+this volume.
 
 ## 10. Honesty box v2 — what remains accepted, with mitigations
 
