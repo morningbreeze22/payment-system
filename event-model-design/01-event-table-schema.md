@@ -174,14 +174,14 @@ a matrix/DDL mismatch is a defect.
 | REQUEST_OPENED | N | R | N | R (>0) | R | R | N | R | SYSTEM/OPS |
 | ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O (NULL = failure BEFORE any opening; R when re-enrichment fails for an open request — then open-ordinal trigger-checked) | R when ORDINAL NULL (the seq of the truth being enriched — marker provenance; unlatches on strictly newer truth); N when ORDINAL R | N | N | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | N | N | SYSTEM |
-| POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | O (ACCEPTED only) | N | SYNC_RESPONSE |
+| POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | R when ACCEPTED, N otherwise | N | SYNC_RESPONSE |
 | QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key QUERIED — echo-checked §6.3) | N | O (EXECUTED/ACCEPTED only) | N | QUERY |
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated) | N | N | O (executed-class only) | N | R (any) |
-| SETTLED | N | R | N | R | N | N | O | N | FEED |
-| FEED_RESULT_RECORDED | R: ACCEPTED, REJECTED | R | N | N | N | N | O | N | FEED |
-| SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | O | N | FEED |
-| EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME, FEED_REJECTS_OUTCOME | R | N | O | N | N | O | N | R (any) |
+| SETTLED | N | R | N | R | N | N | R (the delivery was matched BY it) | N | FEED |
+| FEED_RESULT_RECORDED | R: ACCEPTED, REJECTED | R | N | N | N | N | R | N | FEED |
+| SETTLEMENT_MISMATCH_RECORDED | N | R | N | R (the wrong amount) | N | N | R | N | FEED |
+| EVIDENCE_CONTRADICTION_RECORDED | R: SETTLED_AFTER_TERMINAL, MISMATCH_AFTER_TERMINAL, QUERY_CONTRADICTS_OUTCOME, FEED_REJECTS_OUTCOME | R | N | O | N | N | R when EVIDENCE_SOURCE = FEED, O otherwise | N | R (any) |
 | ESCALATION_MARKED | N | R | N | N | N | N | N | N | SYSTEM |
 | OPS_VERIFIED_OUTCOME_APPLIED | N | R | N | N | N | N | N | N | OPS |
 | OPS_RETRY_REARMED / OPS_BLOCKED / OPS_MARKER_CLEARED / OPS_ANNOTATED | N | O | N | N | N | N | N | N | OPS |
@@ -623,21 +623,38 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   EV_CLASS     VARCHAR2(20),
   EV_AMOUNT    NUMBER(18,3),
   EV_PAYLOAD_REF VARCHAR2(200),
+  -- resolution provenance (which exit closed an unmatched row):
+  RES_PAYMENT_KEY  VARCHAR2(200),             -- RESOLVED_MATCHED: the append it rode with
+  RES_VERSION      NUMBER(10),
+  DISPOSED_BY      VARCHAR2(64),              -- RESOLVED_DISPOSED: audited ops exit
+  DISPOSED_APPROVAL VARCHAR2(64),
+  DISPOSED_REASON  VARCHAR2(400),
   CONSTRAINT INB_UQ UNIQUE (SOURCE, EVENT_ID),
   CONSTRAINT INB_STATUS_CK CHECK (MATCH_STATUS IN
-      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED')),
+      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED_MATCHED','RESOLVED_DISPOSED')),
   -- evidence content is SHAPE-BOUND per status, with a CLOSED class
-  -- vocabulary: an unresolvable purge-exempt row must be
+  -- vocabulary AND resolution provenance bound to its exit: an
+  -- unresolvable, unauditable, or free-standing resolved row must be
   -- schema-impossible
   CONSTRAINT INB_SHAPE_CK CHECK (
       (MATCH_STATUS = 'PROCESSED'
         AND EV_UETR IS NULL AND EV_CLASS IS NULL
-        AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL)
-   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED')
+        AND EV_AMOUNT IS NULL AND EV_PAYLOAD_REF IS NULL
+        AND RES_PAYMENT_KEY IS NULL AND DISPOSED_BY IS NULL)
+   OR (MATCH_STATUS IN ('UNMATCHED_TERMINAL','RESOLVED_MATCHED','RESOLVED_DISPOSED')
         AND EV_UETR IS NOT NULL
         AND EV_CLASS IN ('SETTLED','REJECTED','MISMATCH')
         AND EV_PAYLOAD_REF IS NOT NULL
-        AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)))
+        AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)
+        AND (MATCH_STATUS != 'UNMATCHED_TERMINAL'
+             OR (RES_PAYMENT_KEY IS NULL AND DISPOSED_BY IS NULL))
+        AND (MATCH_STATUS != 'RESOLVED_MATCHED'
+             OR (RES_PAYMENT_KEY IS NOT NULL AND RES_VERSION IS NOT NULL
+                 AND DISPOSED_BY IS NULL))
+        AND (MATCH_STATUS != 'RESOLVED_DISPOSED'
+             OR (DISPOSED_BY IS NOT NULL AND DISPOSED_APPROVAL IS NOT NULL
+                 AND DISPOSED_REASON IS NOT NULL
+                 AND RES_PAYMENT_KEY IS NULL))))
 );
 ```
 
@@ -646,15 +663,18 @@ paging is LEVEL-TRIGGERED — a sweep re-runs matching (from the stored
 evidence columns) and pages while any `UNMATCHED_TERMINAL` row exists
 (re-match finds a head created later; a crash between commit and page
 loses nothing, and redelivery hitting the inbox dedup cannot silently
-bury an evidence fact that was never resolved). Resolution is ATOMIC:
-the re-match transaction appends the resulting event under the
-payment's head lock AND flips the row to `RESOLVED` in the SAME
-transaction — never flag-first, and never to `PROCESSED` (the shape
-check reserves that for content-free rows; the evidence trail is
-RETAINED on resolved rows for audit — a two-state flip was
-schema-illegal as one update). Ops disposition is the only other
-closer. Inbox purge NEVER removes an `UNMATCHED_TERMINAL` row;
-`PROCESSED` and `RESOLVED` rows age out on the retention chain.
+bury an evidence fact that was never resolved). Resolution is TWO
+schema-distinguished exits, both retaining the evidence trail:
+`RESOLVED_MATCHED` — the sweep's exit, appending the resulting event
+under the payment's head lock and flipping the row in the SAME
+transaction, with the row recording WHICH append (`RES_PAYMENT_KEY` +
+`RES_VERSION`) so the flag is never free-standing; and
+`RESOLVED_DISPOSED` — the audited ops exit for genuinely foreign
+evidence (actor + four-eyes approval + reason, shape-required). A
+bare unaudited "resolved" flag would let one wrong ops click bury
+live terminal evidence unrecoverably. Inbox purge NEVER removes an
+`UNMATCHED_TERMINAL` row; the other three statuses age out on the
+retention chain.
 
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction

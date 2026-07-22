@@ -173,6 +173,17 @@ downgrade gate's acceptance list (§2.1, §2.2, §5.3); inbox resolution
 was schema-illegal as specified) and the EV class vocabulary is
 CHECK-closed (§7).
 
+Eleventh round (2026-07-22, targeting the round-10 fixes):
+1 CRITICAL / 1 HIGH / 1 LOW, all closed — UETR REQUIRED on every
+feed-matched evidence event and on sync acceptance (a NULL-UETR feed
+event was the one door around the §5.3 association gate; recording a
+UETR-matched delivery without its UETR discards the identity it was
+matched by) (§2.2); inbox resolution split into RESOLVED_MATCHED
+(append-bound: records payment key + version of the append it rode
+with) and RESOLVED_DISPOSED (ops exit: actor + four-eyes approval +
+reason, shape-CHECKed) (§7); the README round-count header fixed
+(LOW).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -279,6 +290,7 @@ silently passes); every N cell is a real CHECK, not a convention.
 | ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O — NULL when enrichment fails BEFORE any opening (no request exists to cite; fold effect = latch `validation_failed`, block new opens, NO outcome pair — an outcome would need an open ordinal and a payload hash that was never assembled); R when re-enrichment fails for an OPEN request (then open-ordinal trigger-checked like attempt events) | R when ORDINAL is NULL — the seq of the required-amount truth being enriched, so the marker has replayable provenance and unlatches on strictly NEWER truth (without it a delayed stale failure could outlive the correction that superseded it); N when ORDINAL is R | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | SYSTEM |
 | POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | SYNC_RESPONSE |
+| *(UETR rule for evidence events)* | *UETR is REQUIRED — never optional — on every feed-matched evidence event (`SETTLED`, `FEED_RESULT_RECORDED` both codes, `SETTLEMENT_MISMATCH_RECORDED`, feed-sourced contradictions) and on `POST_RESULT_RECORDED(ACCEPTED)`: the delivery was MATCHED BY its UETR, and recording it without the UETR discards the identity the §5.3 association gate keys on — a NULL-UETR feed event was the one door around that gate* | | | | | | |
 | QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key that was QUERIED — echo-checked, §5.3) | N | QUERY |
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated — §4) | N | N | R |
@@ -788,13 +800,18 @@ healthy payments.
   optional only for reject-class), the class drawn from the CLOSED
   vocabulary (`SETTLED` / `REJECTED` / `MISMATCH` — a misspelled
   class would be a permanently unroutable purge-exempt row), and NULL
-  on plain PROCESSED rows. Resolution flips the row to a THIRD
-  status, `RESOLVED` — evidence content RETAINED for audit (clearing
-  it to satisfy a two-state shape check would be schema-illegal as
-  one update and destroys the trail; RESOLVED ages out on the purge
-  chain like PROCESSED) — in ONE transaction with the resulting
-  append under the payment's head lock (the normal write path).
-  Inbox purge NEVER removes an UNMATCHED_TERMINAL row.
+  on plain PROCESSED rows. Resolution is TWO schema-distinguished
+  exits, evidence content RETAINED on both (a bare "resolved" flag
+  would let one wrong ops click bury live terminal evidence
+  unrecoverably and unauditably): `RESOLVED_MATCHED` — the sweep's
+  exit, in ONE transaction with the resulting append under the
+  payment's head lock, the row recording WHICH append (payment key +
+  version), so the flag is bound to an event, never free-standing;
+  and `RESOLVED_DISPOSED` — the ops exit for genuinely foreign
+  evidence, requiring actor + four-eyes approval reference + reason
+  on the row, shape-CHECKed like every other money-adjacent ops
+  action. Both age out on the purge chain; inbox purge NEVER removes
+  an UNMATCHED_TERMINAL row.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
   EXPLICIT transaction boundary. The ADMISSION transaction updates
   `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +

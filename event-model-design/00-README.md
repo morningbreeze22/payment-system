@@ -52,16 +52,18 @@ derived reference and the mismatch is a defect in `01`.
 what actually remains. This system is not live — no migration design
 is needed in either direction.)
 
-1. **Adversarial review rounds.** Seven external adversarial rounds
-   folded (2026-07-21: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
+1. **Adversarial review rounds.** Eleven external adversarial rounds
+   folded (2026-07-21/22: round 1 = 3C/4H/1M; round 2 = 3C/3H/1M;
    round 3 = 2C/4H/1M; round 4 = 0C/5H; round 5 fresh-eyes sweep =
    2C/2H/2M; round 6 = 3C/3H; round 7 = 2C/4H/1M, which killed the
    archival mechanism outright; round 8 = 3C/4H/1L; round 9 =
    2C/2H, which retracted round 8's event-level UETR claim for the
    head-level one; round 10 = 2C/4H (injective encoding,
-   UETR-association binding, feed ACCEPTED, RESOLVED inbox status) —
-   all closed by mechanism or removal, see `event-model-v2.md` §0;
-   no clean round yet after ten). The baseline's mechanisms have
+   UETR-association binding, feed ACCEPTED, RESOLVED inbox status);
+   round 11 = 1C/1H/1L (UETR required on feed evidence; audited
+   two-exit inbox resolution) — all closed by mechanism or removal,
+   see `event-model-v2.md` §0; severity trend collapsing but no
+   clean round yet after eleven). The baseline's mechanisms have
    survived MANY more such rounds; additional rounds are required
    before the two are comparable. Still the single largest open
    item.
