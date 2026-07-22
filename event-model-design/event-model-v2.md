@@ -184,6 +184,19 @@ with) and RESOLVED_DISPOSED (ops exit: actor + four-eyes approval +
 reason, shape-CHECKed) (§7); the README round-count header fixed
 (LOW).
 
+Twelfth round (2026-07-22, targeting the round-11 fixes): 1 CRITICAL
+/ 3 HIGH, all closed — resolution provenance VERIFIED, not
+decorative: the cited event must correspond to the stored evidence in
+class, UETR, and amount (a wrong mapping of SETTLED evidence to a
+fabricated rejection dies at the flip) (§7); `RESOLVED_AGREED` added
+— the benign no-op path appends nothing, so agreeing evidence cites
+the EXISTING terminal it agrees with (§7); `RESOLVED_DISPOSED` bound
+to the inherited §9.3 approval protocol (consumption CAS, not a
+non-null string) (§7); the `PE_SHAPE_RESULT_CK` UETR conjunct fixed
+to R-when-ACCEPTED both ways, with the cell's dependence on the §18
+"acceptance always carries UETR" upstream ask stated fail-closed
+(01 §2, §2.2).
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -800,18 +813,39 @@ healthy payments.
   optional only for reject-class), the class drawn from the CLOSED
   vocabulary (`SETTLED` / `REJECTED` / `MISMATCH` — a misspelled
   class would be a permanently unroutable purge-exempt row), and NULL
-  on plain PROCESSED rows. Resolution is TWO schema-distinguished
-  exits, evidence content RETAINED on both (a bare "resolved" flag
+  on plain PROCESSED rows. Resolution is THREE schema-distinguished
+  exits, evidence content RETAINED on all (a bare "resolved" flag
   would let one wrong ops click bury live terminal evidence
-  unrecoverably and unauditably): `RESOLVED_MATCHED` — the sweep's
-  exit, in ONE transaction with the resulting append under the
-  payment's head lock, the row recording WHICH append (payment key +
-  version), so the flag is bound to an event, never free-standing;
-  and `RESOLVED_DISPOSED` — the ops exit for genuinely foreign
-  evidence, requiring actor + four-eyes approval reference + reason
-  on the row, shape-CHECKed like every other money-adjacent ops
-  action. Both age out on the purge chain; inbox purge NEVER removes
-  an UNMATCHED_TERMINAL row.
+  unrecoverably and unauditably):
+  - `RESOLVED_MATCHED` — the sweep's exit, in ONE transaction with
+    the resulting append under the payment's head lock, the row
+    recording WHICH append (payment key + version) — and the
+    reference is VERIFIED, not decorative: the resolution trigger
+    reads the cited event and requires CLASS CORRESPONDENCE
+    (EV SETTLED → `SETTLED`; EV REJECTED →
+    `FEED_RESULT_RECORDED(REJECTED)`; EV MISMATCH →
+    `SETTLEMENT_MISMATCH_RECORDED`), UETR equality, and amount
+    equality — a wrong decision mapping stored SETTLED evidence to a
+    fabricated feed REJECTION dies at the flip, in the same
+    transaction as its append.
+  - `RESOLVED_AGREED` — the exit for evidence that AGREES with an
+    already-recorded terminal (the §6 benign no-op: nothing may be
+    appended, so there is no new append to cite): the row cites the
+    EXISTING terminal event it agrees with, verified by the same
+    class/UETR/amount correspondence. Without this exit, correctly
+    handled agreeing evidence would page forever with no legal
+    close.
+  - `RESOLVED_DISPOSED` — the ops exit for genuinely foreign
+    evidence: actor + approval + reason on the row, AND the approval
+    goes through the INHERITED v4 §9.3 protocol — an approval record
+    bound to exactly this (source, event id) and the disposal
+    action, consumed APPROVED → CONSUMED by CAS in the same
+    transaction. The inbox columns are the echo; the approval-store
+    CAS is the enforcement — a nonexistent, expired, consumed, or
+    other-row approval reference fails the consumption CAS, exactly
+    as it would on a payment-event ops action.
+  All three age out on the purge chain; inbox purge NEVER removes an
+  UNMATCHED_TERMINAL row.
 - **Snapshot deliveries (multi-payment):** NO inbox row at all, and an
   EXPLICIT transaction boundary. The ADMISSION transaction updates
   `LAST_SEEN_SEQ` always, and additionally `LAST_ACCEPTED_SEQ` +

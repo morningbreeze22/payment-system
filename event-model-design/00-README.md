@@ -61,9 +61,10 @@ is needed in either direction.)
    head-level one; round 10 = 2C/4H (injective encoding,
    UETR-association binding, feed ACCEPTED, RESOLVED inbox status);
    round 11 = 1C/1H/1L (UETR required on feed evidence; audited
-   two-exit inbox resolution) — all closed by mechanism or removal,
-   see `event-model-v2.md` §0; severity trend collapsing but no
-   clean round yet after eleven). The baseline's mechanisms have
+   two-exit inbox resolution); round 12 = 1C/3H (verified resolution
+   provenance, RESOLVED_AGREED, approval-CAS-bound disposition,
+   R-both-ways UETR conjunct) — all closed by mechanism or removal,
+   see `event-model-v2.md` §0; no clean round yet after twelve). The baseline's mechanisms have
    survived MANY more such rounds; additional rounds are required
    before the two are comparable. Still the single largest open
    item.

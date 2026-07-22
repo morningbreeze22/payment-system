@@ -102,7 +102,11 @@ CREATE TABLE PAYMENT_EVENT (
           AND EVIDENCE_SOURCE = 'SYNC_RESPONSE'
           AND UPSTREAM_SEQ IS NULL AND AMOUNT IS NULL
           AND PAYLOAD_HASH IS NULL AND REQUIRED_AT_OPEN IS NULL
-          AND (EVENT_CODE = 'ACCEPTED' OR UETR IS NULL)))  -- O-only-when rule
+          AND ((EVENT_CODE = 'ACCEPTED' AND UETR IS NOT NULL)
+            OR (EVENT_CODE != 'ACCEPTED' AND UETR IS NULL))))
+          -- R-when-ACCEPTED both ways: the earlier one-sided form
+          -- (code='ACCEPTED' OR UETR IS NULL) accepted a NULL-UETR
+          -- acceptance, silently bypassing the association gate
   , CONSTRAINT PE_SHAPE_OPEN_CK CHECK (EVENT_TYPE != 'REQUEST_OPENED'
       OR (EVENT_CODE IS NULL AND REQUEST_ORDINAL IS NOT NULL
           AND AMOUNT IS NOT NULL AND AMOUNT > 0
@@ -174,7 +178,7 @@ a matrix/DDL mismatch is a defect.
 | REQUEST_OPENED | N | R | N | R (>0) | R | R | N | R | SYSTEM/OPS |
 | ENRICH_FAILED | R: TRANSIENT, DEFINITIVE | O (NULL = failure BEFORE any opening; R when re-enrichment fails for an open request — then open-ordinal trigger-checked) | R when ORDINAL NULL (the seq of the truth being enriched — marker provenance; unlatches on strictly newer truth); N when ORDINAL R | N | N | N | N | N | SYSTEM |
 | POST_STARTED | N | R | N | N | R | R | N | N | SYSTEM |
-| POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | R when ACCEPTED, N otherwise | N | SYNC_RESPONSE |
+| POST_RESULT_RECORDED | R: ACCEPTED, BUSINESS_REJECT, DEFINITIVE_REJECT, AMBIGUOUS, COLLISION, UNMAPPED | R | N | N | R | N | R when ACCEPTED, N otherwise — R depends on the §18 upstream ask "acceptance response always carries its UETR" (fail-closed default: R; if the confirmed answer is "may be absent", this cell relaxes to O and the association gate keys on presence) | N | SYNC_RESPONSE |
 | QUERY_RESULT_RECORDED | R: EXECUTED, REJECTED, ACCEPTED, NOT_FOUND, LOOKBACK_EXPIRED | R | N | N | R (the key QUERIED — echo-checked §6.3) | N | O (EXECUTED/ACCEPTED only) | N | QUERY |
 | DOWNGRADED_FOR_REPOST | N | R | N | N | N | N | N | N | SYSTEM/OPS |
 | OUTCOME_RECORDED | R: EXECUTED, REJECTED_VALIDATION, REJECTED_PROVIDER, CANCELLED_NOT_SUBMITTED, SUPERSEDED_OPS, PLATFORM_VERIFIED_EXECUTED, PLATFORM_VERIFIED_NOT_EXECUTED | R | N | R (the request amount, restated) | N | N | O (executed-class only) | N | R (any) |
@@ -631,7 +635,8 @@ CREATE TABLE INBOUND_EVENT_INBOX (
   DISPOSED_REASON  VARCHAR2(400),
   CONSTRAINT INB_UQ UNIQUE (SOURCE, EVENT_ID),
   CONSTRAINT INB_STATUS_CK CHECK (MATCH_STATUS IN
-      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED_MATCHED','RESOLVED_DISPOSED')),
+      ('PROCESSED','UNMATCHED_TERMINAL','RESOLVED_MATCHED',
+       'RESOLVED_AGREED','RESOLVED_DISPOSED')),
   -- evidence content is SHAPE-BOUND per status, with a CLOSED class
   -- vocabulary AND resolution provenance bound to its exit: an
   -- unresolvable, unauditable, or free-standing resolved row must be
@@ -648,7 +653,7 @@ CREATE TABLE INBOUND_EVENT_INBOX (
         AND (EV_CLASS = 'REJECTED' OR EV_AMOUNT IS NOT NULL)
         AND (MATCH_STATUS != 'UNMATCHED_TERMINAL'
              OR (RES_PAYMENT_KEY IS NULL AND DISPOSED_BY IS NULL))
-        AND (MATCH_STATUS != 'RESOLVED_MATCHED'
+        AND (MATCH_STATUS NOT IN ('RESOLVED_MATCHED','RESOLVED_AGREED')
              OR (RES_PAYMENT_KEY IS NOT NULL AND RES_VERSION IS NOT NULL
                  AND DISPOSED_BY IS NULL))
         AND (MATCH_STATUS != 'RESOLVED_DISPOSED'
@@ -663,18 +668,28 @@ paging is LEVEL-TRIGGERED — a sweep re-runs matching (from the stored
 evidence columns) and pages while any `UNMATCHED_TERMINAL` row exists
 (re-match finds a head created later; a crash between commit and page
 loses nothing, and redelivery hitting the inbox dedup cannot silently
-bury an evidence fact that was never resolved). Resolution is TWO
-schema-distinguished exits, both retaining the evidence trail:
+bury an evidence fact that was never resolved). Resolution is THREE
+schema-distinguished exits, all retaining the evidence trail:
 `RESOLVED_MATCHED` — the sweep's exit, appending the resulting event
 under the payment's head lock and flipping the row in the SAME
-transaction, with the row recording WHICH append (`RES_PAYMENT_KEY` +
-`RES_VERSION`) so the flag is never free-standing; and
-`RESOLVED_DISPOSED` — the audited ops exit for genuinely foreign
-evidence (actor + four-eyes approval + reason, shape-required). A
-bare unaudited "resolved" flag would let one wrong ops click bury
-live terminal evidence unrecoverably. Inbox purge NEVER removes an
-`UNMATCHED_TERMINAL` row; the other three statuses age out on the
-retention chain.
+transaction, the cited (`RES_PAYMENT_KEY`, `RES_VERSION`) VERIFIED by
+the resolution trigger for class correspondence (SETTLED→`SETTLED`,
+REJECTED→`FEED_RESULT_RECORDED(REJECTED)`,
+MISMATCH→`SETTLEMENT_MISMATCH_RECORDED`), UETR equality, and amount
+equality — a wrong mapping of stored SETTLED evidence to a fabricated
+rejection dies at the flip; `RESOLVED_AGREED` — for evidence agreeing
+with an already-recorded terminal (the benign no-op path appends
+nothing, so this exit cites and verifies the EXISTING terminal
+instead — without it, correctly handled agreeing evidence pages
+forever); and `RESOLVED_DISPOSED` — the ops exit for genuinely
+foreign evidence: actor + approval + reason, with the approval going
+through the INHERITED §9.3 protocol (bound to exactly this (source,
+event id) + action, consumed APPROVED→CONSUMED by CAS in the same
+transaction — the columns are the echo, the approval-store CAS is
+the enforcement). A bare unaudited "resolved" flag would let one
+wrong ops click bury live terminal evidence unrecoverably. Inbox
+purge NEVER removes an `UNMATCHED_TERMINAL` row; the other statuses
+age out on the retention chain.
 
 - **Feed deliveries (single-payment):** the inbox INSERT rides the
   SAME transaction as the resulting append (or the same transaction
