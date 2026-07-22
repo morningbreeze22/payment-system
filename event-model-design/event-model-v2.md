@@ -363,6 +363,15 @@ with the acceptance-exclusion conjunct) lives in exactly TWO places —
 arms, which is also the structural fix for the four rounds of
 restatement drift.
 
+Twenty-seventh round (2026-07-22): 0 CRITICAL / 1 HIGH / 1 LOW —
+`SETTLEMENT_MISMATCH_RECORDED` joined the open-ordinal trigger set
+(a mismatch against a CLOSED ordinal could commit as a free-standing
+park with no §6 exit instead of routing to
+`MISMATCH_AFTER_TERMINAL`); the last arm-level rendering of the
+release predicate (01 §6.3) reduced to a citation (LOW). The
+round-26 acceptance exclusion held under the downgrade-cycle attack,
+and the full gate inventory checked sound.
+
 ## 1. Physical structures — four, same count as v4
 
 | Structure | Kind | Role |
@@ -810,15 +819,19 @@ already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
   `QUERY_RESULT_RECORDED` / `OUTCOME_RECORDED` / `SETTLED` /
-  `FEED_RESULT_RECORDED` — and `ENRICH_FAILED` when it names an
-  ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL`
+  `FEED_RESULT_RECORDED` / `SETTLEMENT_MISMATCH_RECORDED` — and
+  `ENRICH_FAILED` when it names an ordinal — require
+  `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL`
   (except the terminal-evidence contradiction path, which must
   instead append `EVIDENCE_CONTRADICTION_RECORDED` — the trigger
   enforces that routing; omitting `FEED_RESULT_RECORDED` let a feed
   rejection be recorded against a CLOSED executed ordinal without
   the park, and omitting `QUERY_RESULT_RECORDED` let a query result
   attach a FIRST UETR claim to an arbitrary never-opened ordinal,
-  wedging the real request's terminal evidence);
+  wedging the real request's terminal evidence; omitting
+  `SETTLEMENT_MISMATCH_RECORDED` let a mismatch against a CLOSED
+  ordinal commit as a free-standing park with NO §6 exit instead of
+  routing to `MISMATCH_AFTER_TERMINAL`);
   `REQUEST_OPENED` requires it NULL (§5.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` — for ANY ordinal

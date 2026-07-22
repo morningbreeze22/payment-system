@@ -489,14 +489,16 @@ read under the lock already held):
 
 - **Open-ordinal**: `POST_STARTED` / `POST_RESULT_RECORDED` /
   `QUERY_RESULT_RECORDED` / `OUTCOME_RECORDED` / `SETTLED` /
-  `FEED_RESULT_RECORDED` — and `ENRICH_FAILED` when it names an
-  ordinal — require `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` —
+  `FEED_RESULT_RECORDED` / `SETTLEMENT_MISMATCH_RECORDED` — and
+  `ENRICH_FAILED` when it names an ordinal — require
+  `OPEN_REQUEST_ORDINAL = :new.REQUEST_ORDINAL` —
   except the contradiction path, which must instead append
   `EVIDENCE_CONTRADICTION_RECORDED` (routing enforced; a feed
-  rejection against a CLOSED executed ordinal must park, and a query
+  rejection against a CLOSED executed ordinal must park, a query
   result must not attach a first UETR claim to a never-opened
-  ordinal, wedging the real request's evidence); `REQUEST_OPENED`
-  requires the column NULL (§6.2).
+  ordinal, and a mismatch against a CLOSED ordinal must become
+  `MISMATCH_AFTER_TERMINAL` — not a free-standing park with no §6
+  exit); `REQUEST_OPENED` requires the column NULL (§6.2).
 - **The dual-control pair gate — on EVERY verified outcome, open or
   closed**: `OUTCOME_RECORDED(PLATFORM_VERIFIED_*)` for ANY ordinal
   state is admitted only when the row at `VERSION − 1` is
@@ -523,12 +525,11 @@ read under the lock already held):
 - **Release rights (the baseline release-guard, transplanted; the
   predicate is "provably NOT SUBMITTED", wider than "never sent")**:
   `CANCELLED_NOT_SUBMITTED` and `SUPERSEDED_OPS` require the UNIFIED
-  §5 predicate — zero attempts, OR latest attempt synchronously
-  BUSINESS/DEFINITIVE-rejected with no later attempt AND no
-  acceptance-class row post-dating it (the trigger enforces all
-  three conjuncts; a delayed key-scoped acceptance revokes
-  releasability, inherited §9.4); a claim that MAY have executed
-  closes only on evidence or through the verified door.
+  §5 predicate (cited without restating — the trigger enforces all
+  of its conjuncts, including the no-post-dating-acceptance
+  exclusion: a delayed key-scoped acceptance revokes releasability,
+  inherited §9.4); a claim that MAY have executed closes only on
+  evidence or through the verified door.
   `REJECTED_VALIDATION` is admissible in TWO forms — pre-wire: zero
   `POST_STARTED` paired with its same-transaction
   `ENRICH_FAILED(DEFINITIVE)`; or post-wire synchronous: the unified
