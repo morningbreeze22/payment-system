@@ -17,6 +17,7 @@ This repository contains the implementation baseline and supporting design mater
 - [`implementation-playbook.md`](implementation-playbook.md) — ARCHIVED single-file snapshot of the playbook (frozen 2026-07-11; no longer updated — the portable package is the only maintained form; kept for one-file human reading).
 - [`ops-console-proposal.md`](ops-console-proposal.md) — operations-console proposal (future work; `ops-console-proposal.html` is a superseded rendering kept for layout, `ops-console-mockup.html` is the visual mockup).
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — session design specs.
+- [`event-model-design/03-legacy-migration-and-delta-approval.md`](event-model-design/03-legacy-migration-and-delta-approval.md) — proposed extension for the implemented event model: lazy legacy-data migration, current-delta approval, refresh/re-entry, and event/witness integration.
 
 ## Review provenance
 
