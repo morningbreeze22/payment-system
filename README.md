@@ -4,7 +4,9 @@ This repository contains the implementation baseline and supporting design mater
 
 ## Start here
 
-- [`requirment-v4.md`](requirment-v4.md) — canonical requirements baseline (all other documents are derived views). The filename misspelling is KNOWN and kept intentionally — renaming would churn every cross-reference; revisit only at a major version.
+- [`modular-payment-design/`](modular-payment-design/) — 2026-10-09 design discussion: selected obligation/reservation/attempt state model, audit events, five extension categories, Spring Modulith, orchestration, durable continuation, and API intake. A separate design track; see its status and relationship to older baselines before implementation.
+
+- [`requirment-v4.md`](requirment-v4.md) — canonical requirements baseline for the existing implementation playbooks and derived views. The separately identified modular-payment design track above is not yet incorporated into this baseline. The filename misspelling is KNOWN and kept intentionally — renaming would churn every cross-reference; revisit only at a major version.
 > All `.html` artifacts below are NON-NORMATIVE explanatory snapshots, refreshed manually — where they and `requirment-v4.md` disagree, the requirement doc wins.
 
 - [`payment-state-playground.html`](payment-state-playground.html) — animated state-model map: every state and legal transition, playable scenario stories, rule inspector.
